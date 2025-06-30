@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # Test Redis
+  redis-test:
+    image: redis:7-alpine
+    command: redis-server --requirepass testpassword
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "testpassword", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Mock Venom-bot server
+  venom-mock:
+    build:
+      context: .
+      dockerfile: test/Dockerfile.venom-mock
+    ports:
+      - "3002:3001"
+    environment:
+      - NODE_ENV=test
+      - MOCK_DELAY=100
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Test database (PostgreSQL for Supabase compatibility)
+  postgres-test:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: testpassword
+      POSTGRES_DB: ai_admin_test
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./scripts/setup-database.sql:/docker-entrypoint-initdb.d/01-setup.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Application under test
+  app-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      redis-test:
+        condition: service_healthy
+      venom-mock:
+        condition: service_healthy
+      postgres-test:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=test
+      - PORT=3003
+      - REDIS_URL=redis://:testpassword@redis-test:6379
+      - VENOM_SERVER_URL=http://venom-mock:3001
+      - VENOM_API_KEY=test-api-key
+      - VENOM_SECRET_KEY=test-secret-key
+      - SUPABASE_URL=postgresql://test:testpassword@postgres-test:5432/ai_admin_test
+      - SUPABASE_KEY=test-anon-key
+      - DEEPSEEK_API_KEY=test-deepseek-key
+      - YCLIENTS_BEARER_TOKEN=test-bearer
+      - YCLIENTS_USER_TOKEN=test-user
+      - YCLIENTS_COMPANY_ID=962302
+    ports:
+      - "3003:3003"
+    command: npm run test:integration
+
+networks:
+  default:
+    name: ai-admin-test
