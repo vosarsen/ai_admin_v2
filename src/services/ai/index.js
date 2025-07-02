@@ -6,25 +6,52 @@ const circuitBreakerFactory = require('../../utils/circuit-breaker');
 
 class AIService {
   constructor() {
-    this.apiUrl = config.ai.apiUrl;
-    this.apiKey = config.ai.apiKey;
-    this.model = config.ai.model;
-    this.temperature = config.ai.temperature;
-    this.maxTokens = config.ai.maxTokens;
+    // Primary provider (DeepSeek)
+    this.primaryProvider = {
+      name: 'deepseek',
+      apiUrl: config.ai.apiUrl,
+      apiKey: config.ai.apiKey,
+      model: config.ai.model,
+      temperature: config.ai.temperature,
+      maxTokens: config.ai.maxTokens,
+      timeout: config.ai.timeout
+    };
     
-    // Initialize circuit breaker
-    this.circuitBreaker = circuitBreakerFactory.getBreaker('ai-service', {
-      timeout: config.ai.timeout,
-      errorThreshold: 3,
-      resetTimeout: 30000 // 30 seconds
+    // Backup provider (OpenAI)
+    this.backupProvider = {
+      name: 'openai',
+      apiUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+      apiKey: process.env.OPENAI_API_KEY,
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      temperature: config.ai.temperature,
+      maxTokens: config.ai.maxTokens,
+      timeout: parseInt(process.env.OPENAI_TIMEOUT) || 10000
+    };
+    
+    // Initialize circuit breakers for both providers
+    this.primaryCircuitBreaker = circuitBreakerFactory.getBreaker('ai-service-primary', {
+      timeout: this.primaryProvider.timeout,
+      errorThreshold: 2, // Быстрее переключаемся на backup
+      resetTimeout: 60000 // 1 minute
     });
     
-    // Create axios instance for AI calls
-    this.client = axios.create({
-      baseURL: this.apiUrl,
-      timeout: config.ai.timeout,
+    this.backupCircuitBreaker = circuitBreakerFactory.getBreaker('ai-service-backup', {
+      timeout: this.backupProvider.timeout,
+      errorThreshold: 3,
+      resetTimeout: 30000
+    });
+    
+    // Create axios instances
+    this.primaryClient = this._createClient(this.primaryProvider);
+    this.backupClient = this._createClient(this.backupProvider);
+  }
+
+  _createClient(provider) {
+    return axios.create({
+      baseURL: provider.apiUrl,
+      timeout: provider.timeout,
       headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
+        'Authorization': `Bearer ${provider.apiKey}`,
         'Content-Type': 'application/json'
       }
     });
@@ -34,27 +61,150 @@ class AIService {
    * Process message and return structured response
    */
   async processMessage(message, context) {
+    const prompt = this._buildPrompt(message, context);
+    
+    // Try primary provider first
     try {
-      const prompt = this._buildPrompt(message, context);
-      const aiResponse = await this._callAI(prompt);
+      logger.info('🤖 Trying primary AI provider (DeepSeek)...');
+      const aiResponse = await this._callAI(prompt, 'primary');
       const parsed = this._parseResponse(aiResponse);
       
+      logger.info('✅ Primary AI provider succeeded');
       return {
         success: true,
         intent: parsed.intent,
         entities: parsed.entities,
         action: parsed.action,
         response: parsed.response,
-        confidence: parsed.confidence
+        confidence: parsed.confidence,
+        provider: 'deepseek'
       };
-    } catch (error) {
-      logger.error('AI processing failed:', error);
-      return {
-        success: false,
-        response: 'Извините, произошла ошибка. Попробуйте еще раз.',
-        error: error.message
-      };
+    } catch (primaryError) {
+      logger.warn('❌ Primary AI provider failed, trying backup:', primaryError.message);
+      
+      // Try backup provider
+      if (this.backupProvider.apiKey) {
+        try {
+          logger.info('🔄 Trying backup AI provider (OpenAI)...');
+          const aiResponse = await this._callAI(prompt, 'backup');
+          const parsed = this._parseResponse(aiResponse);
+          
+          logger.info('✅ Backup AI provider succeeded');
+          return {
+            success: true,
+            intent: parsed.intent,
+            entities: parsed.entities,
+            action: parsed.action,
+            response: parsed.response,
+            confidence: parsed.confidence,
+            provider: 'openai'
+          };
+        } catch (backupError) {
+          logger.warn('❌ Backup AI provider also failed:', backupError.message);
+        }
+      } else {
+        logger.warn('⚠️ No backup provider configured');
+      }
+      
+      // Final fallback: pattern matching
+      logger.info('🔄 Using fallback pattern matching');
+      return this._fallbackProcessing(message, context);
     }
+  }
+
+  /**
+   * Fallback processing using simple patterns
+   */
+  _fallbackProcessing(message, context) {
+    const msg = message.toLowerCase();
+    
+    // Simple booking pattern detection
+    const isBookingRequest = 
+      (msg.includes('запиш') || msg.includes('записат') || msg.includes('записыва')) &&
+      (msg.includes('стриж') || msg.includes('брод') || msg.includes('услуг'));
+    
+    if (isBookingRequest) {
+      // Extract basic entities using regex
+      const entities = this._extractEntitiesSimple(message);
+      
+      if (entities.date && entities.time && entities.staff) {
+        return {
+          success: true,
+          intent: 'booking',
+          entities: entities,
+          action: 'create_booking',
+          response: `Записываю вас к ${entities.staff} ${entities.date} в ${entities.time}. Подтверждаю запись.`,
+          confidence: 0.8
+        };
+      } else {
+        return {
+          success: true,
+          intent: 'booking',
+          entities: entities,
+          action: 'search_slots',
+          response: `Проверяю доступные слоты для записи. Укажите, пожалуйста, желаемую дату и время.`,
+          confidence: 0.6
+        };
+      }
+    }
+    
+    // Default fallback
+    return {
+      success: true,
+      intent: 'other',
+      entities: {},
+      action: 'none',
+      response: 'Здравствуйте! Я помогу вам записаться на услуги. Скажите, на какую дату и время вы хотели бы записаться?',
+      confidence: 0.5
+    };
+  }
+
+  /**
+   * Simple entity extraction using regex
+   */
+  _extractEntitiesSimple(message) {
+    const entities = {};
+    
+    // Extract staff names
+    const staff = ['бари', 'сергей', 'сергею', 'рамзан'];
+    for (const name of staff) {
+      if (message.toLowerCase().includes(name)) {
+        entities.staff = name.charAt(0).toUpperCase() + name.slice(1);
+        break;
+      }
+    }
+    
+    // Extract time (HH:MM format)
+    const timeMatch = message.match(/(\d{1,2}):?(\d{2})|(\d{1,2})\s*(утра|дня|вечера)/);
+    if (timeMatch) {
+      if (timeMatch[1] && timeMatch[2]) {
+        entities.time = `${timeMatch[1]}:${timeMatch[2]}`;
+      } else if (timeMatch[3]) {
+        entities.time = `${timeMatch[3]}:00`;
+      }
+    }
+    
+    // Extract date patterns
+    if (message.includes('завтра')) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      entities.date = tomorrow.toISOString().split('T')[0];
+    } else if (message.includes('послезавтра')) {
+      const dayAfter = new Date();
+      dayAfter.setDate(dayAfter.getDate() + 2);
+      entities.date = dayAfter.toISOString().split('T')[0];
+    } else if (message.includes('сегодня')) {
+      entities.date = new Date().toISOString().split('T')[0];
+    }
+    
+    // Extract service
+    if (message.includes('стриж')) {
+      entities.service = 'стрижка';
+    } else if (message.includes('брод') || message.includes('борода')) {
+      entities.service = 'стрижка бороды';
+    }
+    
+    return entities;
   }
 
   /**
@@ -108,35 +258,50 @@ ${lastMessages.map(m => `Клиент: ${m.user}\nАдмин: ${m.assistant}`).j
   }
 
   /**
-   * Call AI API
+   * Call AI API with specified provider
    */
-  async _callAI(prompt) {
+  async _callAI(prompt, providerType = 'primary') {
+    const provider = providerType === 'primary' ? this.primaryProvider : this.backupProvider;
+    const client = providerType === 'primary' ? this.primaryClient : this.backupClient;
+    const circuitBreaker = providerType === 'primary' ? this.primaryCircuitBreaker : this.backupCircuitBreaker;
+    
     try {
-      const response = await this.circuitBreaker.execute(async () => {
-        return await this.client.post('', {
-          model: this.model,
+      const response = await circuitBreaker.execute(async () => {
+        const requestBody = {
+          model: provider.model,
           messages: [
             {
               role: 'user',
               content: prompt
             }
           ],
-          temperature: this.temperature,
-          max_tokens: this.maxTokens
+          temperature: provider.temperature,
+          max_tokens: provider.maxTokens
+        };
+        
+        // Different endpoint for different providers
+        const endpoint = provider.name === 'openai' ? '/chat/completions' : '';
+        
+        logger.info(`📡 Calling ${provider.name} API...`, {
+          model: provider.model,
+          endpoint: endpoint
         });
+        
+        return await client.post(endpoint, requestBody);
       });
 
       if (response.data?.choices?.[0]?.message?.content) {
+        logger.info(`✅ ${provider.name} API responded successfully`);
         return response.data.choices[0].message.content.trim();
       }
 
-      throw new Error('Invalid AI response format');
+      throw new Error(`Invalid AI response format from ${provider.name}`);
     } catch (error) {
       if (error.code === 'CIRCUIT_OPEN') {
-        logger.warn('AI service circuit breaker is open');
-        throw new Error('AI service temporarily unavailable');
+        logger.warn(`${provider.name} circuit breaker is open`);
+        throw new Error(`${provider.name} service temporarily unavailable`);
       }
-      logger.error('AI API call failed:', {
+      logger.error(`${provider.name} API call failed:`, {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data
