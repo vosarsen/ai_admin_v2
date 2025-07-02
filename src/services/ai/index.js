@@ -17,15 +17,16 @@ class AIService {
       timeout: config.ai.timeout
     };
     
-    // Backup provider (OpenAI)
+    // Backup provider (YandexGPT)
     this.backupProvider = {
-      name: 'openai',
-      apiUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-      apiKey: process.env.OPENAI_API_KEY,
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      name: 'yandex',
+      apiUrl: 'https://llm.api.cloud.yandex.net/foundationModels/v1',
+      iamToken: process.env.YANDEX_IAM_TOKEN,
+      folderId: process.env.YANDEX_FOLDER_ID,
+      model: process.env.YANDEX_MODEL || 'yandexgpt',
       temperature: config.ai.temperature,
       maxTokens: config.ai.maxTokens,
-      timeout: parseInt(process.env.OPENAI_TIMEOUT) || 10000
+      timeout: parseInt(process.env.YANDEX_TIMEOUT) || 10000
     };
     
     // Initialize circuit breakers for both providers
@@ -47,13 +48,21 @@ class AIService {
   }
 
   _createClient(provider) {
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    
+    // Different auth for different providers
+    if (provider.name === 'yandex') {
+      headers['Authorization'] = `Bearer ${provider.iamToken}`;
+    } else {
+      headers['Authorization'] = `Bearer ${provider.apiKey}`;
+    }
+    
     return axios.create({
       baseURL: provider.apiUrl,
       timeout: provider.timeout,
-      headers: {
-        'Authorization': `Bearer ${provider.apiKey}`,
-        'Content-Type': 'application/json'
-      }
+      headers
     });
   }
 
@@ -267,32 +276,65 @@ ${lastMessages.map(m => `Клиент: ${m.user}\nАдмин: ${m.assistant}`).j
     
     try {
       const response = await circuitBreaker.execute(async () => {
-        const requestBody = {
-          model: provider.model,
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: provider.temperature,
-          max_tokens: provider.maxTokens
-        };
+        let requestBody;
+        let endpoint;
         
-        // Different endpoint for different providers
-        const endpoint = provider.name === 'openai' ? '/chat/completions' : '';
+        if (provider.name === 'yandex') {
+          // YandexGPT format
+          requestBody = {
+            modelUri: `gpt://${provider.folderId}/${provider.model}`,
+            completionOptions: {
+              stream: false,
+              temperature: provider.temperature,
+              maxTokens: provider.maxTokens.toString()
+            },
+            messages: [
+              {
+                role: 'user',
+                text: prompt
+              }
+            ]
+          };
+          endpoint = '/completion';
+        } else {
+          // OpenAI format
+          requestBody = {
+            model: provider.model,
+            messages: [
+              {
+                role: 'user',
+                content: prompt
+              }
+            ],
+            temperature: provider.temperature,
+            max_tokens: provider.maxTokens
+          };
+          endpoint = provider.name === 'openai' ? '/chat/completions' : '';
+        }
         
         logger.info(`📡 Calling ${provider.name} API...`, {
           model: provider.model,
-          endpoint: endpoint
+          endpoint: endpoint,
+          folderId: provider.folderId
         });
         
         return await client.post(endpoint, requestBody);
       });
 
-      if (response.data?.choices?.[0]?.message?.content) {
+      // Different response formats for different providers
+      let responseText;
+      
+      if (provider.name === 'yandex') {
+        // YandexGPT response format
+        responseText = response.data?.result?.alternatives?.[0]?.message?.text;
+      } else {
+        // OpenAI response format
+        responseText = response.data?.choices?.[0]?.message?.content;
+      }
+      
+      if (responseText) {
         logger.info(`✅ ${provider.name} API responded successfully`);
-        return response.data.choices[0].message.content.trim();
+        return responseText.trim();
       }
 
       throw new Error(`Invalid AI response format from ${provider.name}`);
