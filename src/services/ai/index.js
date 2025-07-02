@@ -92,9 +92,9 @@ class AIService {
       logger.warn('❌ Primary AI provider failed, trying backup:', primaryError.message);
       
       // Try backup provider
-      if (this.backupProvider.apiKey) {
+      if (this.backupProvider.iamToken) {
         try {
-          logger.info('🔄 Trying backup AI provider (OpenAI)...');
+          logger.info('🔄 Trying backup AI provider (YandexGPT)...');
           const aiResponse = await this._callAI(prompt, 'backup');
           const parsed = this._parseResponse(aiResponse);
           
@@ -106,7 +106,7 @@ class AIService {
             action: parsed.action,
             response: parsed.response,
             confidence: parsed.confidence,
-            provider: 'openai'
+            provider: 'yandexgpt'
           };
         } catch (backupError) {
           logger.warn('❌ Backup AI provider also failed:', backupError.message);
