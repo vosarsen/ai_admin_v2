@@ -34,28 +34,26 @@ class WhatsAppClient {
       }
     });
 
-    // Add request interceptor for authentication
-    this.client.interceptors.request.use(
-      request => {
-        // Add timestamp for request freshness
-        const timestamp = Date.now();
-        request.headers['X-Timestamp'] = timestamp;
-        
-        // Add API key
-        if (this.apiKey) {
+    // Add request interceptor for authentication (only if needed)
+    if (this.apiKey && this.secretKey) {
+      this.client.interceptors.request.use(
+        request => {
+          // Add timestamp for request freshness
+          const timestamp = Date.now();
+          request.headers['X-Timestamp'] = timestamp;
+          
+          // Add API key
           request.headers['X-API-Key'] = this.apiKey;
-        }
-        
-        // Generate signature
-        if (this.secretKey) {
+          
+          // Generate signature
           const signature = this._generateSignature(request, timestamp);
           request.headers['X-Signature'] = signature;
-        }
-        
-        return request;
-      },
-      error => Promise.reject(error)
-    );
+          
+          return request;
+        },
+        error => Promise.reject(error)
+      );
+    }
 
     // Add response interceptor for logging
     this.client.interceptors.response.use(
@@ -68,9 +66,16 @@ class WhatsAppClient {
       },
       error => {
         logger.error('WhatsApp API error:', {
-          message: error ? (error.message || error.toString() || "Error exists but no message") : "Error is null",
-          status: error.response?.status,
-          data: error.response?.data
+          error: error,
+          message: error ? (error.message || error.toString() || "Error exists but no message") : "Error is null/undefined",
+          status: error?.response?.status,
+          statusText: error?.response?.statusText,
+          data: error?.response?.data,
+          config: {
+            url: error?.config?.url,
+            method: error?.config?.method,
+            headers: error?.config?.headers
+          }
         });
         return Promise.reject(error);
       }
@@ -120,8 +125,13 @@ class WhatsAppClient {
         logger.warn(`WhatsApp circuit breaker is open, service temporarily unavailable`);
         return { success: false, error: 'WhatsApp service temporarily unavailable' };
       }
-      logger.error(`Failed to send WhatsApp message to ${this._sanitizePhone(whatsappPhone)}:`, error);
-      return { success: false, error: error ? (error.message || error.toString() || "Error exists but no message") : "Error is null" };
+      logger.error(`Failed to send WhatsApp message to ${this._sanitizePhone(whatsappPhone)}:`, {
+        error: error,
+        message: error ? (error.message || error.toString() || "Error object exists but no message") : "Error is null/undefined",
+        stack: error?.stack,
+        config: error?.config?.url
+      });
+      return { success: false, error: error ? (error.message || error.toString() || "Unknown error") : "Connection error" };
     }
   }
 
