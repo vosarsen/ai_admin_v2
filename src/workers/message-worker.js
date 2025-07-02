@@ -141,6 +141,11 @@ class MessageWorker {
       });
       
       // 5. Send response via WhatsApp
+      logger.info("📡 Sending WhatsApp message:", {
+        to: from,
+        message: finalResponse.message,
+        messageLength: finalResponse.message.length
+      });
       
       const sendResult = await whatsappClient.sendMessage(from, finalResponse.message);
       
