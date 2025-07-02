@@ -68,7 +68,7 @@ class WhatsAppClient {
       },
       error => {
         logger.error('WhatsApp API error:', {
-          message: error ? (error.message || error.toString() || "Error exists but no message") : "Error is null",
+          message: error?.message || "Unknown error",
           status: error.response?.status,
           data: error.response?.data
         });
@@ -121,7 +121,7 @@ class WhatsAppClient {
         return { success: false, error: 'WhatsApp service temporarily unavailable' };
       }
       logger.error(`Failed to send WhatsApp message to ${this._sanitizePhone(whatsappPhone)}:`, error);
-      return { success: false, error: error ? (error.message || error.toString() || "Error exists but no message") : "Error is null" };
+      return { success: false, error: error?.message || "Unknown error" };
     }
   }
 
@@ -150,7 +150,7 @@ class WhatsAppClient {
         return { success: false, error: 'WhatsApp service temporarily unavailable' };
       }
       logger.error(`Failed to send file to ${this._sanitizePhone(whatsappPhone)}:`, error);
-      return { success: false, error: error ? (error.message || error.toString() || "Error exists but no message") : "Error is null" };
+      return { success: false, error: error?.message || "Unknown error" };
     }
   }
 
@@ -250,7 +250,7 @@ class WhatsAppClient {
       logger.debug(`⌨️ Typing indicator sent to ${this._sanitizePhone(whatsappPhone)}`);
     } catch (error) {
       // Don't fail if typing indicator fails
-      logger.warn('Failed to send typing indicator:', error ? (error.message || error.toString() || "Error exists but no message") : "Error is null");
+      logger.warn('Failed to send typing indicator:', error?.message || "Unknown error");
     }
   }
 }

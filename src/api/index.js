@@ -5,7 +5,7 @@ const logger = require('../utils/logger');
 const messageQueue = require('../queue/message-queue');
 const whatsappClient = require('../integrations/whatsapp/client');
 const { validateWebhookSignature, validateApiKey } = require('../middlewares/webhook-auth');
-const { rateLimiters } = require('../middlewares/rate-limiter');
+const rateLimiter = require('../middlewares/rate-limiter');
 const circuitBreakerFactory = require('../utils/circuit-breaker');
 
 const app = express();
@@ -24,7 +24,7 @@ app.use((req, res, next) => {
 });
 
 // Health check (with relaxed rate limit)
-app.get('/health', rateLimiters.health, async (req, res) => {
+app.get('/health', rateLimiter, async (req, res) => {
   try {
     // Check critical services
     const whatsappStatus = await whatsappClient.checkStatus();
@@ -51,7 +51,7 @@ app.get('/health', rateLimiters.health, async (req, res) => {
 });
 
 // WhatsApp webhook (with signature validation and rate limiting)
-app.post('/webhook/whatsapp', rateLimiters.webhook, validateWebhookSignature, async (req, res) => {
+app.post('/webhook/whatsapp', rateLimiter, validateWebhookSignature, async (req, res) => {
   const startTime = Date.now();
   
   try {
@@ -94,7 +94,7 @@ app.post('/webhook/whatsapp', rateLimiters.webhook, validateWebhookSignature, as
 });
 
 // Manual message send (for testing, with API key auth and strict rate limit)
-app.post('/api/send-message', rateLimiters.sendMessage, validateApiKey, async (req, res) => {
+app.post('/api/send-message', rateLimiter, validateApiKey, async (req, res) => {
   try {
     const { to, message } = req.body;
     
@@ -118,7 +118,7 @@ app.post('/api/send-message', rateLimiters.sendMessage, validateApiKey, async (r
 });
 
 // Queue metrics (with API rate limit)
-app.get('/api/metrics', rateLimiters.api, async (req, res) => {
+app.get('/api/metrics', rateLimiter, async (req, res) => {
   try {
     const companyId = req.query.companyId || config.yclients.companyId;
     const queueName = `company:${companyId}:messages`;
@@ -140,7 +140,7 @@ app.get('/api/metrics', rateLimiters.api, async (req, res) => {
 });
 
 // Circuit breaker status
-app.get('/api/circuit-breakers', rateLimiters.api, (req, res) => {
+app.get('/api/circuit-breakers', rateLimiter, (req, res) => {
   try {
     const status = circuitBreakerFactory.getAllStatus();
     res.json({

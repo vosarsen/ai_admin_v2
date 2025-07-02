@@ -43,12 +43,13 @@ class YclientsClient {
   };
 
   constructor(config = {}) {
+    const appConfig = require("../../config");
     this.config = {
       baseUrl: 'https://api.yclients.com/api/v1',
-      bearerToken: config.bearerToken,
-      userToken: config.userToken,
-      partnerId: config.partnerId,
-      companyId: config.companyId,
+      bearerToken: config.bearerToken || appConfig.yclients.bearerToken,
+      userToken: config.userToken || appConfig.yclients.userToken,
+      partnerId: config.partnerId || appConfig.yclients.partnerId,
+      companyId: config.companyId || appConfig.yclients.companyId,
       timeout: config.timeout || 30000,
       maxRetries: config.maxRetries || 3,
       retryDelay: config.retryDelay || 1000,

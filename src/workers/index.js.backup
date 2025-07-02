@@ -1,0 +1,86 @@
+// src/workers/index.js
+const cluster = require('cluster');
+const os = require('os');
+const config = require('../config');
+const logger = require('../utils/logger');
+const MessageWorker = require('./message-worker');
+const ReminderWorker = require('./reminder-worker');
+
+// Number of workers to spawn
+const numWorkers = config.queue.maxConcurrentWorkers || os.cpus().length;
+
+if (cluster.isMaster) {
+  logger.info(`🏭 Master process ${process.pid} starting ${numWorkers} workers...`);
+  
+  // Fork workers
+  for (let i = 0; i < numWorkers; i++) {
+    cluster.fork();
+  }
+  
+  // Handle worker exit
+  cluster.on('exit', (worker, code, signal) => {
+    logger.error(`Worker ${worker.process.pid} died (${signal || code})`);
+    
+    // Restart worker
+    if (code !== 0 && !worker.exitedAfterDisconnect) {
+      logger.info('Starting a new worker...');
+      cluster.fork();
+    }
+  });
+  
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    logger.info('🛑 Master received SIGTERM, shutting down workers...');
+    
+    for (const id in cluster.workers) {
+      cluster.workers[id].kill();
+    }
+    
+    process.exit(0);
+  });
+  
+} else {
+  // Worker process
+  const workerId = `worker-${process.pid}`;
+n  // Initialize secure config
+  const secureConfig = require("../config/secure-config");
+  await secureConfig.initialize();
+  
+  logger.info(`👷 Worker ${workerId} started`);
+  
+  // Create and start workers
+  const messageWorker = new MessageWorker(workerId);
+  const reminderWorker = new ReminderWorker(workerId);
+  
+  // Start processing
+  Promise.all([
+    messageWorker.start(),
+    reminderWorker.start()
+  ]).then(() => {
+    logger.info(`✅ All workers started for ${workerId}`);
+  }).catch(error => {
+    logger.error(`Failed to start workers for ${workerId}:`, error);
+    process.exit(1);
+  });
+  
+  // Handle shutdown
+  process.on('SIGTERM', async () => {
+    logger.info(`🛑 Worker ${workerId} received SIGTERM`);
+    
+    await Promise.all([
+      messageWorker.stop(),
+      reminderWorker.stop()
+    ]);
+    
+    process.exit(0);
+  });
+  
+  // Log worker stats periodically
+  setInterval(() => {
+    logger.info(`📊 Worker ${workerId} stats:`, {
+      messages: messageWorker.getStats(),
+      reminders: reminderWorker.getStats(),
+      memory: process.memoryUsage()
+    });
+  }, 60000); // Every minute
+}

@@ -105,7 +105,7 @@ class CircuitBreaker {
     this.lastFailureTime = Date.now();
     
     logger.error(`Circuit breaker ${this.name} failure:`, {
-      error: error ? (error.message || error.toString() || JSON.stringify(error) || "Error object exists but no details") : "Error is null/undefined",
+      error: error?.message || "Unknown error",
       failures: this.failures,
       state: this.state
     });
