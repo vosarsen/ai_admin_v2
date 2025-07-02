@@ -2,7 +2,7 @@
 const Redis = require('ioredis');
 const config = require('../../config');
 const logger = require('../../utils/logger');
-const { DataTransformers } = require('../../utils/data-transformers');
+const DataTransformers = require('../../utils/data-transformers');
 
 class ContextService {
   constructor() {
@@ -19,7 +19,7 @@ class ContextService {
    * Get full context for conversation
    */
   async getContext(phone, companyId) {
-    const normalizedPhone = DataTransformers.normalizePhone(phone);
+    const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
     const contextKey = `${companyId}:${normalizedPhone}`;
     
     try {
@@ -68,7 +68,7 @@ class ContextService {
    * Update context after message processing
    */
   async updateContext(phone, companyId, update) {
-    const normalizedPhone = DataTransformers.normalizePhone(phone);
+    const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
     const contextKey = `${companyId}:${normalizedPhone}`;
     
     try {
@@ -267,7 +267,7 @@ class ContextService {
    * Save booking to context
    */
   async saveBooking(phone, companyId, booking) {
-    const normalizedPhone = DataTransformers.normalizePhone(phone);
+    const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
     
     try {
       // Save as last booking

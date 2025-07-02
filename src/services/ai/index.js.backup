@@ -89,11 +89,7 @@ ${lastMessages.map(m => `Клиент: ${m.user}\nАдмин: ${m.assistant}`).j
    - staff: имя мастера (точно как в списке)
    - date: дата (YYYY-MM-DD)
    - time: время (HH:MM)
-3. action - действие:
-   - create_booking: когда клиент просит записаться И указал мастера И указал время
-   - search_slots: когда клиент просит записаться но НЕ указал конкретное время
-   - get_info: когда клиент спрашивает информацию о услугах/ценах
-   - none: в остальных случаях
+3. action - действие (search_slots, create_booking, get_info, none)
 4. response - ответ клиенту (кратко, по-деловому)
 5. confidence - уверенность 0-1
 

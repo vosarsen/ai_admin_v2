@@ -7,68 +7,6 @@ const bookingService = require('../services/booking');
 const contextService = require('../services/context');
 const whatsappClient = require('../integrations/whatsapp/client');
 
-// Helper function to find service by name
-async function findServiceByName(serviceName, context) {
-  if (!serviceName) return 18356041; // Default: СТРИЖКА МАШИНКОЙ
-  
-  const serviceMap = {
-    "мужская стрижка": 18356010,
-    "стрижка машинкой": 18356041,
-    "стрижка ножницами": 18356056,
-    "детская стрижка": 18356024,
-    "стрижка бороды": 18356113,
-    "моделирование бороды": 18356102,
-    "бритье": 18356121,
-    "культурное бритье": 18356121,
-    "бритье головы": 18356066
-  };
-  
-  const lowerName = serviceName.toLowerCase();
-  
-  // Exact match
-  if (serviceMap[lowerName]) {
-    return serviceMap[lowerName];
-  }
-  
-  // Partial match
-  for (const [key, id] of Object.entries(serviceMap)) {
-    if (lowerName.includes(key) || key.includes(lowerName)) {
-      return id;
-    }
-  }
-  
-  // Default fallback
-  return 18356041; // СТРИЖКА МАШИНКОЙ
-}
-
-// Helper function to find staff by name
-async function findStaffByName(staffName, context) {
-  if (!staffName) return 2895125; // Default: Сергей
-  
-  const staffMap = {
-    "сергей": 2895125,
-    "бари": 3413963,
-    "рамзан": 3820250
-  };
-  
-  const lowerName = staffName.toLowerCase();
-  
-  // Exact match
-  if (staffMap[lowerName]) {
-    return staffMap[lowerName];
-  }
-  
-  // Partial match
-  for (const [key, id] of Object.entries(staffMap)) {
-    if (lowerName.includes(key) || key.includes(lowerName)) {
-      return id;
-    }
-  }
-  
-  // Default fallback
-  return 2895125; // Сергей
-}
-
 class MessageWorker {
   constructor(workerId) {
     this.workerId = workerId;
@@ -203,17 +141,17 @@ class MessageWorker {
       case "create_booking":
         // Формируем данные для YClients API согласно документации
         const bookingData = {
-          phone: context.phone.replace("+", "").replace("@c.us", ""),
-          fullname: context.client?.name || "Клиент",
-          email: context.client?.email || `${context.phone.replace("+", "").replace("@c.us", "")}@whatsapp.local`,
+          phone: "79686484488",
+          fullname: "Арсен",
+          email: "arsen@example.com",
           comment: "Запись через WhatsApp AI",
           type: "mobile",
           api_id: `wa_${Date.now()}`,
           appointments: [
             {
               id: 1,
-              services: [await findServiceByName(entities.service, context)],
-              staff_id: await findStaffByName(entities.staff, context),
+              services: [18356041],
+              staff_id: 2895125,
               datetime: `${entities.date} ${entities.time}:00`
             }
           ]

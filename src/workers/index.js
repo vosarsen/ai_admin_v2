@@ -19,13 +19,9 @@ if (cluster.isMaster) {
   
   // Handle worker exit
   cluster.on('exit', (worker, code, signal) => {
-    logger.error(`Worker ${worker.process.pid} died (${signal || code})`);
-    
-    // Restart worker
-    if (code !== 0 && !worker.exitedAfterDisconnect) {
-      logger.info('Starting a new worker...');
-      cluster.fork();
-    }
+    logger.error(`Worker ${worker.process.pid} died with code ${code} and signal ${signal}`);
+    logger.info('Starting a new worker...');
+    cluster.fork();
   });
   
   // Graceful shutdown
@@ -40,44 +36,35 @@ if (cluster.isMaster) {
   });
   
 } else {
-  // Worker process
-  const workerId = `worker-${process.pid}`;
+  // Worker process - make it async
+  async function startWorker() {
+    const workerId = `worker-${process.pid}`;
+    
+    logger.info(`👷 Worker ${workerId} started`);
+    
+    // Initialize secure config
+    const secureConfig = require('../config/secure-config');
+    await secureConfig.initialize();
+    
+    // Create and start workers
+    const messageWorker = new MessageWorker(workerId);
+    const reminderWorker = new ReminderWorker(workerId);
+    
+    // Start processing
+    Promise.all([
+      messageWorker.start(),
+      reminderWorker.start()
+    ]).then(() => {
+      logger.info(`✅ All workers started for ${workerId}`);
+    }).catch(error => {
+      logger.error(`Failed to start workers for ${workerId}:`, error);
+      process.exit(1);
+    });
+  }
   
-  logger.info(`👷 Worker ${workerId} started`);
-  
-  // Create and start workers
-  const messageWorker = new MessageWorker(workerId);
-  const reminderWorker = new ReminderWorker(workerId);
-  
-  // Start processing
-  Promise.all([
-    messageWorker.start(),
-    reminderWorker.start()
-  ]).then(() => {
-    logger.info(`✅ All workers started for ${workerId}`);
-  }).catch(error => {
-    logger.error(`Failed to start workers for ${workerId}:`, error);
+  // Start the worker
+  startWorker().catch(error => {
+    logger.error('Failed to initialize worker:', error);
     process.exit(1);
   });
-  
-  // Handle shutdown
-  process.on('SIGTERM', async () => {
-    logger.info(`🛑 Worker ${workerId} received SIGTERM`);
-    
-    await Promise.all([
-      messageWorker.stop(),
-      reminderWorker.stop()
-    ]);
-    
-    process.exit(0);
-  });
-  
-  // Log worker stats periodically
-  setInterval(() => {
-    logger.info(`📊 Worker ${workerId} stats:`, {
-      messages: messageWorker.getStats(),
-      reminders: reminderWorker.getStats(),
-      memory: process.memoryUsage()
-    });
-  }, 60000); // Every minute
 }
