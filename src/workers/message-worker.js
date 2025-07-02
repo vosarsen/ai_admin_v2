@@ -115,6 +115,13 @@ class MessageWorker {
       // 2. Process with AI
       const aiResult = await aiService.processMessage(message, context);
       
+      logger.info("🤖 AI Result:", {
+        success: aiResult.success,
+        action: aiResult.action,
+        response: aiResult.response,
+        entities: aiResult.entities
+      });
+      
       if (!aiResult.success) {
         throw new Error(aiResult.error || 'AI processing failed');
       }
@@ -127,6 +134,11 @@ class MessageWorker {
       
       // 4. Build final response
       const finalResponse = this.buildResponse(aiResult, actionResult);
+      
+      logger.info("📤 Final response to send:", {
+        message: finalResponse.message,
+        attachment: finalResponse.attachment
+      });
       
       // 5. Send response via WhatsApp
       
