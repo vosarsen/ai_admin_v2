@@ -108,13 +108,21 @@ class WhatsAppClient {
     const whatsappPhone = this._formatPhone(phone);
     
     try {
+      logger.info(`📱 Attempting to send message to ${this._sanitizePhone(whatsappPhone)}`, {
+        url: `${this.baseUrl}/send-message`,
+        hasAuth: !!(this.apiKey && this.secretKey),
+        messageLength: message.length
+      });
+      
       const response = await this.circuitBreaker.execute(async () => {
         return await this._retryRequest(async () => {
-          return await this.client.post('/send-message', {
+          const result = await this.client.post('/send-message', {
             to: whatsappPhone,
             message: message,
             ...options
           });
+          logger.info(`📱 Raw Venom response:`, result.data);
+          return result;
         });
       });
 
