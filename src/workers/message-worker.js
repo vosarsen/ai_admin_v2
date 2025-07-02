@@ -154,8 +154,13 @@ class MessageWorker {
       });
       
       // 8. Schedule follow-ups if needed
-      if (actionResult?.booking?.id) {
-        await this.scheduleReminders(actionResult.booking, from);
+      if (actionResult?.success && aiResult.action === 'create_booking' && actionResult.data) {
+        // Извлекаем данные для напоминания из результата
+        const bookingInfo = {
+          id: actionResult.data.id || actionResult.data.record_id || Date.now(),
+          datetime: actionResult.data.datetime || `${aiResult.entities.date} ${aiResult.entities.time}:00`
+        };
+        await this.scheduleReminders(bookingInfo, from);
       }
       
       this.processedCount++;
@@ -220,7 +225,15 @@ class MessageWorker {
         };
         
         logger.info("📋 Booking data:", bookingData);
-        return await bookingService.createBooking(bookingData, context.companyId);
+        const bookingResult = await bookingService.createBooking(bookingData, context.companyId);
+        
+        logger.info("📊 Booking result:", {
+          success: bookingResult.success,
+          status: bookingResult.status,
+          data: bookingResult.data
+        });
+        
+        return bookingResult;
         
       case 'get_info':
         return await bookingService.getServiceInfo({
@@ -243,26 +256,23 @@ class MessageWorker {
     
     // Enhance response based on action result
     if (actionResult) {
-      if (actionResult.slots && actionResult.slots.length > 0) {
-        // Add available slots to response
-        const slotsText = actionResult.slots.slice(0, 5).map(slot => 
-          `${slot.time} - ${slot.staff}`
-        ).join('\\n');
-        
-        message += `\\n\\nДоступные слоты:\\n${slotsText}`;
+      // Для успешного создания записи - добавляем подтверждение к ответу AI
+      if (actionResult.success && aiResult.action === 'create_booking') {
+        message = `✅ Отлично! Ваша запись успешно создана.\n\n${aiResult.response}`;
       }
       
-      if (actionResult.booking && actionResult.booking.confirmed) {
-        // Add booking confirmation
-        message = `✅ Запись создана!\\n\\n${actionResult.booking.details}`;
+      // Для поиска слотов - добавляем найденные слоты к ответу AI
+      if (actionResult.success && actionResult.data && Array.isArray(actionResult.data) && actionResult.data.length > 0) {
+        const slotsText = actionResult.data.slice(0, 5).map(slot => 
+          `• ${slot.time || slot.datetime} ${slot.staff_name ? '- ' + slot.staff_name : ''}`
+        ).join('\n');
         
-        // Add calendar event
-        if (actionResult.booking.calendarUrl) {
-          attachment = {
-            url: actionResult.booking.calendarUrl,
-            caption: 'Добавьте запись в календарь'
-          };
-        }
+        message += `\n\nДоступные варианты:\n${slotsText}`;
+      }
+      
+      // Для ошибок - сообщаем пользователю
+      if (!actionResult.success && actionResult.error) {
+        message = `${aiResult.response}\n\nК сожалению, возникла техническая проблема. Попробуйте еще раз или позвоните нам.`;
       }
     }
     
