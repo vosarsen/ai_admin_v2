@@ -234,9 +234,20 @@ class WhatsAppClient {
     
     for (let attempt = 0; attempt < this.retries; attempt++) {
       try {
-        return await requestFn();
+        logger.info(`📞 WhatsApp request attempt ${attempt + 1}/${this.retries}`);
+        const result = await requestFn();
+        logger.info(`✅ WhatsApp request successful on attempt ${attempt + 1}`);
+        return result;
       } catch (error) {
         lastError = error;
+        
+        logger.error(`❌ WhatsApp request failed on attempt ${attempt + 1}:`, {
+          error: error,
+          message: error ? (error.message || error.toString() || "Error object exists") : "Error is null",
+          status: error?.response?.status,
+          data: error?.response?.data,
+          stack: error?.stack
+        });
         
         // Don't retry on auth errors
         if (error.response?.status === 401 || error.response?.status === 403) {
