@@ -65,7 +65,7 @@ class MessageQueue {
       const queueName = `company:${companyId}:messages`;
       const queue = this.getQueue(queueName);
       
-      const job = await queue.add( {
+      const job = await queue.add('process-message', {
         ...data,
         companyId,
         timestamp: new Date().toISOString()

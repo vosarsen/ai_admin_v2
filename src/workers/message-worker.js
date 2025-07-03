@@ -91,7 +91,7 @@ class MessageWorker {
       const queue = messageQueue.getQueue(queueName);
       
       // Process messages with concurrency
-      queue.process(3, 
+      queue.process('process-message', 3, 
         this.processMessage.bind(this)
       );
       
