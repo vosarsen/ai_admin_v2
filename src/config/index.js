@@ -19,7 +19,13 @@ module.exports = {
   get redis() {
     return {
       url: process.env.REDIS_URL || 'redis://localhost:6379',
-      password: getConfig('REDIS_PASSWORD')
+      password: getConfig('REDIS_PASSWORD'),
+      options: {
+        connectTimeout: parseInt(process.env.REDIS_CONNECT_TIMEOUT) || 10000,
+        lazyConnect: true,
+        retryDelayOnFailover: 100,
+        maxRetriesPerRequest: 3
+      }
     };
   },
 
@@ -82,6 +88,23 @@ module.exports = {
       maxBookingDaysAhead: parseInt(process.env.MAX_BOOKING_DAYS_AHEAD) || 30,
       minBookingMinutesAhead: parseInt(process.env.MIN_BOOKING_MINUTES_AHEAD) || 30,
       timezone: 'Europe/Moscow'
+    };
+  },
+
+  get queue() {
+    return {
+      messageQueue: process.env.QUEUE_MESSAGE_NAME || 'messages',
+      reminderQueue: process.env.QUEUE_REMINDER_NAME || 'reminders',
+      maxConcurrentWorkers: parseInt(process.env.QUEUE_MAX_WORKERS) || 3,
+      defaultJobOptions: {
+        removeOnComplete: parseInt(process.env.QUEUE_KEEP_COMPLETED) || 100,
+        removeOnFail: parseInt(process.env.QUEUE_KEEP_FAILED) || 50,
+        attempts: parseInt(process.env.QUEUE_RETRY_ATTEMPTS) || 3,
+        backoff: {
+          type: 'exponential',
+          delay: parseInt(process.env.QUEUE_RETRY_DELAY) || 2000
+        }
+      }
     };
   },
 
