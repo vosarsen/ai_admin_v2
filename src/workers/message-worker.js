@@ -214,12 +214,15 @@ class MessageWorker {
     
     switch (action) {
       case 'search_slots':
+        // Найти service ID по названию
+        const serviceId = await findServiceByName(entities.service, context);
+        
         return await bookingService.findSuitableSlot({
           companyId: context.companyId,
-          service: entities.service,
-          staff: entities.staff,
-          date: entities.date,
-          time: entities.time
+          serviceId: serviceId,
+          staffId: entities.staff, // TODO: найти staff ID по имени
+          preferredDate: entities.date,
+          preferredTime: entities.time
         });
         
       case "create_booking":
