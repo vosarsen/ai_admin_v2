@@ -33,6 +33,7 @@ class MessageQueue {
           password: config.redis.password,
           ...config.redis.options
         },
+        prefix: 'bull',
         defaultJobOptions: config.queue.defaultJobOptions
       };
       
@@ -65,7 +66,7 @@ class MessageQueue {
       const queueName = `company:${companyId}:messages`;
       const queue = this.getQueue(queueName);
       
-      const job = await queue.add('process-message', {
+      const job = await queue.add({
         ...data,
         companyId,
         timestamp: new Date().toISOString()
