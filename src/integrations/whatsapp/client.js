@@ -138,13 +138,41 @@ class WhatsAppClient {
         logger.debug(`📱 Inside circuit breaker, starting retry logic`);
         return await this._retryRequest(async () => {
           logger.debug(`📱 Making actual axios request to Venom Bot`);
-          const result = await this.client.post('/send-message', {
+          
+          const requestData = {
             to: whatsappPhone,
             message: message,
             ...options
+          };
+          
+          logger.debug(`📱 Request details:`, {
+            baseURL: this.baseUrl,
+            endpoint: '/send-message',
+            data: requestData,
+            timeout: this.timeout,
+            hasAuth: !!(this.apiKey && this.secretKey)
           });
-          logger.info(`📱 Raw Venom response:`, result.data);
-          return result;
+          
+          try {
+            const result = await this.client.post('/send-message', requestData);
+            logger.info(`📱 Raw Venom response:`, result.data);
+            return result;
+          } catch (axiosError) {
+            logger.error(`📱 Axios error caught in request:`, {
+              axiosErrorType: typeof axiosError,
+              axiosErrorConstructor: axiosError?.constructor?.name,
+              axiosErrorString: String(axiosError),
+              axiosErrorMessage: axiosError?.message,
+              axiosErrorCode: axiosError?.code,
+              axiosErrorStack: axiosError?.stack,
+              axiosErrorResponse: axiosError?.response?.data,
+              axiosErrorStatus: axiosError?.response?.status,
+              isNull: axiosError === null,
+              isUndefined: axiosError === undefined,
+              hasOwnProperties: axiosError ? Object.getOwnPropertyNames(axiosError) : 'N/A'
+            });
+            throw axiosError;
+          }
         });
       });
 
