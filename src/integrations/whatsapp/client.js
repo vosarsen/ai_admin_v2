@@ -66,17 +66,35 @@ class WhatsAppClient {
       },
       error => {
         logger.error('WhatsApp API error:', {
-          error: error,
-          message: error ? (error.message || error.toString() || "Error exists but no message") : "Error is null/undefined",
-          status: error?.response?.status,
-          statusText: error?.response?.statusText,
-          data: error?.response?.data,
+          errorType: typeof error,
+          errorConstructor: error?.constructor?.name,
+          errorString: String(error),
+          errorMessage: error?.message,
+          errorCode: error?.code,
+          errorStack: error?.stack,
+          errorResponse: error?.response?.data,
+          errorStatus: error?.response?.status,
+          errorStatusText: error?.response?.statusText,
+          isNull: error === null,
+          isUndefined: error === undefined,
+          hasOwnProperties: error ? Object.getOwnPropertyNames(error) : 'N/A',
           config: {
             url: error?.config?.url,
             method: error?.config?.method,
             headers: error?.config?.headers
           }
         });
+        
+        // Ensure we always reject with a proper Error object
+        if (error === undefined || error === null) {
+          return Promise.reject(new Error('WhatsApp API returned undefined error'));
+        }
+        
+        // If error is not an Error object, wrap it
+        if (!(error instanceof Error)) {
+          return Promise.reject(new Error(`WhatsApp API error: ${String(error)}`));
+        }
+        
         return Promise.reject(error);
       }
     );
@@ -293,6 +311,16 @@ class WhatsAppClient {
       isNull: lastError === null,
       isUndefined: lastError === undefined
     });
+    
+    // Ensure we always throw a proper Error object
+    if (lastError === undefined || lastError === null) {
+      throw new Error('WhatsApp request failed with undefined error');
+    }
+    
+    // If lastError is not an Error object, wrap it
+    if (!(lastError instanceof Error)) {
+      throw new Error(`WhatsApp request failed: ${String(lastError)}`);
+    }
     
     throw lastError;
   }
