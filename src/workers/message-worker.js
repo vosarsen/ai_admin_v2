@@ -86,8 +86,17 @@ class MessageWorker {
     // Process multiple company queues
     const companyIds = [config.yclients.companyId]; // TODO: Get from database
     
+    logger.info(`🏢 Processing companies: ${companyIds.join(', ')}`);
+    
     for (const companyId of companyIds) {
+      if (!companyId) {
+        logger.error('❌ CompanyId is undefined! Check config.yclients.companyId');
+        continue;
+      }
+      
       const queueName = `company:${companyId}:messages`;
+      logger.info(`🔧 Getting queue: ${queueName}`);
+      
       const queue = messageQueue.getQueue(queueName);
       
       // Process messages with concurrency
