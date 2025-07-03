@@ -6,33 +6,23 @@ const { createRedisClient } = require('../utils/redis-factory');
 
 class MessageQueue {
   constructor() {
-    // Create Redis client with authentication
-    this.redis = createRedisClient('queue');
     this.queues = new Map();
-    
-    // Monitor Redis connection
-    this.redis.on('connect', () => {
-      logger.info('📗 Redis connected for queues');
-    });
-    
-    this.redis.on('error', (err) => {
-      logger.error('📕 Redis queue error:', err);
-    });
   }
 
   /**
    * Get or create a queue
    */
   getQueue(queueName) {
+    if (!queueName) {
+      throw new Error('Queue name is required and cannot be undefined');
+    }
+    
     if (!this.queues.has(queueName)) {
-      // Create queue with authenticated Redis connection
+      logger.info(`🔧 Creating Bull queue: ${queueName}`);
+      
+      // Simplified Redis configuration for Bull
       const redisOpts = {
-        redis: {
-          host: new URL(config.redis.url).hostname,
-          port: new URL(config.redis.url).port || 6379,
-          password: config.redis.password,
-          ...config.redis.options
-        },
+        redis: config.redis.url,
         prefix: 'bull',
         defaultJobOptions: config.queue.defaultJobOptions
       };
@@ -63,7 +53,13 @@ class MessageQueue {
    */
   async addMessage(companyId, data, options = {}) {
     try {
+      if (!companyId) {
+        throw new Error('CompanyId is required and cannot be undefined');
+      }
+      
       const queueName = `company:${companyId}:messages`;
+      logger.debug(`📤 Adding message to queue: ${queueName}`);
+      
       const queue = this.getQueue(queueName);
       
       const job = await queue.add({
@@ -174,7 +170,6 @@ class MessageQueue {
       logger.info(`📪 Queue ${name} closed`);
     }
     
-    await this.redis.quit();
     logger.info('✅ Message queues shutdown complete');
   }
 }
