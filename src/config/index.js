@@ -28,7 +28,9 @@ module.exports = {
       venomServerUrl: process.env.VENOM_SERVER_URL || 'http://localhost:3001',
       apiKey: getConfig('VENOM_API_KEY'),
       secretKey: getConfig('VENOM_SECRET_KEY'),
-      webhookUrl: process.env.WEBHOOK_URL
+      webhookUrl: process.env.WEBHOOK_URL,
+      timeout: parseInt(process.env.VENOM_TIMEOUT) || 30000,
+      retries: parseInt(process.env.VENOM_MAX_RETRIES) || 3
     };
   },
 
