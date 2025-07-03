@@ -114,8 +114,12 @@ class WhatsAppClient {
         messageLength: message.length
       });
       
+      logger.debug(`📱 Starting circuit breaker execution for ${this._sanitizePhone(whatsappPhone)}`);
+      
       const response = await this.circuitBreaker.execute(async () => {
+        logger.debug(`📱 Inside circuit breaker, starting retry logic`);
         return await this._retryRequest(async () => {
+          logger.debug(`📱 Making actual axios request to Venom Bot`);
           const result = await this.client.post('/send-message', {
             to: whatsappPhone,
             message: message,
@@ -129,16 +133,25 @@ class WhatsAppClient {
       logger.info(`📱 Message sent to ${this._sanitizePhone(whatsappPhone)}`);
       return { success: true, data: response.data };
     } catch (error) {
+      logger.error(`📱 sendMessage caught error:`, {
+        errorType: typeof error,
+        errorConstructor: error?.constructor?.name,
+        errorString: String(error),
+        errorMessage: error?.message,
+        errorCode: error?.code,
+        errorStack: error?.stack,
+        errorResponse: error?.response?.data,
+        errorStatus: error?.response?.status,
+        isNull: error === null,
+        isUndefined: error === undefined,
+        hasOwnProperties: error ? Object.getOwnPropertyNames(error) : 'N/A'
+      });
+      
       if (error?.code === 'CIRCUIT_OPEN') {
         logger.warn(`WhatsApp circuit breaker is open, service temporarily unavailable`);
         return { success: false, error: 'WhatsApp service temporarily unavailable' };
       }
-      logger.error(`Failed to send WhatsApp message to ${this._sanitizePhone(whatsappPhone)}:`, {
-        error: error,
-        message: error ? (error.message || error.toString() || "Error object exists but no message") : "Error is null/undefined",
-        stack: error?.stack,
-        config: error?.config?.url
-      });
+      
       return { success: false, error: error ? (error.message || error.toString() || "Unknown error") : "Connection error" };
     }
   }
@@ -232,6 +245,8 @@ class WhatsAppClient {
   async _retryRequest(requestFn) {
     let lastError;
     
+    logger.debug(`📞 Starting retry request, max attempts: ${this.retries}`);
+    
     for (let attempt = 0; attempt < this.retries; attempt++) {
       try {
         logger.info(`📞 WhatsApp request attempt ${attempt + 1}/${this.retries}`);
@@ -242,15 +257,22 @@ class WhatsAppClient {
         lastError = error;
         
         logger.error(`❌ WhatsApp request failed on attempt ${attempt + 1}:`, {
-          error: error,
-          message: error ? (error.message || error.toString() || "Error object exists") : "Error is null",
-          status: error?.response?.status,
-          data: error?.response?.data,
-          stack: error?.stack
+          errorType: typeof error,
+          errorConstructor: error?.constructor?.name,
+          errorString: String(error),
+          errorMessage: error?.message,
+          errorCode: error?.code,
+          errorStack: error?.stack,
+          errorResponse: error?.response?.data,
+          errorStatus: error?.response?.status,
+          isNull: error === null,
+          isUndefined: error === undefined,
+          hasOwnProperties: error ? Object.getOwnPropertyNames(error) : 'N/A'
         });
         
         // Don't retry on auth errors
         if (error.response?.status === 401 || error.response?.status === 403) {
+          logger.warn(`Auth error detected, not retrying`);
           throw error;
         }
         
@@ -261,6 +283,16 @@ class WhatsAppClient {
         }
       }
     }
+    
+    logger.error(`📞 All retry attempts exhausted, throwing lastError:`, {
+      lastErrorType: typeof lastError,
+      lastErrorConstructor: lastError?.constructor?.name,
+      lastErrorString: String(lastError),
+      lastErrorMessage: lastError?.message,
+      lastErrorCode: lastError?.code,
+      isNull: lastError === null,
+      isUndefined: lastError === undefined
+    });
     
     throw lastError;
   }

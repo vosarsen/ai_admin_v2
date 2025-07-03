@@ -46,13 +46,25 @@ class CircuitBreaker {
     
     try {
       // Execute with timeout
+      logger.debug(`Circuit breaker ${this.name} executing function`);
       const result = await this._executeWithTimeout(fn);
       
       // Success handling
+      logger.debug(`Circuit breaker ${this.name} execution successful`);
       this._onSuccess();
       return result;
     } catch (error) {
       // Failure handling
+      logger.error(`Circuit breaker ${this.name} execution failed:`, {
+        errorType: typeof error,
+        errorConstructor: error?.constructor?.name,
+        errorString: String(error),
+        errorMessage: error?.message,
+        errorCode: error?.code,
+        isNull: error === null,
+        isUndefined: error === undefined
+      });
+      
       this._onFailure(error);
       throw error;
     }
@@ -105,7 +117,17 @@ class CircuitBreaker {
     this.lastFailureTime = Date.now();
     
     logger.error(`Circuit breaker ${this.name} failure:`, {
-      error: error ? (error.message || error.toString() || JSON.stringify(error) || "Error object exists but no details") : "Error is null/undefined",
+      errorType: typeof error,
+      errorConstructor: error?.constructor?.name,
+      errorString: String(error),
+      errorMessage: error?.message,
+      errorCode: error?.code,
+      errorStack: error?.stack,
+      errorResponse: error?.response?.data,
+      errorStatus: error?.response?.status,
+      isNull: error === null,
+      isUndefined: error === undefined,
+      hasOwnProperties: error ? Object.getOwnPropertyNames(error) : 'N/A',
       failures: this.failures,
       state: this.state
     });
