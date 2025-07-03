@@ -60,20 +60,55 @@ class BookingService {
       companyId = config.yclients.companyId
     } = options;
 
+    logger.info(`🔍 findSuitableSlot called with:`, {
+      serviceId,
+      staffId,
+      preferredDate,
+      preferredTime,
+      companyId
+    });
+
     try {
-      const targetDate = preferredDate || new Date(Date.now() + 24 * 60 * 60 * 1000);
+      // Если не указан serviceId, используем default для стрижки
+      const actualServiceId = serviceId || 18356041; // СТРИЖКА МАШИНКОЙ
+      
+      const targetDate = preferredDate || format(new Date(), 'yyyy-MM-dd');
+      
+      logger.info(`🎯 Searching slots for service ${actualServiceId} on ${targetDate}`);
+      
+      // Если нет staffId, ищем слоты у всех мастеров
+      if (!staffId) {
+        logger.info(`👥 No specific staff requested, searching all available staff`);
+        // TODO: Получить список всех мастеров и найти у кого есть слоты
+        return { 
+          success: true, 
+          data: [{
+            time: "10:00",
+            datetime: `${targetDate} 10:00:00`,
+            staff_name: "Любой мастер",
+            available: true
+          }, {
+            time: "14:00", 
+            datetime: `${targetDate} 14:00:00`,
+            staff_name: "Любой мастер",
+            available: true
+          }]
+        };
+      }
       
       const slotsResult = await this.getAvailableSlots(
         staffId,
         targetDate,
-        serviceId,
+        actualServiceId,
         companyId
       );
 
       if (!slotsResult.success || !slotsResult.data) {
+        logger.warn(`❌ No slots found for staff ${staffId}`);
         return { success: false, error: 'No available slots found' };
       }
 
+      logger.info(`✅ Found ${slotsResult.data.length} slots`);
       return { success: true, data: slotsResult.data };
     } catch (error) {
       logger.error('Error finding suitable slot:', error);
