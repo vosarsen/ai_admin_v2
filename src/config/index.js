@@ -75,24 +75,6 @@ module.exports = {
 
   get queue() {
     return {
-      maxConcurrentWorkers: parseInt(process.env.MAX_CONCURRENT_WORKERS) || 3,
-      messageQueueName: process.env.MESSAGE_QUEUE_NAME || 'whatsapp-messages',
-      reminderQueueName: process.env.REMINDER_QUEUE_NAME || 'reminders'
-    };
-  },
-
-  get business() {
-    return {
-      reminderAdvanceHours: parseInt(process.env.REMINDER_ADVANCE_HOURS) || 2,
-      reminderDayBeforeTime: process.env.REMINDER_DAY_BEFORE_TIME || '20:00',
-      maxBookingDaysAhead: parseInt(process.env.MAX_BOOKING_DAYS_AHEAD) || 30,
-      minBookingMinutesAhead: parseInt(process.env.MIN_BOOKING_MINUTES_AHEAD) || 30,
-      timezone: 'Europe/Moscow'
-    };
-  },
-
-  get queue() {
-    return {
       messageQueue: process.env.QUEUE_MESSAGE_NAME || 'messages',
       reminderQueue: process.env.QUEUE_REMINDER_NAME || 'reminders',
       maxConcurrentWorkers: parseInt(process.env.QUEUE_MAX_WORKERS) || 3,
@@ -105,6 +87,16 @@ module.exports = {
           delay: parseInt(process.env.QUEUE_RETRY_DELAY) || 2000
         }
       }
+    };
+  },
+
+  get business() {
+    return {
+      reminderAdvanceHours: parseInt(process.env.REMINDER_ADVANCE_HOURS) || 2,
+      reminderDayBeforeTime: process.env.REMINDER_DAY_BEFORE_TIME || '20:00',
+      maxBookingDaysAhead: parseInt(process.env.MAX_BOOKING_DAYS_AHEAD) || 30,
+      minBookingMinutesAhead: parseInt(process.env.MIN_BOOKING_MINUTES_AHEAD) || 30,
+      timezone: 'Europe/Moscow'
     };
   },
 

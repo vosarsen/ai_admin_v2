@@ -49,6 +49,17 @@ function validateWebhookSignature(req, res, next) {
     .update(payload)
     .digest('hex');
   
+  // Debug logging for signature comparison
+  logger.debug('🔐 Signature validation debug:', {
+    method,
+    path,
+    timestamp,
+    payloadLength: payload.length,
+    receivedSignature: signature.substring(0, 10) + '...',
+    expectedSignature: expectedSignature.substring(0, 10) + '...',
+    secretKeyLength: config.whatsapp.secretKey ? config.whatsapp.secretKey.length : 'not set'
+  });
+  
   // Compare signatures (ensure same length for timingSafeEqual)
   const signatureBuffer = Buffer.from(signature);
   const expectedBuffer = Buffer.from(expectedSignature);

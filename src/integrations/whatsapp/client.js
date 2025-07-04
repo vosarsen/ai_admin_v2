@@ -255,6 +255,51 @@ class WhatsAppClient {
   }
 
   /**
+   * Debug connection issues
+   */
+  async diagnoseProblem(phone) {
+    const whatsappPhone = this._formatPhone(phone);
+    
+    logger.info(`🔍 Diagnosing WhatsApp connection issues for ${this._sanitizePhone(whatsappPhone)}`);
+    
+    try {
+      // Check status without circuit breaker
+      const statusResult = await this.client.get('/status');
+      logger.info(`📊 Status check result:`, statusResult.data);
+      
+      // Try a simple test message
+      const testResult = await this.client.post('/send-message', {
+        to: whatsappPhone,
+        message: 'Test message'
+      });
+      logger.info(`📱 Test message result:`, testResult.data);
+      
+      return { success: true, diagnosis: 'Connection seems healthy' };
+    } catch (error) {
+      logger.error(`🔍 Diagnosis error:`, {
+        errorType: typeof error,
+        errorMessage: error?.message,
+        errorCode: error?.code,
+        errorStatus: error?.response?.status,
+        errorData: error?.response?.data,
+        isConnectionError: error?.code === 'ECONNREFUSED' || error?.code === 'ENOTFOUND',
+        isTimeoutError: error?.code === 'ECONNABORTED',
+        is503Error: error?.response?.status === 503
+      });
+      
+      return { 
+        success: false, 
+        diagnosis: error?.message || 'Unknown error',
+        errorDetails: {
+          status: error?.response?.status,
+          code: error?.code,
+          data: error?.response?.data
+        }
+      };
+    }
+  }
+
+  /**
    * Format phone number for WhatsApp
    */
   _formatPhone(phone) {
