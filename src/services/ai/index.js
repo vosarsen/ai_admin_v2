@@ -3,6 +3,7 @@ const axios = require('axios');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const circuitBreakerFactory = require('../../utils/circuit-breaker');
+const SmartNLU = require('../nlu/smart-nlu');
 
 class AIService {
   constructor() {
@@ -45,6 +46,9 @@ class AIService {
     // Create axios instances
     this.primaryClient = this._createClient(this.primaryProvider);
     this.backupClient = this._createClient(this.backupProvider);
+    
+    // Initialize Smart NLU
+    this.smartNLU = new SmartNLU(this);
   }
 
   _createClient(provider) {
@@ -67,62 +71,54 @@ class AIService {
   }
 
   /**
-   * Process message and return structured response
+   * Process message using Smart NLU system
    */
   async processMessage(message, context) {
-    const prompt = this._buildPrompt(message, context);
+    logger.info('🧠 Processing message with Smart NLU system');
     
-    // Try primary provider first
     try {
-      logger.info('🤖 Trying primary AI provider (DeepSeek)...');
-      const aiResponse = await this._callAI(prompt, 'primary');
-      const parsed = this._parseResponse(aiResponse);
+      // Use Smart NLU for comprehensive entity extraction and intent detection
+      const result = await this.smartNLU.processMessage(message, context);
       
-      logger.info('✅ Primary AI provider succeeded');
-      return {
-        success: true,
-        intent: parsed.intent,
-        entities: parsed.entities,
-        action: parsed.action,
-        response: parsed.response,
-        confidence: parsed.confidence,
-        provider: 'deepseek'
-      };
-    } catch (primaryError) {
-      logger.warn('❌ Primary AI provider failed, trying backup:', primaryError.message);
+      logger.info('🤖 Smart NLU Result:', {
+        success: result.success,
+        intent: result.intent,
+        action: result.action,
+        entities: result.entities,
+        confidence: result.confidence,
+        provider: result.provider
+      });
       
-      // Try backup provider
-      if (this.backupProvider.iamToken) {
-        try {
-          logger.info('🔄 Trying backup AI provider (YandexGPT)...');
-          const aiResponse = await this._callAI(prompt, 'backup');
-          const parsed = this._parseResponse(aiResponse);
-          
-          logger.info('✅ Backup AI provider succeeded');
-          return {
-            success: true,
-            intent: parsed.intent,
-            entities: parsed.entities,
-            action: parsed.action,
-            response: parsed.response,
-            confidence: parsed.confidence,
-            provider: 'yandexgpt'
-          };
-        } catch (backupError) {
-          logger.warn('❌ Backup AI provider also failed:', backupError.message);
-        }
-      } else {
-        logger.warn('⚠️ No backup provider configured');
-      }
+      return result;
       
-      // Final fallback: pattern matching
-      logger.info('🔄 Using fallback pattern matching');
-      return this._fallbackProcessing(message, context);
+    } catch (error) {
+      logger.error('❌ Smart NLU processing failed:', error.message);
+      
+      // Ultimate fallback to simple pattern matching
+      logger.info('🔄 Using emergency fallback processing');
+      return this._emergencyFallback(message, context);
     }
   }
 
   /**
-   * Fallback processing using simple patterns
+   * Emergency fallback when Smart NLU fails completely
+   */
+  _emergencyFallback(message, context) {
+    logger.warn('⚠️ Using emergency fallback - limited functionality');
+    
+    return {
+      success: true,
+      intent: 'other',
+      entities: {},
+      action: 'none', 
+      response: 'Извините, возникли технические трудности. Пожалуйста, уточните ваш запрос или позвоните нам напрямую.',
+      confidence: 0.1,
+      provider: 'emergency'
+    };
+  }
+
+  /**
+   * Legacy fallback processing using simple patterns (deprecated)
    */
   _fallbackProcessing(message, context) {
     const msg = message.toLowerCase();

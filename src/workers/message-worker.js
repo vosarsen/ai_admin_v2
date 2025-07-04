@@ -6,68 +6,9 @@ const aiService = require('../services/ai');
 const bookingService = require('../services/booking');
 const contextService = require('../services/context');
 const whatsappClient = require('../integrations/whatsapp/client');
-
-// Helper function to find service by name
-async function findServiceByName(serviceName, context) {
-  if (!serviceName) return 18356041; // Default: СТРИЖКА МАШИНКОЙ
-  
-  const serviceMap = {
-    "мужская стрижка": 18356010,
-    "стрижка машинкой": 18356041,
-    "стрижка ножницами": 18356056,
-    "детская стрижка": 18356024,
-    "стрижка бороды": 18356113,
-    "моделирование бороды": 18356102,
-    "бритье": 18356121,
-    "культурное бритье": 18356121,
-    "бритье головы": 18356066
-  };
-  
-  const lowerName = serviceName.toLowerCase();
-  
-  // Exact match
-  if (serviceMap[lowerName]) {
-    return serviceMap[lowerName];
-  }
-  
-  // Partial match
-  for (const [key, id] of Object.entries(serviceMap)) {
-    if (lowerName.includes(key) || key.includes(lowerName)) {
-      return id;
-    }
-  }
-  
-  // Default fallback
-  return 18356041; // СТРИЖКА МАШИНКОЙ
-}
-
-// Helper function to find staff by name
-async function findStaffByName(staffName, context) {
-  if (!staffName) return 2895125; // Default: Сергей
-  
-  const staffMap = {
-    "сергей": 2895125,
-    "бари": 3413963,
-    "рамзан": 3820250
-  };
-  
-  const lowerName = staffName.toLowerCase();
-  
-  // Exact match
-  if (staffMap[lowerName]) {
-    return staffMap[lowerName];
-  }
-  
-  // Partial match
-  for (const [key, id] of Object.entries(staffMap)) {
-    if (lowerName.includes(key) || key.includes(lowerName)) {
-      return id;
-    }
-  }
-  
-  // Default fallback
-  return 2895125; // Сергей
-}
+const entityResolver = require('../services/ai/entity-resolver');
+const rapidFireProtection = require('../services/rapid-fire-protection');
+const proactiveSuggestions = require('../services/ai/proactive-suggestions');
 
 class MessageWorker {
   constructor(workerId) {
@@ -109,7 +50,7 @@ class MessageWorker {
   }
 
   /**
-   * Process single message
+   * 🔥 Process single message with Rapid-Fire Protection
    */
   async processMessage(job) {
     const startTime = Date.now();
@@ -117,9 +58,43 @@ class MessageWorker {
     
     logger.info(`💬 Worker ${this.workerId} processing message from ${from}`);
     
+    // Rapid-Fire Protection: объединяем быстрые сообщения
+    return new Promise((resolve, reject) => {
+      rapidFireProtection.processMessage(from, message, async (combinedMessage, metadata = {}) => {
+        try {
+          await this._processMessageInternal(from, combinedMessage, companyId, metadata, startTime, resolve);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+  }
+
+  /**
+   * Внутренняя обработка сообщения (после rapid-fire защиты)
+   */
+  async _processMessageInternal(from, message, companyId, metadata, startTime, resolve) {
     try {
+      // Логируем информацию о rapid-fire обработке
+      if (metadata.isRapidFireBatch) {
+        logger.info(`🔥 Processing rapid-fire batch from ${from}:`, {
+          originalMessages: metadata.originalMessagesCount,
+          waitTime: metadata.totalWaitTime,
+          combinedMessage: message.substring(0, 100) + (message.length > 100 ? '...' : '')
+        });
+      }
+
       // 1. Get or create context
       const context = await contextService.getContext(from, companyId);
+      
+      // Добавляем информацию о rapid-fire в контекст
+      if (metadata.isRapidFireBatch) {
+        context.rapidFire = {
+          messagesCount: metadata.originalMessagesCount,
+          waitTime: metadata.totalWaitTime,
+          originalMessages: metadata.originalMessages
+        };
+      }
       
       // 2. Process with AI
       const aiResult = await aiService.processMessage(message, context);
@@ -141,8 +116,8 @@ class MessageWorker {
         actionResult = await this.executeAction(aiResult, context);
       }
       
-      // 4. Build final response
-      const finalResponse = this.buildResponse(aiResult, actionResult);
+      // 4. Build final response with proactive suggestions
+      const finalResponse = await this.buildResponse(aiResult, actionResult, context);
       
       logger.info("📤 Final response to send:", {
         message: finalResponse.message,
@@ -194,104 +169,282 @@ class MessageWorker {
       
       logger.info(`✅ Message processed by worker ${this.workerId} in ${processingTime}ms`);
       
-      return {
+      const result = {
         success: true,
         processingTime,
-        response: finalResponse.message
+        response: finalResponse.message,
+        rapidFire: metadata.isRapidFireBatch ? {
+          messagesCount: metadata.originalMessagesCount,
+          waitTime: metadata.totalWaitTime
+        } : null
       };
+      
+      // Resolving Promise для Bull Queue
+      resolve(result);
       
     } catch (error) {
       logger.error(`Worker ${this.workerId} failed to process message:`, error);
       
       // Send error message to user
-      await whatsappClient.sendMessage(from, 
-        'Извините, произошла ошибка. Попробуйте еще раз или позвоните нам.'
-      );
+      try {
+        const errorMessage = metadata.isRapidFireFallback 
+          ? 'Извините, не удалось обработать ваши сообщения. Попробуйте написать одно сообщение.'
+          : 'Извините, произошла ошибка. Попробуйте еще раз или позвоните нам.';
+          
+        await whatsappClient.sendMessage(from, errorMessage);
+      } catch (sendError) {
+        logger.error('Failed to send error message:', sendError);
+      }
       
-      throw error; // Bull will handle retry
+      // Resolving с ошибкой для Bull Queue
+      resolve({
+        success: false,
+        error: error.message,
+        processingTime: Date.now() - startTime
+      });
     }
   }
 
   /**
-   * Execute action based on AI decision
+   * 🎯 Execute action based on AI decision - AI-First approach
    */
   async executeAction(aiResult, context) {
     const { action, entities } = aiResult;
     
     logger.info(`⚡ Executing action: ${action}`);
-        logger.info("🔍 Entities extracted:", entities);
+    logger.info("🔍 Entities extracted:", entities);
     
-    switch (action) {
-      case 'search_slots':
-        // Найти service ID по названию
-        const serviceId = await findServiceByName(entities.service, context);
-        
-        return await bookingService.findSuitableSlot({
-          companyId: context.companyId,
-          serviceId: serviceId,
-          staffId: entities.staff, // TODO: найти staff ID по имени
-          preferredDate: entities.date,
-          preferredTime: entities.time
-        });
-        
-      case "create_booking":
-        // Формируем данные для YClients API согласно документации
-        const bookingData = {
-          phone: context.phone.replace("+", "").replace("@c.us", ""),
-          fullname: context.client?.name || "Клиент",
-          email: context.client?.email || `${context.phone.replace("+", "").replace("@c.us", "")}@whatsapp.local`,
-          comment: "Запись через WhatsApp AI",
-          type: "mobile",
-          api_id: `wa_${Date.now()}`,
-          appointments: [
-            {
-              id: 1,
-              services: [await findServiceByName(entities.service, context)],
-              staff_id: await findStaffByName(entities.staff, context),
-              datetime: `${entities.date} ${entities.time}:00`
-            }
-          ]
-        };
-        
-        logger.info("📋 Booking data:", bookingData);
-        const bookingResult = await bookingService.createBooking(bookingData, context.companyId);
-        
-        logger.info("📊 Booking result:", {
-          success: bookingResult.success,
-          status: bookingResult.status,
-          data: bookingResult.data
-        });
-        
-        return bookingResult;
-        
-      case 'get_info':
-        return await bookingService.getServiceInfo({
-          companyId: context.companyId,
-          service: entities.service
-        });
-        
-      default:
-        logger.warn(`Unknown action: ${action}`);
-        return null;
+    try {
+      switch (action) {
+        case 'search_slots':
+          return await this._handleSearchSlots(entities, context);
+          
+        case 'create_booking':
+          return await this._handleCreateBooking(entities, context);
+          
+        case 'get_info':
+          return await this._handleGetInfo(entities, context);
+          
+        default:
+          logger.warn(`Unknown action: ${action}`);
+          return {
+            success: false,
+            error: `Неизвестное действие: ${action}`,
+            fallback: true
+          };
+      }
+    } catch (error) {
+      logger.error(`Error executing action ${action}:`, error);
+      return {
+        success: false,
+        error: error.message,
+        fallback: true
+      };
     }
   }
 
   /**
-   * Build final response based on AI and action results
+   * 🔍 Поиск слотов через Entity Resolver
    */
-  buildResponse(aiResult, actionResult) {
+  async _handleSearchSlots(entities, context) {
+    logger.info('🔍 Handling search slots with AI-powered entity resolution');
+    
+    // Разрешаем сущности через AI + Smart Cache
+    const service = await entityResolver.resolveService(
+      entities.service, 
+      context.companyId, 
+      context
+    );
+    
+    const staff = await entityResolver.resolveStaff(
+      entities.staff,
+      context.companyId,
+      context
+    );
+    
+    logger.info('✅ Entities resolved:', {
+      service: `${service.title} (ID: ${service.yclients_id})`,
+      staff: `${staff.name} (ID: ${staff.yclients_id})`
+    });
+    
+    // Выполняем поиск слотов
+    const slotsResult = await bookingService.findSuitableSlot({
+      companyId: context.companyId,
+      serviceId: service.yclients_id,
+      staffId: staff.yclients_id,
+      preferredDate: entities.date,
+      preferredTime: entities.time
+    });
+    
+    // Обогащаем результат информацией о разрешенных сущностях
+    if (slotsResult.success) {
+      slotsResult.resolvedEntities = {
+        service: {
+          title: service.title,
+          price: service.price_min ? `от ${service.price_min}₽` : null,
+          duration: service.duration ? `${service.duration} мин` : null
+        },
+        staff: {
+          name: staff.name,
+          rating: staff.rating
+        }
+      };
+    }
+    
+    return slotsResult;
+  }
+
+  /**
+   * 📝 Создание записи через Entity Resolver
+   */
+  async _handleCreateBooking(entities, context) {
+    logger.info('📝 Handling create booking with AI-powered entity resolution');
+    
+    // Разрешаем сущности
+    const service = await entityResolver.resolveService(
+      entities.service, 
+      context.companyId, 
+      context
+    );
+    
+    const staff = await entityResolver.resolveStaff(
+      entities.staff,
+      context.companyId,
+      context
+    );
+    
+    // Формируем данные для YClients API
+    const bookingData = {
+      phone: context.phone.replace("+", "").replace("@c.us", ""),
+      fullname: context.client?.name || "Клиент",
+      email: context.client?.email || `${context.phone.replace("+", "").replace("@c.us", "")}@whatsapp.local`,
+      comment: "Запись через WhatsApp AI",
+      type: "mobile",
+      api_id: `wa_${Date.now()}`,
+      appointments: [
+        {
+          id: 1,
+          services: [service.yclients_id],
+          staff_id: staff.yclients_id,
+          datetime: `${entities.date} ${entities.time}:00`
+        }
+      ]
+    };
+    
+    logger.info("📋 Booking data:", {
+      ...bookingData,
+      resolvedService: service.title,
+      resolvedStaff: staff.name
+    });
+    
+    const bookingResult = await bookingService.createBooking(bookingData, context.companyId);
+    
+    // Обогащаем результат информацией о разрешенных сущностях
+    if (bookingResult.success) {
+      bookingResult.resolvedEntities = {
+        service: {
+          title: service.title,
+          price: service.price_min ? `от ${service.price_min}₽` : null
+        },
+        staff: {
+          name: staff.name
+        }
+      };
+    }
+    
+    logger.info("📊 Booking result:", {
+      success: bookingResult.success,
+      status: bookingResult.status,
+      resolvedService: service.title,
+      resolvedStaff: staff.name
+    });
+    
+    return bookingResult;
+  }
+
+  /**
+   * ℹ️ Получение информации об услуге через Entity Resolver
+   */
+  async _handleGetInfo(entities, context) {
+    logger.info('ℹ️ Handling get info with AI-powered entity resolution');
+    
+    try {
+      // Разрешаем услугу через AI
+      const service = await entityResolver.resolveService(
+        entities.service || 'услуга', 
+        context.companyId, 
+        context
+      );
+      
+      return {
+        success: true,
+        data: {
+          service: service.title,
+          price: service.price_min ? 
+            (service.price_max && service.price_max !== service.price_min ? 
+              `от ${service.price_min}₽ до ${service.price_max}₽` : 
+              `от ${service.price_min}₽`) : 
+            'уточнить у мастера',
+          duration: service.duration ? `${service.duration} минут` : '30-60 минут',
+          description: service.description || 'Профессиональное оформление'
+        },
+        resolvedEntity: {
+          yclients_id: service.yclients_id,
+          title: service.title
+        }
+      };
+      
+    } catch (error) {
+      logger.error('Error getting service info:', error);
+      
+      // Fallback к общей информации
+      return {
+        success: true,
+        data: {
+          service: entities.service || 'услуга',
+          price: 'уточнить у мастера',
+          duration: '30-60 минут',
+          description: 'Профессиональное оформление'
+        },
+        fallback: true
+      };
+    }
+  }
+
+  /**
+   * 🤖 Build final response with proactive suggestions
+   */
+  async buildResponse(aiResult, actionResult, context) {
     let message = aiResult.response;
     let attachment = null;
     
     // Enhance response based on action result
     if (actionResult) {
-      // Для успешного создания записи - добавляем подтверждение к ответу AI
+      // ✅ Успешное создание записи
       if (actionResult.success && aiResult.action === 'create_booking') {
         message = `✅ Отлично! Ваша запись успешно создана.\n\n${aiResult.response}`;
+        
+        // Добавляем детали о записи если есть
+        if (actionResult.resolvedEntities) {
+          const details = [];
+          if (actionResult.resolvedEntities.service.title) {
+            details.push(`📋 Услуга: ${actionResult.resolvedEntities.service.title}`);
+          }
+          if (actionResult.resolvedEntities.staff.name) {
+            details.push(`👤 Мастер: ${actionResult.resolvedEntities.staff.name}`);
+          }
+          if (actionResult.resolvedEntities.service.price) {
+            details.push(`💰 Стоимость: ${actionResult.resolvedEntities.service.price}`);
+          }
+          
+          if (details.length > 0) {
+            message += `\n\n${details.join('\n')}`;
+          }
+        }
       }
       
-      // Для поиска слотов - добавляем найденные слоты к ответу AI
-      if (actionResult.success && actionResult.data && Array.isArray(actionResult.data) && actionResult.data.length > 0) {
+      // 🔍 Успешный поиск слотов
+      else if (actionResult.success && actionResult.data && Array.isArray(actionResult.data) && actionResult.data.length > 0) {
         const slotsText = actionResult.data.slice(0, 5).map(slot => 
           `• ${slot.time || slot.datetime} ${slot.staff_name ? '- ' + slot.staff_name : ''}`
         ).join('\n');
@@ -299,13 +452,63 @@ class MessageWorker {
         message += `\n\nДоступные варианты:\n${slotsText}`;
       }
       
-      // Для ошибок - сообщаем пользователю
-      if (!actionResult.success && actionResult.error) {
+      // ❌ Нет доступных слотов - ПРОАКТИВНЫЕ ПРЕДЛОЖЕНИЯ
+      else if (!actionResult.success || (actionResult.data && Array.isArray(actionResult.data) && actionResult.data.length === 0)) {
+        message = await this._buildProactiveResponse(aiResult, actionResult, context);
+      }
+      
+      // 🔧 Технические ошибки
+      else if (!actionResult.success && actionResult.error) {
         message = `${aiResult.response}\n\nК сожалению, возникла техническая проблема. Попробуйте еще раз или позвоните нам.`;
       }
     }
     
     return { message, attachment };
+  }
+
+  /**
+   * 🚀 Построение проактивного ответа при отсутствии слотов
+   */
+  async _buildProactiveResponse(aiResult, actionResult, context) {
+    logger.info('🤖 Building proactive response for no available slots');
+    
+    try {
+      // Подготавливаем контекст для проактивных предложений
+      const suggestionContext = {
+        originalRequest: {
+          service_id: actionResult.resolvedEntities?.service?.yclients_id,
+          service_name: actionResult.resolvedEntities?.service?.title,
+          staff_id: actionResult.resolvedEntities?.staff?.yclients_id,
+          staff_name: actionResult.resolvedEntities?.staff?.name,
+          requested_date: aiResult.entities?.date,
+          requested_time: aiResult.entities?.time
+        },
+        noSlotsReason: actionResult.reason || 'fully_booked',
+        availableSlots: actionResult.alternativeSlots || [],
+        client: context.client,
+        companyId: context.companyId
+      };
+      
+      // Генерируем проактивные предложения
+      const suggestions = await proactiveSuggestions.generateSuggestions(suggestionContext);
+      
+      // Форматируем в текст
+      const proactiveText = proactiveSuggestions.formatSuggestionsAsText(suggestions);
+      
+      logger.info('✅ Generated proactive response', {
+        hasAlternatives: suggestions.alternatives.length > 0,
+        hasAdditional: suggestions.additional.length > 0,
+        hasUrgent: suggestions.urgent.length > 0
+      });
+      
+      return proactiveText;
+      
+    } catch (error) {
+      logger.error('Error building proactive response:', error);
+      
+      // Fallback к стандартному сообщению
+      return `${aiResult.response}\n\nК сожалению, это время недоступно. Попробуйте выбрать другое время или обратитесь к нам по телефону.`;
+    }
   }
 
   /**
