@@ -32,13 +32,15 @@ async function startWorker() {
     // Graceful shutdown
     process.on('SIGTERM', async () => {
       logger.info('🛑 Worker received SIGTERM, shutting down...');
-      // TODO: Add cleanup logic here
+      await messageWorker.stop();
+      await reminderWorker.stop();
       process.exit(0);
     });
     
     process.on('SIGINT', async () => {
       logger.info('🛑 Worker received SIGINT, shutting down...');
-      // TODO: Add cleanup logic here
+      await messageWorker.stop();
+      await reminderWorker.stop();
       process.exit(0);
     });
     

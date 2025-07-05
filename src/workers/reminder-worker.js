@@ -1,4 +1,5 @@
 // src/workers/reminder-worker.js
+const { Worker } = require('bullmq');
 const config = require('../config');
 const logger = require('../utils/logger');
 const messageQueue = require('../queue/message-queue');
@@ -10,6 +11,12 @@ class ReminderWorker {
     this.workerId = workerId;
     this.isRunning = false;
     this.processedCount = 0;
+    this.worker = null;
+    this.connection = {
+      host: '127.0.0.1',
+      port: 6379,
+      password: config.redis.password
+    };
   }
 
   /**
@@ -19,12 +26,45 @@ class ReminderWorker {
     logger.info(`⏰ Reminder worker ${this.workerId} starting...`);
     this.isRunning = true;
 
-    const queue = messageQueue.getQueue(config.queue.reminderQueue);
+    const queueName = config.queue.reminderQueue;
     
-    // Process reminders
-    queue.process('send-reminder', this.processReminder.bind(this));
+    // Create BullMQ Worker
+    this.worker = new Worker(
+      queueName,
+      async (job) => {
+        logger.info(`🔥 Processing reminder job ${job.id} in worker ${this.workerId}`);
+        try {
+          return await this.processReminder(job);
+        } catch (error) {
+          logger.error(`Failed to process reminder job ${job.id}:`, error);
+          throw error;
+        }
+      },
+      {
+        connection: this.connection,
+        concurrency: 5
+      }
+    );
     
-    logger.info(`⏰ Reminder worker ${this.workerId} started`);
+    // Add event listeners
+    this.worker.on('completed', (job) => {
+      logger.info(`✅ Reminder job ${job.id} completed`);
+      this.processedCount++;
+    });
+    
+    this.worker.on('failed', (job, err) => {
+      logger.error(`❌ Reminder job ${job.id} failed:`, err);
+    });
+    
+    this.worker.on('active', (job) => {
+      logger.info(`🎯 Reminder job ${job.id} is now active`);
+    });
+    
+    this.worker.on('error', (error) => {
+      logger.error(`🚨 Reminder worker error:`, error);
+    });
+    
+    logger.info(`⏰ Reminder worker ${this.workerId} started for queue ${queueName}`);
   }
 
   /**
@@ -127,7 +167,10 @@ class ReminderWorker {
     logger.info(`🛑 Stopping reminder worker ${this.workerId}...`);
     this.isRunning = false;
     
-    // TODO: Gracefully stop queue processing
+    // Close BullMQ worker
+    if (this.worker) {
+      await this.worker.close();
+    }
     
     logger.info(`✅ Reminder worker ${this.workerId} stopped. Processed ${this.processedCount} reminders`);
   }
