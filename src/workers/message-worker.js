@@ -418,6 +418,11 @@ class MessageWorker {
     let message = aiResult.response;
     let attachment = null;
     
+    // Для search_slots генерируем ответ только после выполнения действия
+    if (aiResult.action === 'search_slots' && message === null) {
+      message = this._generateSearchSlotsResponse(aiResult, actionResult, context);
+    }
+    
     // Enhance response based on action result
     if (actionResult) {
       // ✅ Успешное создание записи
@@ -443,17 +448,37 @@ class MessageWorker {
         }
       }
       
-      // 🔍 Успешный поиск слотов
-      else if (actionResult.success && actionResult.data && Array.isArray(actionResult.data) && actionResult.data.length > 0) {
+      // 🔍 Успешный поиск слотов - формируем полный ответ
+      else if (aiResult.action === 'search_slots' && actionResult.success && actionResult.data && Array.isArray(actionResult.data) && actionResult.data.length > 0) {
+        // Генерируем начальную часть ответа на основе запроса
+        let response = 'Найдены свободные слоты';
+        
+        if (actionResult.resolvedEntities?.service?.title) {
+          response += ` на ${actionResult.resolvedEntities.service.title}`;
+        } else if (aiResult.entities.service) {
+          response += ` на ${aiResult.entities.service}`;
+        }
+        
+        if (aiResult.entities.date) {
+          response += ` ${this._formatDateForUser(aiResult.entities.date)}`;
+        }
+        
+        if (actionResult.resolvedEntities?.staff?.name) {
+          response += ` у мастера ${actionResult.resolvedEntities.staff.name}`;
+        } else if (aiResult.entities.staff) {
+          response += ` у мастера ${aiResult.entities.staff}`;
+        }
+        
+        // Добавляем список слотов
         const slotsText = actionResult.data.slice(0, 5).map(slot => 
           `• ${slot.time || slot.datetime} ${slot.staff_name ? '- ' + slot.staff_name : ''}`
         ).join('\n');
         
-        message += `\n\nДоступные варианты:\n${slotsText}`;
+        message = `${response}:\n\n${slotsText}`;
       }
       
-      // ❌ Нет доступных слотов - ПРОАКТИВНЫЕ ПРЕДЛОЖЕНИЯ
-      else if (!actionResult.success || (actionResult.data && Array.isArray(actionResult.data) && actionResult.data.length === 0)) {
+      // ❌ Нет доступных слотов для search_slots - ПРОАКТИВНЫЕ ПРЕДЛОЖЕНИЯ
+      else if (aiResult.action === 'search_slots' && (!actionResult.success || (actionResult.data && Array.isArray(actionResult.data) && actionResult.data.length === 0))) {
         message = await this._buildProactiveResponse(aiResult, actionResult, context);
       }
       
@@ -464,6 +489,48 @@ class MessageWorker {
     }
     
     return { message, attachment };
+  }
+
+  /**
+   * 🔍 Генерация ответа для search_slots на основе результата
+   */
+  _generateSearchSlotsResponse(aiResult, actionResult, context) {
+    const { entities } = aiResult;
+    
+    // Генерируем интеллектуальный ответ на основе извлеченных entities
+    let response = 'Ищу доступные слоты';
+    
+    if (entities.service) {
+      response += ` на ${entities.service}`;
+    }
+    
+    if (entities.date) {
+      response += ` ${this._formatDateForUser(entities.date)}`;
+    }
+    
+    if (entities.staff) {
+      response += ` у мастера ${entities.staff}`;
+    }
+    
+    response += '...';
+    return response;
+  }
+
+  /**
+   * Форматирование даты для пользователя
+   */
+  _formatDateForUser(date) {
+    if (!date) return '';
+    
+    const today = new Date().toISOString().split('T')[0];
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    if (date === today) return 'сегодня';
+    if (date === tomorrowStr) return 'завтра';
+    
+    return date;
   }
 
   /**

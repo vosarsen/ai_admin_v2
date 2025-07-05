@@ -233,7 +233,7 @@ class SmartNLU {
   }
 
   /**
-   * Generate appropriate response
+   * Generate appropriate response - НЕ генерируем промежуточные сообщения
    */
   generateResponse(parsed, context) {
     const { intent, entities, action } = parsed;
@@ -242,15 +242,10 @@ class SmartNLU {
       return `Записываю вас к ${entities.staff} на ${entities.date} в ${entities.time}. Подтверждаю запись.`;
     }
     
+    // ДЛЯ search_slots НЕ ГЕНЕРИРУЕМ промежуточный ответ
+    // Финальный ответ будет сгенерирован в buildResponse после выполнения действия
     if (action === 'search_slots') {
-      let response = 'Ищу доступные слоты';
-      
-      if (entities.service) response += ` на ${entities.service}`;
-      if (entities.date) response += ` на ${this.formatDateForUser(entities.date)}`;
-      if (entities.staff) response += ` у мастера ${entities.staff}`;
-      
-      response += '. Один момент...';
-      return response;
+      return null; // Возвращаем null - ответ будет сформирован позже
     }
     
     if (intent === 'info') {
