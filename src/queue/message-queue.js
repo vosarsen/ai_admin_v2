@@ -22,7 +22,12 @@ class MessageQueue {
       
       // Simplified Redis configuration for Bull
       const redisOpts = {
-        redis: config.redis.url,
+        redis: {
+          ...config.redis.options,
+          host: '127.0.0.1',
+          port: 6379,
+          password: config.redis.password
+        },
         prefix: 'bull',
         defaultJobOptions: config.queue.defaultJobOptions
       };
