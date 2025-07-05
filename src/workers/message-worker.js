@@ -45,7 +45,7 @@ class MessageWorker {
     logger.info(`🏢 Processing companies: ${companyIds.join(', ')}`);
     
     for (const companyId of companyIds) {
-      const queueName = `company:${companyId}:messages`;
+      const queueName = `company-${companyId}-messages`;
       logger.info(`🔧 Creating BullMQ Worker for queue: ${queueName}`);
       
       // Create BullMQ Worker
