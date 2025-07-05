@@ -25,15 +25,19 @@ class MessageWorker {
     this.isRunning = true;
 
     // Process multiple company queues
-    const companyIds = [config.yclients.companyId]; // TODO: Get from database
+    const companyId = config.yclients.companyId;
+    
+    if (!companyId) {
+      logger.error('❌ CompanyId is undefined! Check YCLIENTS_COMPANY_ID in .env');
+      logger.error('Current config:', JSON.stringify(config.yclients, null, 2));
+      throw new Error('CompanyId is required but not configured');
+    }
+    
+    const companyIds = [companyId]; // TODO: Get from database
     
     logger.info(`🏢 Processing companies: ${companyIds.join(', ')}`);
     
     for (const companyId of companyIds) {
-      if (!companyId) {
-        logger.error('❌ CompanyId is undefined! Check config.yclients.companyId');
-        continue;
-      }
       
       const queueName = `company:${companyId}:messages`;
       logger.info(`🔧 Getting queue: ${queueName}`);

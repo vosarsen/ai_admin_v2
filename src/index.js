@@ -16,6 +16,9 @@ process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
+// Global server instance
+let server;
+
 // Graceful shutdown
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
@@ -24,9 +27,11 @@ async function shutdown() {
   logger.info('🛑 Shutting down API server...');
   
   // Stop accepting new requests
-  server.close(() => {
-    logger.info('✅ HTTP server closed');
-  });
+  if (server) {
+    server.close(() => {
+      logger.info('✅ HTTP server closed');
+    });
+  }
   
   // Close queue connections
   await messageQueue.shutdown();
@@ -50,7 +55,7 @@ async function startServer() {
     await validateRedisConfig();
     
     // Start HTTP server
-    const server = app.listen(config.app.port, () => {
+    server = app.listen(config.app.port, () => {
       logger.info(`🚀 AI Admin API started on port ${config.app.port}`);
       logger.info(`📊 Environment: ${config.app.env}`);
       logger.info(`🏢 Company ID: ${config.yclients.companyId}`);
@@ -65,4 +70,4 @@ async function startServer() {
 }
 
 // Start the server
-const server = startServer();
+startServer();
