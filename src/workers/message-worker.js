@@ -1,7 +1,7 @@
 // src/workers/message-worker.js
+const { Worker } = require('bullmq');
 const config = require('../config');
 const logger = require('../utils/logger');
-const messageQueue = require('../queue/message-queue');
 const aiService = require('../services/ai');
 const bookingService = require('../services/booking');
 const contextService = require('../services/context');
@@ -9,12 +9,19 @@ const whatsappClient = require('../integrations/whatsapp/client');
 const entityResolver = require('../services/ai/entity-resolver');
 const rapidFireProtection = require('../services/rapid-fire-protection');
 const proactiveSuggestions = require('../services/ai/proactive-suggestions');
+const messageQueue = require('../queue/message-queue');
 
 class MessageWorker {
   constructor(workerId) {
     this.workerId = workerId;
     this.isRunning = false;
     this.processedCount = 0;
+    this.workers = [];
+    this.connection = {
+      host: '127.0.0.1',
+      port: 6379,
+      password: config.redis.password
+    };
   }
 
   /**
@@ -38,43 +45,13 @@ class MessageWorker {
     logger.info(`🏢 Processing companies: ${companyIds.join(', ')}`);
     
     for (const companyId of companyIds) {
-      
       const queueName = `company:${companyId}:messages`;
-      logger.info(`🔧 Getting queue: ${queueName}`);
+      logger.info(`🔧 Creating BullMQ Worker for queue: ${queueName}`);
       
-      const queue = messageQueue.getQueue(queueName);
-      
-      // Add queue event listeners for debugging
-      queue.on('active', (job) => {
-        logger.info(`🎯 Job ${job.id} is now active in queue ${queueName}`);
-      });
-      
-      queue.on('waiting', (jobId) => {
-        logger.info(`⏳ Job ${jobId} is waiting in queue ${queueName}`);
-      });
-      
-      queue.on('completed', (job) => {
-        logger.info(`✅ Job ${job.id} completed in queue ${queueName}`);
-      });
-      
-      queue.on('failed', (job, err) => {
-        logger.error(`❌ Job ${job.id} failed in queue ${queueName}:`, err);
-      });
-      
-      queue.on('error', (error) => {
-        logger.error(`🚨 Queue error in ${queueName}:`, error);
-      });
-      
-      queue.on('stalled', (job) => {
-        logger.warn(`⚠️ Job ${job.id} stalled in queue ${queueName}`);
-      });
-      
-      // Check queue readiness
-      queue.isReady().then(() => {
-        logger.info(`✅ Queue ${queueName} is ready`);
-        
-        // Process messages with concurrency
-        const processor = queue.process(3, async (job) => {
+      // Create BullMQ Worker
+      const worker = new Worker(
+        queueName,
+        async (job) => {
           logger.info(`🔥 Processing job ${job.id} in worker ${this.workerId}`);
           try {
             return await this.processMessage(job);
@@ -82,29 +59,33 @@ class MessageWorker {
             logger.error(`Failed to process job ${job.id}:`, error);
             throw error;
           }
-        });
-        
-        logger.info(`👷 Worker ${this.workerId} registered processor for ${queueName}`);
-        
-        // Force check for stuck jobs
-        queue.getJobs(['waiting', 'active', 'delayed']).then(jobs => {
-          logger.info(`📋 Current jobs in ${queueName}:`, {
-            total: jobs.length,
-            waiting: jobs.filter(j => j.opts.delay === 0).length,
-            active: jobs.filter(j => j.id && j.processedOn).length
-          });
-        });
-        
-        // Check if there are any waiting jobs
-        return queue.getWaitingCount();
-      }).then(count => {
-        logger.info(`📊 Queue ${queueName} has ${count} waiting jobs`);
-        if (count > 0) {
-          logger.info(`🚀 Starting to process waiting jobs...`);
+        },
+        {
+          connection: this.connection,
+          concurrency: 3
         }
-      }).catch(err => {
-        logger.error('Failed to initialize queue processing:', err);
+      );
+      
+      // Add event listeners
+      worker.on('completed', (job) => {
+        logger.info(`✅ Job ${job.id} completed in queue ${queueName}`);
+        this.processedCount++;
       });
+      
+      worker.on('failed', (job, err) => {
+        logger.error(`❌ Job ${job.id} failed in queue ${queueName}:`, err);
+      });
+      
+      worker.on('active', (job) => {
+        logger.info(`🎯 Job ${job.id} is now active in queue ${queueName}`);
+      });
+      
+      worker.on('error', (error) => {
+        logger.error(`🚨 Worker error in ${queueName}:`, error);
+      });
+      
+      this.workers.push(worker);
+      logger.info(`👷 Worker ${this.workerId} started for ${queueName}`);
     }
   }
 
@@ -681,7 +662,10 @@ class MessageWorker {
     logger.info(`🛑 Stopping worker ${this.workerId}...`);
     this.isRunning = false;
     
-    // TODO: Gracefully stop queue processing
+    // Close all BullMQ workers
+    for (const worker of this.workers) {
+      await worker.close();
+    }
     
     logger.info(`✅ Worker ${this.workerId} stopped. Processed ${this.processedCount} messages`);
   }

@@ -1,12 +1,16 @@
 // src/queue/message-queue.js
-const Bull = require('bull');
+const { Queue } = require('bullmq');
 const config = require('../config');
 const logger = require('../utils/logger');
-const { createRedisClient } = require('../utils/redis-factory');
 
 class MessageQueue {
   constructor() {
     this.queues = new Map();
+    this.connection = {
+      host: '127.0.0.1',
+      port: 6379,
+      password: config.redis.password
+    };
   }
 
   /**
@@ -19,61 +23,34 @@ class MessageQueue {
     }
     
     if (!this.queues.has(queueName)) {
-      logger.info(`🔧 Creating Bull queue: ${queueName}`);
+      logger.info(`🔧 Creating BullMQ queue: ${queueName}`);
       
       // Validate configuration before creating queue
       if (!config.redis.password) {
         logger.warn('Redis password is not set');
       }
       
-      // Simplified Redis configuration for Bull
-      const redisOpts = {
-        redis: {
-          ...config.redis.options,
-          host: '127.0.0.1',
-          port: 6379,
-          password: config.redis.password
-        },
-        prefix: 'bull',
-        defaultJobOptions: config.queue.defaultJobOptions
-      };
-      
-      logger.debug('Creating Bull queue with options:', {
+      logger.debug('Creating BullMQ queue with options:', {
         queueName,
-        redis: {
-          host: redisOpts.redis.host,
-          port: redisOpts.redis.port,
-          passwordLength: redisOpts.redis.password ? redisOpts.redis.password.length : 0,
-          options: redisOpts.redis
+        connection: {
+          host: this.connection.host,
+          port: this.connection.port,
+          passwordLength: this.connection.password ? this.connection.password.length : 0
         },
-        prefix: redisOpts.prefix,
-        defaultJobOptions: redisOpts.defaultJobOptions
+        defaultJobOptions: config.queue.defaultJobOptions
       });
       
       try {
-        const queue = new Bull(queueName, redisOpts);
-        logger.info(`✅ Bull queue created successfully: ${queueName}`);
-
-        // Queue event monitoring
-        queue.on('completed', (job) => {
-          logger.info(`✅ Job ${job.id} completed in queue ${queueName}`);
-        });
-
-        queue.on('failed', (job, err) => {
-          logger.error(`❌ Job ${job.id} failed in queue ${queueName}:`, err);
-        });
-
-        queue.on('stalled', (job) => {
-          logger.warn(`⚠️ Job ${job.id} stalled in queue ${queueName}`);
+        const queue = new Queue(queueName, {
+          connection: this.connection,
+          defaultJobOptions: config.queue.defaultJobOptions
         });
         
-        queue.on('error', (error) => {
-          logger.error(`🚨 Queue error in ${queueName}:`, error);
-        });
+        logger.info(`✅ BullMQ queue created successfully: ${queueName}`);
 
         this.queues.set(queueName, queue);
       } catch (error) {
-        logger.error(`Failed to create Bull queue ${queueName}:`, error);
+        logger.error(`Failed to create BullMQ queue ${queueName}:`, error);
         throw error;
       }
     }
