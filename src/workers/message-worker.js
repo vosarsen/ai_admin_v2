@@ -44,21 +44,66 @@ class MessageWorker {
       
       const queue = messageQueue.getQueue(queueName);
       
-      // Process messages with concurrency
-      queue.process(3, 
-        this.processMessage.bind(this)
-      );
+      // Add queue event listeners for debugging
+      queue.on('active', (job) => {
+        logger.info(`🎯 Job ${job.id} is now active in queue ${queueName}`);
+      });
       
-      logger.info(`👷 Worker ${this.workerId} listening to ${queueName}`);
+      queue.on('waiting', (jobId) => {
+        logger.info(`⏳ Job ${jobId} is waiting in queue ${queueName}`);
+      });
       
-      // Check if there are any waiting jobs
-      queue.getWaitingCount().then(count => {
+      queue.on('completed', (job) => {
+        logger.info(`✅ Job ${job.id} completed in queue ${queueName}`);
+      });
+      
+      queue.on('failed', (job, err) => {
+        logger.error(`❌ Job ${job.id} failed in queue ${queueName}:`, err);
+      });
+      
+      queue.on('error', (error) => {
+        logger.error(`🚨 Queue error in ${queueName}:`, error);
+      });
+      
+      queue.on('stalled', (job) => {
+        logger.warn(`⚠️ Job ${job.id} stalled in queue ${queueName}`);
+      });
+      
+      // Check queue readiness
+      queue.isReady().then(() => {
+        logger.info(`✅ Queue ${queueName} is ready`);
+        
+        // Process messages with concurrency
+        const processor = queue.process(3, async (job) => {
+          logger.info(`🔥 Processing job ${job.id} in worker ${this.workerId}`);
+          try {
+            return await this.processMessage(job);
+          } catch (error) {
+            logger.error(`Failed to process job ${job.id}:`, error);
+            throw error;
+          }
+        });
+        
+        logger.info(`👷 Worker ${this.workerId} registered processor for ${queueName}`);
+        
+        // Force check for stuck jobs
+        queue.getJobs(['waiting', 'active', 'delayed']).then(jobs => {
+          logger.info(`📋 Current jobs in ${queueName}:`, {
+            total: jobs.length,
+            waiting: jobs.filter(j => j.opts.delay === 0).length,
+            active: jobs.filter(j => j.id && j.processedOn).length
+          });
+        });
+        
+        // Check if there are any waiting jobs
+        return queue.getWaitingCount();
+      }).then(count => {
         logger.info(`📊 Queue ${queueName} has ${count} waiting jobs`);
         if (count > 0) {
           logger.info(`🚀 Starting to process waiting jobs...`);
         }
       }).catch(err => {
-        logger.error('Failed to get waiting count:', err);
+        logger.error('Failed to initialize queue processing:', err);
       });
     }
   }
