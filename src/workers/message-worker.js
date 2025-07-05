@@ -50,6 +50,16 @@ class MessageWorker {
       );
       
       logger.info(`👷 Worker ${this.workerId} listening to ${queueName}`);
+      
+      // Check if there are any waiting jobs
+      queue.getWaitingCount().then(count => {
+        logger.info(`📊 Queue ${queueName} has ${count} waiting jobs`);
+        if (count > 0) {
+          logger.info(`🚀 Starting to process waiting jobs...`);
+        }
+      }).catch(err => {
+        logger.error('Failed to get waiting count:', err);
+      });
     }
   }
 
@@ -58,9 +68,12 @@ class MessageWorker {
    */
   async processMessage(job) {
     const startTime = Date.now();
+    
+    logger.info(`🎯 Starting to process job ${job.id}`);
+    
     const { from, message, companyId, timestamp } = job.data;
     
-    logger.info(`💬 Worker ${this.workerId} processing message from ${from}`);
+    logger.info(`💬 Worker ${this.workerId} processing message from ${from}: "${message}"`);
     
     // Rapid-Fire Protection: объединяем быстрые сообщения
     return new Promise((resolve, reject) => {
