@@ -67,7 +67,7 @@ class MessageQueue {
         throw new Error('CompanyId is required and cannot be undefined');
       }
       
-      const queueName = `company:${companyId}:messages`;
+      const queueName = `company-${companyId}-messages`;
       logger.debug(`📤 Adding message to queue: ${queueName}`);
       
       const queue = this.getQueue(queueName);
