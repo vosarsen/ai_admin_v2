@@ -14,11 +14,17 @@ class MessageQueue {
    */
   getQueue(queueName) {
     if (!queueName) {
+      logger.error('Queue name is undefined!', new Error().stack);
       throw new Error('Queue name is required and cannot be undefined');
     }
     
     if (!this.queues.has(queueName)) {
       logger.info(`🔧 Creating Bull queue: ${queueName}`);
+      
+      // Validate configuration before creating queue
+      if (!config.redis.password) {
+        logger.warn('Redis password is not set');
+      }
       
       // Simplified Redis configuration for Bull
       const redisOpts = {
@@ -32,22 +38,34 @@ class MessageQueue {
         defaultJobOptions: config.queue.defaultJobOptions
       };
       
-      const queue = new Bull(queueName, redisOpts);
+      logger.debug('Creating Bull queue with options:', JSON.stringify(redisOpts, null, 2));
+      
+      try {
+        const queue = new Bull(queueName, redisOpts);
+        logger.info(`✅ Bull queue created successfully: ${queueName}`);
 
-      // Queue event monitoring
-      queue.on('completed', (job) => {
-        logger.info(`✅ Job ${job.id} completed in queue ${queueName}`);
-      });
+        // Queue event monitoring
+        queue.on('completed', (job) => {
+          logger.info(`✅ Job ${job.id} completed in queue ${queueName}`);
+        });
 
-      queue.on('failed', (job, err) => {
-        logger.error(`❌ Job ${job.id} failed in queue ${queueName}:`, err);
-      });
+        queue.on('failed', (job, err) => {
+          logger.error(`❌ Job ${job.id} failed in queue ${queueName}:`, err);
+        });
 
-      queue.on('stalled', (job) => {
-        logger.warn(`⚠️ Job ${job.id} stalled in queue ${queueName}`);
-      });
+        queue.on('stalled', (job) => {
+          logger.warn(`⚠️ Job ${job.id} stalled in queue ${queueName}`);
+        });
+        
+        queue.on('error', (error) => {
+          logger.error(`🚨 Queue error in ${queueName}:`, error);
+        });
 
-      this.queues.set(queueName, queue);
+        this.queues.set(queueName, queue);
+      } catch (error) {
+        logger.error(`Failed to create Bull queue ${queueName}:`, error);
+        throw error;
+      }
     }
 
     return this.queues.get(queueName);

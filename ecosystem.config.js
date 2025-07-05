@@ -18,8 +18,8 @@ module.exports = {
     {
       name: 'ai-admin-worker',
       script: './src/workers/index.js',
-      instances: 3,
-      exec_mode: 'cluster',
+      instances: 1,
+      exec_mode: 'fork',
       env: {
         NODE_ENV: 'production'
       },
