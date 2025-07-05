@@ -38,7 +38,17 @@ class MessageQueue {
         defaultJobOptions: config.queue.defaultJobOptions
       };
       
-      logger.debug('Creating Bull queue with options:', JSON.stringify(redisOpts, null, 2));
+      logger.debug('Creating Bull queue with options:', {
+        queueName,
+        redis: {
+          host: redisOpts.redis.host,
+          port: redisOpts.redis.port,
+          passwordLength: redisOpts.redis.password ? redisOpts.redis.password.length : 0,
+          options: redisOpts.redis
+        },
+        prefix: redisOpts.prefix,
+        defaultJobOptions: redisOpts.defaultJobOptions
+      });
       
       try {
         const queue = new Bull(queueName, redisOpts);
