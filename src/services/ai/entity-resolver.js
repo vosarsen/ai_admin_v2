@@ -1,7 +1,7 @@
 // src/services/ai/entity-resolver.js
 const smartCache = require('../cache/smart-cache');
 const logger = require('../../utils/logger');
-const supabase = require('../../database/supabase');
+const { supabase } = require('../../database/supabase');
 
 /**
  * 🎯 ENTITY RESOLUTION SERVICE
