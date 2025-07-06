@@ -105,11 +105,34 @@ class BookingService {
 
       if (!slotsResult.success || !slotsResult.data) {
         logger.warn(`❌ No slots found for staff ${staffId}`);
-        return { success: false, error: 'No available slots found' };
+        return { 
+          success: false, 
+          error: 'No available slots found',
+          reason: 'no_slots',
+          data: []
+        };
       }
 
-      logger.info(`✅ Found ${slotsResult.data.length} slots`);
-      return { success: true, data: slotsResult.data };
+      // Проверяем, есть ли свободные слоты
+      const availableSlots = slotsResult.data.filter(slot => slot.available !== false);
+      
+      if (availableSlots.length === 0) {
+        logger.warn(`❌ All slots are booked for staff ${staffId}`);
+        return {
+          success: false,
+          error: 'All slots are booked',
+          reason: 'fully_booked',
+          data: [],
+          alternativeSlots: slotsResult.data // Возвращаем все слоты как альтернативы
+        };
+      }
+
+      logger.info(`✅ Found ${availableSlots.length} available slots`);
+      return { 
+        success: true, 
+        data: availableSlots,
+        reason: null 
+      };
     } catch (error) {
       logger.error('Error finding suitable slot:', error);
       return { success: false, error: error.message };
