@@ -171,30 +171,89 @@ class EntityResolver {
       throw new Error(`No services found for company ${companyId}`);
     }
 
-    // 2. Простой поиск по подстроке (быстро)
+    // 2. Простой поиск по точному совпадению (быстро)
     const exactMatch = services.find(s => 
-      s.title.toLowerCase().includes(serviceName.toLowerCase())
+      s.title.toLowerCase() === serviceName.toLowerCase()
     );
     
     if (exactMatch) {
       logger.debug(`📍 Exact match found: ${exactMatch.title}`);
       return exactMatch;
     }
+    
+    // 2.5. Если есть несколько услуг с этим словом, используем AI
+    const partialMatches = services.filter(s => 
+      s.title.toLowerCase().includes(serviceName.toLowerCase())
+    );
+    
+    if (partialMatches.length > 1) {
+      logger.debug(`🔍 Found ${partialMatches.length} partial matches for "${serviceName}", using AI to select best`);
+      // Переходим сразу к AI выбору
+    } else if (partialMatches.length === 1) {
+      logger.debug(`📍 Single partial match found: ${partialMatches[0].title}`);
+      return partialMatches[0];
+    }
 
     // 3. AI поиск для сложных случаев
     try {
-      const aiService = await this._getAIService();
-      const bestMatch = await Promise.race([
-        aiService.selectBestService(serviceName, services, context),
-        this._createTimeout(3000, 'AI service selection timeout')
-      ]);
+      // Используем либо частичные совпадения, либо все услуги
+      const candidateServices = partialMatches.length > 0 ? partialMatches : services;
       
-      if (bestMatch) {
-        logger.debug(`🧠 AI match found: ${bestMatch.title}`);
-        return bestMatch;
+      // Временная логика выбора лучшей услуги для "стрижка"
+      if (serviceName.toLowerCase() === 'стрижка' && candidateServices.length > 1) {
+        // Приоритеты для выбора услуги стрижки
+        const priorities = [
+          'мужская стрижка',
+          'стрижка машинкой',
+          'стрижка ножницами',
+          'стрижка | счастливые часы'
+        ];
+        
+        for (const priority of priorities) {
+          const match = candidateServices.find(s => 
+            s.title.toLowerCase() === priority.toLowerCase()
+          );
+          if (match) {
+            logger.debug(`📋 Priority match found: ${match.title}`);
+            return match;
+          }
+        }
+        
+        // Если не нашли по приоритетам, берем самую дешевую базовую стрижку
+        const basicServices = candidateServices.filter(s => 
+          !s.title.includes('+') && // без комбо-услуг
+          !s.title.includes('БОРОД') && // без услуг бороды
+          !s.title.includes('ТОНИРОВАНИЕ') // без тонирования
+        );
+        
+        if (basicServices.length > 0) {
+          const cheapest = basicServices.sort((a, b) => 
+            (a.price_min || 9999) - (b.price_min || 9999)
+          )[0];
+          logger.debug(`💰 Cheapest basic service selected: ${cheapest.title}`);
+          return cheapest;
+        }
       }
-    } catch (aiError) {
-      logger.warn('AI service selection failed:', aiError.message);
+      
+      // Для других случаев пробуем AI (если он реализован)
+      try {
+        const aiService = await this._getAIService();
+        if (aiService && typeof aiService.selectBestService === 'function') {
+          const bestMatch = await Promise.race([
+            aiService.selectBestService(serviceName, candidateServices, context),
+            this._createTimeout(3000, 'AI service selection timeout')
+          ]);
+          
+          if (bestMatch) {
+            logger.debug(`🧠 AI match found: ${bestMatch.title}`);
+            return bestMatch;
+          }
+        }
+      } catch (aiError) {
+        logger.debug('AI service not available or failed:', aiError.message);
+      }
+    } catch (error) {
+      logger.warn('Service selection failed:', error.message);
     }
 
     // 4. Fuzzy match fallback
