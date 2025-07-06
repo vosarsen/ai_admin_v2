@@ -593,7 +593,7 @@ class MessageWorker {
           requested_date: aiResult.entities?.date,
           requested_time: aiResult.entities?.time
         },
-        noSlotsReason: actionResult.reason || 'fully_booked',
+        noSlotsReason: actionResult.reason || 'no_slots',
         availableSlots: actionResult.alternativeSlots || [],
         client: context.client,
         companyId: context.companyId

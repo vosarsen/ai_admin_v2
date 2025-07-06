@@ -186,7 +186,9 @@ class ProactiveSuggestions {
       case 'no_working_hours':
         return "Салон в это время не работает, но могу предложить:";
       case 'fully_booked':
-        return "День полностью забронирован, но есть свободные места:";
+        return "К сожалению, на это время все места заняты. Но у меня есть альтернативы:";
+      case 'no_slots':
+        return "К сожалению, не нашлось подходящих слотов. Давайте попробуем другие варианты:";
       default:
         return this._getRandomTemplate(templates);
     }
