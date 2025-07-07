@@ -331,7 +331,8 @@ class MessageWorker {
       serviceId: service.yclients_id,
       staffId: staff ? staff.yclients_id : null,
       preferredDate: entities.date,
-      preferredTime: entities.time
+      preferredTime: entities.time,
+      timePreference: entities.time_preference
     });
     
     // Обогащаем результат информацией о разрешенных сущностях

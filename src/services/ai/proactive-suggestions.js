@@ -189,6 +189,9 @@ class ProactiveSuggestions {
         return "К сожалению, на это время все места заняты. Но у меня есть альтернативы:";
       case 'no_slots':
         return "К сожалению, не нашлось подходящих слотов. Давайте попробуем другие варианты:";
+      
+      case 'no_matching_time':
+        return `К сожалению, не нашлось свободных слотов ${searchDetails.timePreference || 'на указанное время'}. Но у меня есть другие предложения:`;
       default:
         return this._getRandomTemplate(templates);
     }
