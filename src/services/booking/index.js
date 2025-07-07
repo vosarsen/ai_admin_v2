@@ -14,6 +14,13 @@ class BookingService {
     this.minMinutesAhead = config.business.minBookingMinutesAhead;
     this.dataLayer = new SupabaseDataLayer();
     this.yclientsClient = null;
+    
+    // Временные периоды для фильтрации
+    this.timePeriods = {
+      morning: { start: 6, end: 12 },      // 6:00-12:00
+      afternoon: { start: 12, end: 18 },    // 12:00-18:00
+      evening: { start: 18, end: 23 }       // 18:00-23:00
+    };
   }
 
   getYclientsClient() {
@@ -21,6 +28,59 @@ class BookingService {
       this.yclientsClient = new YclientsClient();
     }
     return this.yclientsClient;
+  }
+
+  /**
+   * Фильтрует слоты по временным предпочтениям
+   */
+  filterSlotsByTimePreference(slots, timePreference) {
+    if (!timePreference || !slots || slots.length === 0) {
+      return slots;
+    }
+    
+    logger.info(`⏰ Filtering ${slots.length} slots by time preference: ${timePreference}`);
+    
+    // Определяем временной период
+    const preference = timePreference.toLowerCase();
+    let period = null;
+    
+    // Проверяем стандартные периоды
+    if (preference.includes('утр') || preference === 'morning') {
+      period = this.timePeriods.morning;
+    } else if (preference.includes('день') || preference.includes('обед') || preference === 'afternoon') {
+      period = this.timePeriods.afternoon;
+    } else if (preference.includes('вечер') || preference === 'evening') {
+      period = this.timePeriods.evening;
+    }
+    
+    // Проверяем конкретное время (например, "после 18:00")
+    const afterMatch = preference.match(/после\s*(\d{1,2})/);
+    if (afterMatch) {
+      const hour = parseInt(afterMatch[1]);
+      period = { start: hour, end: 23 };
+    }
+    
+    const beforeMatch = preference.match(/до\s*(\d{1,2})/);
+    if (beforeMatch) {
+      const hour = parseInt(beforeMatch[1]);
+      period = { start: 6, end: hour };
+    }
+    
+    if (!period) {
+      logger.warn(`Could not parse time preference: ${timePreference}`);
+      return slots;
+    }
+    
+    // Фильтруем слоты
+    const filtered = slots.filter(slot => {
+      const time = slot.time || slot.datetime;
+      const hour = parseInt(time.split(':')[0]);
+      return hour >= period.start && hour < period.end;
+    });
+    
+    logger.info(`✅ Filtered to ${filtered.length} slots (${period.start}:00-${period.end}:00)`);
+    
+    return filtered;
   }
 
   async getServices(filters = {}, companyId = config.yclients.companyId) {
@@ -57,6 +117,7 @@ class BookingService {
       staffId,
       preferredDate,
       preferredTime,
+      timePreference,
       companyId = config.yclients.companyId
     } = options;
 
@@ -65,6 +126,7 @@ class BookingService {
       staffId,
       preferredDate,
       preferredTime,
+      timePreference,
       companyId
     });
 
@@ -143,17 +205,36 @@ class BookingService {
           };
         }
         
-        // Сортируем слоты по времени
-        allSlots.sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+        // Фильтруем по временным предпочтениям если указаны
+        let filteredSlots = allSlots;
+        if (timePreference) {
+          filteredSlots = this.filterSlotsByTimePreference(allSlots, timePreference);
+          
+          if (filteredSlots.length === 0) {
+            logger.warn(`❌ No slots found matching time preference: ${timePreference}`);
+            return {
+              success: false,
+              error: `No available slots found ${timePreference}`,
+              reason: 'no_matching_time',
+              data: [],
+              allSlotsCount: allSlots.length,
+              timePreference
+            };
+          }
+        }
         
-        logger.info(`✅ Found ${allSlots.length} total slots from ${staffWithSlots.length} staff members`);
+        // Сортируем слоты по времени
+        filteredSlots.sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+        
+        logger.info(`✅ Found ${filteredSlots.length} slots${timePreference ? ` for ${timePreference}` : ''} from ${staffWithSlots.length} staff members`);
         
         return { 
           success: true, 
-          data: allSlots,
+          data: filteredSlots,
           reason: null,
           staffWithSlots: staffWithSlots.length,
-          totalStaffChecked: staffResult.data.length
+          totalStaffChecked: staffResult.data.length,
+          totalSlotsBeforeFilter: allSlots.length
         };
       }
       
@@ -190,11 +271,30 @@ class BookingService {
         };
       }
 
-      logger.info(`✅ Found ${availableSlots.length} available slots`);
+      // Фильтруем по временным предпочтениям если указаны
+      let finalSlots = availableSlots;
+      if (timePreference) {
+        finalSlots = this.filterSlotsByTimePreference(availableSlots, timePreference);
+        
+        if (finalSlots.length === 0) {
+          logger.warn(`❌ No slots found matching time preference: ${timePreference}`);
+          return {
+            success: false,
+            error: `No available slots found ${timePreference}`,
+            reason: 'no_matching_time',
+            data: [],
+            allSlotsCount: availableSlots.length,
+            timePreference
+          };
+        }
+      }
+      
+      logger.info(`✅ Found ${finalSlots.length} available slots${timePreference ? ` for ${timePreference}` : ''}`);
       return { 
         success: true, 
-        data: availableSlots,
-        reason: null 
+        data: finalSlots,
+        reason: null,
+        totalSlotsBeforeFilter: availableSlots.length
       };
     } catch (error) {
       logger.error('Error finding suitable slot:', error);
