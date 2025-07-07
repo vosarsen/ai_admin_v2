@@ -299,22 +299,30 @@ class MessageWorker {
       context
     );
     
-    const staff = await entityResolver.resolveStaff(
-      entities.staff,
-      context.companyId,
-      context
-    );
-    
-    logger.info('✅ Entities resolved:', {
-      service: `${service.title} (ID: ${service.yclients_id})`,
-      staff: `${staff.name} (ID: ${staff.yclients_id})`
-    });
+    // Разрешаем мастера только если он был указан пользователем
+    let staff = null;
+    if (entities.staff) {
+      staff = await entityResolver.resolveStaff(
+        entities.staff,
+        context.companyId,
+        context
+      );
+      logger.info('✅ Entities resolved:', {
+        service: `${service.title} (ID: ${service.yclients_id})`,
+        staff: `${staff.name} (ID: ${staff.yclients_id})`
+      });
+    } else {
+      logger.info('✅ Entities resolved:', {
+        service: `${service.title} (ID: ${service.yclients_id})`,
+        staff: 'Any available staff'
+      });
+    }
     
     // Выполняем поиск слотов
     const slotsResult = await bookingService.findSuitableSlot({
       companyId: context.companyId,
       serviceId: service.yclients_id,
-      staffId: staff.yclients_id,
+      staffId: staff ? staff.yclients_id : null,
       preferredDate: entities.date,
       preferredTime: entities.time
     });
@@ -327,10 +335,10 @@ class MessageWorker {
           price: service.price_min ? `от ${service.price_min}₽` : null,
           duration: service.duration ? `${service.duration} мин` : null
         },
-        staff: {
+        staff: staff ? {
           name: staff.name,
           rating: staff.rating
-        }
+        } : null
       };
     }
     
@@ -510,14 +518,48 @@ class MessageWorker {
           response += ` у мастера ${actionResult.resolvedEntities.staff.name}`;
         } else if (aiResult.entities.staff) {
           response += ` у мастера ${aiResult.entities.staff}`;
+        } else if (actionResult.staffWithSlots && actionResult.staffWithSlots > 1) {
+          response += ` у ${actionResult.staffWithSlots} мастеров`;
         }
         
         // Добавляем список слотов
-        const slotsText = actionResult.data.slice(0, 5).map(slot => 
-          `• ${slot.time || slot.datetime} ${slot.staff_name ? '- ' + slot.staff_name : ''}`
-        ).join('\n');
+        // Если проверялось несколько мастеров, группируем по мастерам и показываем имена
+        let slotsText;
+        
+        if (!actionResult.resolvedEntities?.staff && actionResult.data[0]?.staff_name) {
+          // Группируем первые 10 слотов по мастерам
+          const slotsByStaff = {};
+          actionResult.data.slice(0, 10).forEach(slot => {
+            const staffName = slot.staff_name || 'Неизвестный мастер';
+            if (!slotsByStaff[staffName]) {
+              slotsByStaff[staffName] = [];
+            }
+            slotsByStaff[staffName].push(slot);
+          });
+          
+          // Формируем текст с группировкой по мастерам
+          slotsText = Object.entries(slotsByStaff)
+            .slice(0, 3) // Максимум 3 мастера
+            .map(([staffName, slots]) => {
+              const staffSlots = slots.slice(0, 3) // Максимум 3 слота на мастера
+                .map(slot => `  • ${slot.time || slot.datetime}`)
+                .join('\n');
+              return `👤 ${staffName}:\n${staffSlots}`;
+            })
+            .join('\n\n');
+        } else {
+          // Обычный формат без имен мастеров (когда выбран конкретный мастер)
+          slotsText = actionResult.data.slice(0, 5).map(slot => 
+            `• ${slot.time || slot.datetime}`
+          ).join('\n');
+        }
         
         message = `${response}:\n\n${slotsText}`;
+        
+        // Добавляем информацию о количестве проверенных мастеров, если проверялось несколько
+        if (actionResult.totalStaffChecked && actionResult.totalStaffChecked > 1) {
+          message += `\n\n📊 Проверено мастеров: ${actionResult.totalStaffChecked}`;
+        }
       }
       
       // ❌ Нет доступных слотов для search_slots - ПРОАКТИВНЫЕ ПРЕДЛОЖЕНИЯ

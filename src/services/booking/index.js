@@ -79,20 +79,81 @@ class BookingService {
       // Если нет staffId, ищем слоты у всех мастеров
       if (!staffId) {
         logger.info(`👥 No specific staff requested, searching all available staff`);
-        // TODO: Получить список всех мастеров и найти у кого есть слоты
+        
+        // Получаем список всех мастеров
+        const staffResult = await this.dataLayer.getStaff(companyId, false);
+        
+        if (!staffResult.success || !staffResult.data || staffResult.data.length === 0) {
+          logger.warn(`❌ No staff available for company ${companyId}`);
+          return { 
+            success: false, 
+            error: 'No staff available',
+            reason: 'no_staff',
+            data: []
+          };
+        }
+        
+        logger.info(`🔍 Found ${staffResult.data.length} staff members, checking availability...`);
+        
+        // Проверяем слоты у каждого мастера
+        const allSlots = [];
+        const staffWithSlots = [];
+        
+        for (const staffMember of staffResult.data) {
+          try {
+            const staffSlots = await this.getAvailableSlots(
+              staffMember.yclients_id,
+              targetDate,
+              actualServiceId,
+              companyId
+            );
+            
+            if (staffSlots.success && staffSlots.data) {
+              const slotsData = staffSlots.data?.data || staffSlots.data;
+              if (Array.isArray(slotsData) && slotsData.length > 0) {
+                logger.info(`✅ Staff ${staffMember.name} has ${slotsData.length} available slots`);
+                
+                // Добавляем информацию о мастере к каждому слоту
+                const slotsWithStaff = slotsData.map(slot => ({
+                  ...slot,
+                  staff_id: staffMember.yclients_id,
+                  staff_name: staffMember.name,
+                  staff_rating: staffMember.rating
+                }));
+                
+                allSlots.push(...slotsWithStaff);
+                staffWithSlots.push(staffMember);
+              } else {
+                logger.debug(`Staff ${staffMember.name} has no available slots`);
+              }
+            }
+          } catch (error) {
+            logger.warn(`Failed to get slots for staff ${staffMember.name}:`, error.message);
+          }
+        }
+        
+        if (allSlots.length === 0) {
+          logger.warn(`❌ No available slots found for any staff`);
+          return {
+            success: false,
+            error: 'No available slots found',
+            reason: 'fully_booked',
+            data: [],
+            checkedStaffCount: staffResult.data.length
+          };
+        }
+        
+        // Сортируем слоты по времени
+        allSlots.sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+        
+        logger.info(`✅ Found ${allSlots.length} total slots from ${staffWithSlots.length} staff members`);
+        
         return { 
           success: true, 
-          data: [{
-            time: "10:00",
-            datetime: `${targetDate} 10:00:00`,
-            staff_name: "Любой мастер",
-            available: true
-          }, {
-            time: "14:00", 
-            datetime: `${targetDate} 14:00:00`,
-            staff_name: "Любой мастер",
-            available: true
-          }]
+          data: allSlots,
+          reason: null,
+          staffWithSlots: staffWithSlots.length,
+          totalStaffChecked: staffResult.data.length
         };
       }
       
