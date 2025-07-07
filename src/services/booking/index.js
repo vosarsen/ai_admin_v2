@@ -113,8 +113,10 @@ class BookingService {
         };
       }
 
-      // Проверяем, есть ли свободные слоты
-      const availableSlots = slotsResult.data.filter(slot => slot.available !== false);
+      // Получаем массив слотов из ответа API
+      // Yclients API возвращает данные в формате { data: { data: [...], meta: [] } }
+      const slotsData = slotsResult.data?.data || slotsResult.data;
+      const availableSlots = Array.isArray(slotsData) ? slotsData : [];
       
       if (availableSlots.length === 0) {
         logger.warn(`❌ All slots are booked for staff ${staffId}`);
@@ -123,7 +125,7 @@ class BookingService {
           error: 'All slots are booked',
           reason: 'fully_booked',
           data: [],
-          alternativeSlots: slotsResult.data // Возвращаем все слоты как альтернативы
+          alternativeSlots: slotsData // Возвращаем все слоты как альтернативы
         };
       }
 
