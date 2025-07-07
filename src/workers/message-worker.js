@@ -292,9 +292,16 @@ class MessageWorker {
   async _handleSearchSlots(entities, context) {
     logger.info('🔍 Handling search slots with AI-powered entity resolution');
     
+    // Если услуга не указана, используем стрижку по умолчанию
+    const serviceName = entities.service || 'стрижка';
+    
+    if (!entities.service) {
+      logger.info('📋 No service specified, using default: стрижка');
+    }
+    
     // Разрешаем сущности через AI + Smart Cache
     const service = await entityResolver.resolveService(
-      entities.service, 
+      serviceName, 
       context.companyId, 
       context
     );
