@@ -1,14 +1,34 @@
 // src/services/context/index.js
-const Redis = require('ioredis');
+const { createRedisClient } = require('../../utils/redis-factory');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const DataTransformers = require('../../utils/data-transformers');
 
 class ContextService {
   constructor() {
-    this.redis = new Redis(config.redis.url, {
-      ...config.redis.options,
-      keyPrefix: 'context:'
+    // Используем фабрику для создания Redis клиента с правильной конфигурацией
+    const redisClient = createRedisClient('context');
+    
+    // Добавляем keyPrefix через proxy для сохранения функциональности
+    this.redis = new Proxy(redisClient, {
+      get(target, prop) {
+        if (typeof target[prop] === 'function') {
+          return function(...args) {
+            // Добавляем префикс к первому аргументу (ключу) для методов работы с ключами
+            const keyCommands = [
+              'get', 'set', 'del', 'expire', 'ttl', 'exists', 'mget', 'mset',
+              'lpush', 'rpush', 'lpop', 'rpop', 'lrange', 'ltrim', 'llen',
+              'hget', 'hset', 'hdel', 'hgetall', 'hmset'
+            ];
+            
+            if (keyCommands.includes(prop) && args[0] && typeof args[0] === 'string') {
+              args[0] = `context:${args[0]}`;
+            }
+            return target[prop].apply(target, args);
+          };
+        }
+        return target[prop];
+      }
     });
     
     this.contextTTL = 24 * 60 * 60; // 24 hours
