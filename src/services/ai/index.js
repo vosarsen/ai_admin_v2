@@ -84,6 +84,7 @@ class AIService {
         success: result.success,
         intent: result.intent,
         action: result.action,
+        response: result.response,
         entities: result.entities,
         confidence: result.confidence,
         provider: result.provider
