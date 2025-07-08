@@ -147,7 +147,7 @@ class AIService {
           intent: 'booking',
           entities: entities,
           action: 'search_slots',
-          response: `Проверяю доступные слоты для записи. Укажите, пожалуйста, желаемую дату и время.`,
+          response: null,
           confidence: 0.6
         };
       }
@@ -255,7 +255,7 @@ ${lastMessages.map(m => `Клиент: ${m.user}\nАдмин: ${m.assistant}`).j
    - search_slots: когда клиент просит записаться но НЕ указал конкретное время
    - get_info: когда клиент спрашивает информацию о услугах/ценах
    - none: в остальных случаях
-4. response - ответ клиенту (кратко, по-деловому)
+4. response - ответ клиенту (кратко, по-деловому). ВАЖНО: для action "search_slots" ВСЕГДА возвращай response: null
 5. confidence - уверенность 0-1
 
 Ответь ТОЛЬКО в формате JSON:
@@ -369,7 +369,7 @@ ${lastMessages.map(m => `Клиент: ${m.user}\nАдмин: ${m.assistant}`).j
           intent: parsed.intent || 'other',
           entities: parsed.entities || {},
           action: parsed.action || 'none',
-          response: parsed.response || aiResponse,
+          response: parsed.response !== undefined ? parsed.response : aiResponse,
           confidence: parsed.confidence || 0.5
         };
       }

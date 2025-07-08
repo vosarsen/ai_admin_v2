@@ -477,8 +477,8 @@ class MessageWorker {
     let message = aiResult.response;
     let attachment = null;
     
-    // Для search_slots генерируем ответ только после выполнения действия
-    if (aiResult.action === 'search_slots' && message === null) {
+    // Для search_slots генерируем промежуточный ответ только если нет actionResult
+    if (aiResult.action === 'search_slots' && message === null && !actionResult) {
       message = this._generateSearchSlotsResponse(aiResult, actionResult, context);
     }
     
