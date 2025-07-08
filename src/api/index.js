@@ -75,7 +75,10 @@ app.post('/webhook/whatsapp', rateLimiter, validateWebhookSignature, async (req,
       timestamp: timestamp || new Date().toISOString()
     });
 
-    logger.info(`📨 Webhook received message from ${from}, queued as ${result.jobId}`);
+    logger.info(`📨 Webhook received message from ${from}, queued as ${result.jobId}`, {
+      message: message.substring(0, 50),
+      timestamp: timestamp || new Date().toISOString()
+    });
     
     // Return immediately
     res.json({
