@@ -531,10 +531,8 @@ class MessageWorker {
     let message = aiResult.action === 'search_slots' ? null : aiResult.response;
     let attachment = null;
     
-    // Для search_slots генерируем промежуточный ответ только если нет actionResult
-    if (aiResult.action === 'search_slots' && message === null && !actionResult) {
-      message = this._generateSearchSlotsResponse(aiResult, actionResult, context);
-    }
+    // REMOVED: Do not generate intermediate response for search_slots
+    // The response will be generated after the action is executed
     
     // Enhance response based on action result
     if (actionResult) {

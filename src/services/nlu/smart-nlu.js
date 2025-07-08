@@ -64,12 +64,15 @@ class SmartNLU {
         entities: parsed.entities
       });
       
+      // CRITICAL: Ensure search_slots never has a response
+      const finalResponse = action === 'search_slots' ? null : generatedResponse;
+      
       return {
         success: true,
         intent: parsed.intent,
         entities: parsed.entities,
         action: action,
-        response: generatedResponse,
+        response: finalResponse,
         confidence: parsed.confidence || 0.8,
         provider: 'ai-nlu'
       };
@@ -101,7 +104,9 @@ class SmartNLU {
 
 ЗАДАЧА: Извлеки сущности и определи намерение клиента.
 
-ОТВЕТЬ СТРОГО в JSON формате:
+КРИТИЧЕСКИ ВАЖНО: НЕ ДОБАВЛЯЙ поле "response" в ответ! Оно не требуется.
+
+ОТВЕТЬ СТРОГО в JSON формате (БЕЗ поля response):
 {
   "intent": "booking|reschedule|cancel|info|other",
   "entities": {
@@ -230,6 +235,11 @@ class SmartNLU {
 
     combined.action = this.determineAction(combined);
     combined.response = this.generateResponse(combined, context);
+    
+    // CRITICAL: Ensure search_slots never has a response
+    if (combined.action === 'search_slots') {
+      combined.response = null;
+    }
 
     return {
       success: true,
@@ -393,6 +403,29 @@ class SmartNLU {
   }
 
   formatResult(extractionResult, provider, context) {
+    const action = this.determineAction({
+      intent: extractionResult.intent?.name || 'other',
+      entities: {
+        service: extractionResult.service?.name,
+        staff: extractionResult.staff?.name,
+        date: extractionResult.date?.date, 
+        time: extractionResult.time?.time
+      }
+    });
+    
+    const response = this.generateResponse({
+      intent: extractionResult.intent?.name || 'other',
+      entities: {
+        service: extractionResult.service?.name,
+        staff: extractionResult.staff?.name,
+        date: extractionResult.date?.date,
+        time: extractionResult.time?.time
+      }
+    }, context);
+    
+    // CRITICAL: Ensure search_slots never has a response
+    const finalResponse = action === 'search_slots' ? null : response;
+    
     return {
       success: true,
       intent: extractionResult.intent?.name || 'other',
@@ -402,24 +435,8 @@ class SmartNLU {
         date: extractionResult.date?.date || null,
         time: extractionResult.time?.time || null
       },
-      action: this.determineAction({
-        intent: extractionResult.intent?.name || 'other',
-        entities: {
-          service: extractionResult.service?.name,
-          staff: extractionResult.staff?.name,
-          date: extractionResult.date?.date, 
-          time: extractionResult.time?.time
-        }
-      }),
-      response: this.generateResponse({
-        intent: extractionResult.intent?.name || 'other',
-        entities: {
-          service: extractionResult.service?.name,
-          staff: extractionResult.staff?.name,
-          date: extractionResult.date?.date,
-          time: extractionResult.time?.time
-        }
-      }, context),
+      action: action,
+      response: finalResponse,
       confidence: extractionResult.confidence || 0.5,
       provider: provider
     };
