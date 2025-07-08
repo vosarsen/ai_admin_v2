@@ -358,11 +358,23 @@ ${lastMessages.map(m => `Клиент: ${m.user}\nАдмин: ${m.assistant}`).j
    * Parse AI response
    */
   _parseResponse(aiResponse) {
+    logger.info('🔍 Parsing AI response:', { 
+      response: aiResponse.substring(0, 200) + '...',
+      fullLength: aiResponse.length 
+    });
+    
     try {
       // Try to extract JSON from response
       const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
+        
+        logger.info('✅ Successfully parsed AI response JSON:', {
+          intent: parsed.intent,
+          action: parsed.action,
+          response: parsed.response,
+          hasEntities: !!parsed.entities
+        });
         
         // Validate required fields
         return {
@@ -377,6 +389,7 @@ ${lastMessages.map(m => `Клиент: ${m.user}\nАдмин: ${m.assistant}`).j
       logger.warn('Failed to parse AI response as JSON:', error.message);
     }
 
+    logger.warn('⚠️ Using fallback parsing - returning raw AI response as text');
     // Fallback - return raw response
     return {
       intent: 'other',
