@@ -48,14 +48,28 @@ class SmartNLU {
     
     try {
       const response = await this.aiService._callAI(prompt, 'primary');
+      logger.info('🤖 Raw AI response for NLU:', {
+        response: response.substring(0, 500) + '...',
+        fullLength: response.length
+      });
+      
       const parsed = this.parseAIResponse(response);
+      const action = this.determineAction(parsed);
+      const generatedResponse = this.generateResponse(parsed, context);
+      
+      logger.info('🎯 NLU extraction complete:', {
+        intent: parsed.intent,
+        action: action,
+        generatedResponse: generatedResponse,
+        entities: parsed.entities
+      });
       
       return {
         success: true,
         intent: parsed.intent,
         entities: parsed.entities,
-        action: this.determineAction(parsed),
-        response: this.generateResponse(parsed, context),
+        action: action,
+        response: generatedResponse,
         confidence: parsed.confidence || 0.8,
         provider: 'ai-nlu'
       };
@@ -137,11 +151,20 @@ class SmartNLU {
 
       const parsed = JSON.parse(jsonMatch[0]);
       
+      // CRITICAL: Log if AI returns unexpected 'response' field
+      if (parsed.response !== undefined) {
+        logger.warn('⚠️ AI returned unexpected "response" field in NLU extraction:', {
+          response: parsed.response,
+          intent: parsed.intent
+        });
+      }
+      
       logger.info('✅ Parsed Smart NLU response:', {
         intent: parsed.intent,
         hasEntities: !!parsed.entities,
         confidence: parsed.confidence,
-        reasoning: parsed.reasoning
+        reasoning: parsed.reasoning,
+        hasResponseField: parsed.response !== undefined
       });
       
       // Validate structure

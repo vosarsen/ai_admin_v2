@@ -505,7 +505,8 @@ class MessageWorker {
    * 🤖 Build final response with proactive suggestions
    */
   async buildResponse(aiResult, actionResult, context) {
-    let message = aiResult.response;
+    // CRITICAL: For search_slots, ignore any AI response to prevent "Укажите услугу и мастера"
+    let message = aiResult.action === 'search_slots' ? null : aiResult.response;
     let attachment = null;
     
     // Для search_slots генерируем промежуточный ответ только если нет actionResult
@@ -620,7 +621,12 @@ class MessageWorker {
       
       // 🔧 Технические ошибки
       else if (!actionResult.success && actionResult.error) {
-        message = `${aiResult.response}\n\nК сожалению, возникла техническая проблема. Попробуйте еще раз или позвоните нам.`;
+        // For search_slots, don't include AI response which might be "Укажите услугу"
+        if (aiResult.action === 'search_slots') {
+          message = 'К сожалению, возникла техническая проблема при поиске свободных слотов. Попробуйте еще раз или позвоните нам.';
+        } else {
+          message = `${aiResult.response}\n\nК сожалению, возникла техническая проблема. Попробуйте еще раз или позвоните нам.`;
+        }
       }
     }
     
@@ -709,8 +715,8 @@ class MessageWorker {
     } catch (error) {
       logger.error('Error building proactive response:', error);
       
-      // Fallback к стандартному сообщению
-      return `${aiResult.response}\n\nК сожалению, это время недоступно. Попробуйте выбрать другое время или обратитесь к нам по телефону.`;
+      // Fallback к стандартному сообщению (не используем AI response для search_slots)
+      return 'К сожалению, это время недоступно. Попробуйте выбрать другое время или обратитесь к нам по телефону.';
     }
   }
 
