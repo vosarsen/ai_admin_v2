@@ -120,6 +120,11 @@ class SmartNLU {
    * Parse AI response for entity extraction
    */
   parseAIResponse(response) {
+    logger.info('🔍 Parsing Smart NLU AI response:', {
+      response: response.substring(0, 200) + '...',
+      fullLength: response.length
+    });
+    
     try {
       // Extract JSON from response
       const jsonMatch = response.match(/\{[\s\S]*\}/);
@@ -128,6 +133,13 @@ class SmartNLU {
       }
 
       const parsed = JSON.parse(jsonMatch[0]);
+      
+      logger.info('✅ Parsed Smart NLU response:', {
+        intent: parsed.intent,
+        hasEntities: !!parsed.entities,
+        confidence: parsed.confidence,
+        reasoning: parsed.reasoning
+      });
       
       // Validate structure
       if (!parsed.intent || !parsed.entities) {
@@ -151,6 +163,7 @@ class SmartNLU {
 
     } catch (error) {
       logger.error('Failed to parse AI extraction response:', error.message);
+      logger.error('Raw response was:', response);
       throw error;
     }
   }
@@ -238,21 +251,34 @@ class SmartNLU {
   generateResponse(parsed, context) {
     const { intent, entities, action } = parsed;
     
+    logger.info('🎯 Generating response for:', {
+      intent,
+      action,
+      hasEntities: !!entities
+    });
+    
     if (action === 'create_booking') {
-      return `Записываю вас к ${entities.staff} на ${entities.date} в ${entities.time}. Подтверждаю запись.`;
+      const response = `Записываю вас к ${entities.staff} на ${entities.date} в ${entities.time}. Подтверждаю запись.`;
+      logger.info('📝 Generated create_booking response:', response);
+      return response;
     }
     
     // ДЛЯ search_slots НЕ ГЕНЕРИРУЕМ промежуточный ответ
     // Финальный ответ будет сгенерирован в buildResponse после выполнения действия
     if (action === 'search_slots') {
+      logger.info('🔍 Returning null for search_slots - response will be generated later');
       return null; // Возвращаем null - ответ будет сформирован позже
     }
     
     if (intent === 'info') {
-      return 'Какую информацию вас интересует? Расценки, режим работы или услуги?';
+      const response = 'Какую информацию вас интересует? Расценки, режим работы или услуги?';
+      logger.info('ℹ️ Generated info response:', response);
+      return response;
     }
     
-    return 'Здравствуйте! Я помогу вам записаться на услуги. Скажите, на какую дату и время вы хотели бы записаться?';
+    const defaultResponse = 'Здравствуйте! Я помогу вам записаться на услуги. Скажите, на какую дату и время вы хотели бы записаться?';
+    logger.info('💬 Generated default response:', defaultResponse);
+    return defaultResponse;
   }
 
   /**
