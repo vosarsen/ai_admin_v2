@@ -94,8 +94,9 @@ class MessageWorker {
    */
   async processMessage(job) {
     const startTime = Date.now();
+    const messageId = `${job.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
-    logger.info(`🎯 Starting to process job ${job.id}`);
+    logger.info(`🎯 Starting to process job ${job.id} (messageId: ${messageId})`);
     
     const { from, message, companyId, timestamp } = job.data;
     
@@ -149,6 +150,15 @@ class MessageWorker {
         entities: aiResult.entities
       });
       
+      // CRITICAL: Log warning if AI returns response for search_slots
+      if (aiResult.action === 'search_slots' && aiResult.response) {
+        logger.warn('⚠️ WARNING: AI returned response for search_slots action:', {
+          response: aiResult.response
+        });
+        // Force null response for search_slots
+        aiResult.response = null;
+      }
+      
       if (!aiResult.success) {
         throw new Error(aiResult.error || 'AI processing failed');
       }
@@ -168,10 +178,22 @@ class MessageWorker {
       });
       
       // 5. Send response via WhatsApp
+      // CRITICAL: Don't send empty messages
+      if (!finalResponse.message) {
+        logger.warn('⚠️ Skipping empty message send for action:', aiResult.action);
+        return {
+          success: true,
+          processingTime: Date.now() - startTime,
+          response: 'No message to send',
+          action: aiResult.action
+        };
+      }
+      
       logger.info("📡 Sending WhatsApp message:", {
         to: from,
         message: finalResponse.message,
-        messageLength: finalResponse.message.length
+        messageLength: finalResponse.message.length,
+        action: aiResult.action
       });
       
       const sendResult = await whatsappClient.sendMessage(from, finalResponse.message);

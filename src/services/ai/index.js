@@ -382,6 +382,14 @@ ${lastMessages.map(m => `Клиент: ${m.user}\nАдмин: ${m.assistant}`).j
           hasEntities: !!parsed.entities
         });
         
+        // CRITICAL: Force null response for search_slots action
+        if (parsed.action === 'search_slots' && parsed.response) {
+          logger.warn('⚠️ AI returned response for search_slots, forcing to null:', {
+            originalResponse: parsed.response
+          });
+          parsed.response = null;
+        }
+        
         // Validate required fields
         return {
           intent: parsed.intent || 'other',
