@@ -422,48 +422,79 @@ class MessageWorker {
   }
 
   /**
-   * ℹ️ Получение информации об услуге через Entity Resolver
+   * ℹ️ Получение информации через Entity Resolver
    */
   async _handleGetInfo(entities, context) {
-    logger.info('ℹ️ Handling get info with AI-powered entity resolution');
+    logger.info('ℹ️ Handling get info request', { infoType: entities.info_type });
     
     try {
-      // Разрешаем услугу через AI
-      const service = await entityResolver.resolveService(
-        entities.service || 'услуга', 
-        context.companyId, 
-        context
-      );
+      // Обработка запроса о работающих мастерах
+      if (entities.info_type === 'staff_today' || 
+          (entities.info_type && entities.info_type.includes('staff'))) {
+        
+        // Получаем список всех мастеров
+        const staffList = context.staff || [];
+        if (staffList.length > 0) {
+          const staffNames = staffList.map(s => s.name).join(', ');
+          return {
+            success: true,
+            data: {
+              type: 'staff_list',
+              staff: staffNames,
+              count: staffList.length
+            }
+          };
+        } else {
+          return {
+            success: true,
+            data: {
+              type: 'staff_list',
+              message: 'Не удалось получить список мастеров'
+            }
+          };
+        }
+      }
       
+      // Обработка запроса об услуге
+      if (entities.service) {
+        const service = await entityResolver.resolveService(
+          entities.service, 
+          context.companyId, 
+          context
+        );
+        
+        return {
+          success: true,
+          data: {
+            type: 'service_info',
+            service: service.title,
+            price: service.price_min ? 
+              (service.price_max && service.price_max !== service.price_min ? 
+                `от ${service.price_min}₽ до ${service.price_max}₽` : 
+                `от ${service.price_min}₽`) : 
+              'уточнить у мастера',
+            duration: service.duration ? `${service.duration} минут` : '30-60 минут',
+            description: service.description || 'Профессиональное оформление'
+          }
+        };
+      }
+      
+      // Общая информация
       return {
         success: true,
         data: {
-          service: service.title,
-          price: service.price_min ? 
-            (service.price_max && service.price_max !== service.price_min ? 
-              `от ${service.price_min}₽ до ${service.price_max}₽` : 
-              `от ${service.price_min}₽`) : 
-            'уточнить у мастера',
-          duration: service.duration ? `${service.duration} минут` : '30-60 минут',
-          description: service.description || 'Профессиональное оформление'
-        },
-        resolvedEntity: {
-          yclients_id: service.yclients_id,
-          title: service.title
+          type: 'general_info',
+          message: 'Чем могу помочь? Могу рассказать о ценах, услугах или показать свободное время.'
         }
       };
       
     } catch (error) {
-      logger.error('Error getting service info:', error);
-      
-      // Fallback к общей информации
+      logger.error('Error getting info:', error);
       return {
         success: true,
         data: {
-          service: entities.service || 'услуга',
-          price: 'уточнить у мастера',
-          duration: '30-60 минут',
-          description: 'Профессиональное оформление'
+          type: 'error',
+          message: 'Не удалось получить информацию. Попробуйте еще раз.'
         },
         fallback: true
       };
@@ -567,6 +598,18 @@ class MessageWorker {
         // Добавляем информацию о количестве проверенных мастеров, если проверялось несколько
         if (actionResult.totalStaffChecked && actionResult.totalStaffChecked > 1) {
           message += `\n\n📊 Проверено мастеров: ${actionResult.totalStaffChecked}`;
+        }
+      }
+      
+      // ℹ️ Обработка информационных запросов
+      else if (aiResult.action === 'get_info' && actionResult.success) {
+        if (actionResult.data.type === 'staff_list') {
+          message = aiResult.response || `Сегодня работают: ${actionResult.data.staff}`;
+        } else if (actionResult.data.type === 'service_info') {
+          const { service, price, duration } = actionResult.data;
+          message = aiResult.response || `${service}\n💰 ${price}\n⏱ ${duration}`;
+        } else {
+          message = aiResult.response || actionResult.data.message;
         }
       }
       

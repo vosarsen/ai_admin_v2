@@ -95,6 +95,8 @@ class SmartNLU {
     "staff": "имя мастера или null", 
     "date": "YYYY-MM-DD или null",
     "time": "HH:MM или null",
+    "info_type": "staff_today|prices|services|schedule или null",
+    "time_preference": "morning|afternoon|evening или null",
     "original_text": {
       "service": "как клиент написал услугу",
       "staff": "как клиент написал мастера",
@@ -107,11 +109,12 @@ class SmartNLU {
 }
 
 ПРАВИЛА:
-1. intent = "booking" если клиент хочет записаться
+1. intent = "booking" если клиент хочет записаться, "info" если спрашивает информацию
 2. date = "сегодня" → "${currentDate}", "завтра" → следующий день
 3. Если мастер не указан явно - staff = null
 4. Если время не указано - time = null
-5. confidence = 0.9 если все понятно, 0.5-0.7 если есть неточности
+5. info_type = "staff_today" если спрашивает кто работает
+6. confidence = 0.9 если все понятно, 0.5-0.7 если есть неточности
 
 АНАЛИЗИРУЙ:`;
   }
@@ -151,7 +154,9 @@ class SmartNLU {
         service: this.normalizeService(parsed.entities.service),
         staff: this.normalizeStaff(parsed.entities.staff),
         date: this.normalizeDate(parsed.entities.date),
-        time: this.normalizeTime(parsed.entities.time)
+        time: this.normalizeTime(parsed.entities.time),
+        info_type: parsed.entities.info_type || null,
+        time_preference: parsed.entities.time_preference || null
       };
 
       return {
