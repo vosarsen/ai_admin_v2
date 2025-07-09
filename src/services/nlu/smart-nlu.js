@@ -54,20 +54,19 @@ class SmartNLU {
       });
       
       const parsed = this.parseAIResponse(response);
-      const action = this.determineAction(parsed);
-      // Добавляем action в parsed объект
-      parsed.action = action;
+      // Ensure action is always present
+      this.ensureAction(parsed);
       const generatedResponse = this.generateResponse(parsed, context);
       
       logger.info('🎯 NLU extraction complete:', {
         intent: parsed.intent,
-        action: action,
+        action: parsed.action,
         generatedResponse: generatedResponse,
         entities: parsed.entities
       });
       
       // CRITICAL: Ensure search_slots never has a response
-      const finalResponse = action === 'search_slots' ? null : generatedResponse;
+      const finalResponse = parsed.action === 'search_slots' ? null : generatedResponse;
       
       return {
         success: true,
@@ -235,7 +234,8 @@ class SmartNLU {
       patternResult.time?.time  
     );
 
-    combined.action = this.determineAction(combined);
+    // Ensure action is always present
+    this.ensureAction(combined);
     combined.response = this.generateResponse(combined, context);
     
     // CRITICAL: Ensure search_slots never has a response
@@ -264,6 +264,18 @@ class SmartNLU {
   }
 
   /**
+   * Ensure parsed result always has action field
+   * @param {Object} parsed - Parsed result with intent and entities
+   * @returns {Object} Parsed result with action field guaranteed
+   */
+  ensureAction(parsed) {
+    if (!parsed.action) {
+      parsed.action = this.determineAction(parsed);
+    }
+    return parsed;
+  }
+
+  /**
    * Determine action based on intent and entities
    */
   determineAction(parsed) {
@@ -289,14 +301,10 @@ class SmartNLU {
    * Generate appropriate response - НЕ генерируем промежуточные сообщения
    */
   generateResponse(parsed, context) {
-    const { intent, entities } = parsed;
+    // Ensure action is always present
+    this.ensureAction(parsed);
     
-    // CRITICAL: Ensure action is always defined
-    let action = parsed.action;
-    if (!action) {
-      logger.warn('⚠️ Action not provided to generateResponse, determining it now');
-      action = this.determineAction(parsed);
-    }
+    const { intent, entities, action } = parsed;
     
     logger.info('🎯 Generating response for:', {
       intent,
@@ -411,40 +419,29 @@ class SmartNLU {
   }
 
   formatResult(extractionResult, provider, context) {
-    const action = this.determineAction({
-      intent: extractionResult.intent?.name || 'other',
-      entities: {
-        service: extractionResult.service?.name,
-        staff: extractionResult.staff?.name,
-        date: extractionResult.date?.date, 
-        time: extractionResult.time?.time
-      }
-    });
-    
-    const response = this.generateResponse({
+    const parsed = {
       intent: extractionResult.intent?.name || 'other',
       entities: {
         service: extractionResult.service?.name,
         staff: extractionResult.staff?.name,
         date: extractionResult.date?.date,
         time: extractionResult.time?.time
-      },
-      action: action  // Добавляем action в объект
-    }, context);
+      }
+    };
+    
+    // Ensure action is always present
+    this.ensureAction(parsed);
+    
+    const response = this.generateResponse(parsed, context);
     
     // CRITICAL: Ensure search_slots never has a response
-    const finalResponse = action === 'search_slots' ? null : response;
+    const finalResponse = parsed.action === 'search_slots' ? null : response;
     
     return {
       success: true,
-      intent: extractionResult.intent?.name || 'other',
-      entities: {
-        service: extractionResult.service?.name || null,
-        staff: extractionResult.staff?.name || null, 
-        date: extractionResult.date?.date || null,
-        time: extractionResult.time?.time || null
-      },
-      action: action,
+      intent: parsed.intent,
+      entities: parsed.entities,
+      action: parsed.action,
       response: finalResponse,
       confidence: extractionResult.confidence || 0.5,
       provider: provider
