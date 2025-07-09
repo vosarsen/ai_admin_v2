@@ -26,41 +26,14 @@ module.exports = {
     CONFIDENCE_MEDIUM_MAX: 0.7    // Upper bound for partial matches
   },
   
-  // Entity normalization maps
-  SERVICE_MAP: {
-    'маникюр': 'маникюр',
-    'ногти': 'маникюр',
-    'ноготочки': 'маникюр',
-    'педикюр': 'педикюр',
-    'стопы': 'педикюр',
-    'ножки': 'педикюр',
-    'стрижка': 'стрижка',
-    'подстричься': 'стрижка',
-    'волосы': 'стрижка'
-  },
-  
+  // Time normalization map (this is generic and can stay)
   TIME_MAP: {
     'утром': '09:00',
     'днем': '12:00',
     'днём': '12:00',
     'вечером': '18:00'
-  },
+  }
   
-  STAFF_MAP: {
-    'маша': 'Мария',
-    'машенька': 'Мария',
-    'мария': 'Мария',
-    'оля': 'Ольга',
-    'ольга': 'Ольга',
-    'катя': 'Екатерина',
-    'екатерина': 'Екатерина',
-    'лена': 'Елена',
-    'елена': 'Елена',
-    'наташа': 'Наталья',
-    'наталья': 'Наталья'
-  },
-  
-  // Available services and staff for prompt
-  AVAILABLE_SERVICES: ['маникюр', 'педикюр', 'стрижка', 'окрашивание'],
-  AVAILABLE_STAFF: ['Мария', 'Ольга', 'Екатерина', 'Елена', 'Наталья']
+  // Entity maps removed - will be loaded dynamically from Supabase
+  // SERVICE_MAP, STAFF_MAP, AVAILABLE_SERVICES, AVAILABLE_STAFF deprecated
 };

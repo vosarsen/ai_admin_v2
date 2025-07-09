@@ -1,5 +1,5 @@
 // src/services/nlu/prompt-builder.js
-const { AI_PROMPT, AVAILABLE_SERVICES, AVAILABLE_STAFF } = require('./constants');
+const { AI_PROMPT } = require('./constants');
 
 /**
  * Builds prompts for AI entity extraction
@@ -13,24 +13,36 @@ class PromptBuilder {
    * @description Pre-builds static prompt parts for performance optimization
    */
   constructor() {
-    // Pre-build static parts of prompt
-    this._basePrompt = this._buildBasePrompt();
+    // Company data will be loaded dynamically
+    this.companyData = new Map(); // companyId -> { services, staff }
+    
+    // Default prompt parts
+    this._basePromptTemplate = `Ты - эксперт по обработке естественного языка для салона красоты. Анализируй ТОЛЬКО сообщение клиента и извлекай сущности.
+
+ЗАДАЧА: Извлеки сущности и определи намерение клиента.
+КРИТИЧЕСКИ ВАЖНО: НЕ ДОБАВЛЯЙ поле "response" в ответ!`;
+    
     this._exampleJson = this._buildExampleJson();
   }
 
   /**
-   * Build static parts of the prompt
-   * @private
+   * Update company-specific data
+   * @param {string} companyId - Company ID
+   * @param {Array} services - Array of services from database
+   * @param {Array} staff - Array of staff from database
    */
-  _buildBasePrompt() {
-    return `Ты - эксперт по обработке естественного языка для салона красоты. Анализируй ТОЛЬКО сообщение клиента и извлекай сущности.
-
-ДОСТУПНЫЕ УСЛУГИ: ${AVAILABLE_SERVICES.join(', ')}
-ДОСТУПНЫЕ МАСТЕРА: ${AVAILABLE_STAFF.join(', ')}
-
-ЗАДАЧА: Извлеки сущности и определи намерение клиента.
-КРИТИЧЕСКИ ВАЖНО: НЕ ДОБАВЛЯЙ поле "response" в ответ!`;
+  updateCompanyData(companyId, services = [], staff = []) {
+    const serviceNames = services.map(s => s.title);
+    const staffNames = staff.map(s => s.name);
+    
+    this.companyData.set(companyId, {
+      services: serviceNames,
+      staff: staffNames,
+      servicesData: services,
+      staffData: staff
+    });
   }
+
 
   /**
    * Build example JSON structure
@@ -72,6 +84,22 @@ class PromptBuilder {
     const now = new Date();
     const currentDate = now.toISOString().split('T')[0];
     const currentTime = now.toTimeString().substring(0, 5);
+    
+    // Get company-specific data
+    const companyData = context.companyId ? this.companyData.get(context.companyId) : null;
+    const availableServices = companyData?.services || [];
+    const availableStaff = companyData?.staff || [];
+
+    // Build dynamic prompt with actual company data
+    let prompt = this._basePromptTemplate;
+    
+    if (availableServices.length > 0) {
+      prompt += `\n\nДОСТУПНЫЕ УСЛУГИ: ${availableServices.join(', ')}`;
+    }
+    
+    if (availableStaff.length > 0) {
+      prompt += `\nДОСТУПНЫЕ МАСТЕРА: ${availableStaff.join(', ')}`;
+    }
 
     // Build dynamic context based on what's available
     const contextParts = [
@@ -89,7 +117,7 @@ class PromptBuilder {
       contextParts.push(`- Предпочитаемый мастер: ${context.client.preferredStaff}`);
     }
 
-    return `${this._basePrompt}
+    return `${prompt}
 
 СООБЩЕНИЕ КЛИЕНТА: "${message}"
 
