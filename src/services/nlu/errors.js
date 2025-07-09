@@ -2,8 +2,18 @@
 
 /**
  * Base error class for NLU-related errors
+ * @class NLUError
+ * @extends Error
+ * @description Provides structured error information with codes and details
  */
 class NLUError extends Error {
+  /**
+   * Creates an instance of NLUError
+   * @constructor
+   * @param {string} message - Error message
+   * @param {string} code - Error code for identification
+   * @param {Object} [details={}] - Additional error details
+   */
   constructor(message, code, details = {}) {
     super(message);
     this.name = 'NLUError';
@@ -12,6 +22,10 @@ class NLUError extends Error {
     this.timestamp = new Date().toISOString();
   }
 
+  /**
+   * Convert error to JSON representation
+   * @returns {Object} JSON representation of the error
+   */
   toJSON() {
     return {
       name: this.name,
@@ -26,6 +40,8 @@ class NLUError extends Error {
 
 /**
  * Error thrown when AI service fails to respond
+ * @class AIServiceError
+ * @extends NLUError
  */
 class AIServiceError extends NLUError {
   constructor(message, originalError) {
@@ -38,6 +54,8 @@ class AIServiceError extends NLUError {
 
 /**
  * Error thrown when parsing AI response fails
+ * @class AIResponseParseError
+ * @extends NLUError
  */
 class AIResponseParseError extends NLUError {
   constructor(response, parseError) {
@@ -51,6 +69,8 @@ class AIResponseParseError extends NLUError {
 
 /**
  * Error thrown when input validation fails
+ * @class ValidationError
+ * @extends NLUError
  */
 class ValidationError extends NLUError {
   constructor(errors, inputType) {
@@ -64,6 +84,8 @@ class ValidationError extends NLUError {
 
 /**
  * Error thrown when context is missing required fields
+ * @class InvalidContextError
+ * @extends NLUError
  */
 class InvalidContextError extends NLUError {
   constructor(missingFields) {
@@ -76,6 +98,8 @@ class InvalidContextError extends NLUError {
 
 /**
  * Error thrown when message format is invalid
+ * @class InvalidMessageError
+ * @extends NLUError
  */
 class InvalidMessageError extends NLUError {
   constructor(reason, messageInfo) {
@@ -89,6 +113,8 @@ class InvalidMessageError extends NLUError {
 
 /**
  * Error thrown when entity extraction fails
+ * @class EntityExtractionError
+ * @extends NLUError
  */
 class EntityExtractionError extends NLUError {
   constructor(message, extractionDetails) {
@@ -99,6 +125,8 @@ class EntityExtractionError extends NLUError {
 
 /**
  * Error thrown when action resolution fails
+ * @class ActionResolutionError
+ * @extends NLUError
  */
 class ActionResolutionError extends NLUError {
   constructor(intent, entities) {

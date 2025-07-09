@@ -3,12 +3,17 @@ const { SERVICE_MAP, STAFF_MAP, TIME_MAP } = require('./constants');
 
 /**
  * Normalizes extracted entities to standard formats
+ * @class DataNormalizer
+ * @description Converts various entity formats to standardized representations
  */
 class DataNormalizer {
   /**
    * Normalize service name
    * @param {string} service - Raw service name
-   * @returns {string|null} Normalized service name
+   * @returns {string|null} Normalized service name or null if empty
+   * @example
+   * normalizeService('ногти'); // returns 'маникюр'
+   * normalizeService('МАНИКЮР'); // returns 'маникюр'
    */
   normalizeService(service) {
     if (!service) return null;
@@ -19,6 +24,9 @@ class DataNormalizer {
 
   /**
    * Public alias for normalizeService
+   * @param {string} service - Raw service name
+   * @returns {string|null} Normalized service name
+   * @see normalizeService
    */
   normalizeServiceName(service) {
     return this.normalizeService(service);
@@ -27,7 +35,11 @@ class DataNormalizer {
   /**
    * Normalize staff name
    * @param {string} staff - Raw staff name
-   * @returns {string|null} Normalized staff name
+   * @returns {string|null} Normalized staff name or null if empty
+   * @example
+   * normalizeStaff('маша'); // returns 'Мария'
+   * normalizeStaff('ЛЮБОЙ'); // returns 'любой'
+   * normalizeStaff('анастасия'); // returns 'Анастасия'
    */
   normalizeStaff(staff) {
     if (!staff) return null;
@@ -48,6 +60,9 @@ class DataNormalizer {
   
   /**
    * Public alias for normalizeStaff
+   * @param {string} staff - Raw staff name
+   * @returns {string|null} Normalized staff name
+   * @see normalizeStaff
    */
   normalizeStaffName(staff) {
     return this.normalizeStaff(staff);
@@ -56,7 +71,11 @@ class DataNormalizer {
   /**
    * Normalize date
    * @param {string} date - Raw date
-   * @returns {string|null} Normalized date in YYYY-MM-DD format
+   * @returns {string|null} Normalized date in YYYY-MM-DD format or null if empty
+   * @example
+   * normalizeDate('сегодня'); // returns today's date '2024-01-09'
+   * normalizeDate('завтра'); // returns tomorrow's date '2024-01-10'
+   * normalizeDate('2024-01-15'); // returns '2024-01-15'
    */
   normalizeDate(date) {
     if (!date) return null;
@@ -90,7 +109,11 @@ class DataNormalizer {
   /**
    * Normalize time
    * @param {string} time - Raw time
-   * @returns {string|null} Normalized time in HH:MM format
+   * @returns {string|null} Normalized time in HH:MM format or null if empty
+   * @example
+   * normalizeTime('утром'); // returns '09:00'
+   * normalizeTime('в 14'); // returns '14:00'
+   * normalizeTime('14:30'); // returns '14:30'
    */
   normalizeTime(time) {
     if (!time) return null;
@@ -120,7 +143,11 @@ class DataNormalizer {
   /**
    * Format date for user display
    * @param {string} date - Date in YYYY-MM-DD format
-   * @returns {string} User-friendly date
+   * @returns {string} User-friendly date ('сегодня', 'завтра', or original date)
+   * @example
+   * formatDateForUser('2024-01-09'); // returns 'сегодня' (if today)
+   * formatDateForUser('2024-01-10'); // returns 'завтра' (if tomorrow)
+   * formatDateForUser('2024-01-15'); // returns '2024-01-15'
    */
   formatDateForUser(date) {
     if (!date) return '';
@@ -138,8 +165,24 @@ class DataNormalizer {
 
   /**
    * Normalize all entities in a parsed result
-   * @param {Object} entities - Raw entities
-   * @returns {Object} Normalized entities
+   * @param {Object} entities - Raw entities object
+   * @returns {Object} Normalized entities with same structure
+   * @description Normalizes only existing fields, preserves unknown fields
+   * @example
+   * normalizeEntities({
+   *   service: 'НОГТИ',
+   *   staff: 'маша',
+   *   date: 'завтра',
+   *   time: 'утром',
+   *   customField: 'value'
+   * });
+   * // returns: {
+   * //   service: 'маникюр',
+   * //   staff: 'Мария',
+   * //   date: '2024-01-10',
+   * //   time: '09:00',
+   * //   customField: 'value'
+   * // }
    */
   normalizeEntities(entities) {
     if (!entities || typeof entities !== 'object') {

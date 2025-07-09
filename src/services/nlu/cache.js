@@ -4,8 +4,17 @@ const logger = require('../../utils/logger');
 
 /**
  * Simple in-memory cache for NLU results
+ * @class NLUCache
+ * @description Provides LRU caching with TTL support for NLU processing results
  */
 class NLUCache {
+  /**
+   * Creates an instance of NLUCache
+   * @constructor
+   * @param {Object} [options={}] - Cache configuration options
+   * @param {number} [options.maxSize=1000] - Maximum number of cached entries
+   * @param {number} [options.ttl=3600000] - Default time-to-live in milliseconds (1 hour)
+   */
   constructor(options = {}) {
     this.cache = new Map();
     this.maxSize = options.maxSize || 1000;
@@ -20,8 +29,11 @@ class NLUCache {
   /**
    * Generate cache key from message and context
    * @param {string} message - User message
-   * @param {Object} context - Context object
-   * @returns {string} Cache key
+   * @param {Object} context - Context object with companyId and phone
+   * @returns {string} MD5 hash key for cache lookup
+   * @example
+   * generateKey('Хочу записаться', { companyId: '123', phone: '+7999...' });
+   * // returns: 'a1b2c3d4e5f6...'
    */
   generateKey(message, context) {
     const normalizedMessage = message.toLowerCase().trim();
@@ -38,8 +50,9 @@ class NLUCache {
 
   /**
    * Get cached result
-   * @param {string} key - Cache key
-   * @returns {Object|null} Cached result or null
+   * @param {string} key - Cache key from generateKey()
+   * @returns {Object|null} Cached NLU result or null if not found/expired
+   * @description Returns deep copy to prevent mutation of cached data
    */
   get(key) {
     const entry = this.cache.get(key);
@@ -65,9 +78,10 @@ class NLUCache {
 
   /**
    * Set cache entry
-   * @param {string} key - Cache key
-   * @param {Object} value - Value to cache
-   * @param {number} ttl - Optional TTL override
+   * @param {string} key - Cache key from generateKey()
+   * @param {Object} value - NLU result to cache
+   * @param {number} [ttl=this.ttl] - Optional TTL override in milliseconds
+   * @description Stores deep copy and enforces LRU eviction when at capacity
    */
   set(key, value, ttl = this.ttl) {
     // Enforce max size before adding new entry
@@ -87,6 +101,8 @@ class NLUCache {
 
   /**
    * Clear all cache entries
+   * @returns {void}
+   * @description Removes all cached entries and preserves statistics
    */
   clear() {
     const size = this.cache.size;
@@ -96,7 +112,16 @@ class NLUCache {
 
   /**
    * Get cache statistics
-   * @returns {Object} Cache stats
+   * @returns {Object} Cache statistics
+   * @returns {number} returns.hits - Number of cache hits
+   * @returns {number} returns.misses - Number of cache misses
+   * @returns {number} returns.evictions - Number of LRU evictions
+   * @returns {number} returns.size - Current cache size
+   * @returns {number} returns.maxSize - Maximum cache size
+   * @returns {string} returns.hitRate - Hit rate as percentage string
+   * @example
+   * getStats();
+   * // returns: { hits: 45, misses: 15, evictions: 5, size: 250, maxSize: 1000, hitRate: '75.00%' }
    */
   getStats() {
     const total = this.stats.hits + this.stats.misses;
@@ -112,7 +137,9 @@ class NLUCache {
 
   /**
    * Get hit rate as decimal
-   * @returns {number} Hit rate (0-1)
+   * @returns {number} Hit rate as decimal (0-1)
+   * @example
+   * getHitRate(); // returns 0.75 for 75% hit rate
    */
   getHitRate() {
     const total = this.stats.hits + this.stats.misses;
@@ -121,6 +148,8 @@ class NLUCache {
 
   /**
    * Remove expired entries
+   * @returns {number} Number of entries removed
+   * @description Should be called periodically to free memory
    */
   cleanExpired() {
     const now = Date.now();
@@ -143,6 +172,7 @@ class NLUCache {
   /**
    * Evict oldest entry
    * @private
+   * @description Implements LRU eviction by removing oldest created entry
    */
   _evictOldest() {
     let oldestKey = null;

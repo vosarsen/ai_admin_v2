@@ -3,8 +3,15 @@ const { AI_PROMPT, AVAILABLE_SERVICES, AVAILABLE_STAFF } = require('./constants'
 
 /**
  * Builds prompts for AI entity extraction
+ * @class PromptBuilder
+ * @description Creates optimized prompts for AI-based entity extraction
  */
 class PromptBuilder {
+  /**
+   * Creates an instance of PromptBuilder
+   * @constructor
+   * @description Pre-builds static prompt parts for performance optimization
+   */
   constructor() {
     // Pre-build static parts of prompt
     this._basePrompt = this._buildBasePrompt();
@@ -47,9 +54,18 @@ class PromptBuilder {
 
   /**
    * Build specialized prompt for entity extraction
-   * @param {string} message - User message
+   * @param {string} message - User message to analyze
    * @param {Object} context - User context with optional fields
-   * @returns {string} Formatted prompt
+   * @param {Object} [context.lastBooking] - Previous booking information
+   * @param {Object} [context.client] - Client information
+   * @param {string} [context.client.preferredStaff] - Client's preferred staff member
+   * @returns {string} Formatted prompt ready for AI processing
+   * @example
+   * buildExtractionPrompt('Хочу записаться на маникюр', {
+   *   phone: '+79991234567',
+   *   companyId: '12345',
+   *   client: { preferredStaff: 'Мария' }
+   * });
    */
   buildExtractionPrompt(message, context) {
     // Use memoized date/time if processing multiple messages in same second
@@ -96,6 +112,7 @@ ${JSON.stringify(this._exampleJson, null, 2)}
   /**
    * Get tomorrow's date in YYYY-MM-DD format
    * @private
+   * @returns {string} Tomorrow's date in YYYY-MM-DD format
    */
   _getTomorrowDate() {
     const tomorrow = new Date();
@@ -105,8 +122,12 @@ ${JSON.stringify(this._exampleJson, null, 2)}
 
   /**
    * Build a simplified prompt for quick intent detection
-   * @param {string} message - User message
-   * @returns {string} Simplified prompt
+   * @param {string} message - User message to analyze
+   * @returns {string} Simplified prompt for fast intent detection
+   * @description Use for quick intent classification without entity extraction
+   * @example
+   * buildQuickIntentPrompt('Хочу отменить запись');
+   * // AI should respond with: 'cancel'
    */
   buildQuickIntentPrompt(message) {
     return `Определи намерение клиента салона красоты в одном слове.
