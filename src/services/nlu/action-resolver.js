@@ -4,12 +4,20 @@ const { ActionResolutionError } = require('./errors');
 
 /**
  * Determines actions based on intent and entities
+ * @class ActionResolver
+ * @description Maps user intents and entities to specific system actions
  */
 class ActionResolver {
   /**
    * Determine action based on intent and entities
-   * @param {Object} parsed - Object with intent and entities
-   * @returns {string} Action name
+   * @param {Object} parsed - Parsed NLU result
+   * @param {string} parsed.intent - User intent (booking|reschedule|cancel|info|other)
+   * @param {Object} parsed.entities - Extracted entities
+   * @param {string} [parsed.entities.date] - Booking date
+   * @param {string} [parsed.entities.time] - Booking time
+   * @param {string} [parsed.entities.staff] - Staff member
+   * @returns {string} Action name (create_booking|search_slots|reschedule_booking|cancel_booking|get_info|none)
+   * @throws {ActionResolutionError} If input is invalid or intent cannot be resolved
    */
   determineAction(parsed) {
     // Validate input
@@ -54,7 +62,12 @@ class ActionResolver {
   /**
    * Ensure parsed result always has action field
    * @param {Object} parsed - Parsed result with intent and entities
-   * @returns {Object} Parsed result with action field guaranteed
+   * @returns {Object} Same object with action field guaranteed
+   * @description Mutates the input object by adding action field if missing
+   * @example
+   * const parsed = { intent: 'booking', entities: {} };
+   * actionResolver.ensureAction(parsed);
+   * console.log(parsed.action); // 'search_slots'
    */
   ensureAction(parsed) {
     if (!parsed || typeof parsed !== 'object') {

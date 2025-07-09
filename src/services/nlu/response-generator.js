@@ -4,17 +4,38 @@ const { ValidationError } = require('./errors');
 
 /**
  * Generates appropriate responses based on actions and context
+ * @class ResponseGenerator
+ * @description Creates user-friendly responses based on determined actions
  */
 class ResponseGenerator {
+  /**
+   * Creates an instance of ResponseGenerator
+   * @constructor
+   * @param {ActionResolver} actionResolver - ActionResolver instance for ensuring actions
+   */
   constructor(actionResolver) {
     this.actionResolver = actionResolver;
   }
 
   /**
    * Generate appropriate response - НЕ генерируем промежуточные сообщения
-   * @param {Object} parsed - Object with intent, entities, and optionally action
+   * @param {Object} parsed - Parsed NLU result
+   * @param {string} parsed.intent - Detected intent
+   * @param {Object} parsed.entities - Extracted entities
+   * @param {string} [parsed.action] - Determined action (will be added if missing)
    * @param {Object} context - User context
-   * @returns {string|null} Generated response or null for search_slots
+   * @returns {string|null} Generated response or null for search_slots action
+   * @description CRITICAL: Always returns null for search_slots to avoid duplicate messages
+   * @example
+   * // For search_slots action
+   * generateResponse({ action: 'search_slots', ... }, context); // returns null
+   * 
+   * // For create_booking action
+   * generateResponse({ 
+   *   action: 'create_booking',
+   *   entities: { staff: 'Мария', date: '2024-01-01', time: '14:00' }
+   * }, context); 
+   * // returns "Записываю вас к Мария на 2024-01-01 в 14:00. Подтверждаю запись."
    */
   generateResponse(parsed, context) {
     // Validate input

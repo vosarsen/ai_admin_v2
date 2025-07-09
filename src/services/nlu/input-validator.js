@@ -3,12 +3,20 @@ const logger = require('../../utils/logger');
 
 /**
  * Validates input data for NLU Service
+ * @class InputValidator
+ * @description Ensures input data is safe and well-formed before processing
  */
 class InputValidator {
   /**
    * Validate message input
-   * @param {string} message - User message
+   * @param {string} message - User message to validate
    * @returns {Object} Validation result
+   * @returns {boolean} returns.isValid - Whether message is valid
+   * @returns {Array<string>} returns.errors - List of validation errors
+   * @returns {string} returns.sanitized - Sanitized message (trimmed, max 1000 chars)
+   * @example
+   * validateMessage('  Хочу записаться  ');
+   * // returns: { isValid: true, errors: [], sanitized: 'Хочу записаться' }
    */
   validateMessage(message) {
     const errors = [];
@@ -54,8 +62,18 @@ class InputValidator {
   
   /**
    * Validate context object
-   * @param {Object} context - User context
+   * @param {Object} context - User context to validate
    * @returns {Object} Validation result
+   * @returns {boolean} returns.isValid - Whether context is valid
+   * @returns {Array<string>} returns.errors - List of validation errors
+   * @returns {Object} returns.sanitized - Sanitized context object
+   * @example
+   * validateContext({ 
+   *   phone: '+79991234567', 
+   *   companyId: '12345',
+   *   client: { name: 'John' }
+   * });
+   * // returns: { isValid: true, errors: [], sanitized: {...} }
    */
   validateContext(context) {
     const errors = [];
@@ -112,8 +130,11 @@ class InputValidator {
   
   /**
    * Validate parsed result
-   * @param {Object} parsed - Parsed NLU result
+   * @param {Object} parsed - Parsed NLU result to validate
    * @returns {Object} Validation result
+   * @returns {boolean} returns.isValid - Whether parsed result is valid
+   * @returns {Array<string>} returns.errors - List of validation errors
+   * @returns {Object} returns.sanitized - Sanitized parsed result
    */
   validateParsedResult(parsed) {
     const errors = [];
@@ -166,6 +187,8 @@ class InputValidator {
   /**
    * Check if string looks like base64 encoded data
    * @private
+   * @param {string} str - String to check
+   * @returns {boolean} True if string appears to be base64 encoded
    */
   _looksLikeBase64(str) {
     // Simple heuristic: long string with base64 characters
@@ -181,6 +204,8 @@ class InputValidator {
   /**
    * Validate client object
    * @private
+   * @param {Object} client - Client object to validate
+   * @returns {Object|null} Sanitized client object or null
    */
   _validateClient(client) {
     if (!client || typeof client !== 'object') return null;
@@ -198,6 +223,8 @@ class InputValidator {
   /**
    * Validate entities object
    * @private
+   * @param {Object} entities - Entities object to validate
+   * @returns {Object} Sanitized entities object
    */
   _validateEntities(entities) {
     const sanitized = {};
@@ -235,6 +262,8 @@ class InputValidator {
   /**
    * Validate confidence value
    * @private
+   * @param {*} confidence - Confidence value to validate
+   * @returns {number} Normalized confidence value (0-1)
    */
   _validateConfidence(confidence) {
     const num = Number(confidence);

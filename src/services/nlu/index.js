@@ -15,9 +15,19 @@ const {
 } = require('./errors');
 
 /**
- * Main NLU Service that coordinates all components
+ * Main NLU Service that coordinates all components for Natural Language Understanding
+ * @class NLUService
+ * @description Provides AI-powered entity extraction with fallback pattern matching for beauty salon bookings
  */
 class NLUService {
+  /**
+   * Creates an instance of NLUService
+   * @constructor
+   * @param {Object} aiService - AI service instance for making API calls
+   * @param {Object} [cacheOptions={}] - Cache configuration options
+   * @param {number} [cacheOptions.maxSize=1000] - Maximum number of cached entries
+   * @param {number} [cacheOptions.ttl=3600000] - Default TTL in milliseconds (1 hour)
+   */
   constructor(aiService, cacheOptions = {}) {
     this.aiService = aiService;
     this.fallbackExtractor = new EntityExtractor();
@@ -36,9 +46,26 @@ class NLUService {
 
   /**
    * Process message with AI-powered NLU + fallback extraction
-   * @param {string} message - User message
+   * @async
+   * @param {string} message - User message to process
    * @param {Object} context - User context
-   * @returns {Object} NLU result with intent, entities, action, and response
+   * @param {string} context.phone - User phone number
+   * @param {string} context.companyId - Company identifier
+   * @param {Object} [context.client] - Client information
+   * @param {Object} [context.lastBooking] - Previous booking details
+   * @returns {Promise<Object>} NLU result
+   * @returns {boolean} returns.success - Whether processing was successful
+   * @returns {string} returns.intent - Detected intent (booking|reschedule|cancel|info|other)
+   * @returns {Object} returns.entities - Extracted entities
+   * @returns {string|null} returns.entities.service - Service name
+   * @returns {string|null} returns.entities.staff - Staff member name
+   * @returns {string|null} returns.entities.date - Date in YYYY-MM-DD format
+   * @returns {string|null} returns.entities.time - Time in HH:MM format
+   * @returns {string} returns.action - Determined action
+   * @returns {string|null} returns.response - Generated response (null for search_slots)
+   * @returns {number} returns.confidence - Confidence score (0-1)
+   * @returns {string} returns.provider - Processing provider (ai-nlu|hybrid|pattern|error)
+   * @throws {Error} Only throws for critical system errors, validation errors are returned in response
    */
   async processMessage(message, context) {
     // Validate inputs
@@ -111,6 +138,11 @@ class NLUService {
 
   /**
    * Extract entities using AI with structured prompt
+   * @private
+   * @async
+   * @param {string} message - User message
+   * @param {Object} context - User context
+   * @returns {Promise<Object>} Extraction result with success flag and extracted data
    */
   async extractWithAI(message, context) {
     const prompt = this.promptBuilder.buildExtractionPrompt(message, context);
@@ -159,6 +191,11 @@ class NLUService {
 
   /**
    * Parse AI response for entity extraction
+   * @private
+   * @param {string} response - Raw AI response containing JSON
+   * @returns {Object} Parsed result with intent, entities, confidence
+   * @throws {AIResponseParseError} If response cannot be parsed
+   * @throws {ValidationError} If parsed response is invalid
    */
   parseAIResponse(response) {
     logger.info('🔍 Parsing AI response:', {
@@ -218,7 +255,12 @@ class NLUService {
   }
 
   /**
-   * Combine AI and pattern-based results
+   * Combine AI and pattern-based results using best confidence
+   * @private
+   * @param {Object} aiResult - Result from AI extraction
+   * @param {Object} patternResult - Result from pattern matching
+   * @param {Object} context - User context
+   * @returns {Object} Combined result with highest confidence entities
    */
   combineResults(aiResult, patternResult, context) {
     const combined = {
@@ -266,6 +308,10 @@ class NLUService {
 
   /**
    * Select entity with highest confidence
+   * @private
+   * @param {*} aiEntity - Entity from AI extraction
+   * @param {*} patternEntity - Entity from pattern matching
+   * @returns {*} Entity with highest confidence or null
    */
   selectBestEntity(aiEntity, patternEntity) {
     if (!aiEntity && !patternEntity) return null;
@@ -280,6 +326,11 @@ class NLUService {
 
   /**
    * Format extraction result from fallback
+   * @private
+   * @param {Object} extractionResult - Raw extraction result
+   * @param {string} provider - Provider name (pattern|emergency)
+   * @param {Object} context - User context
+   * @returns {Object} Formatted NLU result
    */
   formatResult(extractionResult, provider, context) {
     const parsed = {
@@ -363,21 +414,30 @@ class NLUService {
   
   /**
    * Get cache statistics
-   * @returns {Object} Cache stats
+   * @returns {Object} Cache statistics
+   * @returns {number} returns.hits - Number of cache hits
+   * @returns {number} returns.misses - Number of cache misses
+   * @returns {number} returns.evictions - Number of evictions
+   * @returns {number} returns.size - Current cache size
+   * @returns {number} returns.maxSize - Maximum cache size
+   * @returns {string} returns.hitRate - Hit rate percentage
    */
   getCacheStats() {
     return this.cache.getStats();
   }
   
   /**
-   * Clear cache
+   * Clear all cached NLU results
+   * @returns {void}
    */
   clearCache() {
     this.cache.clear();
   }
   
   /**
-   * Clean up resources
+   * Clean up resources and stop background tasks
+   * @description Should be called when service is no longer needed
+   * @returns {void}
    */
   destroy() {
     if (this.cacheCleanupInterval) {
