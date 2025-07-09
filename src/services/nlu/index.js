@@ -6,6 +6,7 @@ const ResponseGenerator = require('./response-generator');
 const DataNormalizer = require('./data-normalizer');
 const PromptBuilder = require('./prompt-builder');
 const InputValidator = require('./input-validator');
+const NLUCache = require('./cache');
 const { CONFIDENCE, LOGGING } = require('./constants');
 const { 
   AIServiceError, 
@@ -17,7 +18,7 @@ const {
  * Main NLU Service that coordinates all components
  */
 class NLUService {
-  constructor(aiService) {
+  constructor(aiService, cacheOptions = {}) {
     this.aiService = aiService;
     this.fallbackExtractor = new EntityExtractor();
     this.actionResolver = new ActionResolver();
@@ -25,6 +26,12 @@ class NLUService {
     this.dataNormalizer = new DataNormalizer();
     this.promptBuilder = new PromptBuilder();
     this.inputValidator = new InputValidator();
+    this.cache = new NLUCache(cacheOptions);
+    
+    // Clean expired cache entries every 5 minutes
+    this.cacheCleanupInterval = setInterval(() => {
+      this.cache.cleanExpired();
+    }, 300000);
   }
 
   /**
@@ -54,6 +61,15 @@ class NLUService {
     const sanitizedContext = contextValidation.sanitized;
     
     logger.info(`🧠 NLU Service processing: "${sanitizedMessage}"`);
+    
+    // Check cache first
+    const cacheKey = this.cache.generateKey(sanitizedMessage, sanitizedContext);
+    const cachedResult = this.cache.get(cacheKey);
+    
+    if (cachedResult) {
+      logger.info('✅ NLU cache hit');
+      return cachedResult;
+    }
 
     try {
       // Try AI-powered extraction first
@@ -61,6 +77,10 @@ class NLUService {
       
       if (aiResult.success && aiResult.confidence > CONFIDENCE.HIGH_THRESHOLD) {
         logger.info('✅ AI extraction successful', { confidence: aiResult.confidence });
+        
+        // Cache successful AI results
+        this.cache.set(cacheKey, aiResult);
+        
         return aiResult;
       }
 
@@ -70,6 +90,9 @@ class NLUService {
       const fallbackResult = this.fallbackExtractor.extract(sanitizedMessage);
       const hybridResult = this.combineResults(aiResult, fallbackResult, sanitizedContext);
       
+      // Cache hybrid results with shorter TTL
+      this.cache.set(cacheKey, hybridResult, 1800000); // 30 minutes
+      
       return hybridResult;
 
     } catch (error) {
@@ -77,7 +100,12 @@ class NLUService {
       
       // Pure fallback extraction
       const fallbackResult = this.fallbackExtractor.extract(sanitizedMessage);
-      return this.formatResult(fallbackResult, 'pattern', sanitizedContext);
+      const formattedResult = this.formatResult(fallbackResult, 'pattern', sanitizedContext);
+      
+      // Cache fallback results with even shorter TTL
+      this.cache.set(cacheKey, formattedResult, 900000); // 15 minutes
+      
+      return formattedResult;
     }
   }
 
@@ -331,6 +359,32 @@ class NLUService {
         message: error.message
       }
     };
+  }
+  
+  /**
+   * Get cache statistics
+   * @returns {Object} Cache stats
+   */
+  getCacheStats() {
+    return this.cache.getStats();
+  }
+  
+  /**
+   * Clear cache
+   */
+  clearCache() {
+    this.cache.clear();
+  }
+  
+  /**
+   * Clean up resources
+   */
+  destroy() {
+    if (this.cacheCleanupInterval) {
+      clearInterval(this.cacheCleanupInterval);
+      this.cacheCleanupInterval = null;
+    }
+    this.cache.clear();
   }
 }
 
