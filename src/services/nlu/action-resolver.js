@@ -28,6 +28,11 @@ class ActionResolver {
     if (!entities || typeof entities !== 'object') {
       logger.warn('Missing or invalid entities, using empty object');
       parsed.entities = {};
+      // For booking intent without entities, still suggest search_slots
+      if (intent === 'booking') {
+        return 'search_slots';
+      }
+      return 'none';
     }
     
     if (intent === 'booking') {
@@ -52,6 +57,10 @@ class ActionResolver {
    * @returns {Object} Parsed result with action field guaranteed
    */
   ensureAction(parsed) {
+    if (!parsed || typeof parsed !== 'object') {
+      return parsed;
+    }
+    
     if (!parsed.action) {
       try {
         parsed.action = this.determineAction(parsed);

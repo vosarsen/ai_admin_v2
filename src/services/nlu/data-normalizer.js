@@ -1,5 +1,5 @@
 // src/services/nlu/data-normalizer.js
-const { SERVICE_MAP, STAFF_MAP } = require('./constants');
+const { SERVICE_MAP, STAFF_MAP, TIME_MAP } = require('./constants');
 
 /**
  * Normalizes extracted entities to standard formats
@@ -14,7 +14,14 @@ class DataNormalizer {
     if (!service) return null;
     
     const normalized = SERVICE_MAP[service.toLowerCase()];
-    return normalized || service;
+    return normalized || service.toLowerCase();
+  }
+
+  /**
+   * Public alias for normalizeService
+   */
+  normalizeServiceName(service) {
+    return this.normalizeService(service);
   }
 
   /**
@@ -25,8 +32,25 @@ class DataNormalizer {
   normalizeStaff(staff) {
     if (!staff) return null;
     
-    const normalized = STAFF_MAP[staff.toLowerCase()];
-    return normalized || staff;
+    const lowerStaff = staff.toLowerCase();
+    
+    // Check for 'any' staff preference
+    if (lowerStaff === 'любой' || lowerStaff === 'без разницы' || lowerStaff === 'кто угодно') {
+      return 'любой';
+    }
+    
+    const normalized = STAFF_MAP[lowerStaff];
+    if (normalized) return normalized;
+    
+    // Capitalize first letter for unknown names
+    return staff.charAt(0).toUpperCase() + staff.slice(1).toLowerCase();
+  }
+  
+  /**
+   * Public alias for normalizeStaff
+   */
+  normalizeStaffName(staff) {
+    return this.normalizeStaff(staff);
   }
 
   /**
@@ -54,6 +78,12 @@ class DataNormalizer {
       return tomorrow.toISOString().split('T')[0];
     }
     
+    if (date === 'послезавтра') {
+      const dayAfter = new Date(today);
+      dayAfter.setDate(dayAfter.getDate() + 2);
+      return dayAfter.toISOString().split('T')[0];
+    }
+    
     return date;
   }
 
@@ -69,6 +99,19 @@ class DataNormalizer {
     if (/^\d{1,2}:\d{2}$/.test(time)) {
       const [hours, minutes] = time.split(':');
       return `${hours.padStart(2, '0')}:${minutes}`;
+    }
+    
+    // Check for time expressions
+    const normalized = TIME_MAP[time.toLowerCase()];
+    if (normalized) return normalized;
+    
+    // Check for hour-only patterns
+    const hourMatch = time.match(/(?:в\s+)?(\d{1,2})(?:\s*час|$)/);
+    if (hourMatch) {
+      const hour = parseInt(hourMatch[1]);
+      if (hour >= 0 && hour <= 23) {
+        return `${hour.toString().padStart(2, '0')}:00`;
+      }
     }
     
     return time;
@@ -99,14 +142,40 @@ class DataNormalizer {
    * @returns {Object} Normalized entities
    */
   normalizeEntities(entities) {
-    return {
-      service: this.normalizeService(entities.service),
-      staff: this.normalizeStaff(entities.staff),
-      date: this.normalizeDate(entities.date),
-      time: this.normalizeTime(entities.time),
-      info_type: entities.info_type || null,
-      time_preference: entities.time_preference || null
-    };
+    if (!entities || typeof entities !== 'object') {
+      return {};
+    }
+    
+    const normalized = {};
+    
+    // Only normalize fields that exist
+    if ('service' in entities) {
+      normalized.service = this.normalizeService(entities.service);
+    }
+    if ('staff' in entities) {
+      normalized.staff = this.normalizeStaff(entities.staff);
+    }
+    if ('date' in entities) {
+      normalized.date = this.normalizeDate(entities.date);
+    }
+    if ('time' in entities) {
+      normalized.time = this.normalizeTime(entities.time);
+    }
+    if ('info_type' in entities) {
+      normalized.info_type = entities.info_type || null;
+    }
+    if ('time_preference' in entities) {
+      normalized.time_preference = entities.time_preference || null;
+    }
+    
+    // Preserve any other fields
+    Object.keys(entities).forEach(key => {
+      if (!(key in normalized)) {
+        normalized[key] = entities[key];
+      }
+    });
+    
+    return normalized;
   }
 }
 
