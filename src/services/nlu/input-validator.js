@@ -217,6 +217,8 @@ class InputValidator {
     
     if (entities.time !== undefined) {
       sanitized.time = entities.time ? String(entities.time).trim() : null;
+    } else if (entities.time === undefined) {
+      // Don't include time field if it doesn't exist in input
     }
     
     if (entities.info_type !== undefined) {
