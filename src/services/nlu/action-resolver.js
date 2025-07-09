@@ -11,7 +11,25 @@ class ActionResolver {
    * @returns {string} Action name
    */
   determineAction(parsed) {
+    // Validate input
+    if (!parsed || typeof parsed !== 'object') {
+      logger.warn('Invalid input to determineAction:', parsed);
+      return 'none';
+    }
+    
     const { intent, entities } = parsed;
+    
+    // Validate intent
+    if (!intent || typeof intent !== 'string') {
+      logger.warn('Missing or invalid intent:', intent);
+      return 'none';
+    }
+    
+    // Validate entities
+    if (!entities || typeof entities !== 'object') {
+      logger.warn('Missing or invalid entities:', entities);
+      return 'none';
+    }
     
     if (intent === 'booking') {
       // If we have specific date, time and staff - create booking
