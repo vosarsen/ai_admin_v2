@@ -1,5 +1,6 @@
 // src/services/nlu/response-generator.js
 const logger = require('../../utils/logger');
+const { ValidationError } = require('./errors');
 
 /**
  * Generates appropriate responses based on actions and context
@@ -18,7 +19,8 @@ class ResponseGenerator {
   generateResponse(parsed, context) {
     // Validate input
     if (!parsed || typeof parsed !== 'object') {
-      logger.error('Invalid input to generateResponse:', parsed);
+      const error = new ValidationError(['Invalid parsed object'], 'generateResponse input');
+      logger.error('Invalid input to generateResponse:', error.toJSON());
       return 'Извините, произошла ошибка. Попробуйте еще раз.';
     }
     

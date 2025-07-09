@@ -4,6 +4,7 @@ const config = require('../../config');
 const logger = require('../../utils/logger');
 const circuitBreakerFactory = require('../../utils/circuit-breaker');
 const NLUService = require('../nlu');
+const { NLUError } = require('../nlu/errors');
 
 class AIService {
   constructor() {
@@ -93,10 +94,27 @@ class AIService {
       return result;
       
     } catch (error) {
-      logger.error('❌ Smart NLU processing failed:', error.message);
+      // Log full error details if it's an NLU error
+      if (error instanceof NLUError) {
+        logger.error('❌ Smart NLU processing failed:', error.toJSON());
+      } else {
+        logger.error('❌ Smart NLU processing failed:', error.message);
+      }
       
-      // Ultimate fallback to simple pattern matching
-      logger.info('🔄 Using emergency fallback processing');
+      // Return error response with proper structure
+      return {
+        success: false,
+        intent: 'error',
+        entities: {},
+        action: 'none',
+        response: 'Извините, возникли технические трудности. Пожалуйста, уточните ваш запрос или позвоните нам напрямую.',
+        confidence: 0,
+        provider: 'error',
+        error: {
+          code: error.code || 'UNKNOWN_ERROR',
+          message: error.message
+        }
+      };
       return this._emergencyFallback(message, context);
     }
   }

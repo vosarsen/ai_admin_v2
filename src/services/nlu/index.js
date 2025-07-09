@@ -7,6 +7,11 @@ const DataNormalizer = require('./data-normalizer');
 const PromptBuilder = require('./prompt-builder');
 const InputValidator = require('./input-validator');
 const { CONFIDENCE, LOGGING } = require('./constants');
+const { 
+  AIServiceError, 
+  AIResponseParseError, 
+  ValidationError 
+} = require('./errors');
 
 /**
  * Main NLU Service that coordinates all components
@@ -32,14 +37,16 @@ class NLUService {
     // Validate inputs
     const messageValidation = this.inputValidator.validateMessage(message);
     if (!messageValidation.isValid) {
-      logger.error('Invalid message input:', messageValidation.errors);
-      return this._validationErrorResponse(messageValidation.errors);
+      const error = new ValidationError(messageValidation.errors, 'message');
+      logger.error('Message validation failed:', error.toJSON());
+      return this._errorResponse(error);
     }
     
     const contextValidation = this.inputValidator.validateContext(context);
     if (!contextValidation.isValid) {
-      logger.error('Invalid context input:', contextValidation.errors);
-      return this._validationErrorResponse(contextValidation.errors);
+      const error = new ValidationError(contextValidation.errors, 'context');
+      logger.error('Context validation failed:', error.toJSON());
+      return this._errorResponse(error);
     }
     
     // Use sanitized inputs
@@ -66,7 +73,7 @@ class NLUService {
       return hybridResult;
 
     } catch (error) {
-      logger.error('❌ AI extraction failed, falling back to patterns:', error.message);
+      logger.error('❌ AI extraction failed:', error instanceof Error ? error.toJSON ? error.toJSON() : error.message : error);
       
       // Pure fallback extraction
       const fallbackResult = this.fallbackExtractor.extract(sanitizedMessage);
@@ -118,11 +125,7 @@ class NLUService {
         provider: 'ai-nlu'
       };
     } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-        confidence: 0
-      };
+      throw new AIServiceError('AI extraction failed', error);
     }
   }
 
@@ -139,10 +142,15 @@ class NLUService {
       // Extract JSON from response
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        throw new Error('No JSON found in AI response');
+        throw new AIResponseParseError(response, 'No JSON found in response');
       }
 
-      const parsed = JSON.parse(jsonMatch[0]);
+      let parsed;
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        throw new AIResponseParseError(response, parseError);
+      }
       
       // CRITICAL: Log if AI returns unexpected 'response' field
       if (parsed.response !== undefined) {
@@ -162,8 +170,7 @@ class NLUService {
       // Validate parsed result
       const parsedValidation = this.inputValidator.validateParsedResult(parsed);
       if (!parsedValidation.isValid) {
-        logger.error('Invalid AI response structure:', parsedValidation.errors);
-        throw new Error(`Invalid AI response: ${parsedValidation.errors.join(', ')}`);
+        throw new ValidationError(parsedValidation.errors, 'AI response');
       }
 
       return {
@@ -174,8 +181,10 @@ class NLUService {
       };
 
     } catch (error) {
-      logger.error('Failed to parse AI response:', error.message);
-      logger.error('Raw response was:', response);
+      logger.error('Failed to parse AI response:', error instanceof Error ? error.toJSON ? error.toJSON() : error.message : error);
+      if (!(error instanceof AIResponseParseError)) {
+        logger.error('Raw response was:', response);
+      }
       throw error;
     }
   }
@@ -295,20 +304,32 @@ class NLUService {
   }
 
   /**
-   * Generate response for validation errors
+   * Generate response for errors
    */
-  _validationErrorResponse(errors) {
-    logger.warn('Validation error response:', errors);
+  _errorResponse(error) {
+    logger.warn('Error response:', error.toJSON ? error.toJSON() : error);
+    
+    let userMessage = 'Извините, не удалось обработать ваше сообщение. Пожалуйста, попробуйте еще раз.';
+    
+    // Customize message based on error type
+    if (error.code === 'VALIDATION_ERROR' && error.details.inputType === 'message') {
+      userMessage = 'Извините, ваше сообщение имеет неверный формат. Пожалуйста, попробуйте еще раз.';
+    } else if (error.code === 'AI_SERVICE_ERROR') {
+      userMessage = 'Извините, временные технические проблемы. Пожалуйста, попробуйте через минуту.';
+    }
     
     return {
       success: false,
       intent: 'error',
       entities: {},
       action: 'none',
-      response: 'Извините, не удалось обработать ваше сообщение. Пожалуйста, попробуйте еще раз.',
+      response: userMessage,
       confidence: 0,
-      provider: 'validation',
-      errors: errors
+      provider: 'error',
+      error: {
+        code: error.code,
+        message: error.message
+      }
     };
   }
 }
