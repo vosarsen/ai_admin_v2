@@ -1,5 +1,6 @@
 // src/services/nlu/action-resolver.js
 const logger = require('../../utils/logger');
+const { ActionResolutionError } = require('./errors');
 
 /**
  * Determines actions based on intent and entities
@@ -13,22 +14,20 @@ class ActionResolver {
   determineAction(parsed) {
     // Validate input
     if (!parsed || typeof parsed !== 'object') {
-      logger.warn('Invalid input to determineAction:', parsed);
-      return 'none';
+      throw new ActionResolutionError('invalid_input', { parsed });
     }
     
     const { intent, entities } = parsed;
     
     // Validate intent
     if (!intent || typeof intent !== 'string') {
-      logger.warn('Missing or invalid intent:', intent);
-      return 'none';
+      throw new ActionResolutionError(intent || 'missing', entities);
     }
     
     // Validate entities
     if (!entities || typeof entities !== 'object') {
-      logger.warn('Missing or invalid entities:', entities);
-      return 'none';
+      logger.warn('Missing or invalid entities, using empty object');
+      parsed.entities = {};
     }
     
     if (intent === 'booking') {
@@ -54,7 +53,12 @@ class ActionResolver {
    */
   ensureAction(parsed) {
     if (!parsed.action) {
-      parsed.action = this.determineAction(parsed);
+      try {
+        parsed.action = this.determineAction(parsed);
+      } catch (error) {
+        logger.error('Failed to determine action:', error.toJSON ? error.toJSON() : error);
+        parsed.action = 'none';
+      }
     }
     return parsed;
   }
