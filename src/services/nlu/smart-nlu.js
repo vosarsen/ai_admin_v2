@@ -1,6 +1,7 @@
 // src/services/nlu/smart-nlu.js
 const logger = require('../../utils/logger');
 const EntityExtractor = require('./entity-extractor');
+const { CONFIDENCE, LOGGING, AI_PROMPT, SERVICE_MAP, STAFF_MAP, AVAILABLE_SERVICES, AVAILABLE_STAFF } = require('./constants');
 
 class SmartNLU {
   constructor(aiService) {
@@ -18,7 +19,7 @@ class SmartNLU {
       // Try AI-powered extraction first
       const aiResult = await this.extractWithAI(message, context);
       
-      if (aiResult.success && aiResult.confidence > 0.7) {
+      if (aiResult.success && aiResult.confidence > CONFIDENCE.HIGH_THRESHOLD) {
         logger.info('✅ AI extraction successful', { confidence: aiResult.confidence });
         return aiResult;
       }
@@ -49,7 +50,7 @@ class SmartNLU {
     try {
       const response = await this.aiService._callAI(prompt, 'primary');
       logger.info('🤖 Raw AI response for NLU:', {
-        response: response.substring(0, 500) + '...',
+        response: response.substring(0, LOGGING.RESPONSE_PREVIEW_LENGTH) + '...',
         fullLength: response.length
       });
       
@@ -74,7 +75,7 @@ class SmartNLU {
         entities: parsed.entities,
         action: action,
         response: finalResponse,
-        confidence: parsed.confidence || 0.8,
+        confidence: parsed.confidence || CONFIDENCE.DEFAULT_AI,
         provider: 'ai-nlu'
       };
     } catch (error) {
@@ -100,8 +101,8 @@ class SmartNLU {
 КОНТЕКСТ:
 - Текущая дата: ${currentDate}
 - Текущее время: ${currentTime}
-- Доступные мастера: Бари, Сергей, Рамзан
-- Услуги: стрижка, стрижка бороды, бритье, моделирование бороды
+- Доступные мастера: ${AVAILABLE_STAFF.join(', ')}
+- Услуги: ${AVAILABLE_SERVICES.join(', ')}
 
 ЗАДАЧА: Извлеки сущности и определи намерение клиента.
 
@@ -134,7 +135,7 @@ class SmartNLU {
 3. Если мастер не указан явно - staff = null
 4. Если время не указано - time = null
 5. info_type = "staff_today" если спрашивает кто работает
-6. confidence = 0.9 если все понятно, 0.5-0.7 если есть неточности
+6. confidence = ${AI_PROMPT.CONFIDENCE_HIGH} если все понятно, ${AI_PROMPT.CONFIDENCE_MEDIUM_MIN}-${AI_PROMPT.CONFIDENCE_MEDIUM_MAX} если есть неточности
 
 АНАЛИЗИРУЙ:`;
   }
@@ -144,7 +145,7 @@ class SmartNLU {
    */
   parseAIResponse(response) {
     logger.info('🔍 Parsing Smart NLU AI response:', {
-      response: response.substring(0, 200) + '...',
+      response: response.substring(0, LOGGING.RESPONSE_SHORT_PREVIEW) + '...',
       fullLength: response.length
     });
     
@@ -191,7 +192,7 @@ class SmartNLU {
       return {
         intent: parsed.intent,
         entities: entities,
-        confidence: parsed.confidence || 0.7,
+        confidence: parsed.confidence || CONFIDENCE.HIGH_THRESHOLD,
         reasoning: parsed.reasoning || 'AI processing'
       };
 
@@ -257,8 +258,8 @@ class SmartNLU {
     if (!aiEntity) return patternEntity;
     if (!patternEntity) return aiEntity;
     
-    const aiConf = typeof aiEntity === 'object' ? aiEntity.confidence : 0.8;
-    const patternConf = typeof patternEntity === 'object' ? patternEntity.confidence : 0.6;
+    const aiConf = typeof aiEntity === 'object' ? aiEntity.confidence : CONFIDENCE.DEFAULT_AI;
+    const patternConf = typeof patternEntity === 'object' ? patternEntity.confidence : CONFIDENCE.DEFAULT_PATTERN;
     
     return aiConf >= patternConf ? aiEntity : patternEntity;
   }
@@ -341,31 +342,14 @@ class SmartNLU {
   normalizeService(service) {
     if (!service) return null;
     
-    const serviceMap = {
-      'стрижка': 'стрижка',
-      'постричься': 'стрижка',
-      'подстричься': 'стрижка',
-      'борода': 'стрижка бороды',
-      'стрижка бороды': 'стрижка бороды',
-      'бритье': 'бритье',
-      'побриться': 'бритье'
-    };
-    
-    const normalized = serviceMap[service.toLowerCase()];
+    const normalized = SERVICE_MAP[service.toLowerCase()];
     return normalized || service;
   }
 
   normalizeStaff(staff) {
     if (!staff) return null;
     
-    const staffMap = {
-      'бари': 'Бари',
-      'сергей': 'Сергей', 
-      'сергею': 'Сергей',
-      'рамзан': 'Рамзан'
-    };
-    
-    const normalized = staffMap[staff.toLowerCase()];
+    const normalized = STAFF_MAP[staff.toLowerCase()];
     return normalized || staff;
   }
 
@@ -443,7 +427,7 @@ class SmartNLU {
       entities: parsed.entities,
       action: parsed.action,
       response: finalResponse,
-      confidence: extractionResult.confidence || 0.5,
+      confidence: extractionResult.confidence || CONFIDENCE.DEFAULT_FALLBACK,
       provider: provider
     };
   }
