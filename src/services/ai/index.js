@@ -3,7 +3,7 @@ const axios = require('axios');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const circuitBreakerFactory = require('../../utils/circuit-breaker');
-const SmartNLU = require('../nlu/smart-nlu');
+const NLUService = require('../nlu');
 
 class AIService {
   constructor() {
@@ -47,8 +47,8 @@ class AIService {
     this.primaryClient = this._createClient(this.primaryProvider);
     this.backupClient = this._createClient(this.backupProvider);
     
-    // Initialize Smart NLU
-    this.smartNLU = new SmartNLU(this);
+    // Initialize NLU Service
+    this.nluService = new NLUService(this);
   }
 
   _createClient(provider) {
@@ -71,14 +71,14 @@ class AIService {
   }
 
   /**
-   * Process message using Smart NLU system
+   * Process message using NLU Service
    */
   async processMessage(message, context) {
-    logger.info('🧠 Processing message with Smart NLU system');
+    logger.info('🧠 Processing message with NLU Service');
     
     try {
-      // Use Smart NLU for comprehensive entity extraction and intent detection
-      const result = await this.smartNLU.processMessage(message, context);
+      // Use NLU Service for comprehensive entity extraction and intent detection
+      const result = await this.nluService.processMessage(message, context);
       
       logger.info('🤖 Smart NLU Result:', {
         success: result.success,
