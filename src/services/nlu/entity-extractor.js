@@ -3,28 +3,12 @@ const logger = require('../../utils/logger');
 
 class EntityExtractor {
   constructor() {
-    // Comprehensive patterns for Russian text
-    this.servicePatterns = {
-      'стрижка': [
-        'стрижк', 'постричь', 'подстричь', 'постригс', 'стригс', 'срезать волосы',
-        'мужская стрижка', 'женская стрижка', 'детская стрижка', 'стрижка машинкой',
-        'стрижка ножницами', 'короткая стрижка', 'модельная стрижка'
-      ],
-      'борода': [
-        'борода', 'бород', 'брить бород', 'подравнять бород', 'моделирование бороды',
-        'стрижка бороды', 'оформление бороды'
-      ],
-      'бритье': [
-        'бритье', 'брить', 'побрить', 'культурное бритье', 'бритье головы',
-        'опасная бритва', 'станком'
-      ]
-    };
-
-    this.staffPatterns = {
-      'бари': ['бари', 'к бари', 'у бари', 'мастер бари'],
-      'сергей': ['сергей', 'сергею', 'к сергею', 'у сергея', 'мастер сергей'],
-      'рамзан': ['рамзан', 'рамзану', 'к рамзану', 'у рамзана', 'мастер рамзан']
-    };
+    // Company-specific data will be loaded dynamically
+    this.companyData = new Map(); // companyId -> { services, staff }
+    
+    // Default patterns for new companies or fallback
+    this.defaultServicePatterns = {};
+    this.defaultStaffPatterns = {};
 
     this.intentPatterns = {
       'booking': [
@@ -81,15 +65,86 @@ class EntityExtractor {
   }
 
   /**
+   * Update company-specific data from Supabase
+   * @param {string} companyId - Company ID
+   * @param {Array} services - Array of services from database
+   * @param {Array} staff - Array of staff from database
+   */
+  updateCompanyData(companyId, services = [], staff = []) {
+    const servicePatterns = {};
+    const staffPatterns = {};
+
+    // Generate patterns from actual service names
+    services.forEach(service => {
+      const title = service.title.toLowerCase();
+      const patterns = [title];
+      
+      // Add common variations
+      if (title.includes('стрижк')) {
+        patterns.push('стрижк', 'постричь', 'подстричь', 'постригс');
+      }
+      if (title.includes('бород')) {
+        patterns.push('борода', 'бород', 'бороду');
+      }
+      if (title.includes('маникюр')) {
+        patterns.push('маникюр', 'ногти', 'ноготки');
+      }
+      if (title.includes('педикюр')) {
+        patterns.push('педикюр', 'стопы', 'ножки');
+      }
+      
+      servicePatterns[service.yclients_id] = {
+        title: service.title,
+        patterns: patterns,
+        price_min: service.price_min,
+        price_max: service.price_max,
+        yclients_id: service.yclients_id
+      };
+    });
+
+    // Generate patterns from actual staff names
+    staff.forEach(staffMember => {
+      const name = staffMember.name.toLowerCase();
+      const patterns = [name];
+      
+      // Add variations with prepositions
+      patterns.push(`к ${name}`, `у ${name}`, `мастер ${name}`);
+      
+      // Add common name variations (if applicable)
+      const firstName = name.split(' ')[0];
+      if (firstName !== name) {
+        patterns.push(firstName, `к ${firstName}`, `у ${firstName}`);
+      }
+      
+      staffPatterns[staffMember.yclients_id] = {
+        name: staffMember.name,
+        patterns: patterns,
+        rating: staffMember.rating,
+        specialization: staffMember.specialization,
+        yclients_id: staffMember.yclients_id
+      };
+    });
+
+    // Store company data
+    this.companyData.set(companyId, {
+      services: servicePatterns,
+      staff: staffPatterns,
+      lastUpdated: Date.now()
+    });
+
+    logger.debug(`✅ Updated entity patterns for company ${companyId}: ${Object.keys(servicePatterns).length} services, ${Object.keys(staffPatterns).length} staff`);
+  }
+
+  /**
    * Extract all entities from message using multiple methods
    */
-  extract(message) {
+  extract(message, companyId = null) {
     const text = message.toLowerCase().trim();
     
     const entities = {
       intent: this.extractIntent(text),
-      service: this.extractService(text),
-      staff: this.extractStaff(text),
+      service: this.extractService(text, companyId),
+      staff: this.extractStaff(text, companyId),
       date: this.extractDate(text),
       time: this.extractTime(text),
       confidence: this.calculateConfidence(text)
@@ -97,7 +152,8 @@ class EntityExtractor {
 
     logger.debug('🔍 Entity extraction result:', {
       originalMessage: message,
-      extractedEntities: entities
+      extractedEntities: entities,
+      companyId
     });
 
     return entities;
@@ -127,42 +183,74 @@ class EntityExtractor {
   /**
    * Extract service from message
    */
-  extractService(text) {
+  extractService(text, companyId = null) {
     let maxScore = 0;
     let detectedService = null;
+    let detectedServiceInfo = null;
 
-    for (const [service, patterns] of Object.entries(this.servicePatterns)) {
-      const score = this.calculatePatternScore(text, patterns);
+    // Get patterns for the company if available
+    const companyInfo = companyId ? this.companyData.get(companyId) : null;
+    const servicePatterns = companyInfo?.services || this.defaultServicePatterns;
+
+    // If no patterns available, return null
+    if (!servicePatterns || Object.keys(servicePatterns).length === 0) {
+      logger.debug('No service patterns available for extraction');
+      return null;
+    }
+
+    // Check each service's patterns
+    for (const [serviceId, serviceInfo] of Object.entries(servicePatterns)) {
+      const score = this.calculatePatternScore(text, serviceInfo.patterns);
       if (score > maxScore) {
         maxScore = score;
-        detectedService = service;
+        detectedService = serviceInfo.title;
+        detectedServiceInfo = serviceInfo;
       }
     }
 
     return detectedService ? {
       name: detectedService,
-      confidence: maxScore
+      confidence: maxScore,
+      yclients_id: detectedServiceInfo?.yclients_id,
+      price_min: detectedServiceInfo?.price_min,
+      price_max: detectedServiceInfo?.price_max
     } : null;
   }
 
   /**
    * Extract staff from message
    */
-  extractStaff(text) {
+  extractStaff(text, companyId = null) {
     let maxScore = 0;
     let detectedStaff = null;
+    let detectedStaffInfo = null;
 
-    for (const [staff, patterns] of Object.entries(this.staffPatterns)) {
-      const score = this.calculatePatternScore(text, patterns);
+    // Get patterns for the company if available
+    const companyInfo = companyId ? this.companyData.get(companyId) : null;
+    const staffPatterns = companyInfo?.staff || this.defaultStaffPatterns;
+
+    // If no patterns available, return null
+    if (!staffPatterns || Object.keys(staffPatterns).length === 0) {
+      logger.debug('No staff patterns available for extraction');
+      return null;
+    }
+
+    // Check each staff member's patterns
+    for (const [staffId, staffInfo] of Object.entries(staffPatterns)) {
+      const score = this.calculatePatternScore(text, staffInfo.patterns);
       if (score > maxScore) {
         maxScore = score;
-        detectedStaff = staff;
+        detectedStaff = staffInfo.name;
+        detectedStaffInfo = staffInfo;
       }
     }
 
     return detectedStaff ? {
       name: detectedStaff,
-      confidence: maxScore
+      confidence: maxScore,
+      yclients_id: detectedStaffInfo?.yclients_id,
+      rating: detectedStaffInfo?.rating,
+      specialization: detectedStaffInfo?.specialization
     } : null;
   }
 

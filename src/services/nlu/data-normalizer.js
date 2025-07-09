@@ -1,5 +1,5 @@
 // src/services/nlu/data-normalizer.js
-const { SERVICE_MAP, STAFF_MAP, TIME_MAP } = require('./constants');
+const { TIME_MAP } = require('./constants');
 
 /**
  * Normalizes extracted entities to standard formats
@@ -18,8 +18,8 @@ class DataNormalizer {
   normalizeService(service) {
     if (!service) return null;
     
-    const normalized = SERVICE_MAP[service.toLowerCase()];
-    return normalized || service.toLowerCase();
+    // Just lowercase for now - actual normalization happens in EntityResolver
+    return service.toLowerCase();
   }
 
   /**
@@ -51,10 +51,7 @@ class DataNormalizer {
       return 'любой';
     }
     
-    const normalized = STAFF_MAP[lowerStaff];
-    if (normalized) return normalized;
-    
-    // Capitalize first letter for unknown names
+    // Capitalize first letter - actual mapping happens in EntityResolver
     return staff.charAt(0).toUpperCase() + staff.slice(1).toLowerCase();
   }
   

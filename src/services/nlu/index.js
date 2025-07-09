@@ -7,6 +7,7 @@ const DataNormalizer = require('./data-normalizer');
 const PromptBuilder = require('./prompt-builder');
 const InputValidator = require('./input-validator');
 const NLUCache = require('./cache');
+const entityResolver = require('../ai/entity-resolver');
 const { CONFIDENCE, LOGGING } = require('./constants');
 const { 
   AIServiceError, 
@@ -37,11 +38,47 @@ class NLUService {
     this.promptBuilder = new PromptBuilder();
     this.inputValidator = new InputValidator();
     this.cache = new NLUCache(cacheOptions);
+    this.entityResolver = entityResolver;
+    this.companyDataCache = new Map(); // Cache company data per company
     
     // Clean expired cache entries every 5 minutes
     this.cacheCleanupInterval = setInterval(() => {
       this.cache.cleanExpired();
     }, 300000);
+  }
+
+  /**
+   * Initialize NLU with company-specific data
+   * @param {string} companyId - Company ID to load data for
+   * @returns {Promise<void>}
+   */
+  async initializeForCompany(companyId) {
+    if (this.companyDataCache.has(companyId)) {
+      // Already initialized for this company
+      return;
+    }
+
+    try {
+      // Load company data through EntityResolver (which uses Supabase)
+      const [services, staff] = await Promise.all([
+        this.entityResolver._getCompanyServices(companyId),
+        this.entityResolver._getCompanyStaff(companyId)
+      ]);
+
+      // Store in cache
+      this.companyDataCache.set(companyId, { services, staff });
+
+      // Update entity extractor with actual data
+      this.fallbackExtractor.updateCompanyData(companyId, services, staff);
+
+      // Update prompt builder with actual data
+      this.promptBuilder.updateCompanyData(companyId, services, staff);
+
+      logger.info(`✅ NLU initialized for company ${companyId} with ${services.length} services and ${staff.length} staff`);
+    } catch (error) {
+      logger.error(`Failed to initialize NLU for company ${companyId}:`, error);
+      // Continue with defaults if initialization fails
+    }
   }
 
   /**
@@ -87,6 +124,11 @@ class NLUService {
     const sanitizedMessage = messageValidation.sanitized;
     const sanitizedContext = contextValidation.sanitized;
     
+    // Initialize NLU with company data if needed
+    if (sanitizedContext.companyId) {
+      await this.initializeForCompany(sanitizedContext.companyId);
+    }
+    
     logger.info(`🧠 NLU Service processing: "${sanitizedMessage}"`);
     
     // Check cache first
@@ -114,7 +156,7 @@ class NLUService {
       logger.warn('🔄 AI extraction low confidence, using hybrid approach');
       
       // Combine AI results with pattern-based extraction
-      const fallbackResult = this.fallbackExtractor.extract(sanitizedMessage);
+      const fallbackResult = this.fallbackExtractor.extract(sanitizedMessage, sanitizedContext.companyId);
       const hybridResult = this.combineResults(aiResult, fallbackResult, sanitizedContext);
       
       // Cache hybrid results with shorter TTL
@@ -126,7 +168,7 @@ class NLUService {
       logger.error('❌ AI extraction failed:', error instanceof Error ? error.toJSON ? error.toJSON() : error.message : error);
       
       // Pure fallback extraction
-      const fallbackResult = this.fallbackExtractor.extract(sanitizedMessage);
+      const fallbackResult = this.fallbackExtractor.extract(sanitizedMessage, sanitizedContext.companyId);
       const formattedResult = this.formatResult(fallbackResult, 'pattern', sanitizedContext);
       
       // Cache fallback results with even shorter TTL
