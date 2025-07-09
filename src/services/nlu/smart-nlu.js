@@ -55,6 +55,8 @@ class SmartNLU {
       
       const parsed = this.parseAIResponse(response);
       const action = this.determineAction(parsed);
+      // Добавляем action в parsed объект
+      parsed.action = action;
       const generatedResponse = this.generateResponse(parsed, context);
       
       logger.info('🎯 NLU extraction complete:', {
@@ -287,7 +289,14 @@ class SmartNLU {
    * Generate appropriate response - НЕ генерируем промежуточные сообщения
    */
   generateResponse(parsed, context) {
-    const { intent, entities, action } = parsed;
+    const { intent, entities } = parsed;
+    
+    // CRITICAL: Ensure action is always defined
+    let action = parsed.action;
+    if (!action) {
+      logger.warn('⚠️ Action not provided to generateResponse, determining it now');
+      action = this.determineAction(parsed);
+    }
     
     logger.info('🎯 Generating response for:', {
       intent,
@@ -295,17 +304,16 @@ class SmartNLU {
       hasEntities: !!entities
     });
     
+    // CRITICAL: For search_slots ALWAYS return null
+    if (action === 'search_slots') {
+      logger.info('🔍 Returning null for search_slots - response will be generated later');
+      return null;
+    }
+    
     if (action === 'create_booking') {
       const response = `Записываю вас к ${entities.staff} на ${entities.date} в ${entities.time}. Подтверждаю запись.`;
       logger.info('📝 Generated create_booking response:', response);
       return response;
-    }
-    
-    // ДЛЯ search_slots НЕ ГЕНЕРИРУЕМ промежуточный ответ
-    // Финальный ответ будет сгенерирован в buildResponse после выполнения действия
-    if (action === 'search_slots') {
-      logger.info('🔍 Returning null for search_slots - response will be generated later');
-      return null; // Возвращаем null - ответ будет сформирован позже
     }
     
     if (intent === 'info') {
@@ -420,7 +428,8 @@ class SmartNLU {
         staff: extractionResult.staff?.name,
         date: extractionResult.date?.date,
         time: extractionResult.time?.time
-      }
+      },
+      action: action  // Добавляем action в объект
     }, context);
     
     // CRITICAL: Ensure search_slots never has a response
