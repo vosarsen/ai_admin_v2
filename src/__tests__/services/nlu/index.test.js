@@ -22,6 +22,13 @@ describe('NLUService', () => {
     
     nluService = new NLUService(mockAIService);
   });
+  
+  afterEach(() => {
+    // Clean up
+    if (nluService) {
+      nluService.destroy();
+    }
+  });
 
   describe('processMessage', () => {
     const validContext = {
@@ -280,6 +287,111 @@ describe('NLUService', () => {
 
       expect(result.action).toBe('search_slots');
       expect(result.response).toBeNull();
+    });
+  });
+
+  describe('caching', () => {
+    it('should cache successful AI results', async () => {
+      const message = 'Хочу записаться на маникюр';
+      const context = { phone: '+79991234567', companyId: '12345' };
+      
+      const mockResponse = JSON.stringify({
+        intent: 'booking',
+        entities: { service: 'маникюр' },
+        confidence: 0.9
+      });
+      
+      mockAIService._callAI.mockResolvedValue(mockResponse);
+
+      // First call - should hit AI
+      const result1 = await nluService.processMessage(message, context);
+      expect(mockAIService._callAI).toHaveBeenCalledTimes(1);
+
+      // Second call - should hit cache
+      const result2 = await nluService.processMessage(message, context);
+      expect(mockAIService._callAI).toHaveBeenCalledTimes(1); // No additional call
+      
+      expect(result1).toEqual(result2);
+      
+      // Check cache stats
+      const stats = nluService.getCacheStats();
+      expect(stats.hits).toBe(1);
+      expect(stats.misses).toBe(1);
+    });
+
+    it('should cache hybrid results with shorter TTL', async () => {
+      const message = 'Хочу записаться';
+      const context = { phone: '+79991234567', companyId: '12345' };
+      
+      mockAIService._callAI.mockResolvedValue(JSON.stringify({
+        intent: 'booking',
+        entities: {},
+        confidence: 0.5 // Low confidence
+      }));
+
+      await nluService.processMessage(message, context);
+      
+      // Check that result was cached
+      const cacheKey = nluService.cache.generateKey(message, context);
+      const cachedEntry = nluService.cache.cache.get(cacheKey);
+      
+      expect(cachedEntry).toBeDefined();
+      // Should have 30 minute TTL (1800000 ms)
+      const ttl = cachedEntry.expiresAt - cachedEntry.createdAt;
+      expect(ttl).toBe(1800000);
+    });
+
+    it('should cache fallback results with shortest TTL', async () => {
+      const message = 'Test message';
+      const context = { phone: '+79991234567', companyId: '12345' };
+      
+      mockAIService._callAI.mockRejectedValue(new Error('AI failed'));
+
+      await nluService.processMessage(message, context);
+      
+      // Check that result was cached
+      const cacheKey = nluService.cache.generateKey(message, context);
+      const cachedEntry = nluService.cache.cache.get(cacheKey);
+      
+      expect(cachedEntry).toBeDefined();
+      // Should have 15 minute TTL (900000 ms)
+      const ttl = cachedEntry.expiresAt - cachedEntry.createdAt;
+      expect(ttl).toBe(900000);
+    });
+
+    it('should use different cache keys for different contexts', async () => {
+      const message = 'Хочу записаться';
+      const context1 = { phone: '+79991234567', companyId: '12345' };
+      const context2 = { phone: '+79991234567', companyId: '54321' };
+      
+      mockAIService._callAI.mockResolvedValue(JSON.stringify({
+        intent: 'booking',
+        entities: { service: 'маникюр' },
+        confidence: 0.9
+      }));
+
+      await nluService.processMessage(message, context1);
+      await nluService.processMessage(message, context2);
+      
+      // Should call AI twice - different contexts
+      expect(mockAIService._callAI).toHaveBeenCalledTimes(2);
+    });
+
+    it('should clear cache on demand', async () => {
+      const message = 'Хочу записаться';
+      const context = { phone: '+79991234567', companyId: '12345' };
+      
+      mockAIService._callAI.mockResolvedValue(JSON.stringify({
+        intent: 'booking',
+        entities: { service: 'маникюр' },
+        confidence: 0.9
+      }));
+
+      await nluService.processMessage(message, context);
+      expect(nluService.getCacheStats().size).toBe(1);
+      
+      nluService.clearCache();
+      expect(nluService.getCacheStats().size).toBe(0);
     });
   });
 });
