@@ -16,10 +16,22 @@ class ResponseGenerator {
    * @returns {string|null} Generated response or null for search_slots
    */
   generateResponse(parsed, context) {
+    // Validate input
+    if (!parsed || typeof parsed !== 'object') {
+      logger.error('Invalid input to generateResponse:', parsed);
+      return 'Извините, произошла ошибка. Попробуйте еще раз.';
+    }
+    
     // Ensure action is always present
     this.actionResolver.ensureAction(parsed);
     
     const { intent, entities, action } = parsed;
+    
+    // Validate entities
+    if (!entities || typeof entities !== 'object') {
+      logger.warn('Missing or invalid entities in generateResponse');
+      return 'Извините, не удалось распознать ваш запрос. Пожалуйста, уточните.';
+    }
     
     logger.info('🎯 Generating response for:', {
       intent,

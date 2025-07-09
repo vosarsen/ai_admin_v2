@@ -5,6 +5,7 @@ const ActionResolver = require('./action-resolver');
 const ResponseGenerator = require('./response-generator');
 const DataNormalizer = require('./data-normalizer');
 const PromptBuilder = require('./prompt-builder');
+const InputValidator = require('./input-validator');
 const { CONFIDENCE, LOGGING } = require('./constants');
 
 /**
@@ -18,6 +19,7 @@ class NLUService {
     this.responseGenerator = new ResponseGenerator(this.actionResolver);
     this.dataNormalizer = new DataNormalizer();
     this.promptBuilder = new PromptBuilder();
+    this.inputValidator = new InputValidator();
   }
 
   /**
@@ -27,11 +29,28 @@ class NLUService {
    * @returns {Object} NLU result with intent, entities, action, and response
    */
   async processMessage(message, context) {
-    logger.info(`🧠 NLU Service processing: "${message}"`);
+    // Validate inputs
+    const messageValidation = this.inputValidator.validateMessage(message);
+    if (!messageValidation.isValid) {
+      logger.error('Invalid message input:', messageValidation.errors);
+      return this._validationErrorResponse(messageValidation.errors);
+    }
+    
+    const contextValidation = this.inputValidator.validateContext(context);
+    if (!contextValidation.isValid) {
+      logger.error('Invalid context input:', contextValidation.errors);
+      return this._validationErrorResponse(contextValidation.errors);
+    }
+    
+    // Use sanitized inputs
+    const sanitizedMessage = messageValidation.sanitized;
+    const sanitizedContext = contextValidation.sanitized;
+    
+    logger.info(`🧠 NLU Service processing: "${sanitizedMessage}"`);
 
     try {
       // Try AI-powered extraction first
-      const aiResult = await this.extractWithAI(message, context);
+      const aiResult = await this.extractWithAI(sanitizedMessage, sanitizedContext);
       
       if (aiResult.success && aiResult.confidence > CONFIDENCE.HIGH_THRESHOLD) {
         logger.info('✅ AI extraction successful', { confidence: aiResult.confidence });
@@ -41,8 +60,8 @@ class NLUService {
       logger.warn('🔄 AI extraction low confidence, using hybrid approach');
       
       // Combine AI results with pattern-based extraction
-      const fallbackResult = this.fallbackExtractor.extract(message);
-      const hybridResult = this.combineResults(aiResult, fallbackResult, context);
+      const fallbackResult = this.fallbackExtractor.extract(sanitizedMessage);
+      const hybridResult = this.combineResults(aiResult, fallbackResult, sanitizedContext);
       
       return hybridResult;
 
@@ -50,8 +69,8 @@ class NLUService {
       logger.error('❌ AI extraction failed, falling back to patterns:', error.message);
       
       // Pure fallback extraction
-      const fallbackResult = this.fallbackExtractor.extract(message);
-      return this.formatResult(fallbackResult, 'pattern', context);
+      const fallbackResult = this.fallbackExtractor.extract(sanitizedMessage);
+      return this.formatResult(fallbackResult, 'pattern', sanitizedContext);
     }
   }
 
@@ -140,16 +159,18 @@ class NLUService {
         reasoning: parsed.reasoning
       });
       
-      // Validate structure
-      if (!parsed.intent || !parsed.entities) {
-        throw new Error('Invalid response structure');
+      // Validate parsed result
+      const parsedValidation = this.inputValidator.validateParsedResult(parsed);
+      if (!parsedValidation.isValid) {
+        logger.error('Invalid AI response structure:', parsedValidation.errors);
+        throw new Error(`Invalid AI response: ${parsedValidation.errors.join(', ')}`);
       }
 
       return {
-        intent: parsed.intent,
-        entities: parsed.entities,
-        confidence: parsed.confidence || CONFIDENCE.HIGH_THRESHOLD,
-        reasoning: parsed.reasoning || 'AI processing'
+        intent: parsedValidation.sanitized.intent,
+        entities: parsedValidation.sanitized.entities,
+        confidence: parsedValidation.sanitized.confidence || CONFIDENCE.HIGH_THRESHOLD,
+        reasoning: parsedValidation.sanitized.reasoning || 'AI processing'
       };
 
     } catch (error) {
@@ -270,6 +291,24 @@ class NLUService {
       response: 'Извините, возникли технические трудности. Пожалуйста, уточните ваш запрос или позвоните нам напрямую.',
       confidence: 0.1,
       provider: 'emergency'
+    };
+  }
+
+  /**
+   * Generate response for validation errors
+   */
+  _validationErrorResponse(errors) {
+    logger.warn('Validation error response:', errors);
+    
+    return {
+      success: false,
+      intent: 'error',
+      entities: {},
+      action: 'none',
+      response: 'Извините, не удалось обработать ваше сообщение. Пожалуйста, попробуйте еще раз.',
+      confidence: 0,
+      provider: 'validation',
+      errors: errors
     };
   }
 }
