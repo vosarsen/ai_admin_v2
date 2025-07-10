@@ -169,7 +169,7 @@ class NLUService {
       
       // Pure fallback extraction
       const fallbackResult = this.fallbackExtractor.extract(sanitizedMessage, sanitizedContext.companyId);
-      const formattedResult = this.formatResult(fallbackResult, 'pattern', sanitizedContext);
+      const formattedResult = this.formatResult(fallbackResult, 'pattern', sanitizedContext, sanitizedMessage);
       
       // Cache fallback results with even shorter TTL
       this.cache.set(cacheKey, formattedResult, 900000); // 15 minutes
@@ -203,6 +203,9 @@ class NLUService {
       
       // Ensure action is present
       this.actionResolver.ensureAction(parsed);
+      
+      // Add original message to parsed object for context
+      parsed.message = message;
       
       // Generate response
       const generatedResponse = this.responseGenerator.generateResponse(parsed, context);
@@ -372,9 +375,10 @@ class NLUService {
    * @param {Object} extractionResult - Raw extraction result
    * @param {string} provider - Provider name (pattern|emergency)
    * @param {Object} context - User context
+   * @param {string} message - Original message
    * @returns {Object} Formatted NLU result
    */
-  formatResult(extractionResult, provider, context) {
+  formatResult(extractionResult, provider, context, message) {
     const parsed = {
       intent: extractionResult.intent?.name || 'other',
       entities: {
@@ -390,6 +394,9 @@ class NLUService {
     
     // Ensure action is always present
     this.actionResolver.ensureAction(parsed);
+    
+    // Add original message to parsed object for context
+    parsed.message = message;
     
     const response = this.responseGenerator.generateResponse(parsed, context);
     
