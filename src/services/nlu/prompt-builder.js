@@ -119,10 +119,33 @@ class PromptBuilder {
 
     // Add conversation history if available
     let historySection = '';
+    let availableStaffFromHistory = [];
+    
     if (context.lastMessages && context.lastMessages.length > 0) {
       const recentMessages = context.lastMessages.slice(0, 5); // Last 5 messages
       historySection = `\n\nИСТОРИЯ ДИАЛОГА:
 ${recentMessages.map(m => `Клиент: ${m.user}\nАссистент: ${m.assistant}`).join('\n\n')}`;
+      
+      // Extract available staff from slot messages
+      recentMessages.forEach(msg => {
+        if (msg.assistant && msg.assistant.includes('👤')) {
+          // Extract staff names from messages like "👤 Бари:"
+          const staffMatches = msg.assistant.match(/👤\s*([^:]+):/g);
+          if (staffMatches) {
+            staffMatches.forEach(match => {
+              const staffName = match.replace(/👤\s*/, '').replace(':', '').trim();
+              if (staffName && !availableStaffFromHistory.includes(staffName)) {
+                availableStaffFromHistory.push(staffName);
+              }
+            });
+          }
+        }
+      });
+    }
+    
+    // Add available staff from history to context
+    if (availableStaffFromHistory.length > 0) {
+      contextParts.push(`- Доступные мастера из показанных слотов: ${availableStaffFromHistory.join(', ')}`);
     }
 
     return `${prompt}
@@ -140,10 +163,25 @@ ${JSON.stringify(this._exampleJson, null, 2)}
 2. Если есть история диалога - учитывай контекст предыдущих сообщений
 3. НЕ повторяй приветствие, если клиент уже поздоровался
 4. Если клиент отвечает на твой вопрос - определи intent как продолжение диалога
-5. Преобразуй относительные даты: "сегодня" → "${currentDate}", "завтра" → "${this._getTomorrowDate()}"
-6. Нормализуй время: "утром" → "09:00", "днем" → "12:00", "вечером" → "18:00"
-7. staff = null если мастер не указан явно
-8. confidence = ${AI_PROMPT.CONFIDENCE_HIGH} если все ясно, ${AI_PROMPT.CONFIDENCE_MEDIUM_MIN}-${AI_PROMPT.CONFIDENCE_MEDIUM_MAX} при неточностях
+5. КРИТИЧЕСКИ ВАЖНО: Если в истории были показаны доступные слоты с конкретными мастерами - выбирай ТОЛЬКО из них!
+6. Если клиент говорит "на 4" - это означает "на 16:00" 
+7. Преобразуй относительные даты: "сегодня" → "${currentDate}", "завтра" → "${this._getTomorrowDate()}"
+8. Нормализуй время: "утром" → "09:00", "днем" → "12:00", "вечером" → "18:00", "на 4" → "16:00"
+9. staff: если не указан явно - выбери из показанных в истории (если показан только один - используй его)
+10. confidence = ${AI_PROMPT.CONFIDENCE_HIGH} если все ясно, ${AI_PROMPT.CONFIDENCE_MEDIUM_MIN}-${AI_PROMPT.CONFIDENCE_MEDIUM_MAX} при неточностях
+
+ПРИМЕР: Если в истории показано "👤 Бари: • 16:00" и клиент говорит "запиши меня на 4 сегодня":
+{
+  "intent": "booking",
+  "entities": {
+    "service": "МУЖСКАЯ СТРИЖКА",
+    "staff": "Бари",
+    "date": "${currentDate}",
+    "time": "16:00"
+  },
+  "confidence": 0.95,
+  "reasoning": "Клиент выбрал время 16:00 из показанных слотов Бари"
+}
 
 АНАЛИЗИРУЙ:`;
   }
