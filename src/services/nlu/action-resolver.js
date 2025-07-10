@@ -45,8 +45,12 @@ class ActionResolver {
     
     if (intent === 'booking') {
       // If we have specific date, time and staff - create booking
-      if (entities.date && entities.time && entities.staff) {
-        return 'create_booking';
+      // BUT only if time is specific (not time_preference like "evening")
+      if (entities.date && entities.time && entities.staff && !entities.time_preference) {
+        // Additional check: time should be in HH:MM format
+        if (/^\d{1,2}:\d{2}$/.test(entities.time)) {
+          return 'create_booking';
+        }
       }
       // Otherwise search for available slots
       return 'search_slots';

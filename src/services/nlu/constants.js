@@ -31,8 +31,21 @@ module.exports = {
     'утром': '09:00',
     'днем': '12:00',
     'днём': '12:00',
-    'вечером': '18:00'
-  }
+    'вечером': '18:00',
+    'с утра': '09:00',
+    'после обеда': '14:00',
+    'к вечеру': '17:00',
+    'рано утром': '08:00',
+    'поздно вечером': '20:00'
+  },
+  
+  // Time preferences that should trigger slot search
+  TIME_PREFERENCES: [
+    'утром', 'днем', 'днём', 'вечером', 
+    'с утра', 'после обеда', 'к вечеру',
+    'рано утром', 'поздно вечером',
+    'morning', 'afternoon', 'evening'
+  ]
   
   // Entity maps removed - will be loaded dynamically from Supabase
   // SERVICE_MAP, STAFF_MAP, AVAILABLE_SERVICES, AVAILABLE_STAFF deprecated
