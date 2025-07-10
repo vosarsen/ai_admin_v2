@@ -117,22 +117,33 @@ class PromptBuilder {
       contextParts.push(`- Предпочитаемый мастер: ${context.client.preferredStaff}`);
     }
 
+    // Add conversation history if available
+    let historySection = '';
+    if (context.lastMessages && context.lastMessages.length > 0) {
+      const recentMessages = context.lastMessages.slice(0, 5); // Last 5 messages
+      historySection = `\n\nИСТОРИЯ ДИАЛОГА:
+${recentMessages.map(m => `Клиент: ${m.user}\nАссистент: ${m.assistant}`).join('\n\n')}`;
+    }
+
     return `${prompt}
 
 СООБЩЕНИЕ КЛИЕНТА: "${message}"
 
 КОНТЕКСТ:
-${contextParts.join('\n')}
+${contextParts.join('\n')}${historySection}
 
 ОТВЕТЬ СТРОГО в JSON формате:
 ${JSON.stringify(this._exampleJson, null, 2)}
 
 ПРАВИЛА:
 1. intent = "booking" для записи, "info" для вопросов
-2. Преобразуй относительные даты: "сегодня" → "${currentDate}", "завтра" → "${this._getTomorrowDate()}"
-3. Нормализуй время: "утром" → "09:00", "днем" → "12:00", "вечером" → "18:00"
-4. staff = null если мастер не указан явно
-5. confidence = ${AI_PROMPT.CONFIDENCE_HIGH} если все ясно, ${AI_PROMPT.CONFIDENCE_MEDIUM_MIN}-${AI_PROMPT.CONFIDENCE_MEDIUM_MAX} при неточностях
+2. Если есть история диалога - учитывай контекст предыдущих сообщений
+3. НЕ повторяй приветствие, если клиент уже поздоровался
+4. Если клиент отвечает на твой вопрос - определи intent как продолжение диалога
+5. Преобразуй относительные даты: "сегодня" → "${currentDate}", "завтра" → "${this._getTomorrowDate()}"
+6. Нормализуй время: "утром" → "09:00", "днем" → "12:00", "вечером" → "18:00"
+7. staff = null если мастер не указан явно
+8. confidence = ${AI_PROMPT.CONFIDENCE_HIGH} если все ясно, ${AI_PROMPT.CONFIDENCE_MEDIUM_MIN}-${AI_PROMPT.CONFIDENCE_MEDIUM_MAX} при неточностях
 
 АНАЛИЗИРУЙ:`;
   }

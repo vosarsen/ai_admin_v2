@@ -56,6 +56,12 @@ class ResponseGenerator {
       return 'Извините, не удалось распознать ваш запрос. Пожалуйста, уточните.';
     }
     
+    // Check if we already greeted the user
+    const hasGreetedBefore = context?.lastMessages?.some(msg => 
+      msg.assistant?.toLowerCase().includes('здравствуйте') || 
+      msg.assistant?.toLowerCase().includes('привет')
+    );
+    
     logger.info('🎯 Generating response for:', {
       intent,
       action,
@@ -78,6 +84,22 @@ class ResponseGenerator {
       const response = 'Какую информацию вас интересует? Расценки, режим работы или услуги?';
       logger.info('ℹ️ Generated info response:', response);
       return response;
+    }
+    
+    // Handle contextual responses
+    if (hasGreetedBefore) {
+      // User already greeted, don't repeat greeting
+      if (intent === 'other' && (parsed.message?.toLowerCase() === 'отлично' || 
+                                 parsed.message?.toLowerCase() === 'хорошо' ||
+                                 parsed.message?.toLowerCase() === 'супер')) {
+        const response = 'Отлично! На какую услугу вы хотели бы записаться?';
+        logger.info('💬 Generated contextual response:', response);
+        return response;
+      }
+      
+      const contextualResponse = 'Чем могу помочь? Хотите записаться на услугу?';
+      logger.info('💬 Generated contextual response:', contextualResponse);
+      return contextualResponse;
     }
     
     const defaultResponse = 'Здравствуйте! Я помогу вам записаться на услуги. Скажите, на какую дату и время вы хотели бы записаться?';
