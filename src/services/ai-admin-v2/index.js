@@ -195,7 +195,18 @@ ${this.formatConversation(conversation.slice(-10))}
 - Часовой пояс: ${context.timezone}
 - Минимальное время для записи: ${config.business.minBookingMinutesAhead} минут
 
-Ответь клиенту и выполни необходимые действия:`
+ПОНИМАНИЕ ДНЕЙ:
+- "сегодня" = ${new Date().toISOString().split('T')[0]}
+- "завтра" = ${new Date(Date.now() + 86400000).toISOString().split('T')[0]}
+- "послезавтра" = ${new Date(Date.now() + 172800000).toISOString().split('T')[0]}
+
+КРИТИЧЕСКИ ВАЖНО:
+- НЕ показывай команды в ответе (никаких [SEARCH_SLOTS] и т.д.)
+- НЕ дублируй информацию о слотах
+- НЕ здоровайся повторно если диалог уже начат
+- Проверь ИСТОРИЮ ДИАЛОГА чтобы понять контекст
+
+Ответь клиенту естественно и выполни необходимые действия:`
   }
 
   /**
@@ -513,10 +524,13 @@ ${this.formatConversation(conversation.slice(-10))}
   }
 
   async loadConversation(phone, companyId) {
+    // Убираем @c.us если есть
+    const cleanPhone = phone.replace('@c.us', '');
+    
     const { data } = await supabase
       .from('dialog_contexts')
       .select('messages')
-      .eq('user_id', phone)
+      .eq('user_id', cleanPhone)
       .eq('company_id', companyId)
       .order('updated_at', { ascending: false })
       .limit(1)
@@ -812,13 +826,29 @@ ${this.formatConversation(conversation.slice(-10))}
    * Удаление команд из ответа
    */
   removeCommands(response) {
-    return response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO)[^\]]*\]/g, '').trim();
+    // Убираем команды в квадратных скобках
+    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO)[^\]]*\]/g, '');
+    
+    // Убираем технические фразы
+    cleaned = cleaned.replace(/\(Если клиент.*?\)/g, '');
+    cleaned = cleaned.replace(/выполню.*?параметрами\./g, '');
+    cleaned = cleaned.replace(/service_name=.*?(?=\s|$)/g, '');
+    cleaned = cleaned.replace(/date=.*?(?=\s|$)/g, '');
+    cleaned = cleaned.replace(/time_preference=.*?(?=\s|$)/g, '');
+    
+    // Убираем лишние пробелы и переносы строк
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    
+    return cleaned;
   }
 
   /**
    * Сохранение контекста
    */
   async saveContext(phone, companyId, context, result) {
+    // Убираем @c.us если есть
+    const cleanPhone = phone.replace('@c.us', '');
+    
     // Добавляем ответ в историю
     context.conversation.push({
       role: 'assistant',
@@ -830,7 +860,7 @@ ${this.formatConversation(conversation.slice(-10))}
     await supabase
       .from('dialog_contexts')
       .upsert({
-        user_id: phone,
+        user_id: cleanPhone,
         company_id: companyId,
         messages: context.conversation.slice(-50), // Последние 50 сообщений
         updated_at: new Date().toISOString(),
