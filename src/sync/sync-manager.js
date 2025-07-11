@@ -1,7 +1,6 @@
 // src/sync/sync-manager.js
 const logger = require('../utils/logger');
 const { UniversalYclientsSync } = require('../../universal-yclients-sync');
-const { companySync } = require('./company-sync');
 
 /**
  * 🔄 SYNC MANAGER - Централизованное управление синхронизацией
@@ -187,8 +186,8 @@ class SyncManager {
   async syncCompany() {
     try {
       logger.info('🏢 Syncing company...');
-      const result = await companySync.syncCompany();
-      return result;
+      const result = await this.syncInstance.syncCompany();
+      return { success: true, ...result };
     } catch (error) {
       logger.error('Company sync failed:', error);
       return { success: false, error: error.message };
@@ -318,9 +317,9 @@ class SyncManager {
    */
   async _getCompanySyncStatus() {
     try {
-      const companyId = process.env.YCLIENTS_COMPANY_ID;
-      const info = await companySync.getLastSyncInfo(companyId);
-      return info.synced ? info.lastSync : 'never';
+      // Проверяем через sync_status таблицу
+      const status = this.lastSyncStatus.companies;
+      return status?.last_sync_at || 'never';
     } catch (error) {
       return 'error';
     }
