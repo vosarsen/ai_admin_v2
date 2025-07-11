@@ -143,8 +143,8 @@ ${client.formatted_visit_history?.length ? `\nИСТОРИЯ ПОСЛЕДНИХ 
 ДОСТУПНЫЕ ${terminology.services.toUpperCase()}:
 ${this.formatServices(services, company.type)}
 
-${terminology.specialists.toUpperCase()} СЕГОДНЯ:
-${this.formatStaff(staff, company.type)}
+КТО РАБОТАЕТ СЕГОДНЯ:
+${this.formatTodayStaff(staffSchedules, staff)}
 
 РАСПИСАНИЕ МАСТЕРОВ НА НЕДЕЛЮ:
 ${this.formatStaffSchedules(staffSchedules, staff)}
@@ -167,14 +167,28 @@ ${this.formatConversation(conversation.slice(-10))}
 4. [SHOW_PORTFOLIO] - показать работы мастера
    Параметры: staff_id
 
-ПРАВИЛА:
+ПРАВИЛА ОБЩЕНИЯ:
 1. Будь ${terminology.communicationStyle}
-2. Используй терминологию для ${terminology.businessType}
-3. Проактивно предлагай ${terminology.suggestions}
-4. Если нужны слоты - ВСЕГДА используй [SEARCH_SLOTS]
-5. НЕ придумывай время и дату - всегда проверяй доступность
-6. Учитывай предпочтения и историю клиента
-7. Предлагай дополнительные услуги когда уместно
+2. КОРОТКИЕ сообщения - максимум 2-3 предложения на первое приветствие
+3. НЕ используй форматирование: никаких *, _, ~, [], # или других символов
+4. НЕ используй эмодзи если клиент сам их не использует
+5. Пиши естественно, как обычный человек в мессенджере
+6. Задавай ОДИН вопрос за раз, не перегружай информацией
+7. НЕ предлагай сразу услуги и цены - сначала узнай что нужно
+8. Адрес и часы работы говори ТОЛЬКО когда спрашивают
+9. НЕ перечисляй всех мастеров - говори только о тех, кто СЕГОДНЯ работает
+10. Смотри РАСПИСАНИЕ МАСТЕРОВ чтобы знать кто работает сегодня
+
+СТИЛЬ ОБЩЕНИЯ:
+- Первое сообщение: просто поздоровайся и спроси чем можешь помочь
+- Не нужно сразу представлять салон, услуги и мастеров
+- Веди диалог постепенно, как живой человек
+- Используй информацию о клиенте если он постоянный
+
+ВАЖНО ПО МАСТЕРАМ:
+- ВСЕГДА проверяй в РАСПИСАНИИ кто работает сегодня
+- НЕ говори что мастер свободен, если его нет в расписании на сегодня
+- Если нужны слоты - используй [SEARCH_SLOTS] для проверки
 
 ВАЖНО:
 - Сегодня: ${context.currentTime}
@@ -588,8 +602,8 @@ ${this.formatConversation(conversation.slice(-10))}
         businessType: 'барбершоп',
         services: 'услуги',
         specialists: 'барберы',
-        communicationStyle: 'дружелюбным и неформальным',
-        suggestions: 'популярные стрижки и уход за бородой'
+        communicationStyle: 'простым и дружелюбным, без лишних формальностей',
+        suggestions: 'стрижку или уход за бородой'
       },
       nails: {
         role: 'администратор студии маникюра',
@@ -649,6 +663,34 @@ ${this.formatConversation(conversation.slice(-10))}
       const spec = s.specialization || 'универсал';
       return `- ${s.name} (${spec}${rating ? ', ' + rating : ''}) [ID: ${s.yclients_id}]`;
     }).join('\n');
+  }
+
+  formatTodayStaff(scheduleByDate, staffList) {
+    if (!scheduleByDate || Object.keys(scheduleByDate).length === 0) {
+      return 'Нет данных о расписании на сегодня';
+    }
+    
+    // Получаем сегодняшнюю дату
+    const today = new Date().toISOString().split('T')[0];
+    const todaySchedule = scheduleByDate[today];
+    
+    if (!todaySchedule || todaySchedule.length === 0) {
+      return 'Сегодня никто не работает';
+    }
+    
+    // Форматируем список работающих сегодня мастеров
+    const workingToday = todaySchedule.map(schedule => {
+      const staff = staffList.find(s => s.yclients_id === schedule.staff_id);
+      if (!staff) return null;
+      
+      const rating = staff.rating ? ` (⭐ ${staff.rating})` : '';
+      const time = schedule.work_start && schedule.work_end ? 
+        ` ${schedule.work_start}-${schedule.work_end}` : '';
+      
+      return `- ${staff.name}${rating}${time}`;
+    }).filter(Boolean);
+    
+    return workingToday.join('\n');
   }
 
   formatStaffSchedules(scheduleByDate, staffList) {
