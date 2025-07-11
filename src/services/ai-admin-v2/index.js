@@ -77,20 +77,25 @@ class AIAdminV2 {
     logger.info('Loading full context from database...');
     
     // Загружаем всё параллельно для скорости
-    const [company, client, services, staff, conversation, businessStats] = await Promise.all([
+    const [company, client, services, staff, conversation, businessStats, staffSchedules] = await Promise.all([
       this.loadCompany(companyId),
       this.loadClient(phone, companyId),
       this.loadServices(companyId),
       this.loadStaff(companyId),
       this.loadConversation(phone, companyId),
-      this.loadBusinessStats(companyId)
+      this.loadBusinessStats(companyId),
+      this.loadStaffSchedules(companyId)
     ]);
+    
+    // Сортируем услуги с учетом предпочтений клиента
+    const sortedServices = this.sortServicesForClient(services, client);
 
     const context = {
       company,
       client,
-      services,
+      services: sortedServices,
       staff,
+      staffSchedules,
       conversation,
       businessStats,
       currentTime: new Date().toISOString(),
@@ -110,7 +115,7 @@ class AIAdminV2 {
    * Строим умный промпт с учетом типа бизнеса
    */
   buildSmartPrompt(message, context) {
-    const { company, client, services, staff, conversation, businessStats } = context;
+    const { company, client, services, staff, staffSchedules, conversation, businessStats } = context;
     
     // Адаптируем терминологию под тип бизнеса
     const terminology = this.getBusinessTerminology(company.type);
@@ -130,14 +135,19 @@ ${businessStats ? `- Загрузка на сегодня: ${businessStats.today
 - Статус: ${client.loyalty_level || 'Новый клиент'}
 - Визитов: ${client.visit_count || 0}
 ${client.last_visit_date ? `- Последний визит: ${this.formatDate(client.last_visit_date)}` : ''}
+${client.discount ? `- Персональная скидка: ${client.discount}%` : ''}
 ${client.preferences ? `- Предпочтения: ${JSON.stringify(client.preferences)}` : ''}
 ${client.favorite_staff_ids?.length ? `- Любимые ${terminology.specialists}: ${this.getStaffNames(client.favorite_staff_ids, staff)}` : ''}
+${client.formatted_visit_history?.length ? `\nИСТОРИЯ ПОСЛЕДНИХ ВИЗИТОВ:\n${client.formatted_visit_history.slice(0, 5).join('\n')}` : ''}
 
 ДОСТУПНЫЕ ${terminology.services.toUpperCase()}:
 ${this.formatServices(services, company.type)}
 
 ${terminology.specialists.toUpperCase()} СЕГОДНЯ:
 ${this.formatStaff(staff, company.type)}
+
+РАСПИСАНИЕ МАСТЕРОВ НА НЕДЕЛЮ:
+${this.formatStaffSchedules(staffSchedules, staff)}
 
 ИСТОРИЯ ДИАЛОГА (последние 10 сообщений):
 ${this.formatConversation(conversation.slice(-10))}
@@ -288,19 +298,85 @@ ${this.formatConversation(conversation.slice(-10))}
     ) || context.services[0]; // Fallback на популярную услугу
     
     // Находим staff если указан
-    const staff = params.staff_name ? 
-      context.staff.find(s => s.name.toLowerCase().includes(params.staff_name.toLowerCase())) : 
-      null;
+    let targetStaff = null;
+    if (params.staff_name) {
+      targetStaff = context.staff.find(s => s.name.toLowerCase().includes(params.staff_name.toLowerCase()));
+    }
     
-    const result = await bookingService.findSuitableSlot({
-      companyId: context.company.yclients_id || context.company.company_id,
-      serviceId: service?.yclients_id,
-      staffId: staff?.yclients_id,
-      preferredDate: params.date || new Date().toISOString().split('T')[0],
-      timePreference: params.time_preference
+    // Если мастер не указан, используем любимых мастеров клиента
+    const staffToCheck = targetStaff ? [targetStaff] : 
+      (context.client.favorite_staff_ids?.length ? 
+        context.staff.filter(s => context.client.favorite_staff_ids.includes(s.yclients_id)) : 
+        context.staff.slice(0, 3)); // Берем топ-3 мастеров
+    
+    // Проверяем слоты для нескольких мастеров
+    const allSlots = [];
+    for (const staff of staffToCheck) {
+      try {
+        const result = await bookingService.findSuitableSlot({
+          companyId: context.company.yclients_id || context.company.company_id,
+          serviceId: service?.yclients_id,
+          staffId: staff?.yclients_id,
+          preferredDate: params.date || new Date().toISOString().split('T')[0],
+          timePreference: params.time_preference
+        });
+        
+        if (result.data?.length) {
+          // Добавляем имя мастера к каждому слоту
+          result.data.forEach(slot => {
+            slot.staff_name = staff.name;
+            slot.staff_id = staff.yclients_id;
+          });
+          allSlots.push(...result.data);
+        }
+      } catch (error) {
+        logger.debug(`Ошибка получения слотов для ${staff.name}:`, error.message);
+      }
+    }
+    
+    // Сортируем слоты по времени и группируем по временным зонам
+    return this.organizeSlotsByTimeZones(allSlots, params.time_preference);
+  }
+  
+  /**
+   * Организация слотов по временным зонам для удобства выбора
+   */
+  organizeSlotsByTimeZones(slots, timePreference) {
+    if (!slots.length) return [];
+    
+    const timeZones = {
+      morning: { start: 9, end: 12, slots: [] },
+      afternoon: { start: 12, end: 17, slots: [] },
+      evening: { start: 17, end: 21, slots: [] }
+    };
+    
+    slots.forEach(slot => {
+      const hour = parseInt(slot.time?.split(':')[0] || slot.datetime?.split('T')[1]?.split(':')[0]);
+      if (hour >= timeZones.morning.start && hour < timeZones.morning.end) {
+        timeZones.morning.slots.push(slot);
+      } else if (hour >= timeZones.afternoon.start && hour < timeZones.afternoon.end) {
+        timeZones.afternoon.slots.push(slot);
+      } else if (hour >= timeZones.evening.start && hour < timeZones.evening.end) {
+        timeZones.evening.slots.push(slot);
+      }
     });
     
-    return result.data || [];
+    // Возвращаем слоты в приоритетном порядке
+    let organizedSlots = [];
+    if (timePreference === 'morning') {
+      organizedSlots = [...timeZones.morning.slots.slice(0, 3), ...timeZones.afternoon.slots.slice(0, 2)];
+    } else if (timePreference === 'evening') {
+      organizedSlots = [...timeZones.evening.slots.slice(0, 3), ...timeZones.afternoon.slots.slice(0, 2)];
+    } else {
+      // Берем по 2 слота из каждой временной зоны
+      organizedSlots = [
+        ...timeZones.morning.slots.slice(0, 2),
+        ...timeZones.afternoon.slots.slice(0, 2),
+        ...timeZones.evening.slots.slice(0, 2)
+      ];
+    }
+    
+    return organizedSlots.slice(0, 6); // Максимум 6 слотов для выбора
   }
 
   /**
@@ -361,11 +437,18 @@ ${this.formatConversation(conversation.slice(-10))}
       .or(`phone.eq.${normalizedPhone},raw_phone.eq.${normalizedPhone}`)
       .single();
     
+    // Если клиент найден, форматируем историю визитов
+    if (data && data.visit_history) {
+      data.formatted_visit_history = this.formatVisitHistory(data.visit_history);
+    }
+    
     return data || {
       name: 'Гость',
       phone: normalizedPhone,
       visit_count: 0,
-      loyalty_level: 'New'
+      loyalty_level: 'New',
+      visit_history: [],
+      formatted_visit_history: []
     };
   }
 
@@ -379,6 +462,29 @@ ${this.formatConversation(conversation.slice(-10))}
       .limit(50);
     
     return data || [];
+  }
+  
+  /**
+   * Сортировка услуг с учетом предпочтений клиента
+   */
+  sortServicesForClient(services, client) {
+    if (!client.last_service_ids?.length) {
+      return services;
+    }
+    
+    // Услуги, которые клиент заказывал ранее, идут первыми
+    const clientServices = [];
+    const otherServices = [];
+    
+    services.forEach(service => {
+      if (client.last_service_ids.includes(service.yclients_id)) {
+        clientServices.push(service);
+      } else {
+        otherServices.push(service);
+      }
+    });
+    
+    return [...clientServices, ...otherServices];
   }
 
   async loadStaff(companyId) {
@@ -421,6 +527,33 @@ ${this.formatConversation(conversation.slice(-10))}
     const todayLoad = Math.round((bookedSlots / totalSlots) * 100);
     
     return { todayLoad, bookedSlots, totalSlots };
+  }
+  
+  async loadStaffSchedules(companyId) {
+    // Загружаем расписание на ближайшие 7 дней
+    const today = new Date();
+    const weekLater = new Date();
+    weekLater.setDate(today.getDate() + 7);
+    
+    const { data } = await supabase
+      .from('staff_schedules')
+      .select('*')
+      .eq('company_id', companyId)
+      .gte('date', today.toISOString().split('T')[0])
+      .lte('date', weekLater.toISOString().split('T')[0])
+      .eq('is_working', true)
+      .order('date', { ascending: true });
+    
+    // Группируем по дням для удобства
+    const scheduleByDate = {};
+    data?.forEach(schedule => {
+      if (!scheduleByDate[schedule.date]) {
+        scheduleByDate[schedule.date] = [];
+      }
+      scheduleByDate[schedule.date].push(schedule);
+    });
+    
+    return scheduleByDate;
   }
 
   /**
@@ -516,6 +649,31 @@ ${this.formatConversation(conversation.slice(-10))}
       const spec = s.specialization || 'универсал';
       return `- ${s.name} (${spec}${rating ? ', ' + rating : ''}) [ID: ${s.yclients_id}]`;
     }).join('\n');
+  }
+
+  formatStaffSchedules(scheduleByDate, staffList) {
+    if (!scheduleByDate || Object.keys(scheduleByDate).length === 0) {
+      return 'Расписание не загружено';
+    }
+    
+    const days = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+    let result = [];
+    
+    // Берем первые 3 дня с расписанием
+    Object.keys(scheduleByDate).slice(0, 3).forEach(date => {
+      const dayDate = new Date(date);
+      const dayName = days[dayDate.getDay()];
+      const formattedDate = `${dayDate.getDate()}.${(dayDate.getMonth() + 1).toString().padStart(2, '0')}`;
+      
+      const workingStaff = scheduleByDate[date].map(schedule => {
+        const staff = staffList.find(s => s.yclients_id === schedule.staff_id);
+        return staff ? `${staff.name} (${schedule.work_start}-${schedule.work_end})` : schedule.staff_name;
+      });
+      
+      result.push(`${dayName} ${formattedDate}: ${workingStaff.join(', ')}`);
+    });
+    
+    return result.join('\n');
   }
 
   formatConversation(messages) {
@@ -648,6 +806,22 @@ ${this.formatConversation(conversation.slice(-10))}
     }
     
     return await this.aiProvider._callAI(prompt);
+  }
+
+  /**
+   * Форматирование истории визитов для промпта
+   */
+  formatVisitHistory(visitHistory) {
+    if (!visitHistory || !Array.isArray(visitHistory)) return [];
+    
+    return visitHistory.slice(0, 5).map((visit, index) => {
+      const date = new Date(visit.date).toLocaleDateString('ru-RU');
+      const services = visit.services?.join(', ') || 'Услуги не указаны';
+      const staff = visit.staff_name || 'Мастер не указан';
+      const cost = visit.cost ? `${visit.cost}₽` : 'Стоимость не указана';
+      
+      return `  ${index + 1}. ${date} - ${services} (${staff}) - ${cost}`;
+    });
   }
 
   /**
