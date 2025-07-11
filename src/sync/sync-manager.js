@@ -1,6 +1,7 @@
 // src/sync/sync-manager.js
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const { UniversalYclientsSync } = require('../../universal-yclients-sync');
+const { companySync } = require('./company-sync');
 
 /**
  * 🔄 SYNC MANAGER - Централизованное управление синхронизацией
@@ -42,6 +43,7 @@ class SyncManager {
       this.lastSyncStatus = this._processSyncStatus(status);
       
       logger.info('📊 Last sync status:', {
+        company: await this._getCompanySyncStatus(),
         services: this.lastSyncStatus.services?.last_sync_at || 'never',
         staff: this.lastSyncStatus.staff?.last_sync_at || 'never',
         clients: this.lastSyncStatus.clients?.last_sync_at || 'never',
@@ -117,6 +119,9 @@ class SyncManager {
         if ((hour === 4 || hour === 14) && minute === 0) {
           logger.info('🔄 Running twice-daily full sync...');
           
+          // Company (компания) - 1 запрос
+          await this.syncCompany();
+          
           // Clients (клиенты) - 7 запросов
           await this.syncClients();
           
@@ -150,6 +155,11 @@ class SyncManager {
   async runFullSync() {
     try {
       logger.info('🔄 Starting full synchronization...');
+      
+      // Сначала синхронизируем компанию
+      await this.syncCompany();
+      
+      // Затем остальные данные
       const results = await this.syncInstance.fullSync();
       
       // Обновляем статус
@@ -168,6 +178,20 @@ class SyncManager {
         error: error.message,
         timestamp: new Date().toISOString()
       };
+    }
+  }
+
+  /**
+   * Синхронизация компании
+   */
+  async syncCompany() {
+    try {
+      logger.info('🏢 Syncing company...');
+      const result = await companySync.syncCompany();
+      return result;
+    } catch (error) {
+      logger.error('Company sync failed:', error);
+      return { success: false, error: error.message };
     }
   }
 
@@ -287,6 +311,19 @@ class SyncManager {
     }
     
     return processed;
+  }
+
+  /**
+   * Получить статус синхронизации компании
+   */
+  async _getCompanySyncStatus() {
+    try {
+      const companyId = process.env.YCLIENTS_COMPANY_ID;
+      const info = await companySync.getLastSyncInfo(companyId);
+      return info.synced ? info.lastSync : 'never';
+    } catch (error) {
+      return 'error';
+    }
   }
 
   /**
