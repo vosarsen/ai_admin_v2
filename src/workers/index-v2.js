@@ -8,7 +8,7 @@ const config = require('../config');
 const MessageWorker = require('./message-worker-v2');
 
 if (cluster.isMaster) {
-  const numWorkers = config.workers.messageWorkers || os.cpus().length;
+  const numWorkers = config.workers?.messageWorkers || 1;
   
   logger.info(`🚀 Starting AI Admin v2 with ${numWorkers} workers...`);
   logger.info(`📍 Company ID: ${config.yclients.companyId}`);
