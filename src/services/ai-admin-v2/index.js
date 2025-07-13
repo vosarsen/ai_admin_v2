@@ -1026,6 +1026,11 @@ ${this.formatConversation(conversation.slice(-10))}
   }
   
   groupSlotsByTimeOfDay(slots) {
+    logger.info('groupSlotsByTimeOfDay called with slots:', {
+      totalSlots: slots.length,
+      slots: slots.map(s => s.time || s.datetime?.split('T')[1]?.substring(0, 5))
+    });
+    
     const groups = {
       morning: [],  // до 12:00
       day: [],      // 12:00 - 17:00
