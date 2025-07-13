@@ -931,6 +931,12 @@ ${this.formatConversation(conversation.slice(-10))}
     const terminology = this.getBusinessTerminology(businessType);
     let text = '';
     
+    // Дебаг
+    logger.debug('Formatting slots:', { 
+      totalSlots: slots.length,
+      sampleSlot: slots[0] 
+    });
+    
     // Группируем по мастерам если есть
     const byStaff = {};
     slots.forEach(slot => {
@@ -939,7 +945,7 @@ ${this.formatConversation(conversation.slice(-10))}
       byStaff[staffName].push(slot);
     });
     
-    Object.entries(byStaff).slice(0, 3).forEach(([staffName, staffSlots]) => {
+    Object.entries(byStaff).slice(0, 3).forEach(([staffName, staffSlots], index) => {
       // Группируем по датам
       const byDate = {};
       staffSlots.forEach(slot => {
@@ -955,8 +961,10 @@ ${this.formatConversation(conversation.slice(-10))}
         // Группируем по времени дня
         const timeGroups = this.groupSlotsByTimeOfDay(dateSlots);
         
-        // Формируем текст только если есть слоты
-        if (Object.keys(timeGroups).length > 0) {
+        // Проверяем есть ли хотя бы один период с слотами
+        const hasSlots = timeGroups.morning.length > 0 || timeGroups.day.length > 0 || timeGroups.evening.length > 0;
+        
+        if (hasSlots) {
           text += `У ${staffName} свободно ${formattedDate.toLowerCase()}:\n`;
           
           const timePeriods = [];
