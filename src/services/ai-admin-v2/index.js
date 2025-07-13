@@ -1071,7 +1071,7 @@ ${this.formatConversation(conversation.slice(-10))}
       const selected = [];
       let lastSelectedHourDecimal = -999; // Начальное значение для сравнения
       
-      logger.debug('selectSlotsWithGaps called:', { 
+      logger.info('selectSlotsWithGaps called:', { 
         slotsCount: slots.length, 
         maxCount,
         slots: slots.map(s => ({ time: s.time, hourDecimal: s.hourDecimal }))
@@ -1081,7 +1081,7 @@ ${this.formatConversation(conversation.slice(-10))}
         if (selected.length >= maxCount) break;
         
         const gap = slot.hourDecimal - lastSelectedHourDecimal;
-        logger.debug('Checking slot:', { 
+        logger.info('Checking slot:', { 
           time: slot.time, 
           hourDecimal: slot.hourDecimal,
           lastSelectedHourDecimal,
@@ -1093,7 +1093,7 @@ ${this.formatConversation(conversation.slice(-10))}
         if (gap >= 1) {
           selected.push(slot.time);
           lastSelectedHourDecimal = slot.hourDecimal;
-          logger.debug('Selected slot:', slot.time);
+          logger.info('Selected slot:', slot.time);
         }
       }
       
