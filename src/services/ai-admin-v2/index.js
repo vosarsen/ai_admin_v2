@@ -979,7 +979,17 @@ ${this.formatConversation(conversation.slice(-10))}
       // Группируем по датам
       const byDate = {};
       staffSlots.forEach(slot => {
-        const date = slot.date || (slot.datetime ? slot.datetime.split(' ')[0] : new Date().toISOString().split('T')[0]);
+        // Извлекаем только дату из datetime (убираем время)
+        let date;
+        if (slot.date) {
+          date = slot.date;
+        } else if (slot.datetime) {
+          // Если datetime в формате ISO, берем только дату
+          date = slot.datetime.split('T')[0];
+        } else {
+          date = new Date().toISOString().split('T')[0];
+        }
+        
         if (!byDate[date]) byDate[date] = [];
         byDate[date].push(slot);
       });
