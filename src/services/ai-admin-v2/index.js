@@ -46,7 +46,7 @@ class AIAdminV2 {
       });
 
       // 3. Строим промпт с полным контекстом
-      const prompt = this.buildSmartPrompt(message, context);
+      const prompt = this.buildSmartPrompt(message, context, phone);
       
       // 4. Получаем ответ от AI
       const aiResponse = await this.callAI(prompt);
@@ -119,7 +119,7 @@ class AIAdminV2 {
   /**
    * Строим умный промпт с учетом типа бизнеса
    */
-  buildSmartPrompt(message, context) {
+  buildSmartPrompt(message, context, phone) {
     const { company, client, services, staff, staffSchedules, conversation, businessStats } = context;
     
     // Адаптируем терминологию под тип бизнеса
@@ -135,15 +135,15 @@ class AIAdminV2 {
 ${businessStats ? `- Загрузка на сегодня: ${businessStats.todayLoad}%` : ''}
 
 КЛИЕНТ:
-- Имя: ${client.name}
-- Телефон: ${client.phone}
-- Статус: ${client.loyalty_level || 'Новый клиент'}
-- Визитов: ${client.visit_count || 0}
-${client.last_visit_date ? `- Последний визит: ${this.formatDate(client.last_visit_date)}` : ''}
-${client.discount ? `- Персональная скидка: ${client.discount}%` : ''}
-${client.preferences ? `- Предпочтения: ${JSON.stringify(client.preferences)}` : ''}
-${client.favorite_staff_ids?.length ? `- Любимые ${terminology.specialists}: ${this.getStaffNames(client.favorite_staff_ids, staff)}` : ''}
-${client.formatted_visit_history?.length ? `\nИСТОРИЯ ПОСЛЕДНИХ ВИЗИТОВ:\n${client.formatted_visit_history.slice(0, 5).join('\n')}` : ''}
+- Имя: ${client?.name || 'Не указано'}
+- Телефон: ${client?.phone || phone}
+- Статус: ${client?.loyalty_level || 'Новый клиент'}
+- Визитов: ${client?.visit_count || 0}
+${client?.last_visit_date ? `- Последний визит: ${this.formatDate(client.last_visit_date)}` : ''}
+${client?.discount ? `- Персональная скидка: ${client.discount}%` : ''}
+${client?.preferences ? `- Предпочтения: ${JSON.stringify(client.preferences)}` : ''}
+${client?.favorite_staff_ids?.length ? `- Любимые ${terminology.specialists}: ${this.getStaffNames(client.favorite_staff_ids, staff)}` : ''}
+${client?.formatted_visit_history?.length ? `\nИСТОРИЯ ПОСЛЕДНИХ ВИЗИТОВ:\n${client.formatted_visit_history.slice(0, 5).join('\n')}` : ''}
 
 ДОСТУПНЫЕ ${terminology.services.toUpperCase()}:
 ${this.formatServices(services, company.type)}
