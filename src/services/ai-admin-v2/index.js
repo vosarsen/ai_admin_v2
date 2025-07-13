@@ -929,7 +929,7 @@ ${this.formatConversation(conversation.slice(-10))}
     }
     
     const terminology = this.getBusinessTerminology(businessType);
-    let text = `📅 Доступное время:\n\n`;
+    let text = '';
     
     // Группируем по мастерам если есть
     const byStaff = {};
@@ -940,8 +940,6 @@ ${this.formatConversation(conversation.slice(-10))}
     });
     
     Object.entries(byStaff).slice(0, 3).forEach(([staffName, staffSlots]) => {
-      text += `👤 ${staffName}:\n\n`;
-      
       // Группируем по датам
       const byDate = {};
       staffSlots.forEach(slot => {
@@ -950,24 +948,59 @@ ${this.formatConversation(conversation.slice(-10))}
         byDate[date].push(slot);
       });
       
-      // Сортируем даты
-      const sortedDates = Object.keys(byDate).sort();
-      
-      sortedDates.forEach(date => {
+      // Для каждой даты
+      Object.entries(byDate).forEach(([date, dateSlots]) => {
         const formattedDate = this.formatDateForDisplay(date);
-        text += `${formattedDate}:\n`;
         
-        const times = byDate[date]
-          .map(slot => slot.time || (slot.datetime ? slot.datetime.split(' ')[1].substring(0, 5) : ''))
-          .filter(time => time)
-          .slice(0, 6);
+        // Группируем по времени дня
+        const timeGroups = this.groupSlotsByTimeOfDay(dateSlots);
         
-        text += times.map(time => `- ${time}`).join('\n');
-        text += '\n\n';
+        // Формируем текст только если есть слоты
+        if (Object.keys(timeGroups).length > 0) {
+          text += `У ${staffName} свободно ${formattedDate.toLowerCase()}:\n`;
+          
+          const timePeriods = [];
+          if (timeGroups.morning.length > 0) {
+            timePeriods.push(`С утра: ${timeGroups.morning.join(', ')}`);
+          }
+          if (timeGroups.day.length > 0) {
+            timePeriods.push(`Днём: ${timeGroups.day.join(', ')}`);
+          }
+          if (timeGroups.evening.length > 0) {
+            timePeriods.push(`Вечером: ${timeGroups.evening.join(', ')}`);
+          }
+          
+          text += timePeriods.join('\n') + '\n\n';
+        }
       });
     });
     
-    return text;
+    return text.trim();
+  }
+  
+  groupSlotsByTimeOfDay(slots) {
+    const groups = {
+      morning: [],  // до 12:00
+      day: [],      // 12:00 - 17:00
+      evening: []   // после 17:00
+    };
+    
+    slots.forEach(slot => {
+      const time = slot.time || (slot.datetime ? slot.datetime.split(' ')[1].substring(0, 5) : '');
+      if (!time) return;
+      
+      const hour = parseInt(time.split(':')[0]);
+      
+      if (hour < 12) {
+        if (groups.morning.length < 3) groups.morning.push(time);
+      } else if (hour < 17) {
+        if (groups.day.length < 3) groups.day.push(time);
+      } else {
+        if (groups.evening.length < 2) groups.evening.push(time);
+      }
+    });
+    
+    return groups;
   }
 
   formatBookingConfirmation(booking, businessType) {
