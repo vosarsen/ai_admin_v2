@@ -1104,8 +1104,18 @@ ${this.formatConversation(conversation.slice(-10))}
         if (!selected.includes(lastTime)) {
           // Проверяем что последний слот хотя бы через 30 минут от предпоследнего выбранного
           const lastSelectedSlot = slots.find(s => s.time === selected[selected.length - 1]);
-          if (lastSelectedSlot && lastSlot.hourDecimal - lastSelectedSlot.hourDecimal >= 0.5) {
+          const gapToLast = lastSlot.hourDecimal - lastSelectedSlot.hourDecimal;
+          
+          logger.info('Trying to add last slot:', {
+            lastTime,
+            lastSelectedTime: selected[selected.length - 1],
+            gap: gapToLast,
+            willAdd: gapToLast >= 0.5
+          });
+          
+          if (lastSelectedSlot && gapToLast >= 0.5) {
             selected.push(lastTime);
+            logger.info('Added last slot:', lastTime);
           }
         }
       }
