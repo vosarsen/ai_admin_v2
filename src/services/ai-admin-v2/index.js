@@ -970,7 +970,7 @@ ${this.formatConversation(conversation.slice(-10))}
       byStaff[staffName].push(slot);
     });
     
-    logger.debug('Grouped by staff:', {
+    logger.info('Grouped by staff:', {
       staffNames: Object.keys(byStaff),
       counts: Object.entries(byStaff).map(([name, slots]) => ({ name, count: slots.length }))
     });
@@ -982,6 +982,11 @@ ${this.formatConversation(conversation.slice(-10))}
         const date = slot.date || (slot.datetime ? slot.datetime.split(' ')[0] : new Date().toISOString().split('T')[0]);
         if (!byDate[date]) byDate[date] = [];
         byDate[date].push(slot);
+      });
+      
+      logger.info(`Processing staff ${staffName}:`, {
+        dates: Object.keys(byDate),
+        slotsPerDate: Object.entries(byDate).map(([d, s]) => ({ date: d, count: s.length }))
       });
       
       // Для каждой даты
@@ -1013,7 +1018,13 @@ ${this.formatConversation(conversation.slice(-10))}
       });
     });
     
-    return text.trim();
+    const result = text.trim();
+    logger.info('Formatted result:', { 
+      length: result.length,
+      preview: result.substring(0, 100)
+    });
+    
+    return result;
   }
   
   groupSlotsByTimeOfDay(slots) {
