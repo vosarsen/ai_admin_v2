@@ -1105,6 +1105,17 @@ ${this.formatConversation(conversation.slice(-10))}
     groups.day = selectSlotsWithGaps(periodSlots.day, 2);
     groups.evening = selectSlotsWithGaps(periodSlots.evening, 2);
     
+    // Временный дебаг для отладки
+    logger.info('Slot gap selection debug:', {
+      day: {
+        input: periodSlots.day.map(s => ({ time: s.time, hour: s.hour })),
+        output: groups.day
+      },
+      evening: {
+        input: periodSlots.evening.map(s => ({ time: s.time, hour: s.hour })),
+        output: groups.evening
+      }
+    });
     
     return groups;
   }
