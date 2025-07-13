@@ -80,6 +80,11 @@ class AIAdminV2 {
       // Используем оптимизированную загрузку с Redis кэшем
       const baseContext = await optimizedLoadContext(phone, companyId);
       
+      // Проверяем, что baseContext содержит необходимые данные
+      if (!baseContext) {
+        throw new Error('Failed to load base context');
+      }
+      
       // Дополняем контекст специфичными данными
       const [conversation, businessStats] = await Promise.all([
         this.loadConversation(phone, companyId),
@@ -87,16 +92,19 @@ class AIAdminV2 {
       ]);
       
       // Сортируем услуги с учетом предпочтений клиента
-      const sortedServices = this.sortServicesForClient(baseContext.services, baseContext.client);
+      const sortedServices = this.sortServicesForClient(
+        baseContext.services || [], 
+        baseContext.client
+      );
       
       const context = {
         ...baseContext,
         services: sortedServices,
-        conversation,
-        businessStats,
-      currentTime: new Date().toISOString(),
-      timezone: baseContext.company?.timezone || 'Europe/Moscow'
-    };
+        conversation: conversation || [],
+        businessStats: businessStats || { todayLoad: 0, bookedSlots: 0, totalSlots: 50 },
+        currentTime: new Date().toISOString(),
+        timezone: baseContext.company?.timezone || 'Europe/Moscow'
+      };
 
       const loadTime = Date.now() - startTime;
       logger.info(`Context loaded in ${loadTime}ms`);
@@ -547,7 +555,11 @@ ${this.formatConversation(conversation.slice(-10))}
    * Сортировка услуг с учетом предпочтений клиента
    */
   sortServicesForClient(services, client) {
-    if (!client.last_service_ids?.length) {
+    if (!services || !Array.isArray(services)) {
+      return [];
+    }
+    
+    if (!client || !client.last_service_ids?.length) {
       return services;
     }
     
