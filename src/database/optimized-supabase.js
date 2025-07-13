@@ -161,11 +161,12 @@ class OptimizedSupabaseClient {
     
     return this.getCached('schedules', key, (query) => 
       query
+        .from('staff_schedules')  // Правильное имя таблицы
         .select(`
           staff_id, staff_name, date, is_working,
           work_start, work_end, has_booking_slots
         `)
-        .eq('company_id', companyId)  // После миграции
+        .eq('company_id', companyId)
         .gte('date', startDate)
         .lte('date', endDate)
         .eq('is_working', true)
@@ -241,18 +242,43 @@ class OptimizedSupabaseClient {
   async getClient(phone, companyId) {
     const key = `${phone}:${companyId}`;
     
-    return this.getCached('clients', key, (query) =>
-      query
-        .select(`
-          id, yclients_id, name, phone, discount,
-          visit_count, total_spent, last_visit_date,
-          favorite_staff_ids, last_service_ids,
-          preferences, ai_context
-        `)
-        .eq('phone', phone)
-        .eq('company_id', companyId)
-        .single()
-    );
+    try {
+      const result = await this.getCached('clients', key, async (query) => {
+        const { data, error } = await query
+          .select(`
+            id, yclients_id, name, phone, discount,
+            visit_count, total_spent, last_visit_date,
+            favorite_staff_ids, last_service_ids,
+            preferences, ai_context
+          `)
+          .eq('phone', phone)
+          .eq('company_id', companyId)
+          .maybeSingle();  // Используем maybeSingle вместо single
+        
+        if (error) throw error;
+        
+        // Если клиента нет, возвращаем пустой объект
+        return data || {
+          phone,
+          name: 'Новый клиент',
+          visit_count: 0,
+          total_spent: 0,
+          preferences: {}
+        };
+      });
+      
+      return result;
+    } catch (error) {
+      logger.error('Error fetching client:', error);
+      // Возвращаем дефолтного клиента при ошибке
+      return {
+        phone,
+        name: 'Новый клиент',
+        visit_count: 0,
+        total_spent: 0,
+        preferences: {}
+      };
+    }
   }
 
   /**
