@@ -268,11 +268,11 @@ class OptimizedSupabaseClient {
       const company = data || {
         company_id: companyId,
         yclients_id: companyId,
-        title: 'Beauty Salon',
-        type: 'beauty',
-        timezone: 'Europe/Moscow',
-        address: 'Не указан',
-        phone: 'Не указан',
+        title: config.company?.defaultTitle || 'Салон красоты',
+        type: config.company?.defaultType || 'beauty',
+        timezone: config.app?.timezone || 'Europe/Moscow',
+        address: '',
+        phone: '',
         working_hours: {}
       };
       
@@ -286,11 +286,11 @@ class OptimizedSupabaseClient {
       return {
         company_id: companyId,
         yclients_id: companyId,
-        title: 'Beauty Salon',
-        type: 'beauty',
-        timezone: 'Europe/Moscow',
-        address: 'Не указан',
-        phone: 'Не указан',
+        title: config.company?.defaultTitle || 'Салон красоты',
+        type: config.company?.defaultType || 'beauty',
+        timezone: config.app?.timezone || 'Europe/Moscow',
+        address: '',
+        phone: '',
         working_hours: {}
       };
     }

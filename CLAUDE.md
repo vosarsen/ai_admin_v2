@@ -296,7 +296,29 @@ npm run monitor
 2. Check logs for errors
 3. If error - fix locally, commit, push, pull on server, restart worker
 
-## Common Development Tasks
+## Development Guidelines
+
+## No Hardcoding Policy
+**ВАЖНО**: В проекте ЗАПРЕЩЕНО использовать хардкод. Все значения должны быть:
+- Настраиваемыми через конфигурацию (`src/config/`)
+- Передаваемыми как параметры
+- Определенными в константах или enum
+- Загружаемыми из базы данных
+
+Примеры что НЕ делать:
+```javascript
+// ❌ ПЛОХО
+title: 'Beauty Salon'
+timezone: 'Europe/Moscow'
+address: 'Не указан'
+
+// ✅ ХОРОШО
+title: config.company?.defaultTitle || 'Салон красоты'
+timezone: config.app?.timezone || 'Europe/Moscow'
+address: data.address || ''
+```
+
+# Common Development Tasks
 
 ### Adding a New AI Command (v2)
 1. Update `src/services/ai-admin-v2/index.js` to add command in prompt
