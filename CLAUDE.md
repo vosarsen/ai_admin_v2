@@ -2,14 +2,30 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
-
-AI Admin v2 is a production-ready WhatsApp AI Assistant for beauty salons. It uses simplified AI-First architecture where a single AI call handles all decision-making, replacing the previous 5-6 step pipeline. The system is multi-tenant ready and scalable from 30 to 10,000+ companies.
+## Working Environment
 
 - **Local directory**: /Users/vosarsen/Documents/GitHub/ai_admin_v2
-- **server**: ssh root@46.149.70.219 route on the server - /opt/ai-admin 
- 
-We use TodoWrite for task traction. 
+- **Server**: ssh root@46.149.70.219
+- **Server path**: /opt/ai-admin
+
+## Development Workflow
+
+We use a strict workflow for all changes:
+
+1. **Local** - analyze and modify files locally
+2. **Commit & Push** - git add, commit with descriptive message, push to GitHub
+3. **Server** - git pull from server, test changes, check logs
+4. **Iterate** - if issues found, repeat from step 1
+
+**Important**: 
+- Files in local directory and server are synchronized through Git
+- We use `TodoWrite` for task tracking throughout the conversation
+- NEVER modify files directly on server
+- ALWAYS test on server after pushing changes
+
+## Project Overview
+
+AI Admin v2 is a production-ready WhatsApp AI Assistant for beauty salons. It uses simplified AI-First architecture where a single AI call handles all decision-making, replacing the previous 5-6 step pipeline. The system is multi-tenant ready and scalable from 30 to 10,000+ companies. 
 
 ## Architecture (v2)
 
