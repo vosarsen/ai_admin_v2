@@ -59,7 +59,7 @@ class OptimizedSupabaseClient {
       
       // Динамические данные - короткий кэш
       clients: { ttl: 300, prefix: 'cli' },        // 5 минут
-      schedules: { ttl: 120, prefix: 'sch' },      // 2 минуты
+      staff_schedules: { ttl: 120, prefix: 'sch' },      // 2 минуты
       slots: { ttl: 300, prefix: 'slt' },          // 5 минут
       
       // Контекст диалога
@@ -159,9 +159,8 @@ class OptimizedSupabaseClient {
   async getSchedules(companyId, startDate, endDate) {
     const key = `${companyId}:${startDate}:${endDate}`;
     
-    return this.getCached('schedules', key, (query) => 
+    return this.getCached('staff_schedules', key, (query) =>  // Указываем правильное имя таблицы здесь
       query
-        .from('staff_schedules')  // Правильное имя таблицы
         .select(`
           staff_id, staff_name, date, is_working,
           work_start, work_end, has_booking_slots
