@@ -196,24 +196,28 @@ ${this.formatConversation(conversation.slice(-10))}
    - "мои записи", "когда я записан", "проверить запись"
    - "во сколько я записан?", "покажи мои визиты"
 
-ТВОИ КОМАНДЫ:
-1. [SEARCH_SLOTS] - поиск свободного времени
-   Параметры: service_name, staff_name (опционально), date, time_preference
+ТВОИ КОМАНДЫ (ИСПОЛЬЗУЙ ТОЧНО ТАКОЙ ФОРМАТ):
+1. [SEARCH_SLOTS service_name: название_услуги, date: дата, time_preference: время] - поиск свободного времени
+   Примеры:
+   - [SEARCH_SLOTS service_name: стрижка, date: завтра]
+   - [SEARCH_SLOTS service_name: окрашивание, date: 2024-07-15, time_preference: вечер]
+   - [SEARCH_SLOTS service_name: маникюр, staff_name: Ольга, date: сегодня]
    
-2. [CREATE_BOOKING] - создание записи
-   Параметры: service_id, staff_id, date, time
+2. [CREATE_BOOKING service_id: id_услуги, staff_id: id_мастера, date: дата, time: время] - создание записи
+   Пример: [CREATE_BOOKING service_id: 123, staff_id: 456, date: 2024-07-15, time: 14:00]
    
-3. [SHOW_PRICES] - показать прайс-лист
-   Параметры: category (опционально)
+3. [SHOW_PRICES] или [SHOW_PRICES category: категория] - показать прайс-лист
    
 4. [SHOW_PORTFOLIO] - показать работы мастера
    Параметры: staff_id
 
 ПРАВИЛА РАБОТЫ:
 1. ВСЕГДА анализируй намерение клиента по секции "АНАЛИЗ НАМЕРЕНИЯ КЛИЕНТА"
-2. Если клиент хочет записаться или проверить время - ОБЯЗАТЕЛЬНО используй [SEARCH_SLOTS]
-3. Если клиент спрашивает цены - ОБЯЗАТЕЛЬНО используй [SHOW_PRICES]
-4. НЕ отвечай "у нас нет информации" - используй команды для получения данных
+2. Если клиент указал конкретное время (например "в 13:00"), это означает что он хочет записаться на это время, а не просто посмотреть слоты
+3. Когда клиент выбирает конкретное время из предложенных слотов - сразу создавай запись через [CREATE_BOOKING]
+4. Если клиент хочет записаться или проверить время - ОБЯЗАТЕЛЬНО используй [SEARCH_SLOTS]
+5. Если клиент спрашивает цены - ОБЯЗАТЕЛЬНО используй [SHOW_PRICES]
+6. НЕ отвечай "у нас нет информации" - используй команды для получения данных
 
 ПРАВИЛА ОБЩЕНИЯ:
 1. Будь ${terminology.communicationStyle}
@@ -835,6 +839,23 @@ ${this.formatConversation(conversation.slice(-10))}
   formatDate(date) {
     return new Date(date).toLocaleDateString('ru-RU');
   }
+  
+  formatDateForDisplay(dateStr) {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    if (dateStr === 'Сегодня') return 'Сегодня';
+    if (date.toDateString() === today.toDateString()) return 'Сегодня';
+    if (date.toDateString() === tomorrow.toDateString()) return 'Завтра';
+    
+    return date.toLocaleDateString('ru-RU', { 
+      day: 'numeric', 
+      month: 'long',
+      weekday: 'short'
+    });
+  }
 
   getStaffNames(staffIds, staffList) {
     return staffIds
@@ -864,8 +885,21 @@ ${this.formatConversation(conversation.slice(-10))}
     
     Object.entries(byStaff).slice(0, 3).forEach(([staffName, staffSlots]) => {
       text += `👤 ${staffName}:\n`;
-      staffSlots.slice(0, 5).forEach(slot => {
-        text += `  • ${slot.time || slot.datetime}\n`;
+      
+      // Группируем по датам
+      const byDate = {};
+      staffSlots.forEach(slot => {
+        const date = slot.date || (slot.datetime ? slot.datetime.split(' ')[0] : 'Сегодня');
+        if (!byDate[date]) byDate[date] = [];
+        byDate[date].push(slot);
+      });
+      
+      Object.entries(byDate).forEach(([date, dateSlots]) => {
+        const formattedDate = this.formatDateForDisplay(date);
+        dateSlots.slice(0, 4).forEach(slot => {
+          const time = slot.time || (slot.datetime ? slot.datetime.split(' ')[1] : slot.datetime);
+          text += `  • ${formattedDate} в ${time}\n`;
+        });
       });
       text += '\n';
     });
