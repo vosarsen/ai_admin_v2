@@ -951,9 +951,15 @@ ${this.formatConversation(conversation.slice(-10))}
     let text = '';
     
     // Дебаг
-    logger.debug('Formatting slots:', { 
+    logger.info('Formatting slots:', { 
       totalSlots: slots.length,
-      sampleSlot: slots[0] 
+      isArray: Array.isArray(slots),
+      sampleSlot: JSON.stringify(slots[0]),
+      allSlots: slots.map(s => ({
+        time: s.time,
+        staff_name: s.staff_name,
+        datetime: s.datetime
+      }))
     });
     
     // Группируем по мастерам если есть
