@@ -1,174 +1,161 @@
-// src/services/ai-admin-v2/index.js
-const { 
-  loadFullContext: optimizedLoadContext,
-  getServices,
-  getStaff,
-  getClient,
-  invalidateCache 
-} = require('../../database/optimized-supabase');
-const { supabase } = require('../../database/supabase'); // Для обратной совместимости
-const logger = require('../../utils/logger');
 const config = require('../../config');
+const logger = require('../../utils/logger').child({ module: 'ai-admin-v2' });
+const { deepseekClient } = require('../../utils/ai-clients');
+
+// Импортируем модули
+const dataLoader = require('./modules/data-loader');
+const formatter = require('./modules/formatter');
+const businessLogic = require('./modules/business-logic');
+const commandHandler = require('./modules/command-handler');
 
 /**
- * AI Администратор v2 - Простой и эффективный
- * 
- * Философия:
- * - AI получает полный контекст и сам решает что делать
- * - Минимум слоев абстракции
- * - Максимум гибкости через промпты
- * - Адаптация под любой тип бизнеса
+ * AI Admin v2 - единый сервис управления AI администратором
+ * Заменяет старую архитектуру с 5-6 этапами на один AI вызов
  */
 class AIAdminV2 {
   constructor() {
     this.contextCache = new Map();
-    this.aiProvider = null; // Lazy load
+    this.cacheTimeout = 5 * 60 * 1000; // 5 минут
+    
+    // Запускаем периодическую очистку кеша
+    setInterval(() => this.cleanupCache(), 60 * 1000); // каждую минуту
   }
 
   /**
-   * Основной метод обработки сообщения
+   * Основной метод обработки сообщений
    */
   async processMessage(message, phone, companyId) {
-    const startTime = Date.now();
-    logger.info(`🤖 AI Admin v2 processing: "${message}" from ${phone}`);
-    
-    let context = null;
-    
     try {
-      // 1. Загружаем полный контекст параллельно
-      context = await this.loadFullContext(phone, companyId);
+      logger.info(`🤖 AI Admin v2 processing: "${message}" from ${phone}`);
       
-      // 2. Обновляем историю диалога
-      context.conversation.push({
-        role: 'user',
-        content: message,
-        timestamp: new Date().toISOString()
-      });
-
-      // 3. Строим промпт с полным контекстом
+      // Загружаем полный контекст
+      const context = await this.loadFullContext(phone, companyId);
+      context.currentMessage = message;
+      
+      // Определяем тип бизнеса для адаптации общения
+      const businessType = businessLogic.detectBusinessType(context.company);
+      context.company.type = businessType;
+      logger.info(`Business type detected: ${businessType}`);
+      
+      // Строим умный промпт с полным контекстом
       const prompt = this.buildSmartPrompt(message, context, phone);
       
-      // 4. Получаем ответ от AI
+      // Один вызов AI со всей информацией
       const aiResponse = await this.callAI(prompt);
       
-      // 5. Парсим и выполняем действия
+      // Обрабатываем ответ и выполняем команды
       const result = await this.processAIResponse(aiResponse, context);
       
-      // 6. Сохраняем контекст
-      await this.saveContext(phone, companyId, context, result);
+      // Сохраняем контекст диалога
+      await dataLoader.saveContext(phone, companyId, context, result);
       
-      logger.info(`✅ AI Admin v2 completed in ${Date.now() - startTime}ms`);
-      return result;
-
+      logger.info(`✅ AI Admin v2 completed in ${Date.now() - context.startTime}ms`);
+      
+      return {
+        success: true,
+        response: result.response,
+        commands: result.executedCommands
+      };
+      
     } catch (error) {
-      logger.error('AI Admin v2 error:', error);
+      logger.error('Error in AI Admin v2:', error);
       return {
         success: false,
-        response: this.getErrorMessage(error, context?.company?.type),
+        response: 'Извините, произошла ошибка. Пожалуйста, попробуйте еще раз.',
         error: error.message
       };
     }
   }
 
   /**
-   * Загружаем ВЕСЬ необходимый контекст (с оптимизацией)
+   * Загрузка полного контекста (с кешированием)
    */
   async loadFullContext(phone, companyId) {
+    const cacheKey = `${phone}_${companyId}`;
+    const cached = this.contextCache.get(cacheKey);
+    
+    // Проверяем кеш
+    if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+      logger.info('Using cached context');
+      return { ...cached.data, startTime: Date.now() };
+    }
+    
+    logger.info('Loading full context from database...');
     const startTime = Date.now();
     
-    try {
-      // Используем оптимизированную загрузку с Redis кэшем
-      const baseContext = await optimizedLoadContext(phone, companyId);
-      
-      // Проверяем, что baseContext содержит необходимые данные
-      if (!baseContext) {
-        throw new Error('Failed to load base context');
-      }
-      
-      // Дополняем контекст специфичными данными
-      const [conversation, businessStats] = await Promise.all([
-        this.loadConversation(phone, companyId),
-        this.loadBusinessStats(companyId)
-      ]);
-      
-      // Сортируем услуги с учетом предпочтений клиента
-      const sortedServices = this.sortServicesForClient(
-        baseContext.services || [], 
-        baseContext.client
-      );
-      
-      const context = {
-        ...baseContext,
-        services: sortedServices,
-        conversation: conversation || [],
-        businessStats: businessStats || { todayLoad: 0, bookedSlots: 0, totalSlots: 50 },
-        currentTime: new Date().toISOString(),
-        timezone: baseContext.company?.timezone || 'Europe/Moscow',
-        phone: phone
-      };
-
-      const loadTime = Date.now() - startTime;
-      logger.info(`Context loaded in ${loadTime}ms`);
-      
-      return context;
-    } catch (error) {
-      logger.error('Error loading context:', error);
-      throw error;
-    }
+    // Параллельная загрузка всех данных
+    const [company, client, services, staff, conversation, businessStats, staffSchedules] = await Promise.all([
+      dataLoader.loadCompany(companyId),
+      dataLoader.loadClient(phone, companyId),
+      dataLoader.loadServices(companyId),
+      dataLoader.loadStaff(companyId),
+      dataLoader.loadConversation(phone, companyId),
+      dataLoader.loadBusinessStats(companyId),
+      dataLoader.loadStaffSchedules(companyId)
+    ]);
+    
+    // Сортируем услуги с учетом предпочтений клиента
+    const sortedServices = businessLogic.sortServicesForClient(services, client);
+    
+    const context = {
+      company,
+      client,
+      services: sortedServices,
+      staff,
+      conversation,
+      businessStats,
+      staffSchedules,
+      currentTime: new Date().toLocaleString('ru-RU', { timeZone: config.app.timezone }),
+      timezone: config.app.timezone,
+      phone,
+      startTime
+    };
+    
+    // Сохраняем в кеш
+    this.contextCache.set(cacheKey, {
+      data: context,
+      timestamp: Date.now()
+    });
+    
+    logger.info(`Context loaded in ${Date.now() - startTime}ms`);
+    return context;
   }
 
   /**
-   * Строим умный промпт с учетом типа бизнеса
+   * Построение умного промпта с полным контекстом
    */
   buildSmartPrompt(message, context, phone) {
-    const { company, client, services, staff, staffSchedules, conversation, businessStats } = context;
+    const terminology = businessLogic.getBusinessTerminology(context.company.type);
     
-    // Проверяем что company существует
-    if (!company) {
-      logger.error('Company is undefined in context:', context);
-      throw new Error('Company information is missing');
-    }
-    
-    // Адаптируем терминологию под тип бизнеса
-    const terminology = this.getBusinessTerminology(company.type);
-    
-    return `Ты - ${terminology.role} в ${company.title}.
+    return `Ты - ${terminology.role} "${context.company.title}".
 
-ИНФОРМАЦИЯ О БИЗНЕСЕ:
-- Тип: ${terminology.businessType}
-- Адрес: ${company.address}
-- Часы работы: ${this.formatWorkingHours(company.working_hours)}
-- Телефон: ${company.phone}
-${businessStats ? `- Загрузка на сегодня: ${businessStats.todayLoad}%` : ''}
+ИНФОРМАЦИЯ О САЛОНЕ:
+Название: ${context.company.title}
+Адрес: ${context.company.address || 'Не указан'}
+Телефон: ${context.company.phone || 'Не указан'}
+Часы работы: ${formatter.formatWorkingHours(context.company.working_hours || {})}
+Загруженность сегодня: ${context.businessStats.todayLoad}% (${context.businessStats.bookedSlots}/${context.businessStats.totalSlots} слотов)
 
 КЛИЕНТ:
-- Имя: ${client?.name || 'Не указано'}
-- Телефон: ${client?.phone || phone}
-- Статус: ${client?.loyalty_level || 'Новый клиент'}
-- Визитов: ${client?.visit_count || 0}
-${client?.last_visit_date ? `- Последний визит: ${this.formatDate(client.last_visit_date)}` : ''}
-${client?.discount ? `- Персональная скидка: ${client.discount}%` : ''}
-${client?.preferences ? `- Предпочтения: ${JSON.stringify(client.preferences)}` : ''}
-${client?.favorite_staff_ids?.length ? `- Любимые ${terminology.specialists}: ${this.getStaffNames(client.favorite_staff_ids, staff)}` : ''}
-${client?.formatted_visit_history?.length ? `\nИСТОРИЯ ПОСЛЕДНИХ ВИЗИТОВ:\n${client.formatted_visit_history.slice(0, 5).join('\n')}` : ''}
+${context.client ? 
+  `Имя: ${context.client.name || 'Не указано'}
+Телефон: ${phone}
+История: ${formatter.formatVisitHistory(context.client.visit_history)}
+Любимые услуги: ${context.client.last_service_ids?.join(', ') || 'нет данных'}
+Любимые мастера: ${context.client.favorite_staff_ids?.join(', ') || 'нет данных'}` :
+  `Новый клиент, телефон: ${phone}`}
 
-${context.lastSearch ? `ПОСЛЕДНИЙ ПОИСК СЛОТОВ:
-- Услуга: ${context.lastSearch.service_name}
-- Найдено слотов: ${context.lastSearch.slots?.length || 0}
-- Время поиска: ${new Date(context.lastSearch.timestamp).toLocaleTimeString('ru-RU')}
-` : ''}
+ДОСТУПНЫЕ УСЛУГИ (топ-10):
+${formatter.formatServices(context.services.slice(0, 10), context.company.type)}
 
-ДОСТУПНЫЕ ${terminology.services.toUpperCase()}:
-${this.formatServices(services, company.type)}
+МАСТЕРА СЕГОДНЯ:
+${formatter.formatTodayStaff(context.staffSchedules, context.staff)}
 
-КТО РАБОТАЕТ СЕГОДНЯ:
-${this.formatTodayStaff(staffSchedules, staff)}
+РАСПИСАНИЕ МАСТЕРОВ (ближайшие дни):
+${formatter.formatStaffSchedules(context.staffSchedules, context.staff)}
 
-РАСПИСАНИЕ МАСТЕРОВ НА НЕДЕЛЮ:
-${this.formatStaffSchedules(staffSchedules, staff)}
-
-ИСТОРИЯ ДИАЛОГА (последние 10 сообщений):
-${this.formatConversation(conversation.slice(-10))}
+ИСТОРИЯ ДИАЛОГА:
+${formatter.formatConversation(context.conversation)}
 
 ТЕКУЩЕЕ СООБЩЕНИЕ: "${message}"
 
@@ -192,17 +179,14 @@ ${this.formatConversation(conversation.slice(-10))}
    - "сколько стоит", "какие цены", "прайс"
    - "стоимость", "цена на", "почем"
    - "скок стоит", "че по ценам", "скок щас стрижка" (разговорный стиль)
-   - вопросы о стоимости услуг
    
-4. ПОРТФОЛИО - используй [SHOW_PORTFOLIO] когда клиент:
-   - "покажи работы", "фото работ", "примеры"
-   - "портфолио", "посмотреть работы"
-   - "есть фото?", "примеры стрижек"
+4. ПОДТВЕРЖДЕНИЕ ЗАПИСИ - используй [CREATE_BOOKING] когда:
+   - клиент выбрал конкретное время после показа слотов
+   - есть вся информация: услуга, мастер, дата и время
    
-5. ОТМЕНА/ПЕРЕНОС - сообщи, что нужно уточнить детали записи:
-   - "отменить запись", "не смогу прийти", "перенести"
-   - "отмена записи", "отменяю встречу"
-   - "атменить запись" (с опечаткой)
+5. РАБОТЫ МАСТЕРА - используй [SHOW_PORTFOLIO] когда клиент:
+   - "покажи работы", "есть фото работ", "примеры"
+   - "что умеет мастер", "портфолио"
    
 6. МОИ ЗАПИСИ - проверь в истории клиента:
    - "мои записи", "когда я записан", "проверить запись"
@@ -239,15 +223,12 @@ ${this.formatConversation(conversation.slice(-10))}
 4. НЕ используй эмодзи если клиент сам их не использует
 5. Пиши естественно, как обычный человек в мессенджере
 6. Задавай ОДИН вопрос за раз, не перегружай информацией
-7. НЕ предлагай сразу услуги и цены - сначала узнай что нужно
-8. Адрес и часы работы говори ТОЛЬКО когда спрашивают
-9. НЕ перечисляй всех мастеров - говори только о тех, кто СЕГОДНЯ работает
-10. Смотри РАСПИСАНИЕ МАСТЕРОВ чтобы знать кто работает сегодня
 
-СТИЛЬ ОБЩЕНИЯ:
-- Первое сообщение: просто поздоровайся и спроси чем можешь помочь
-- Не нужно сразу представлять салон, услуги и мастеров
-- Веди диалог постепенно, как живой человек
+ПРОАКТИВНЫЕ ПРЕДЛОЖЕНИЯ (используй разумно):
+- Если клиент постоянный - предложи его любимую услугу
+- Если большая загруженность - предложи менее загруженное время
+- Если выходные - напомни о необходимости заранее записываться
+- Предлагай ${terminology.suggestions} когда уместно
 - Используй информацию о клиенте если он постоянный
 
 ВАЖНО ПО МАСТЕРАМ:
@@ -296,11 +277,11 @@ ${this.formatConversation(conversation.slice(-10))}
     logger.info('Processing AI response...');
     
     // Извлекаем команды из ответа
-    const commands = this.extractCommands(aiResponse);
-    const cleanResponse = this.removeCommands(aiResponse);
+    const commands = commandHandler.extractCommands(aiResponse);
+    const cleanResponse = commandHandler.removeCommands(aiResponse);
     
     // Выполняем команды
-    const results = await this.executeCommands(commands, context);
+    const results = await commandHandler.executeCommands(commands, context);
     
     // Формируем финальный ответ
     let finalResponse = cleanResponse;
@@ -314,16 +295,16 @@ ${this.formatConversation(conversation.slice(-10))}
       }, []);
       
       if (allSlots.length > 0) {
-        finalResponse += '\n\n' + this.formatSlots(allSlots, context.company.type);
+        finalResponse += '\n\n' + formatter.formatSlots(allSlots, context.company.type);
       }
     }
     
     // Добавляем остальные результаты
     for (const result of results) {
       if (result.type === 'booking_created') {
-        finalResponse += '\n\n✅ ' + this.formatBookingConfirmation(result.data, context.company.type);
+        finalResponse += '\n\n✅ ' + formatter.formatBookingConfirmation(result.data, context.company.type);
       } else if (result.type === 'prices' && !slotResults.length) {
-        finalResponse += '\n\n' + this.formatPrices(result.data, context.company.type);
+        finalResponse += '\n\n' + formatter.formatPrices(result.data, context.company.type);
       }
     }
     
@@ -336,985 +317,25 @@ ${this.formatConversation(conversation.slice(-10))}
   }
 
   /**
-   * Извлечение команд из ответа AI
-   */
-  extractCommands(response) {
-    const commands = [];
-    const commandRegex = /\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO)([^\]]*)\]/g;
-    
-    let match;
-    while ((match = commandRegex.exec(response)) !== null) {
-      const [fullMatch, command, paramsString] = match;
-      const params = this.parseCommandParams(paramsString);
-      
-      commands.push({
-        command,
-        params,
-        originalText: fullMatch
-      });
-    }
-    
-    return commands;
-  }
-
-  /**
-   * Выполнение команд
-   */
-  async executeCommands(commands, context) {
-    const results = [];
-    
-    for (const cmd of commands) {
-      logger.info(`Executing command: ${cmd.command}`, cmd.params);
-      
-      try {
-        switch (cmd.command) {
-          case 'SEARCH_SLOTS':
-            const slots = await this.searchSlots(cmd.params, context);
-            results.push({ type: 'slots', data: slots });
-            // Сохраняем информацию о последнем поиске для создания записи
-            context.lastSearch = {
-              service_name: cmd.params.service_name,
-              slots: slots,
-              timestamp: new Date().toISOString()
-            };
-            break;
-            
-          case 'CREATE_BOOKING':
-            const booking = await this.createBooking(cmd.params, context);
-            results.push({ type: 'booking_created', data: booking });
-            break;
-            
-          case 'SHOW_PRICES':
-            const prices = await this.getPrices(cmd.params, context);
-            results.push({ type: 'prices', data: prices });
-            break;
-            
-          case 'SHOW_PORTFOLIO':
-            const portfolio = await this.getPortfolio(cmd.params, context);
-            results.push({ type: 'portfolio', data: portfolio });
-            break;
-        }
-      } catch (error) {
-        logger.error(`Command ${cmd.command} failed:`, error);
-        results.push({ 
-          type: 'error', 
-          command: cmd.command,
-          error: error.message 
-        });
-      }
-    }
-    
-    return results;
-  }
-
-  /**
-   * Поиск свободных слотов
-   */
-  async searchSlots(params, context) {
-    // Используем существующий booking service
-    const bookingService = require('../booking');
-    
-    // Находим service по имени
-    const service = context.services.find(s => 
-      s.title.toLowerCase().includes(params.service_name?.toLowerCase() || '')
-    ) || context.services[0]; // Fallback на популярную услугу
-    
-    // Находим staff если указан
-    let targetStaff = null;
-    if (params.staff_name) {
-      targetStaff = context.staff.find(s => s.name.toLowerCase().includes(params.staff_name.toLowerCase()));
-    }
-    
-    // Если мастер не указан, используем любимых мастеров клиента
-    const staffToCheck = targetStaff ? [targetStaff] : 
-      (context.client?.favorite_staff_ids?.length ? 
-        context.staff.filter(s => context.client.favorite_staff_ids.includes(s.yclients_id)) : 
-        context.staff.slice(0, 3)); // Берем топ-3 мастеров
-    
-    // Проверяем слоты для нескольких мастеров
-    const allSlots = [];
-    for (const staff of staffToCheck) {
-      try {
-        const result = await bookingService.findSuitableSlot({
-          companyId: context.company.yclients_id || context.company.company_id,
-          serviceId: service?.yclients_id,
-          staffId: staff?.yclients_id,
-          preferredDate: this.parseRelativeDate(params.date),
-          timePreference: params.time_preference
-        });
-        
-        // Проверяем структуру результата
-        const slots = result.data?.data || result.data || [];
-        
-        if (Array.isArray(slots) && slots.length > 0) {
-          // Добавляем имя мастера к каждому слоту
-          slots.forEach(slot => {
-            slot.staff_name = staff.name;
-            slot.staff_id = staff.yclients_id;
-          });
-          allSlots.push(...slots);
-        }
-      } catch (error) {
-        logger.debug(`Ошибка получения слотов для ${staff.name}:`, error.message);
-      }
-    }
-    
-    // Группируем слоты по мастерам
-    const slotsByStaff = allSlots.reduce((acc, slot) => {
-      const name = slot.staff_name || 'Unknown';
-      if (!acc[name]) acc[name] = [];
-      acc[name].push(slot);
-      return acc;
-    }, {});
-    
-    // Выбираем мастера с наибольшим количеством свободных слотов
-    const staffWithMostSlots = Object.entries(slotsByStaff)
-      .sort(([, slotsA], [, slotsB]) => slotsB.length - slotsA.length)[0];
-    
-    if (!staffWithMostSlots) {
-      return [];
-    }
-    
-    const [selectedStaff, selectedSlots] = staffWithMostSlots;
-    
-    // Возвращаем слоты только от одного мастера
-    return this.organizeSlotsByTimeZones(selectedSlots, params.time_preference);
-  }
-  
-  /**
-   * Организация слотов по временным зонам для удобства выбора
-   */
-  organizeSlotsByTimeZones(slots, timePreference) {
-    if (!slots.length) return [];
-    
-    const timeZones = {
-      morning: { start: 9, end: 12, slots: [] },
-      afternoon: { start: 12, end: 17, slots: [] },
-      evening: { start: 17, end: 21, slots: [] }
-    };
-    
-    slots.forEach(slot => {
-      const hour = parseInt(slot.time?.split(':')[0] || slot.datetime?.split('T')[1]?.split(':')[0]);
-      if (hour >= timeZones.morning.start && hour < timeZones.morning.end) {
-        timeZones.morning.slots.push(slot);
-      } else if (hour >= timeZones.afternoon.start && hour < timeZones.afternoon.end) {
-        timeZones.afternoon.slots.push(slot);
-      } else if (hour >= timeZones.evening.start && hour < timeZones.evening.end) {
-        timeZones.evening.slots.push(slot);
-      }
-    });
-    
-    // Возвращаем слоты в приоритетном порядке
-    let organizedSlots = [];
-    if (timePreference === 'morning') {
-      organizedSlots = [...timeZones.morning.slots.slice(0, 5), ...timeZones.afternoon.slots.slice(0, 3)];
-    } else if (timePreference === 'evening') {
-      organizedSlots = [...timeZones.evening.slots.slice(0, 5), ...timeZones.afternoon.slots.slice(0, 3)];
-    } else {
-      // Берем больше слотов из каждой временной зоны для лучшего выбора
-      organizedSlots = [
-        ...timeZones.morning.slots.slice(0, 10),
-        ...timeZones.afternoon.slots.slice(0, 10),
-        ...timeZones.evening.slots.slice(0, 10)
-      ];
-    }
-    
-    return organizedSlots; // Возвращаем все слоты для обработки алгоритмом выбора
-  }
-
-  /**
-   * Создание записи
-   */
-  async createBooking(params, context) {
-    const bookingService = require('../booking');
-    
-    const bookingData = {
-      phone: context.client?.phone || context.phone,
-      fullname: context.client?.name || '',
-      email: context.client?.email || '',
-      comment: "Запись через AI администратора WhatsApp",
-      appointments: [{
-        id: 1,
-        services: [parseInt(params.service_id)],
-        staff_id: parseInt(params.staff_id),
-        datetime: `${params.date} ${params.time}:00`
-      }]
-    };
-    
-    const result = await bookingService.createBooking(
-      bookingData, 
-      context.company.yclients_id || context.company.company_id
-    );
-    
-    if (!result.success) {
-      throw new Error(result.error || 'Не удалось создать запись');
-    }
-    
-    return result.data;
-  }
-
-  /**
-   * Вспомогательные методы для загрузки данных
-   */
-  async loadCompany(companyId) {
-    const { data, error } = await supabase
-      .from('companies')
-      .select('*')
-      .eq('company_id', companyId)
-      .single();
-    
-    if (error) throw error;
-    
-    // Определяем тип бизнеса
-    const businessType = this.detectBusinessType(data);
-    return { ...data, type: businessType };
-  }
-
-  async loadClient(phone, companyId) {
-    const normalizedPhone = phone.replace(/\D/g, '');
-    
-    const { data } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('company_id', companyId)
-      .or(`phone.eq.${normalizedPhone},raw_phone.eq.${normalizedPhone}`)
-      .single();
-    
-    // Если клиент найден, форматируем историю визитов
-    if (data && data.visit_history) {
-      data.formatted_visit_history = this.formatVisitHistory(data.visit_history);
-    }
-    
-    return data || {
-      name: 'Гость',
-      phone: normalizedPhone,
-      visit_count: 0,
-      loyalty_level: 'New',
-      visit_history: [],
-      formatted_visit_history: []
-    };
-  }
-
-  async loadServices(companyId) {
-    const { data } = await supabase
-      .from('services')
-      .select('*')
-      .eq('company_id', companyId)
-      .eq('is_active', true)
-      .order('weight', { ascending: false })
-      .limit(50);
-    
-    return data || [];
-  }
-  
-  /**
-   * Сортировка услуг с учетом предпочтений клиента
-   */
-  sortServicesForClient(services, client) {
-    if (!services || !Array.isArray(services)) {
-      return [];
-    }
-    
-    if (!client || !client.last_service_ids?.length) {
-      return services;
-    }
-    
-    // Услуги, которые клиент заказывал ранее, идут первыми
-    const clientServices = [];
-    const otherServices = [];
-    
-    services.forEach(service => {
-      if (client?.last_service_ids?.includes(service.yclients_id)) {
-        clientServices.push(service);
-      } else {
-        otherServices.push(service);
-      }
-    });
-    
-    return [...clientServices, ...otherServices];
-  }
-
-  async loadStaff(companyId) {
-    const { data } = await supabase
-      .from('staff')
-      .select('*')
-      .eq('company_id', companyId)
-      .eq('is_active', true)
-      .order('rating', { ascending: false });
-    
-    return data || [];
-  }
-
-  async loadConversation(phone, companyId) {
-    try {
-      // Убираем @c.us если есть
-      const cleanPhone = phone.replace('@c.us', '');
-      
-      const { data, error } = await supabase
-        .from('dialog_contexts')
-        .select('messages')
-        .eq('user_id', cleanPhone)
-        .eq('company_id', companyId)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (error) {
-        logger.error('Error loading conversation:', error);
-        return [];
-      }
-      
-      return data?.messages || [];
-    } catch (error) {
-      logger.error('Error in loadConversation:', error);
-      return [];
-    }
-  }
-
-  async loadBusinessStats(companyId) {
-    try {
-      // Загрузка статистики дня (можно расширить)
-      const today = new Date().toISOString().split('T')[0];
-      
-      const { data, error } = await supabase
-        .from('appointments_cache')
-        .select('*')
-        .eq('company_id', companyId)
-        .gte('appointment_datetime', today)
-        .lt('appointment_datetime', today + 'T23:59:59');
-      
-      if (error) {
-        logger.error('Error loading business stats:', error);
-      }
-      
-      const totalSlots = 50; // Примерное количество слотов в день
-      const bookedSlots = data?.length || 0;
-      const todayLoad = Math.round((bookedSlots / totalSlots) * 100);
-      
-      return { todayLoad, bookedSlots, totalSlots };
-    } catch (error) {
-      logger.error('Error in loadBusinessStats:', error);
-      return { todayLoad: 0, bookedSlots: 0, totalSlots: 50 };
-    }
-  }
-  
-  async loadStaffSchedules(companyId) {
-    // Загружаем расписание на ближайшие 7 дней
-    const today = new Date();
-    const weekLater = new Date();
-    weekLater.setDate(today.getDate() + 7);
-    
-    const { data } = await supabase
-      .from('staff_schedules')
-      .select('*')
-      .eq('company_id', companyId)
-      .gte('date', today.toISOString().split('T')[0])
-      .lte('date', weekLater.toISOString().split('T')[0])
-      .eq('is_working', true)
-      .order('date', { ascending: true });
-    
-    // Группируем по дням для удобства
-    const scheduleByDate = {};
-    data?.forEach(schedule => {
-      if (!scheduleByDate[schedule.date]) {
-        scheduleByDate[schedule.date] = [];
-      }
-      scheduleByDate[schedule.date].push(schedule);
-    });
-    
-    return scheduleByDate;
-  }
-
-  /**
-   * Определение типа бизнеса по данным компании
-   */
-  detectBusinessType(company) {
-    const title = company.title.toLowerCase();
-    const services = company.raw_data?.services || [];
-    
-    if (title.includes('барбер') || title.includes('barber')) {
-      return 'barbershop';
-    } else if (title.includes('ногт') || title.includes('маникюр') || title.includes('nail')) {
-      return 'nails';
-    } else if (title.includes('массаж') || title.includes('спа') || title.includes('spa')) {
-      return 'massage';
-    } else if (title.includes('эпиляц') || title.includes('лазер')) {
-      return 'epilation';
-    } else if (title.includes('брови') || title.includes('ресниц')) {
-      return 'brows';
-    }
-    
-    return 'beauty'; // По умолчанию салон красоты
-  }
-
-  /**
-   * Получение терминологии для типа бизнеса
-   */
-  getBusinessTerminology(businessType) {
-    const terminology = {
-      barbershop: {
-        role: 'администратор барбершопа',
-        businessType: 'барбершоп',
-        services: 'услуги',
-        specialists: 'барберы',
-        communicationStyle: 'простым и дружелюбным, без лишних формальностей',
-        suggestions: 'стрижку или уход за бородой'
-      },
-      nails: {
-        role: 'администратор студии маникюра',
-        businessType: 'ногтевая студия',
-        services: 'услуги',
-        specialists: 'мастера',
-        communicationStyle: 'вежливым и заботливым',
-        suggestions: 'актуальные дизайны и уходовые процедуры'
-      },
-      massage: {
-        role: 'администратор массажного салона',
-        businessType: 'массажный салон',
-        services: 'процедуры',
-        specialists: 'массажисты',
-        communicationStyle: 'спокойным и профессиональным',
-        suggestions: 'комплексные программы и курсы массажа'
-      },
-      epilation: {
-        role: 'администратор студии эпиляции',
-        businessType: 'студия лазерной эпиляции',
-        services: 'процедуры',
-        specialists: 'специалисты',
-        communicationStyle: 'деликатным и информативным',
-        suggestions: 'курсы процедур и сезонные предложения'
-      },
-      beauty: {
-        role: 'администратор салона красоты',
-        businessType: 'салон красоты',
-        services: 'услуги',
-        specialists: 'мастера',
-        communicationStyle: 'приветливым и профессиональным',
-        suggestions: 'комплексные услуги и акции'
-      }
-    };
-    
-    return terminology[businessType] || terminology.beauty;
-  }
-
-  /**
-   * Форматирование данных для промпта
-   */
-  formatServices(services, businessType) {
-    if (!services.length) return 'Нет доступных услуг';
-    
-    return services.slice(0, 20).map(s => {
-      const price = s.price_min ? `от ${s.price_min}₽` : 'по запросу';
-      const duration = s.duration ? `${s.duration} мин` : '';
-      return `- ${s.title} (${price}${duration ? ', ' + duration : ''}) [ID: ${s.yclients_id}]`;
-    }).join('\n');
-  }
-
-  formatStaff(staff, businessType) {
-    if (!staff.length) return 'Нет доступных специалистов';
-    
-    return staff.map(s => {
-      const rating = s.rating ? `⭐ ${s.rating}` : '';
-      const spec = s.specialization || 'универсал';
-      return `- ${s.name} (${spec}${rating ? ', ' + rating : ''}) [ID: ${s.yclients_id}]`;
-    }).join('\n');
-  }
-
-  formatTodayStaff(scheduleByDate, staffList) {
-    if (!scheduleByDate || Object.keys(scheduleByDate).length === 0) {
-      return 'Нет данных о расписании на сегодня';
-    }
-    
-    // Получаем сегодняшнюю дату
-    const today = new Date().toISOString().split('T')[0];
-    const todaySchedule = scheduleByDate[today];
-    
-    if (!todaySchedule || todaySchedule.length === 0) {
-      return 'Сегодня никто не работает';
-    }
-    
-    // Форматируем список работающих сегодня мастеров
-    const workingToday = todaySchedule.map(schedule => {
-      const staff = staffList.find(s => s.yclients_id === schedule.staff_id);
-      if (!staff) return null;
-      
-      const rating = staff.rating ? ` (⭐ ${staff.rating})` : '';
-      const time = schedule.work_start && schedule.work_end ? 
-        ` ${schedule.work_start}-${schedule.work_end}` : '';
-      
-      return `- ${staff.name}${rating}${time}`;
-    }).filter(Boolean);
-    
-    return workingToday.join('\n');
-  }
-
-  formatStaffSchedules(scheduleByDate, staffList) {
-    if (!scheduleByDate || Object.keys(scheduleByDate).length === 0) {
-      return 'Расписание не загружено';
-    }
-    
-    const days = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
-    let result = [];
-    
-    // Берем первые 3 дня с расписанием
-    Object.keys(scheduleByDate).slice(0, 3).forEach(date => {
-      const dayDate = new Date(date);
-      const dayName = days[dayDate.getDay()];
-      const formattedDate = `${dayDate.getDate()}.${(dayDate.getMonth() + 1).toString().padStart(2, '0')}`;
-      
-      const workingStaff = scheduleByDate[date].map(schedule => {
-        const staff = staffList.find(s => s.yclients_id === schedule.staff_id);
-        return staff ? `${staff.name} (${schedule.work_start}-${schedule.work_end})` : schedule.staff_name;
-      });
-      
-      result.push(`${dayName} ${formattedDate}: ${workingStaff.join(', ')}`);
-    });
-    
-    return result.join('\n');
-  }
-
-  formatConversation(messages) {
-    if (!messages.length) return 'Нет предыдущих сообщений';
-    
-    return messages.map(m => 
-      `${m.role === 'user' ? 'Клиент' : 'Админ'}: ${m.content}`
-    ).join('\n');
-  }
-
-  formatWorkingHours(hours) {
-    if (!hours) return 'не указаны';
-    // Простое форматирование, можно улучшить
-    return JSON.stringify(hours);
-  }
-
-  formatDate(date) {
-    return new Date(date).toLocaleDateString('ru-RU');
-  }
-  
-  formatDateForDisplay(dateStr) {
-    const date = new Date(dateStr);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    if (dateStr === 'Сегодня') return 'Сегодня';
-    if (date.toDateString() === today.toDateString()) return 'Сегодня';
-    if (date.toDateString() === tomorrow.toDateString()) return 'Завтра';
-    
-    return date.toLocaleDateString('ru-RU', { 
-      day: 'numeric', 
-      month: 'long',
-      weekday: 'short'
-    });
-  }
-  
-  parseRelativeDate(dateStr) {
-    if (!dateStr) return new Date().toISOString().split('T')[0];
-    
-    const today = new Date();
-    const dateStrLower = dateStr.toLowerCase();
-    
-    if (dateStrLower === 'сегодня' || dateStrLower === 'today') {
-      return today.toISOString().split('T')[0];
-    }
-    
-    if (dateStrLower === 'завтра' || dateStrLower === 'tomorrow') {
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      return tomorrow.toISOString().split('T')[0];
-    }
-    
-    if (dateStrLower === 'послезавтра' || dateStrLower === 'after tomorrow') {
-      const afterTomorrow = new Date(today);
-      afterTomorrow.setDate(afterTomorrow.getDate() + 2);
-      return afterTomorrow.toISOString().split('T')[0];
-    }
-    
-    // Если это уже ISO дата, возвращаем как есть
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      return dateStr;
-    }
-    
-    // Пытаемся распарсить дату
-    const parsed = new Date(dateStr);
-    if (!isNaN(parsed.getTime())) {
-      return parsed.toISOString().split('T')[0];
-    }
-    
-    // Fallback на сегодня
-    return today.toISOString().split('T')[0];
-  }
-
-  getStaffNames(staffIds, staffList) {
-    return staffIds
-      .map(id => staffList.find(s => s.yclients_id === id)?.name)
-      .filter(Boolean)
-      .join(', ');
-  }
-
-  /**
-   * Форматирование результатов для клиента
-   */
-  formatSlots(slots, businessType) {
-    if (!slots || !slots.length) {
-      return '😔 К сожалению, на выбранное время нет свободных слотов. Могу предложить другое время или день.';
-    }
-    
-    const terminology = this.getBusinessTerminology(businessType);
-    let text = '';
-    
-    
-    // Группируем по мастерам если есть
-    const byStaff = {};
-    slots.forEach(slot => {
-      const staffName = slot.staff_name || 'Любой мастер';
-      if (!byStaff[staffName]) byStaff[staffName] = [];
-      byStaff[staffName].push(slot);
-    });
-    
-    
-    Object.entries(byStaff).slice(0, 3).forEach(([staffName, staffSlots], index) => {
-      // Группируем по датам
-      const byDate = {};
-      staffSlots.forEach(slot => {
-        // Извлекаем только дату из datetime (убираем время)
-        let date;
-        if (slot.date) {
-          date = slot.date;
-        } else if (slot.datetime) {
-          // Если datetime в формате ISO, берем только дату
-          date = slot.datetime.split('T')[0];
-        } else {
-          date = new Date().toISOString().split('T')[0];
-        }
-        
-        if (!byDate[date]) byDate[date] = [];
-        byDate[date].push(slot);
-      });
-      
-      
-      // Для каждой даты
-      Object.entries(byDate).forEach(([date, dateSlots]) => {
-        const formattedDate = this.formatDateForDisplay(date);
-        
-        // Группируем по времени дня
-        const timeGroups = this.groupSlotsByTimeOfDay(dateSlots);
-        
-        // Проверяем есть ли хотя бы один период с слотами
-        const hasSlots = timeGroups.morning.length > 0 || timeGroups.day.length > 0 || timeGroups.evening.length > 0;
-        
-        if (hasSlots) {
-          text += `У ${staffName} свободно ${formattedDate.toLowerCase()}:\n`;
-          
-          const timePeriods = [];
-          if (timeGroups.morning.length > 0) {
-            timePeriods.push(`С утра: ${timeGroups.morning.join(', ')}`);
-          }
-          if (timeGroups.day.length > 0) {
-            timePeriods.push(`Днём: ${timeGroups.day.join(', ')}`);
-          }
-          if (timeGroups.evening.length > 0) {
-            timePeriods.push(`Вечером: ${timeGroups.evening.join(', ')}`);
-          }
-          
-          text += timePeriods.join('\n') + '\n\n';
-        }
-      });
-    });
-    
-    return text.trim();
-  }
-  
-  groupSlotsByTimeOfDay(slots) {
-    logger.info('groupSlotsByTimeOfDay called with slots:', {
-      totalSlots: slots.length,
-      slots: slots.map(s => s.time || s.datetime?.split('T')[1]?.substring(0, 5))
-    });
-    
-    const groups = {
-      morning: [],  // до 12:00
-      day: [],      // 12:00 - 17:00
-      evening: []   // после 17:00
-    };
-    
-    // Сортируем слоты по времени
-    const sortedSlots = slots.sort((a, b) => {
-      const timeA = a.time || (a.datetime ? a.datetime.split(' ')[1].substring(0, 5) : '');
-      const timeB = b.time || (b.datetime ? b.datetime.split(' ')[1].substring(0, 5) : '');
-      return timeA.localeCompare(timeB);
-    });
-    
-    // Группируем слоты по периодам дня
-    const periodSlots = {
-      morning: [],
-      day: [],
-      evening: []
-    };
-    
-    sortedSlots.forEach(slot => {
-      const time = slot.time || (slot.datetime ? slot.datetime.split('T')[1]?.substring(0, 5) : '');
-      if (!time) return;
-      
-      const hour = parseInt(time.split(':')[0]);
-      const minutes = parseInt(time.split(':')[1]);
-      const hourDecimal = hour + (minutes / 60);
-      
-      if (hour < 12) {
-        periodSlots.morning.push({ time, hour, minutes, hourDecimal, slot });
-      } else if (hour < 17) {
-        periodSlots.day.push({ time, hour, minutes, hourDecimal, slot });
-      } else {
-        periodSlots.evening.push({ time, hour, minutes, hourDecimal, slot });
-      }
-    });
-    
-    // Выбираем слоты с промежутками для вариативности (минимум 30 минут между слотами)
-    const selectSlotsWithGaps = (slots, maxCount) => {
-      if (slots.length === 0) return [];
-      if (slots.length === 1) return [slots[0].time];
-      
-      const selected = [];
-      let lastSelectedHourDecimal = -999; // Начальное значение для сравнения
-      
-      logger.info('selectSlotsWithGaps called:', { 
-        slotsCount: slots.length, 
-        maxCount,
-        slots: slots.map(s => ({ time: s.time, hourDecimal: s.hourDecimal }))
-      });
-      
-      // Если слотов меньше или равно maxCount, возвращаем все
-      if (slots.length <= maxCount) {
-        return slots.map(s => s.time);
-      }
-      
-      // Если слотов больше чем нужно, выбираем с промежутками
-      const minGap = 0.5; // Минимальный промежуток 30 минут
-      
-      for (let i = 0; i < slots.length; i++) {
-        const slot = slots[i];
-        if (selected.length >= maxCount) {
-          logger.info('Reached maxCount, stopping selection');
-          break;
-        }
-        
-        const gap = slot.hourDecimal - lastSelectedHourDecimal;
-        logger.info(`Checking slot ${i+1}/${slots.length}:`, { 
-          time: slot.time, 
-          hourDecimal: slot.hourDecimal,
-          lastSelectedHourDecimal,
-          gap,
-          willSelect: gap >= minGap,
-          currentSelectedCount: selected.length,
-          maxCount
-        });
-        
-        // Проверяем что прошло минимум 30 минут с последнего выбранного слота
-        if (gap >= minGap) {
-          selected.push(slot.time);
-          lastSelectedHourDecimal = slot.hourDecimal;
-          logger.info(`Selected slot ${selected.length}/${maxCount}:`, slot.time);
-        }
-      }
-      
-      // Если выбрали меньше чем нужно, добавляем еще слоты
-      if (selected.length < maxCount) {
-        // Берем слоты которые еще не выбраны
-        const remainingSlots = slots.filter(s => !selected.includes(s.time));
-        const slotsToAdd = maxCount - selected.length;
-        
-        // Добавляем оставшиеся слоты равномерно
-        if (remainingSlots.length > 0) {
-          const step = Math.max(1, Math.floor(remainingSlots.length / slotsToAdd));
-          for (let i = 0; i < remainingSlots.length && selected.length < maxCount; i += step) {
-            selected.push(remainingSlots[i].time);
-            logger.info(`Added additional slot ${selected.length}/${maxCount}:`, remainingSlots[i].time);
-          }
-        }
-      }
-      
-      // Сортируем выбранные слоты по времени
-      selected.sort();
-      
-      return selected;
-    };
-    
-    // Формируем финальные группы с вариативностью (2-3 слота в каждом периоде)
-    groups.morning = selectSlotsWithGaps(periodSlots.morning, 3);
-    groups.day = selectSlotsWithGaps(periodSlots.day, 3);
-    groups.evening = selectSlotsWithGaps(periodSlots.evening, 3);
-    
-    // Подробный дебаг для отладки
-    logger.info('Slot gap selection detailed debug:', {
-      morning: {
-        input: periodSlots.morning.map(s => ({ 
-          time: s.time, 
-          hour: s.hour, 
-          minutes: s.minutes,
-          hourDecimal: s.hourDecimal 
-        })),
-        output: groups.morning,
-        algorithm: 'Should select slots with >= 1 hour gap',
-        inputCount: periodSlots.morning.length,
-        outputCount: groups.morning.length
-      },
-      day: {
-        input: periodSlots.day.map(s => ({ 
-          time: s.time, 
-          hour: s.hour, 
-          minutes: s.minutes,
-          hourDecimal: s.hourDecimal 
-        })),
-        output: groups.day,
-        algorithm: 'Should select slots with >= 1 hour gap',
-        inputCount: periodSlots.day.length,
-        outputCount: groups.day.length
-      },
-      evening: {
-        input: periodSlots.evening.map(s => ({ 
-          time: s.time, 
-          hour: s.hour,
-          minutes: s.minutes, 
-          hourDecimal: s.hourDecimal 
-        })),
-        output: groups.evening,
-        algorithm: 'Should select slots with >= 1 hour gap',
-        inputCount: periodSlots.evening.length,
-        outputCount: groups.evening.length
-      }
-    });
-    
-    return groups;
-  }
-
-  formatBookingConfirmation(booking, businessType) {
-    const terminology = this.getBusinessTerminology(businessType);
-    return `Ваша запись подтверждена! Ждем вас ${booking.date} в ${booking.time}. ${terminology.specialists} ${booking.staff_name} будет вас ждать.`;
-  }
-
-  formatPrices(services, businessType) {
-    const terminology = this.getBusinessTerminology(businessType);
-    let text = `💰 Наши ${terminology.services}:\n\n`;
-    
-    services.slice(0, 10).forEach(s => {
-      const price = s.price_min === s.price_max ? 
-        `${s.price_min}₽` : 
-        `${s.price_min}-${s.price_max}₽`;
-      text += `${s.title} - ${price}\n`;
-    });
-    
-    return text;
-  }
-
-  /**
-   * Парсинг параметров команды
-   */
-  parseCommandParams(paramsString) {
-    const params = {};
-    const paramRegex = /(\w+):\s*([^,\]]+)/g;
-    
-    let match;
-    while ((match = paramRegex.exec(paramsString)) !== null) {
-      const [, key, value] = match;
-      params[key.trim()] = value.trim();
-    }
-    
-    return params;
-  }
-
-  /**
-   * Удаление команд из ответа
-   */
-  removeCommands(response) {
-    // Убираем команды в квадратных скобках
-    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO)[^\]]*\]/g, '');
-    
-    // Убираем технические фразы
-    cleaned = cleaned.replace(/\(Если клиент.*?\)/g, '');
-    cleaned = cleaned.replace(/выполню.*?параметрами\./g, '');
-    cleaned = cleaned.replace(/service_name=.*?(?=\s|$)/g, '');
-    cleaned = cleaned.replace(/date=.*?(?=\s|$)/g, '');
-    cleaned = cleaned.replace(/time_preference=.*?(?=\s|$)/g, '');
-    
-    // Убираем лишние пробелы и переносы строк
-    cleaned = cleaned.replace(/\s+/g, ' ').trim();
-    
-    return cleaned;
-  }
-
-  /**
-   * Сохранение контекста
-   */
-  async saveContext(phone, companyId, context, result) {
-    // Убираем @c.us если есть
-    const cleanPhone = phone.replace('@c.us', '');
-    
-    // Добавляем ответ в историю
-    context.conversation.push({
-      role: 'assistant',
-      content: result.response,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Сохраняем в БД
-    await supabase
-      .from('dialog_contexts')
-      .upsert({
-        user_id: cleanPhone,
-        company_id: companyId,
-        messages: context.conversation.slice(-50), // Последние 50 сообщений
-        updated_at: new Date().toISOString(),
-        last_activity: new Date().toISOString(),
-        message_count: context.conversation.length
-      });
-  }
-
-  /**
-   * Получение AI провайдера
+   * Вызов AI через DeepSeek
    */
   async callAI(prompt) {
-    if (!this.aiProvider) {
-      this.aiProvider = require('../ai');
-    }
-    
-    return await this.aiProvider._callAI(prompt);
-  }
-
-  /**
-   * Форматирование истории визитов для промпта
-   */
-  formatVisitHistory(visitHistory) {
-    if (!visitHistory || !Array.isArray(visitHistory)) return [];
-    
-    return visitHistory.slice(0, 5).map((visit, index) => {
-      const date = new Date(visit.date).toLocaleDateString('ru-RU');
-      const services = visit.services?.join(', ') || 'Услуги не указаны';
-      const staff = visit.staff_name || 'Мастер не указан';
-      const cost = visit.cost ? `${visit.cost}₽` : 'Стоимость не указана';
-      
-      return `  ${index + 1}. ${date} - ${services} (${staff}) - ${cost}`;
+    const response = await deepseekClient.createChatCompletion({
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 500
     });
+    
+    return response.data.choices[0].message.content;
   }
 
   /**
-   * Сообщения об ошибках с учетом типа бизнеса
-   */
-  getErrorMessage(error, businessType) {
-    const terminology = this.getBusinessTerminology(businessType);
-    
-    if (error.message.includes('timeout')) {
-      return `Извините, сервис временно перегружен. Попробуйте через минуту или позвоните нам: ${terminology.businessType} всегда рад вам помочь!`;
-    }
-    
-    return `Произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте еще раз или свяжитесь с нами по телефону.`;
-  }
-
-  /**
-   * Очистка кеша
+   * Очистка устаревших записей в кеше
    */
   cleanupCache() {
     const now = Date.now();
     for (const [key, value] of this.contextCache.entries()) {
-      if (now - value.timestamp > 600000) { // 10 минут
+      if (now - value.timestamp > this.cacheTimeout) {
         this.contextCache.delete(key);
       }
     }
