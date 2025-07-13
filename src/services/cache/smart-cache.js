@@ -26,7 +26,7 @@ class SmartCache {
 
   async initialize() {
     try {
-      this.redis = await createRedisClient();
+      this.redis = createRedisClient('smart-cache');
       logger.info('🧠 Smart Cache initialized');
     } catch (error) {
       logger.error('Failed to initialize Smart Cache:', error);

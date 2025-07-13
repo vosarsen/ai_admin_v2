@@ -568,7 +568,7 @@ ${this.formatConversation(conversation.slice(-10))}
     const otherServices = [];
     
     services.forEach(service => {
-      if (client.last_service_ids.includes(service.yclients_id)) {
+      if (client?.last_service_ids?.includes(service.yclients_id)) {
         clientServices.push(service);
       } else {
         otherServices.push(service);
