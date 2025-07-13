@@ -1,4 +1,4 @@
-// ecosystem.config.js
+// ecosystem.config.v2.js - Конфигурация для AI Admin v2
 module.exports = {
   apps: [
     {
@@ -17,7 +17,7 @@ module.exports = {
     },
     {
       name: 'ai-admin-worker-v2',
-      script: './src/workers/index-v2.js', // Используем v2!
+      script: './src/workers/index-v2.js', // ВАЖНО: используем v2!
       instances: 1,
       exec_mode: 'fork',
       env: {
