@@ -1050,10 +1050,24 @@ ${this.formatConversation(conversation.slice(-10))}
       }
       
       const selected = [];
-      const step = Math.floor(slots.length / maxCount);
+      const step = Math.max(2, Math.floor(slots.length / (maxCount - 1)));
       
-      for (let i = 0; i < slots.length && selected.length < maxCount; i += step) {
-        selected.push(slots[i].time);
+      // Берем первый слот
+      selected.push(slots[0].time);
+      
+      // Берем слоты с промежутками
+      let nextIndex = step;
+      while (selected.length < maxCount - 1 && nextIndex < slots.length - 1) {
+        selected.push(slots[nextIndex].time);
+        nextIndex += step;
+      }
+      
+      // Добавляем последний слот если есть место
+      if (selected.length < maxCount && slots.length > 1) {
+        const lastTime = slots[slots.length - 1].time;
+        if (!selected.includes(lastTime)) {
+          selected.push(lastTime);
+        }
       }
       
       return selected;
@@ -1063,6 +1077,13 @@ ${this.formatConversation(conversation.slice(-10))}
     groups.morning = selectSlotsWithGaps(periodSlots.morning, 3);
     groups.day = selectSlotsWithGaps(periodSlots.day, 3);
     groups.evening = selectSlotsWithGaps(periodSlots.evening, 3);
+    
+    // Дебаг для проверки работы алгоритма
+    logger.debug('Slot selection:', {
+      morning: { available: periodSlots.morning.length, selected: groups.morning },
+      day: { available: periodSlots.day.length, selected: groups.day },
+      evening: { available: periodSlots.evening.length, selected: groups.evening }
+    });
     
     return groups;
   }
