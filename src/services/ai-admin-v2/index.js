@@ -578,37 +578,56 @@ ${this.formatConversation(conversation.slice(-10))}
   }
 
   async loadConversation(phone, companyId) {
-    // Убираем @c.us если есть
-    const cleanPhone = phone.replace('@c.us', '');
-    
-    const { data } = await supabase
-      .from('dialog_contexts')
-      .select('messages')
-      .eq('user_id', cleanPhone)
-      .eq('company_id', companyId)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .single();
-    
-    return data?.messages || [];
+    try {
+      // Убираем @c.us если есть
+      const cleanPhone = phone.replace('@c.us', '');
+      
+      const { data, error } = await supabase
+        .from('dialog_contexts')
+        .select('messages')
+        .eq('user_id', cleanPhone)
+        .eq('company_id', companyId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (error) {
+        logger.error('Error loading conversation:', error);
+        return [];
+      }
+      
+      return data?.messages || [];
+    } catch (error) {
+      logger.error('Error in loadConversation:', error);
+      return [];
+    }
   }
 
   async loadBusinessStats(companyId) {
-    // Загрузка статистики дня (можно расширить)
-    const today = new Date().toISOString().split('T')[0];
-    
-    const { data } = await supabase
-      .from('appointments_cache')
-      .select('*')
-      .eq('company_id', companyId)
-      .gte('appointment_datetime', today)
-      .lt('appointment_datetime', today + 'T23:59:59');
-    
-    const totalSlots = 50; // Примерное количество слотов в день
-    const bookedSlots = data?.length || 0;
-    const todayLoad = Math.round((bookedSlots / totalSlots) * 100);
-    
-    return { todayLoad, bookedSlots, totalSlots };
+    try {
+      // Загрузка статистики дня (можно расширить)
+      const today = new Date().toISOString().split('T')[0];
+      
+      const { data, error } = await supabase
+        .from('appointments_cache')
+        .select('*')
+        .eq('company_id', companyId)
+        .gte('appointment_datetime', today)
+        .lt('appointment_datetime', today + 'T23:59:59');
+      
+      if (error) {
+        logger.error('Error loading business stats:', error);
+      }
+      
+      const totalSlots = 50; // Примерное количество слотов в день
+      const bookedSlots = data?.length || 0;
+      const todayLoad = Math.round((bookedSlots / totalSlots) * 100);
+      
+      return { todayLoad, bookedSlots, totalSlots };
+    } catch (error) {
+      logger.error('Error in loadBusinessStats:', error);
+      return { todayLoad: 0, bookedSlots: 0, totalSlots: 50 };
+    }
   }
   
   async loadStaffSchedules(companyId) {
