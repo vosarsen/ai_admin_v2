@@ -27,6 +27,25 @@ We use a strict workflow for all changes:
 
 AI Admin v2 is a production-ready WhatsApp AI Assistant for beauty salons. It uses simplified AI-First architecture where a single AI call handles all decision-making, replacing the previous 5-6 step pipeline. The system is multi-tenant ready and scalable from 30 to 10,000+ companies. 
 
+## Current Status
+
+### Migration v1 → v2 Completed
+- **Production now runs on v2 architecture** (as of July 13, 2024)
+- Worker: `ai-admin-worker-v2` (not v1)
+- All messages processed through AI Admin v2
+
+### Known Issues Fixed
+1. ✅ ecosystem.config.js updated to use v2 worker
+2. ✅ Fixed `context is not defined` error
+3. ✅ Fixed `query.from is not a function` 
+4. ✅ Fixed table name: schedules → staff_schedules
+5. ✅ Fixed missing clients handling with maybeSingle()
+6. ✅ Fixed undefined checks in sortServicesForClient
+
+### Pending Database Issues
+- `staff_schedules` table missing `company_id` column (temporarily bypassed)
+- Need to run migration script: `scripts/database/add-company-id-to-staff-schedules-fixed.sql`
+
 ## Architecture (v2)
 
 ### Old Architecture (v1):
@@ -261,6 +280,21 @@ npm run monitor
 - `src/database/optimized-supabase.js` - клиент с Redis кэшем
 - `scripts/database/` - SQL скрипты для индексов
 - `PERFORMANCE_ANALYSIS.md` - детальный анализ
+
+## Troubleshooting
+
+### If getting "Извините, произошла ошибка" responses:
+1. Check logs: `ssh root@46.149.70.219 "pm2 logs ai-admin-worker-v2 --lines 50"`
+2. Common causes:
+   - Database connection issues
+   - Missing data in tables
+   - Undefined object properties
+3. v2 now has error handling for all database operations
+
+### Testing Changes
+1. Send test message in WhatsApp
+2. Check logs for errors
+3. If error - fix locally, commit, push, pull on server, restart worker
 
 ## Common Development Tasks
 
