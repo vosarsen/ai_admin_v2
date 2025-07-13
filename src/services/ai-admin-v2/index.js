@@ -370,11 +370,6 @@ ${this.formatConversation(conversation.slice(-10))}
         switch (cmd.command) {
           case 'SEARCH_SLOTS':
             const slots = await this.searchSlots(cmd.params, context);
-            logger.debug('Search slots result:', {
-              isArray: Array.isArray(slots),
-              length: slots?.length,
-              sample: slots?.[0]
-            });
             results.push({ type: 'slots', data: slots });
             // Сохраняем информацию о последнем поиске для создания записи
             context.lastSearch = {
@@ -950,17 +945,6 @@ ${this.formatConversation(conversation.slice(-10))}
     const terminology = this.getBusinessTerminology(businessType);
     let text = '';
     
-    // Дебаг
-    logger.info('Formatting slots:', { 
-      totalSlots: slots.length,
-      isArray: Array.isArray(slots),
-      sampleSlot: JSON.stringify(slots[0]),
-      allSlots: slots.map(s => ({
-        time: s.time,
-        staff_name: s.staff_name,
-        datetime: s.datetime
-      }))
-    });
     
     // Группируем по мастерам если есть
     const byStaff = {};
@@ -970,10 +954,6 @@ ${this.formatConversation(conversation.slice(-10))}
       byStaff[staffName].push(slot);
     });
     
-    logger.info('Grouped by staff:', {
-      staffNames: Object.keys(byStaff),
-      counts: Object.entries(byStaff).map(([name, slots]) => ({ name, count: slots.length }))
-    });
     
     Object.entries(byStaff).slice(0, 3).forEach(([staffName, staffSlots], index) => {
       // Группируем по датам
@@ -994,10 +974,6 @@ ${this.formatConversation(conversation.slice(-10))}
         byDate[date].push(slot);
       });
       
-      logger.info(`Processing staff ${staffName}:`, {
-        dates: Object.keys(byDate),
-        slotsPerDate: Object.entries(byDate).map(([d, s]) => ({ date: d, count: s.length }))
-      });
       
       // Для каждой даты
       Object.entries(byDate).forEach(([date, dateSlots]) => {
@@ -1028,13 +1004,7 @@ ${this.formatConversation(conversation.slice(-10))}
       });
     });
     
-    const result = text.trim();
-    logger.info('Formatted result:', { 
-      length: result.length,
-      preview: result.substring(0, 100)
-    });
-    
-    return result;
+    return text.trim();
   }
   
   groupSlotsByTimeOfDay(slots) {
@@ -1044,20 +1014,55 @@ ${this.formatConversation(conversation.slice(-10))}
       evening: []   // после 17:00
     };
     
-    slots.forEach(slot => {
+    // Сортируем слоты по времени
+    const sortedSlots = slots.sort((a, b) => {
+      const timeA = a.time || (a.datetime ? a.datetime.split(' ')[1].substring(0, 5) : '');
+      const timeB = b.time || (b.datetime ? b.datetime.split(' ')[1].substring(0, 5) : '');
+      return timeA.localeCompare(timeB);
+    });
+    
+    // Группируем слоты по периодам дня
+    const periodSlots = {
+      morning: [],
+      day: [],
+      evening: []
+    };
+    
+    sortedSlots.forEach(slot => {
       const time = slot.time || (slot.datetime ? slot.datetime.split(' ')[1].substring(0, 5) : '');
       if (!time) return;
       
       const hour = parseInt(time.split(':')[0]);
       
       if (hour < 12) {
-        if (groups.morning.length < 3) groups.morning.push(time);
+        periodSlots.morning.push({ time, hour });
       } else if (hour < 17) {
-        if (groups.day.length < 3) groups.day.push(time);
+        periodSlots.day.push({ time, hour });
       } else {
-        if (groups.evening.length < 2) groups.evening.push(time);
+        periodSlots.evening.push({ time, hour });
       }
     });
+    
+    // Выбираем слоты с промежутками для вариативности
+    const selectSlotsWithGaps = (slots, maxCount) => {
+      if (slots.length <= maxCount) {
+        return slots.map(s => s.time);
+      }
+      
+      const selected = [];
+      const step = Math.floor(slots.length / maxCount);
+      
+      for (let i = 0; i < slots.length && selected.length < maxCount; i += step) {
+        selected.push(slots[i].time);
+      }
+      
+      return selected;
+    };
+    
+    // Формируем финальные группы с вариативностью
+    groups.morning = selectSlotsWithGaps(periodSlots.morning, 3);
+    groups.day = selectSlotsWithGaps(periodSlots.day, 3);
+    groups.evening = selectSlotsWithGaps(periodSlots.evening, 3);
     
     return groups;
   }
