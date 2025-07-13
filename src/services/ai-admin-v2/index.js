@@ -1051,13 +1051,15 @@ ${this.formatConversation(conversation.slice(-10))}
       if (!time) return;
       
       const hour = parseInt(time.split(':')[0]);
+      const minutes = parseInt(time.split(':')[1]);
+      const hourDecimal = hour + (minutes / 60);
       
       if (hour < 12) {
-        periodSlots.morning.push({ time, hour, slot });
+        periodSlots.morning.push({ time, hour, minutes, hourDecimal, slot });
       } else if (hour < 17) {
-        periodSlots.day.push({ time, hour, slot });
+        periodSlots.day.push({ time, hour, minutes, hourDecimal, slot });
       } else {
-        periodSlots.evening.push({ time, hour, slot });
+        periodSlots.evening.push({ time, hour, minutes, hourDecimal, slot });
       }
     });
     
@@ -1067,17 +1069,15 @@ ${this.formatConversation(conversation.slice(-10))}
       if (slots.length === 1) return [slots[0].time];
       
       const selected = [];
-      let lastSelectedHour = -999; // Начальное значение для сравнения
+      let lastSelectedHourDecimal = -999; // Начальное значение для сравнения
       
       for (const slot of slots) {
         if (selected.length >= maxCount) break;
         
-        const currentHour = slot.hour + (parseInt(slot.time.split(':')[1]) / 60);
-        
         // Проверяем что прошел минимум час с последнего выбранного слота
-        if (currentHour - lastSelectedHour >= 1) {
+        if (slot.hourDecimal - lastSelectedHourDecimal >= 1) {
           selected.push(slot.time);
-          lastSelectedHour = currentHour;
+          lastSelectedHourDecimal = slot.hourDecimal;
         }
       }
       
@@ -1087,11 +1087,8 @@ ${this.formatConversation(conversation.slice(-10))}
         const lastTime = lastSlot.time;
         if (!selected.includes(lastTime)) {
           // Проверяем что последний слот хотя бы через 30 минут от предпоследнего выбранного
-          const lastSelectedTime = selected[selected.length - 1];
-          const lastSelectedHourFull = parseInt(lastSelectedTime.split(':')[0]) + parseInt(lastSelectedTime.split(':')[1]) / 60;
-          const lastSlotHour = lastSlot.hour + parseInt(lastSlot.time.split(':')[1]) / 60;
-          
-          if (lastSlotHour - lastSelectedHourFull >= 0.5) {
+          const lastSelectedSlot = slots.find(s => s.time === selected[selected.length - 1]);
+          if (lastSelectedSlot && lastSlot.hourDecimal - lastSelectedSlot.hourDecimal >= 0.5) {
             selected.push(lastTime);
           }
         }
@@ -1104,18 +1101,6 @@ ${this.formatConversation(conversation.slice(-10))}
     groups.morning = selectSlotsWithGaps(periodSlots.morning, 2);
     groups.day = selectSlotsWithGaps(periodSlots.day, 2);
     groups.evening = selectSlotsWithGaps(periodSlots.evening, 2);
-    
-    // Временный дебаг для отладки
-    logger.info('Slot gap selection debug:', {
-      day: {
-        input: periodSlots.day.map(s => ({ time: s.time, hour: s.hour })),
-        output: groups.day
-      },
-      evening: {
-        input: periodSlots.evening.map(s => ({ time: s.time, hour: s.hour })),
-        output: groups.evening
-      }
-    });
     
     return groups;
   }
