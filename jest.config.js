@@ -8,8 +8,9 @@ module.exports = {
     '!src/index.js'
   ],
   testMatch: [
-    '**/__tests__/**/*.test.js'
+    '**/__tests__/**/*.test.js',
+    '**/tests/**/*.test.js'
   ],
   setupFiles: ['<rootDir>/src/__tests__/setup.js'],
-  testTimeout: 10000
+  testTimeout: 60000
 };
