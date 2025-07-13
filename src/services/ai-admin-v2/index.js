@@ -459,21 +459,37 @@ ${this.formatConversation(conversation.slice(-10))}
       }
     }
     
+    // Группируем слоты по мастерам
+    const slotsByStaff = allSlots.reduce((acc, slot) => {
+      const name = slot.staff_name || 'Unknown';
+      if (!acc[name]) acc[name] = [];
+      acc[name].push(slot);
+      return acc;
+    }, {});
+    
     // Дебаг для отслеживания слотов от разных мастеров
     logger.info('Slots by staff:', {
       totalSlots: allSlots.length,
-      byStaff: Object.entries(
-        allSlots.reduce((acc, slot) => {
-          const name = slot.staff_name || 'Unknown';
-          if (!acc[name]) acc[name] = [];
-          acc[name].push(slot.time || slot.datetime);
-          return acc;
-        }, {})
-      ).map(([name, times]) => ({ name, count: times.length, times: times.slice(0, 5) }))
+      byStaff: Object.entries(slotsByStaff).map(([name, slots]) => ({ 
+        name, 
+        count: slots.length, 
+        times: slots.slice(0, 5).map(s => s.time || s.datetime)
+      }))
     });
     
-    // Сортируем слоты по времени и группируем по временным зонам
-    return this.organizeSlotsByTimeZones(allSlots, params.time_preference);
+    // Выбираем мастера с наибольшим количеством свободных слотов
+    const staffWithMostSlots = Object.entries(slotsByStaff)
+      .sort(([, slotsA], [, slotsB]) => slotsB.length - slotsA.length)[0];
+    
+    if (!staffWithMostSlots) {
+      return [];
+    }
+    
+    const [selectedStaff, selectedSlots] = staffWithMostSlots;
+    logger.info(`Selected staff with most slots: ${selectedStaff} (${selectedSlots.length} slots)`);
+    
+    // Возвращаем слоты только от одного мастера
+    return this.organizeSlotsByTimeZones(selectedSlots, params.time_preference);
   }
   
   /**
