@@ -1077,23 +1077,29 @@ ${this.formatConversation(conversation.slice(-10))}
         slots: slots.map(s => ({ time: s.time, hourDecimal: s.hourDecimal }))
       });
       
-      for (const slot of slots) {
-        if (selected.length >= maxCount) break;
+      for (let i = 0; i < slots.length; i++) {
+        const slot = slots[i];
+        if (selected.length >= maxCount) {
+          logger.info('Reached maxCount, stopping selection');
+          break;
+        }
         
         const gap = slot.hourDecimal - lastSelectedHourDecimal;
-        logger.info('Checking slot:', { 
+        logger.info(`Checking slot ${i+1}/${slots.length}:`, { 
           time: slot.time, 
           hourDecimal: slot.hourDecimal,
           lastSelectedHourDecimal,
           gap,
-          willSelect: gap >= 1
+          willSelect: gap >= 1,
+          currentSelectedCount: selected.length,
+          maxCount
         });
         
         // Проверяем что прошел минимум час с последнего выбранного слота
         if (gap >= 1) {
           selected.push(slot.time);
           lastSelectedHourDecimal = slot.hourDecimal;
-          logger.info('Selected slot:', slot.time);
+          logger.info(`Selected slot ${selected.length}/${maxCount}:`, slot.time);
         }
       }
       
@@ -1130,6 +1136,18 @@ ${this.formatConversation(conversation.slice(-10))}
     
     // Подробный дебаг для отладки
     logger.info('Slot gap selection detailed debug:', {
+      morning: {
+        input: periodSlots.morning.map(s => ({ 
+          time: s.time, 
+          hour: s.hour, 
+          minutes: s.minutes,
+          hourDecimal: s.hourDecimal 
+        })),
+        output: groups.morning,
+        algorithm: 'Should select slots with >= 1 hour gap',
+        inputCount: periodSlots.morning.length,
+        outputCount: groups.morning.length
+      },
       day: {
         input: periodSlots.day.map(s => ({ 
           time: s.time, 
@@ -1138,7 +1156,9 @@ ${this.formatConversation(conversation.slice(-10))}
           hourDecimal: s.hourDecimal 
         })),
         output: groups.day,
-        algorithm: 'Should select slots with >= 1 hour gap'
+        algorithm: 'Should select slots with >= 1 hour gap',
+        inputCount: periodSlots.day.length,
+        outputCount: groups.day.length
       },
       evening: {
         input: periodSlots.evening.map(s => ({ 
@@ -1148,7 +1168,9 @@ ${this.formatConversation(conversation.slice(-10))}
           hourDecimal: s.hourDecimal 
         })),
         output: groups.evening,
-        algorithm: 'Should select slots with >= 1 hour gap'
+        algorithm: 'Should select slots with >= 1 hour gap',
+        inputCount: periodSlots.evening.length,
+        outputCount: groups.evening.length
       }
     });
     
