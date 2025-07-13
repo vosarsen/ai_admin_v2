@@ -202,9 +202,23 @@ class OptimizedSupabaseClient {
       // Параллельная загрузка всех данных
       const [company, client, services, staff, schedules] = await Promise.all([
         // Компания (из кэша надолго)
-        this.getCached('companies', companyId, (query) => 
-          query.select('*').eq('company_id', companyId).single()
-        ),
+        this.getCached('companies', companyId, async (query) => {
+          const { data, error } = await query
+            .select('*')
+            .eq('company_id', companyId)
+            .maybeSingle();
+          
+          if (error) {
+            logger.error('Error fetching company:', error);
+          }
+          
+          return data || {
+            company_id: companyId,
+            title: 'Company',
+            type: 'beauty',
+            timezone: 'Europe/Moscow'
+          };
+        }),
         
         // Клиент
         this.getClient(phone, companyId),
