@@ -1071,13 +1071,29 @@ ${this.formatConversation(conversation.slice(-10))}
       const selected = [];
       let lastSelectedHourDecimal = -999; // Начальное значение для сравнения
       
+      logger.debug('selectSlotsWithGaps called:', { 
+        slotsCount: slots.length, 
+        maxCount,
+        slots: slots.map(s => ({ time: s.time, hourDecimal: s.hourDecimal }))
+      });
+      
       for (const slot of slots) {
         if (selected.length >= maxCount) break;
         
+        const gap = slot.hourDecimal - lastSelectedHourDecimal;
+        logger.debug('Checking slot:', { 
+          time: slot.time, 
+          hourDecimal: slot.hourDecimal,
+          lastSelectedHourDecimal,
+          gap,
+          willSelect: gap >= 1
+        });
+        
         // Проверяем что прошел минимум час с последнего выбранного слота
-        if (slot.hourDecimal - lastSelectedHourDecimal >= 1) {
+        if (gap >= 1) {
           selected.push(slot.time);
           lastSelectedHourDecimal = slot.hourDecimal;
+          logger.debug('Selected slot:', slot.time);
         }
       }
       
@@ -1101,6 +1117,30 @@ ${this.formatConversation(conversation.slice(-10))}
     groups.morning = selectSlotsWithGaps(periodSlots.morning, 2);
     groups.day = selectSlotsWithGaps(periodSlots.day, 2);
     groups.evening = selectSlotsWithGaps(periodSlots.evening, 2);
+    
+    // Подробный дебаг для отладки
+    logger.info('Slot gap selection detailed debug:', {
+      day: {
+        input: periodSlots.day.map(s => ({ 
+          time: s.time, 
+          hour: s.hour, 
+          minutes: s.minutes,
+          hourDecimal: s.hourDecimal 
+        })),
+        output: groups.day,
+        algorithm: 'Should select slots with >= 1 hour gap'
+      },
+      evening: {
+        input: periodSlots.evening.map(s => ({ 
+          time: s.time, 
+          hour: s.hour,
+          minutes: s.minutes, 
+          hourDecimal: s.hourDecimal 
+        })),
+        output: groups.evening,
+        algorithm: 'Should select slots with >= 1 hour gap'
+      }
+    });
     
     return groups;
   }
