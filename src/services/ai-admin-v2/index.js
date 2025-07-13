@@ -31,10 +31,12 @@ class AIAdminV2 {
   async processMessage(message, phone, companyId) {
     const startTime = Date.now();
     logger.info(`🤖 AI Admin v2 processing: "${message}" from ${phone}`);
-
+    
+    let context = null;
+    
     try {
       // 1. Загружаем полный контекст параллельно
-      const context = await this.loadFullContext(phone, companyId);
+      context = await this.loadFullContext(phone, companyId);
       
       // 2. Обновляем историю диалога
       context.conversation.push({
