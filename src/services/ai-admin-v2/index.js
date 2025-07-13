@@ -123,6 +123,12 @@ class AIAdminV2 {
   buildSmartPrompt(message, context, phone) {
     const { company, client, services, staff, staffSchedules, conversation, businessStats } = context;
     
+    // Проверяем что company существует
+    if (!company) {
+      logger.error('Company is undefined in context:', context);
+      throw new Error('Company information is missing');
+    }
+    
     // Адаптируем терминологию под тип бизнеса
     const terminology = this.getBusinessTerminology(company.type);
     
