@@ -146,6 +146,12 @@ ${client?.preferences ? `- Предпочтения: ${JSON.stringify(client.pre
 ${client?.favorite_staff_ids?.length ? `- Любимые ${terminology.specialists}: ${this.getStaffNames(client.favorite_staff_ids, staff)}` : ''}
 ${client?.formatted_visit_history?.length ? `\nИСТОРИЯ ПОСЛЕДНИХ ВИЗИТОВ:\n${client.formatted_visit_history.slice(0, 5).join('\n')}` : ''}
 
+${context.lastSearch ? `ПОСЛЕДНИЙ ПОИСК СЛОТОВ:
+- Услуга: ${context.lastSearch.service_name}
+- Найдено слотов: ${context.lastSearch.slots?.length || 0}
+- Время поиска: ${new Date(context.lastSearch.timestamp).toLocaleTimeString('ru-RU')}
+` : ''}
+
 ДОСТУПНЫЕ ${terminology.services.toUpperCase()}:
 ${this.formatServices(services, company.type)}
 
@@ -213,11 +219,12 @@ ${this.formatConversation(conversation.slice(-10))}
 
 ПРАВИЛА РАБОТЫ:
 1. ВСЕГДА анализируй намерение клиента по секции "АНАЛИЗ НАМЕРЕНИЯ КЛИЕНТА"
-2. Если клиент указал конкретное время (например "в 13:00"), это означает что он хочет записаться на это время, а не просто посмотреть слоты
-3. Когда клиент выбирает конкретное время из предложенных слотов - сразу создавай запись через [CREATE_BOOKING]
-4. Если клиент хочет записаться или проверить время - ОБЯЗАТЕЛЬНО используй [SEARCH_SLOTS]
-5. Если клиент спрашивает цены - ОБЯЗАТЕЛЬНО используй [SHOW_PRICES]
-6. НЕ отвечай "у нас нет информации" - используй команды для получения данных
+2. Если клиент указал конкретное время (например "в 13:00") И услугу - это означает что он хочет записаться на это время
+3. Если клиент просто указал время без услуги после показа слотов - уточни услугу
+4. Когда есть вся информация (услуга, время, мастер) - используй [CREATE_BOOKING]
+5. Если клиент хочет записаться или проверить время - ОБЯЗАТЕЛЬНО используй [SEARCH_SLOTS]
+6. Если клиент спрашивает цены - ОБЯЗАТЕЛЬНО используй [SHOW_PRICES]
+7. НЕ отвечай "у нас нет информации" - используй команды для получения данных
 
 ПРАВИЛА ОБЩЕНИЯ:
 1. Будь ${terminology.communicationStyle}
@@ -347,6 +354,12 @@ ${this.formatConversation(conversation.slice(-10))}
           case 'SEARCH_SLOTS':
             const slots = await this.searchSlots(cmd.params, context);
             results.push({ type: 'slots', data: slots });
+            // Сохраняем информацию о последнем поиске для создания записи
+            context.lastSearch = {
+              service_name: cmd.params.service_name,
+              slots: slots,
+              timestamp: new Date().toISOString()
+            };
             break;
             
           case 'CREATE_BOOKING':
@@ -409,7 +422,7 @@ ${this.formatConversation(conversation.slice(-10))}
           companyId: context.company.yclients_id || context.company.company_id,
           serviceId: service?.yclients_id,
           staffId: staff?.yclients_id,
-          preferredDate: params.date || new Date().toISOString().split('T')[0],
+          preferredDate: this.parseRelativeDate(params.date),
           timePreference: params.time_preference
         });
         
@@ -856,6 +869,43 @@ ${this.formatConversation(conversation.slice(-10))}
       weekday: 'short'
     });
   }
+  
+  parseRelativeDate(dateStr) {
+    if (!dateStr) return new Date().toISOString().split('T')[0];
+    
+    const today = new Date();
+    const dateStrLower = dateStr.toLowerCase();
+    
+    if (dateStrLower === 'сегодня' || dateStrLower === 'today') {
+      return today.toISOString().split('T')[0];
+    }
+    
+    if (dateStrLower === 'завтра' || dateStrLower === 'tomorrow') {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return tomorrow.toISOString().split('T')[0];
+    }
+    
+    if (dateStrLower === 'послезавтра' || dateStrLower === 'after tomorrow') {
+      const afterTomorrow = new Date(today);
+      afterTomorrow.setDate(afterTomorrow.getDate() + 2);
+      return afterTomorrow.toISOString().split('T')[0];
+    }
+    
+    // Если это уже ISO дата, возвращаем как есть
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr;
+    }
+    
+    // Пытаемся распарсить дату
+    const parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().split('T')[0];
+    }
+    
+    // Fallback на сегодня
+    return today.toISOString().split('T')[0];
+  }
 
   getStaffNames(staffIds, staffList) {
     return staffIds
@@ -884,24 +934,31 @@ ${this.formatConversation(conversation.slice(-10))}
     });
     
     Object.entries(byStaff).slice(0, 3).forEach(([staffName, staffSlots]) => {
-      text += `👤 ${staffName}:\n`;
+      text += `👤 ${staffName}:\n\n`;
       
       // Группируем по датам
       const byDate = {};
       staffSlots.forEach(slot => {
-        const date = slot.date || (slot.datetime ? slot.datetime.split(' ')[0] : 'Сегодня');
+        const date = slot.date || (slot.datetime ? slot.datetime.split(' ')[0] : new Date().toISOString().split('T')[0]);
         if (!byDate[date]) byDate[date] = [];
         byDate[date].push(slot);
       });
       
-      Object.entries(byDate).forEach(([date, dateSlots]) => {
+      // Сортируем даты
+      const sortedDates = Object.keys(byDate).sort();
+      
+      sortedDates.forEach(date => {
         const formattedDate = this.formatDateForDisplay(date);
-        dateSlots.slice(0, 4).forEach(slot => {
-          const time = slot.time || (slot.datetime ? slot.datetime.split(' ')[1] : slot.datetime);
-          text += `  • ${formattedDate} в ${time}\n`;
-        });
+        text += `${formattedDate}:\n`;
+        
+        const times = byDate[date]
+          .map(slot => slot.time || (slot.datetime ? slot.datetime.split(' ')[1].substring(0, 5) : ''))
+          .filter(time => time)
+          .slice(0, 6);
+        
+        text += times.map(time => `- ${time}`).join('\n');
+        text += '\n\n';
       });
-      text += '\n';
     });
     
     return text;
