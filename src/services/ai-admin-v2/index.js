@@ -103,7 +103,8 @@ class AIAdminV2 {
         conversation: conversation || [],
         businessStats: businessStats || { todayLoad: 0, bookedSlots: 0, totalSlots: 50 },
         currentTime: new Date().toISOString(),
-        timezone: baseContext.company?.timezone || 'Europe/Moscow'
+        timezone: baseContext.company?.timezone || 'Europe/Moscow',
+        phone: phone
       };
 
       const loadTime = Date.now() - startTime;
@@ -392,7 +393,7 @@ ${this.formatConversation(conversation.slice(-10))}
     
     // Если мастер не указан, используем любимых мастеров клиента
     const staffToCheck = targetStaff ? [targetStaff] : 
-      (context.client.favorite_staff_ids?.length ? 
+      (context.client?.favorite_staff_ids?.length ? 
         context.staff.filter(s => context.client.favorite_staff_ids.includes(s.yclients_id)) : 
         context.staff.slice(0, 3)); // Берем топ-3 мастеров
     
@@ -473,9 +474,9 @@ ${this.formatConversation(conversation.slice(-10))}
     const bookingService = require('../booking');
     
     const bookingData = {
-      phone: context.client.phone,
-      fullname: context.client.name,
-      email: context.client.email,
+      phone: context.client?.phone || context.phone,
+      fullname: context.client?.name || '',
+      email: context.client?.email || '',
       comment: "Запись через AI администратора WhatsApp",
       appointments: [{
         id: 1,
