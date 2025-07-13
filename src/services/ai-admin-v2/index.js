@@ -432,13 +432,16 @@ ${this.formatConversation(conversation.slice(-10))}
           timePreference: params.time_preference
         });
         
-        if (result.data?.length) {
+        // Проверяем структуру результата
+        const slots = result.data?.data || result.data || [];
+        
+        if (Array.isArray(slots) && slots.length > 0) {
           // Добавляем имя мастера к каждому слоту
-          result.data.forEach(slot => {
+          slots.forEach(slot => {
             slot.staff_name = staff.name;
             slot.staff_id = staff.yclients_id;
           });
-          allSlots.push(...result.data);
+          allSlots.push(...slots);
         }
       } catch (error) {
         logger.debug(`Ошибка получения слотов для ${staff.name}:`, error.message);
