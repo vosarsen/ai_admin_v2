@@ -159,18 +159,27 @@ class OptimizedSupabaseClient {
   async getSchedules(companyId, startDate, endDate) {
     const key = `${companyId}:${startDate}:${endDate}`;
     
-    return this.getCached('staff_schedules', key, (query) =>  // Указываем правильное имя таблицы здесь
-      query
-        .select(`
-          staff_id, staff_name, date, is_working,
-          work_start, work_end, has_booking_slots
-        `)
-        .eq('company_id', companyId)
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .eq('is_working', true)
-        .order('date')
-    );
+    try {
+      const result = await this.getCached('staff_schedules', key, (query) =>
+        query
+          .select(`
+            staff_id, staff_name, date, is_working,
+            work_start, work_end, has_booking_slots
+          `)
+          // Временно убираем фильтр по company_id, так как колонки нет
+          // .eq('company_id', companyId)
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .eq('is_working', true)
+          .order('date')
+      );
+      
+      return result || [];
+    } catch (error) {
+      logger.error('Error fetching schedules:', error);
+      // Возвращаем пустой массив при ошибке
+      return [];
+    }
   }
 
   /**
