@@ -459,6 +459,19 @@ ${this.formatConversation(conversation.slice(-10))}
       }
     }
     
+    // Дебаг для отслеживания слотов от разных мастеров
+    logger.info('Slots by staff:', {
+      totalSlots: allSlots.length,
+      byStaff: Object.entries(
+        allSlots.reduce((acc, slot) => {
+          const name = slot.staff_name || 'Unknown';
+          if (!acc[name]) acc[name] = [];
+          acc[name].push(slot.time || slot.datetime);
+          return acc;
+        }, {})
+      ).map(([name, times]) => ({ name, count: times.length, times: times.slice(0, 5) }))
+    });
+    
     // Сортируем слоты по времени и группируем по временным зонам
     return this.organizeSlotsByTimeZones(allSlots, params.time_preference);
   }
