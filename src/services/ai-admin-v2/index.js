@@ -1110,10 +1110,10 @@ ${this.formatConversation(conversation.slice(-10))}
             lastTime,
             lastSelectedTime: selected[selected.length - 1],
             gap: gapToLast,
-            willAdd: gapToLast >= 0.5
+            willAdd: gapToLast >= 1
           });
           
-          if (lastSelectedSlot && gapToLast >= 0.5) {
+          if (lastSelectedSlot && gapToLast >= 1) {
             selected.push(lastTime);
             logger.info('Added last slot:', lastTime);
           }
