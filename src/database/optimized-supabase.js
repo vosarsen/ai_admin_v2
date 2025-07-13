@@ -202,23 +202,7 @@ class OptimizedSupabaseClient {
       // Параллельная загрузка всех данных
       const [company, client, services, staff, schedules] = await Promise.all([
         // Компания (из кэша надолго)
-        this.getCached('companies', companyId, async (query) => {
-          const { data, error } = await query
-            .select('*')
-            .eq('company_id', companyId)
-            .maybeSingle();
-          
-          if (error) {
-            logger.error('Error fetching company:', error);
-          }
-          
-          return data || {
-            company_id: companyId,
-            title: 'Company',
-            type: 'beauty',
-            timezone: 'Europe/Moscow'
-          };
-        }),
+        this.getCompany(companyId),
         
         // Клиент
         this.getClient(phone, companyId),
@@ -255,6 +239,60 @@ class OptimizedSupabaseClient {
     } catch (error) {
       logger.error('Error loading context:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Загрузка информации о компании
+   */
+  async getCompany(companyId) {
+    const key = `company:${companyId}`;
+    const cached = await redis.get(key);
+    
+    if (cached) {
+      logger.debug('Company cache hit');
+      return JSON.parse(cached);
+    }
+    
+    try {
+      const { data, error } = await getClient()
+        .from('companies')
+        .select('*')
+        .eq('company_id', companyId)
+        .maybeSingle();
+      
+      if (error) {
+        logger.error('Error fetching company:', error);
+      }
+      
+      const company = data || {
+        company_id: companyId,
+        yclients_id: companyId,
+        title: 'Beauty Salon',
+        type: 'beauty',
+        timezone: 'Europe/Moscow',
+        address: 'Не указан',
+        phone: 'Не указан',
+        working_hours: {}
+      };
+      
+      // Кэшируем на час
+      await redis.setex(key, 3600, JSON.stringify(company));
+      
+      return company;
+    } catch (error) {
+      logger.error('Failed to get company:', error);
+      // Возвращаем fallback
+      return {
+        company_id: companyId,
+        yclients_id: companyId,
+        title: 'Beauty Salon',
+        type: 'beauty',
+        timezone: 'Europe/Moscow',
+        address: 'Не указан',
+        phone: 'Не указан',
+        working_hours: {}
+      };
     }
   }
 
