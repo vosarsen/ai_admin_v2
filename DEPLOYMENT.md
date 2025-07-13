@@ -1,185 +1,40 @@
-# AI Admin MVP v2.0 - Deployment Guide
+# Инструкция по развертыванию AI Admin v2
 
-## Prerequisites
+## Текущий статус на сервере
 
-- Node.js 18+
-- Redis 6+
-- PM2 (`npm install -g pm2`)
-- YClients API credentials
-- WhatsApp Venom-bot server running
+✅ **AI Admin v2 успешно развернут и работает!**
 
-## Quick Start
+### Активные процессы:
+- `ai-admin-api` - API сервер (порт 3000)
+- `ai-admin-worker-v2` - Новый AI Admin v2 worker
+- `venom-bot` - WhatsApp интеграция (порт 3001)
 
-### 1. Configuration
+## Команды управления
 
+### Проверка статуса:
 ```bash
-# Copy environment file
-cp .env.example .env
-
-# Edit .env with your credentials
-nano .env
+ssh root@46.149.70.219 "pm2 list"
 ```
 
-Required environment variables:
-- `YCLIENTS_BEARER_TOKEN` - Your YClients partner token
-- `YCLIENTS_USER_TOKEN` - Your YClients user token
-- `DEEPSEEK_API_KEY` - DeepSeek AI API key
-- `SUPABASE_URL` & `SUPABASE_KEY` - Database credentials
-- `VENOM_SERVER_URL` - WhatsApp server URL
-
-### 2. Local Development
-
+### Просмотр логов AI Admin v2:
 ```bash
-# Install dependencies
-npm install
-
-# Start Redis with Docker
-docker-compose up -d redis
-
-# Run in development mode
-npm run dev      # API server
-npm run worker   # Workers (in another terminal)
-
-# Test the flow
-node scripts/test-flow.js
+ssh root@46.149.70.219 "pm2 logs ai-admin-worker-v2"
 ```
 
-### 3. Production Deployment
+### Переключение между версиями:
 
+#### Использовать новую версию (AI Admin v2):
 ```bash
-# Run deployment script
-./deploy.sh
-
-# Or manually:
-npm ci --only=production
-node scripts/cache-initial-data.js
-pm2 start ecosystem.config.js
+ssh root@46.149.70.219 "cd /opt/ai-admin && pm2 stop ai-admin-worker && pm2 start ai-admin-worker-v2"
 ```
 
-### 4. Server Setup (for new server)
-
+#### Вернуться к старой версии:
 ```bash
-# Install Node.js 18
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# Install PM2
-sudo npm install -g pm2
-
-# Install Redis
-sudo apt-get install redis-server
-sudo systemctl enable redis-server
-
-# Clone repository
-git clone https://github.com/yourusername/ai_admin.git
-cd ai_admin/ai_admin_v2
-
-# Deploy
-./deploy.sh
-
-# Setup PM2 startup
-pm2 startup
-pm2 save
+ssh root@46.149.70.219 "cd /opt/ai-admin && pm2 stop ai-admin-worker-v2 && pm2 start ai-admin-worker"
 ```
 
-## Monitoring
-
-### Health Check
+### Перезапуск воркера:
 ```bash
-curl http://localhost:3000/health
+ssh root@46.149.70.219 "pm2 restart ai-admin-worker-v2"
 ```
 
-### PM2 Commands
-```bash
-pm2 status              # View all processes
-pm2 logs                # View all logs
-pm2 logs ai-admin-api   # API logs only
-pm2 logs ai-admin-worker # Worker logs only
-pm2 monit               # Real-time monitoring
-pm2 restart all         # Restart everything
-```
-
-### Queue Metrics
-```bash
-curl http://localhost:3000/api/metrics
-```
-
-## Scaling
-
-### Add More Workers
-```bash
-# Edit ecosystem.config.js
-# Change instances: 3 to instances: 5
-
-# Reload PM2
-pm2 reload ecosystem.config.js
-```
-
-### Add Another Server
-1. Setup new server with Node.js, PM2, Redis
-2. Copy code and .env file
-3. Start only workers (not API):
-   ```bash
-   pm2 start src/workers/index.js -i 5 --name ai-admin-worker
-   ```
-
-## Troubleshooting
-
-### WhatsApp not connected
-```bash
-# Check venom-bot status
-curl http://localhost:3001/status
-```
-
-### YClients API errors
-```bash
-# Test YClients connection
-node scripts/cache-initial-data.js
-```
-
-### Redis connection issues
-```bash
-# Check Redis
-redis-cli ping
-```
-
-### High memory usage
-```bash
-# Workers auto-restart at 400MB
-# API auto-restarts at 500MB
-# Manual restart:
-pm2 restart ai-admin-worker
-```
-
-## Backup
-
-### Redis data
-```bash
-# Backup
-redis-cli --rdb /backup/dump.rdb
-
-# Restore
-sudo systemctl stop redis
-sudo cp /backup/dump.rdb /var/lib/redis/dump.rdb
-sudo systemctl start redis
-```
-
-### Application logs
-```bash
-# Logs are in ./logs/
-# Rotate with PM2:
-pm2 install pm2-logrotate
-```
-
-## Updates
-
-```bash
-# Pull latest code
-git pull origin main
-
-# Install new dependencies
-npm ci --only=production
-
-# Reload PM2
-pm2 reload ecosystem.config.js
-```

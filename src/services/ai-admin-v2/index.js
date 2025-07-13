@@ -1,5 +1,12 @@
 // src/services/ai-admin-v2/index.js
-const { supabase } = require('../../database/supabase');
+const { 
+  loadFullContext: optimizedLoadContext,
+  getServices,
+  getStaff,
+  getClient,
+  invalidateCache 
+} = require('../../database/optimized-supabase');
+const { supabase } = require('../../database/supabase'); // Для обратной совместимости
 const logger = require('../../utils/logger');
 const config = require('../../config');
 
@@ -62,53 +69,41 @@ class AIAdminV2 {
   }
 
   /**
-   * Загружаем ВЕСЬ необходимый контекст
+   * Загружаем ВЕСЬ необходимый контекст (с оптимизацией)
    */
   async loadFullContext(phone, companyId) {
-    // Проверяем кеш
-    const cacheKey = `${phone}_${companyId}`;
-    const cached = this.contextCache.get(cacheKey);
+    const startTime = Date.now();
     
-    if (cached && (Date.now() - cached.timestamp < 300000)) { // 5 минут
-      logger.debug('Using cached context');
-      return cached.data;
-    }
-
-    logger.info('Loading full context from database...');
-    
-    // Загружаем всё параллельно для скорости
-    const [company, client, services, staff, conversation, businessStats, staffSchedules] = await Promise.all([
-      this.loadCompany(companyId),
-      this.loadClient(phone, companyId),
-      this.loadServices(companyId),
-      this.loadStaff(companyId),
-      this.loadConversation(phone, companyId),
-      this.loadBusinessStats(companyId),
-      this.loadStaffSchedules(companyId)
-    ]);
-    
-    // Сортируем услуги с учетом предпочтений клиента
-    const sortedServices = this.sortServicesForClient(services, client);
-
-    const context = {
-      company,
-      client,
-      services: sortedServices,
-      staff,
-      staffSchedules,
-      conversation,
-      businessStats,
+    try {
+      // Используем оптимизированную загрузку с Redis кэшем
+      const baseContext = await optimizedLoadContext(phone, companyId);
+      
+      // Дополняем контекст специфичными данными
+      const [conversation, businessStats] = await Promise.all([
+        this.loadConversation(phone, companyId),
+        this.loadBusinessStats(companyId)
+      ]);
+      
+      // Сортируем услуги с учетом предпочтений клиента
+      const sortedServices = this.sortServicesForClient(baseContext.services, baseContext.client);
+      
+      const context = {
+        ...baseContext,
+        services: sortedServices,
+        conversation,
+        businessStats,
       currentTime: new Date().toISOString(),
-      timezone: company.timezone || 'Europe/Moscow'
+      timezone: baseContext.company?.timezone || 'Europe/Moscow'
     };
 
-    // Кешируем
-    this.contextCache.set(cacheKey, {
-      data: context,
-      timestamp: Date.now()
-    });
-
-    return context;
+      const loadTime = Date.now() - startTime;
+      logger.info(`Context loaded in ${loadTime}ms`);
+      
+      return context;
+    } catch (error) {
+      logger.error('Error loading context:', error);
+      throw error;
+    }
   }
 
   /**
