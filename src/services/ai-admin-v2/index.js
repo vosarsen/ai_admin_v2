@@ -1029,17 +1029,17 @@ ${this.formatConversation(conversation.slice(-10))}
     };
     
     sortedSlots.forEach(slot => {
-      const time = slot.time || (slot.datetime ? slot.datetime.split(' ')[1].substring(0, 5) : '');
+      const time = slot.time || (slot.datetime ? slot.datetime.split('T')[1]?.substring(0, 5) : '');
       if (!time) return;
       
       const hour = parseInt(time.split(':')[0]);
       
       if (hour < 12) {
-        periodSlots.morning.push({ time, hour });
+        periodSlots.morning.push({ time, hour, slot });
       } else if (hour < 17) {
-        periodSlots.day.push({ time, hour });
+        periodSlots.day.push({ time, hour, slot });
       } else {
-        periodSlots.evening.push({ time, hour });
+        periodSlots.evening.push({ time, hour, slot });
       }
     });
     
@@ -1094,9 +1094,21 @@ ${this.formatConversation(conversation.slice(-10))}
     
     // Дебаг для проверки работы алгоритма
     logger.info('Slot selection:', {
-      morning: { available: periodSlots.morning.length, selected: groups.morning },
-      day: { available: periodSlots.day.length, selected: groups.day },
-      evening: { available: periodSlots.evening.length, selected: groups.evening }
+      morning: { 
+        available: periodSlots.morning.length, 
+        times: periodSlots.morning.map(s => s.time),
+        selected: groups.morning 
+      },
+      day: { 
+        available: periodSlots.day.length, 
+        times: periodSlots.day.map(s => s.time),
+        selected: groups.day 
+      },
+      evening: { 
+        available: periodSlots.evening.length, 
+        times: periodSlots.evening.map(s => s.time),
+        selected: groups.evening 
+      }
     });
     
     return groups;
