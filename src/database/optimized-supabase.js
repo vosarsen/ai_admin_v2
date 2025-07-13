@@ -6,6 +6,7 @@ const logger = require("../utils/logger");
 
 // Redis для быстрого кэширования
 const redis = new Redis(config.redis.url, {
+  password: config.redis.password,
   maxRetriesPerRequest: 3,
   enableReadyCheck: true,
   enableOfflineQueue: true
