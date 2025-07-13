@@ -1045,12 +1045,26 @@ ${this.formatConversation(conversation.slice(-10))}
     
     // Выбираем слоты с промежутками для вариативности
     const selectSlotsWithGaps = (slots, maxCount) => {
-      if (slots.length <= maxCount) {
+      // Если слотов 2 или меньше, возвращаем все
+      if (slots.length <= 2) {
         return slots.map(s => s.time);
       }
       
+      // Если слотов 3-4 и нужно выбрать 3, берем первый, пропускаем один, берем последний
+      if (slots.length <= 4 && maxCount >= 3) {
+        const selected = [slots[0].time];
+        if (slots.length >= 3) {
+          selected.push(slots[Math.floor(slots.length / 2)].time);
+        }
+        if (slots.length >= 2) {
+          selected.push(slots[slots.length - 1].time);
+        }
+        return selected.slice(0, maxCount);
+      }
+      
+      // Для большего количества слотов используем алгоритм с шагом
       const selected = [];
-      const step = Math.max(2, Math.floor(slots.length / (maxCount - 1)));
+      const step = Math.max(2, Math.floor((slots.length - 1) / (maxCount - 1)));
       
       // Берем первый слот
       selected.push(slots[0].time);
@@ -1070,16 +1084,16 @@ ${this.formatConversation(conversation.slice(-10))}
         }
       }
       
-      return selected;
+      return selected.slice(0, maxCount);
     };
     
-    // Формируем финальные группы с вариативностью
-    groups.morning = selectSlotsWithGaps(periodSlots.morning, 3);
-    groups.day = selectSlotsWithGaps(periodSlots.day, 3);
-    groups.evening = selectSlotsWithGaps(periodSlots.evening, 3);
+    // Формируем финальные группы с вариативностью (максимум 2 слота в каждом периоде)
+    groups.morning = selectSlotsWithGaps(periodSlots.morning, 2);
+    groups.day = selectSlotsWithGaps(periodSlots.day, 2);
+    groups.evening = selectSlotsWithGaps(periodSlots.evening, 2);
     
     // Дебаг для проверки работы алгоритма
-    logger.debug('Slot selection:', {
+    logger.info('Slot selection:', {
       morning: { available: periodSlots.morning.length, selected: groups.morning },
       day: { available: periodSlots.day.length, selected: groups.day },
       evening: { available: periodSlots.evening.length, selected: groups.evening }
