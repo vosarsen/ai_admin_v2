@@ -306,12 +306,23 @@ ${this.formatConversation(conversation.slice(-10))}
     let finalResponse = cleanResponse;
     
     // Добавляем результаты выполнения команд
+    // Сначала объединяем все слоты если их несколько
+    const slotResults = results.filter(r => r.type === 'slots');
+    if (slotResults.length > 0) {
+      const allSlots = slotResults.reduce((acc, result) => {
+        return acc.concat(result.data || []);
+      }, []);
+      
+      if (allSlots.length > 0) {
+        finalResponse += '\n\n' + this.formatSlots(allSlots, context.company.type);
+      }
+    }
+    
+    // Добавляем остальные результаты
     for (const result of results) {
-      if (result.type === 'slots') {
-        finalResponse += '\n\n' + this.formatSlots(result.data, context.company.type);
-      } else if (result.type === 'booking_created') {
+      if (result.type === 'booking_created') {
         finalResponse += '\n\n✅ ' + this.formatBookingConfirmation(result.data, context.company.type);
-      } else if (result.type === 'prices') {
+      } else if (result.type === 'prices' && !slotResults.length) {
         finalResponse += '\n\n' + this.formatPrices(result.data, context.company.type);
       }
     }
@@ -359,6 +370,11 @@ ${this.formatConversation(conversation.slice(-10))}
         switch (cmd.command) {
           case 'SEARCH_SLOTS':
             const slots = await this.searchSlots(cmd.params, context);
+            logger.debug('Search slots result:', {
+              isArray: Array.isArray(slots),
+              length: slots?.length,
+              sample: slots?.[0]
+            });
             results.push({ type: 'slots', data: slots });
             // Сохраняем информацию о последнем поиске для создания записи
             context.lastSearch = {
@@ -946,6 +962,11 @@ ${this.formatConversation(conversation.slice(-10))}
       const staffName = slot.staff_name || 'Любой мастер';
       if (!byStaff[staffName]) byStaff[staffName] = [];
       byStaff[staffName].push(slot);
+    });
+    
+    logger.debug('Grouped by staff:', {
+      staffNames: Object.keys(byStaff),
+      counts: Object.entries(byStaff).map(([name, slots]) => ({ name, count: slots.length }))
     });
     
     Object.entries(byStaff).slice(0, 3).forEach(([staffName, staffSlots], index) => {
