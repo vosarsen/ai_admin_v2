@@ -95,6 +95,7 @@ class MessageWorkerV2 {
           
           // Отправляем ответ
           if (result.response) {
+            logger.info(`🤖 Bot response to ${from}: "${result.response}"`);
             const sendResult = await whatsappClient.sendMessage(from, result.response);
             if (!sendResult.success) {
               throw new Error(`Failed to send message: ${sendResult.error}`);
