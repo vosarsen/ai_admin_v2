@@ -1,6 +1,6 @@
 const config = require('../../config');
 const logger = require('../../utils/logger').child({ module: 'ai-admin-v2' });
-const { deepseekClient } = require('../../utils/ai-clients');
+const AIService = require('../ai');
 
 // Импортируем модули
 const dataLoader = require('./modules/data-loader');
@@ -317,16 +317,18 @@ ${formatter.formatConversation(context.conversation)}
   }
 
   /**
-   * Вызов AI через DeepSeek
+   * Вызов AI через AIService
    */
   async callAI(prompt) {
-    const response = await deepseekClient.createChatCompletion({
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 500
+    const aiService = new AIService();
+    const response = await aiService.generateResponse({
+      userMessage: prompt,
+      context: {
+        businessType: 'beauty' // будет переопределено в контексте
+      }
     });
     
-    return response.data.choices[0].message.content;
+    return response.message;
   }
 
   /**
