@@ -121,10 +121,9 @@ class MessageWorkerV2 {
           
           // Отправляем сообщение об ошибке
           try {
-            await whatsappClient.sendMessage(
-              from, 
-              'Извините, произошла ошибка. Попробуйте еще раз или позвоните нам.'
-            );
+            const errorMessage = 'Извините, произошла ошибка. Попробуйте еще раз или позвоните нам.';
+            logger.info(`🤖 Bot response to ${from} (error): "${errorMessage}"`);
+            await whatsappClient.sendMessage(from, errorMessage);
           } catch (sendError) {
             logger.error('Failed to send error message:', sendError);
           }
