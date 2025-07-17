@@ -320,8 +320,7 @@ ${formatter.formatConversation(context.conversation)}
    * Вызов AI через AIService
    */
   async callAI(prompt) {
-    const aiService = new AIService();
-    const response = await aiService.generateResponse({
+    const response = await AIService.generateResponse({
       userMessage: prompt,
       context: {
         businessType: 'beauty' // будет переопределено в контексте

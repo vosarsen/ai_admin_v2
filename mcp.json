@@ -1,0 +1,39 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "node",
+      "args": ["/Users/vosarsen/Documents/GitHub/ai_admin_v2/mcp-supabase/server.js"],
+      "env": {
+        "SUPABASE_URL": "${SUPABASE_URL}",
+        "SUPABASE_KEY": "${SUPABASE_KEY}"
+      }
+    },
+    "logs": {
+      "command": "node",
+      "args": ["/Users/vosarsen/Documents/GitHub/ai_admin_v2/mcp-logs/server.js"]
+    },
+    "whatsapp": {
+      "command": "node",
+      "args": ["/Users/vosarsen/Documents/GitHub/ai_admin_v2/mcp-whatsapp/server.js"],
+      "env": {
+        "AI_ADMIN_API_URL": "${AI_ADMIN_API_URL}",
+        "SECRET_KEY": "${SECRET_KEY}"
+      }
+    },
+    "redis": {
+      "command": "node",
+      "args": ["/Users/vosarsen/Documents/GitHub/ai_admin_v2/mcp-redis/server.js"],
+      "env": {
+        "REDIS_URL": "${REDIS_URL}"
+      }
+    },
+    "yclients": {
+      "command": "node",
+      "args": ["/Users/vosarsen/Documents/GitHub/ai_admin_v2/mcp-yclients/server.js"],
+      "env": {
+        "YCLIENTS_API_KEY": "${YCLIENTS_API_KEY}",
+        "YCLIENTS_USER_TOKEN": "${YCLIENTS_USER_TOKEN}"
+      }
+    }
+  }
+}

@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🔄 Project Awareness & Context
+
+**IMPORTANT**: Before starting any work, ALWAYS:
+1. Read `PLANNING.md` to understand the project architecture and design principles
+2. Check `TASK.md` to see current tasks, completed work, and known issues
+3. Review relevant examples in `examples/` folder for established patterns
+4. Check `INITIAL.md` if working on a new feature request
+
 ## Working Environment
 
 - **Local directory**: /Users/vosarsen/Documents/GitHub/ai_admin_v2
@@ -147,11 +155,71 @@ node scripts/yclients-api-test.js  # Test YClients integration
 ## Database Schema
 
 The system uses Supabase (PostgreSQL) with the following key tables:
-- `companies`: Multi-tenant company data
-- `bookings`: Booking records and history
-- `clients`: Client information and preferences
-- `messages`: Message history and analytics
-- `actions`: AI action tracking
+- `companies`: Multi-tenant company data (1 row)
+- `bookings`: Booking records and history (0 rows)
+- `clients`: Client information and preferences (1,361 rows)
+- `services`: Available services catalog (45 rows)
+- `staff`: Staff members/masters (3 rows)
+- `staff_schedules`: Working schedules (110 rows)
+- `messages`: Message history and analytics (0 rows)
+- `actions`: AI action tracking (0 rows)
+- `dialog_contexts`: Conversation contexts (21 rows)
+- `company_sync_status`: Sync status tracking (0 rows)
+
+### MCP Supabase Integration
+
+Claude Code now has direct access to Supabase through MCP (Model Context Protocol). Available commands:
+- `@supabase list_tables` - List all tables with row counts
+- `@supabase query_table <table_name>` - Query any table with filters, sorting, limits
+- `@supabase get_database_stats` - Get database statistics
+- `@supabase search_bookings` - Search bookings with complex filters
+
+This allows direct database inspection and debugging without writing scripts. Use with caution on production data.
+
+### YClients API Documentation
+
+The complete YClients API documentation is available in `YCLIENTS_API.md` file (35k lines, parsed from https://developers.yclients.com/ru).
+
+**Quick access tools:**
+1. **Structure file**: `docs/yclients-api-structure.md` - структура всего файла с номерами строк
+2. **Index file**: `docs/yclients-api-index.md` - основные endpoints и примеры поиска
+3. **Search script**: `scripts/search-yclients-api.js` - для быстрого поиска в документации
+
+**Примеры использования поиска:**
+```bash
+# Найти всё про создание записи
+node scripts/search-yclients-api.js "book_record"
+
+# Показать все POST endpoints
+node scripts/search-yclients-api.js --endpoints POST
+
+# Поиск по ключевому слову
+node scripts/search-yclients-api.js "Создать запись"
+```
+
+**Основные endpoints для AI Admin:**
+- Authorization: POST `/api/v1/auth`
+- Get services: GET `/api/v1/book_services/{company_id}`
+- Get time slots: GET `/api/v1/book_times/{company_id}`
+- Create booking: POST `/api/v1/book_record/{company_id}`
+- Check booking: POST `/api/v1/book_check/{company_id}`
+
+**Поиск в документации через Grep:**
+```bash
+# Найти параметры для создания записи
+grep -A 50 "Создать запись на сеанс" YCLIENTS_API.md
+
+# Найти все про определенный endpoint
+grep -B 5 -A 20 "book_times" YCLIENTS_API.md
+```
+
+No additional MCP integration needed for YClients documentation access.
+
+**ВАЖНО**: При работе с YClients API всегда использовать документацию:
+1. Проверить структуру в `docs/yclients-api-structure.md` для поиска нужного раздела
+2. Найти точный метод и параметры в `YCLIENTS_API.md` используя номера строк
+3. Обратить внимание на экранирование (`book\_record` вместо `book_record`)
+4. Проверить обязательные параметры и формат данных (ISO8601 для дат, формат телефона и т.д.)
 
 ## Environment Configuration
 
@@ -372,4 +440,130 @@ Loading full context from database...
 Business type detected: barbershop
 Executing command: SEARCH_SLOTS
 ✅ AI Admin v2 completed in 523ms
+🤖 Bot response to 79001234567: "Привет! Вот доступные слоты для записи..."
+```
+
+## MCP Integration & Testing
+
+### MCP Servers Setup (July 17, 2024)
+MCP (Model Context Protocol) servers are configured for direct access to services:
+
+1. **MCP WhatsApp** (`mcp-whatsapp/`) - Testing WhatsApp integration
+2. **MCP YClients** (`mcp-yclients/`) - Direct YClients API access  
+3. **MCP Supabase** (`mcp-supabase/`) - Direct database queries
+4. **MCP Redis** (`mcp-redis/`) - Redis cache access
+
+**📚 For detailed MCP configuration guide, see: [docs/mcp-configuration-guide.md](docs/mcp-configuration-guide.md)**
+
+#### MCP Redis Setup (IMPORTANT)
+MCP Redis requires SSH tunnel to remote server. The tunnel is **automatically maintained**:
+
+**Usage in Claude Code:**
+1. Use `/mcp` command to access MCP servers
+2. Redis commands available:
+   - `@redis get_context phone:79001234567` - get conversation context
+   - `@redis clear_context phone:79001234567` - clear context (reset dialog)
+   - `@redis set_booking_stage` - set booking stage for testing
+   - `@redis list_active_contexts` - list all active conversations
+   - `@redis simulate_returning_client` - make client appear as returning
+   - `@redis get_all_keys pattern:*` - get Redis keys by pattern
+
+**Automatic SSH Tunnel:**
+- Tunnel runs on `localhost:6380 → 46.149.70.219:6379`
+- Auto-starts on system boot (via launchd)
+- Auto-restarts on connection failure
+- Check status: `./scripts/maintain-redis-tunnel.sh status`
+- View logs: `tail -f ~/.redis-tunnel.log`
+
+**Manual Control (if needed):**
+```bash
+# Quick start tunnel
+./setup-redis-tunnel.sh quick
+
+# Install as system service (already done)
+./setup-redis-tunnel.sh install
+
+# Uninstall service
+./setup-redis-tunnel.sh uninstall
+```
+
+**IMPORTANT**: Always use MCP Redis (`@redis` commands) for context manipulation during testing!
+
+### Testing WhatsApp Bot
+
+#### Quick Test Commands
+```bash
+# Send single test message
+node test-direct-webhook.js
+
+# Run full booking scenario
+node test-booking-scenario.js
+
+# Check Venom-bot status
+node test-venom-check.js
+
+# Direct message through Venom
+./test-venom-direct.sh
+```
+
+#### Important Testing Notes
+1. **Test from different number** - Bot can't reply to itself (+79686484488)
+2. **Use client number** like 79001234567 for testing
+3. **Bot responses are now logged** with prefix `🤖 Bot response to`
+
+#### Recent Fixes (July 17, 2024)
+1. **Fixed imports**:
+   - `ai-admin-v2/index.js`: Fixed AIService import (singleton, not constructor)
+   - `data-loader.js`: Fixed Supabase import (destructured)
+
+2. **Added response logging**:
+   - In `message-worker-v2.js`: Logs full bot response text
+   - In `whatsapp/client.js`: Logs message preview
+   - Error responses also logged
+
+3. **Current Issues**:
+   - Worker v2 sends error message due to AIService issues
+   - But logging now works to see all bot responses
+
+#### Viewing Bot Responses
+```bash
+# See bot responses in logs
+ssh root@46.149.70.219 "tail -100 /root/.pm2/logs/ai-admin-worker-v2-out.log | grep '🤖 Bot response'"
+
+# See message previews
+ssh root@46.149.70.219 "tail -100 /root/.pm2/logs/ai-admin-worker-v2-out.log | grep 'messagePreview'"
+```
+
+### MCP Configuration Notes
+
+**Important**: MCP servers are configured in `~/.config/claude/mcp.json` (NOT in the project directory)
+
+**Known Issues**:
+1. Environment variable expansion (`${VAR}`) doesn't work - use hardcoded values
+2. WhatsApp MCP requires correct `AI_ADMIN_API_URL` pointing to remote server
+3. Redis MCP requires SSH tunnel on port 6380 (not default 6379)
+
+**To update MCP configuration**:
+```bash
+# Edit Claude's config file
+vi ~/.config/claude/mcp.json
+
+# Then restart Claude Code
+```
+
+### Quick Deployment Flow
+```bash
+# 1. Make changes locally
+# 2. Commit
+git add -A && git commit -m "fix: description"
+
+# 3. Copy files to server (since git push needs auth)
+scp src/path/to/file.js root@46.149.70.219:/opt/ai-admin/src/path/to/file.js
+
+# 4. Restart worker
+ssh root@46.149.70.219 "pm2 restart ai-admin-worker-v2"
+
+# 5. Test and check logs
+node test-direct-webhook.js
+ssh root@46.149.70.219 "pm2 logs ai-admin-worker-v2 --lines 50"
 ```

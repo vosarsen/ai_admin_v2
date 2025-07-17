@@ -137,3 +137,24 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Legacy files
+legacy/
+
+# MCP logs and local data
+mcp/*/node_modules/
+mcp/*/*.log
+mcp/mcp-logs/*.log
+
+# Test data
+tests/manual/
+tests/integration-manual/
+
+# Local scripts
+scripts/deployment/start-local.sh
+
+# macOS
+.DS_Store
+
+# Redis tunnel logs
+.redis-tunnel.log

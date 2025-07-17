@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "node",
+      "args": ["src/mcp-server/supabase-server.js"],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}

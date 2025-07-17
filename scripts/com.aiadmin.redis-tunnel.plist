@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.aiadmin.redis-tunnel</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/vosarsen/Documents/GitHub/ai_admin_v2/scripts/maintain-redis-tunnel.sh</string>
+        <string>monitor</string>
+    </array>
+    
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <key>KeepAlive</key>
+    <true/>
+    
+    <key>StandardOutPath</key>
+    <string>/Users/vosarsen/.redis-tunnel.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>/Users/vosarsen/.redis-tunnel.error.log</string>
+    
+    <key>StartInterval</key>
+    <integer>60</integer>
+    
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
