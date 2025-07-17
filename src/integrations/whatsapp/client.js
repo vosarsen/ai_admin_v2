@@ -129,7 +129,8 @@ class WhatsAppClient {
       logger.info(`📱 Attempting to send message to ${this._sanitizePhone(whatsappPhone)}`, {
         url: `${this.baseUrl}/send-message`,
         hasAuth: !!(this.apiKey && this.secretKey),
-        messageLength: message.length
+        messageLength: message.length,
+        messagePreview: message.substring(0, 100) + (message.length > 100 ? '...' : '')
       });
       
       logger.debug(`📱 Starting circuit breaker execution for ${this._sanitizePhone(whatsappPhone)}`);
