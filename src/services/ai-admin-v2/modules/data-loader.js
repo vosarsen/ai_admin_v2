@@ -1,4 +1,4 @@
-const supabase = require('../../../database/supabase');
+const { supabase } = require('../../../database/supabase');
 const logger = require('../../../utils/logger').child({ module: 'ai-admin-v2:data-loader' });
 
 class DataLoader {
