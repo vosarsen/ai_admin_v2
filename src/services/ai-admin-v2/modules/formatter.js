@@ -40,21 +40,31 @@ class Formatter {
     }
     
     const workingStaffIds = todaySchedule.map(s => s.staff_id);
+    
+    logger.info(`Staff IDs from schedule:`, workingStaffIds);
+    logger.info(`Staff list IDs:`, staffList.map(s => ({ id: s.yclients_id, name: s.name })));
+    
     const workingStaff = staffList.filter(staff => 
       workingStaffIds.includes(staff.yclients_id)
     );
     
     logger.info(`Working staff today:`, {
       workingStaffIds,
-      workingStaffCount: workingStaff.length
+      workingStaffCount: workingStaff.length,
+      workingStaff: workingStaff.map(s => ({ id: s.yclients_id, name: s.name }))
     });
+    
+    if (workingStaff.length === 0) {
+      logger.warn(`No working staff found in staffList for IDs: ${workingStaffIds.join(', ')}`);
+      return "Проверяю доступность мастеров...";
+    }
     
     return workingStaff.map(staff => {
       const schedule = todaySchedule.find(s => s.staff_id === staff.yclients_id);
       // Временно убираем время, так как в БД нет start_time и end_time
       // const timeRange = schedule ? `${schedule.start_time}-${schedule.end_time}` : '';
       return `- ${staff.name}`;
-    }).join('\n') || "Мастера работают сегодня";
+    }).join('\n');
   }
 
   /**
