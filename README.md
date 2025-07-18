@@ -427,9 +427,16 @@ Proprietary
 - **Redis** for high-performance caching
 - **Venom Bot** for WhatsApp integration
 
+## 📚 Documentation
+
+- **Setup Guide**: [CLAUDE.md](./CLAUDE.md) - Complete setup and configuration
+- **Planning**: [PLANNING.md](./PLANNING.md) - Architecture and design decisions
+- **Task Tracking**: [TASK.md](./TASK.md) - Current tasks and completed work
+- **Troubleshooting**: [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) - Common issues and solutions
+- **YClients API**: [YCLIENTS_API.md](./YCLIENTS_API.md) - Complete API documentation
+
 ## 📞 Support
 
-- **Documentation**: [Wiki](https://github.com/your-repo/ai_admin_v2/wiki)
 - **Issues**: [GitHub Issues](https://github.com/your-repo/ai_admin_v2/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/your-repo/ai_admin_v2/discussions)
 

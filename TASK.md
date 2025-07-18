@@ -33,6 +33,9 @@
 - [x] Fixed table name: schedules → staff_schedules
 - [x] Fixed missing clients handling with maybeSingle()
 - [x] Fixed undefined checks in sortServicesForClient
+- [x] Fixed `AIService.generateResponse is not a function` - using `_callAI` instead (July 18, 2024)
+- [x] Fixed Redis port 6380 issues - temporary override to 6379 (July 18, 2024)
+- [x] Fixed git merge conflicts on server deployment (July 18, 2024)
 
 ### Optimizations
 - [x] Created database indexes for performance
