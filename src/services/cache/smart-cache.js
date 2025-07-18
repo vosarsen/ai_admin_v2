@@ -26,7 +26,19 @@ class SmartCache {
 
   async initialize() {
     try {
+      // Временный фикс: переопределяем REDIS_URL для сервера
+      const originalRedisUrl = process.env.REDIS_URL;
+      if (originalRedisUrl && originalRedisUrl.includes('6380')) {
+        process.env.REDIS_URL = 'redis://localhost:6379';
+      }
+      
       this.redis = createRedisClient('smart-cache');
+      
+      // Восстанавливаем оригинальное значение
+      if (originalRedisUrl) {
+        process.env.REDIS_URL = originalRedisUrl;
+      }
+      
       logger.info('🧠 Smart Cache initialized');
     } catch (error) {
       logger.error('Failed to initialize Smart Cache:', error);
