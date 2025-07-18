@@ -1,6 +1,5 @@
 const config = require('../../config');
 const logger = require('../../utils/logger').child({ module: 'ai-admin-v2' });
-const AIService = require('../ai');
 
 // Импортируем модули
 const dataLoader = require('./modules/data-loader');
@@ -320,14 +319,11 @@ ${formatter.formatConversation(context.conversation)}
    * Вызов AI через AIService
    */
   async callAI(prompt) {
-    const response = await AIService.generateResponse({
-      userMessage: prompt,
-      context: {
-        businessType: 'beauty' // будет переопределено в контексте
-      }
-    });
+    if (!this.aiProvider) {
+      this.aiProvider = require('../ai');
+    }
     
-    return response.message;
+    return await this.aiProvider._callAI(prompt);
   }
 
   /**

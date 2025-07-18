@@ -3,7 +3,7 @@
 # Скрипт для поддержания SSH туннеля к Redis
 # Автоматически перезапускает туннель при разрыве соединения
 
-REMOTE_HOST="root@46.149.70.219"
+REMOTE_HOST="ai-admin-server"
 LOCAL_PORT=6380
 REMOTE_PORT=6379
 LOG_FILE="$HOME/.redis-tunnel.log"

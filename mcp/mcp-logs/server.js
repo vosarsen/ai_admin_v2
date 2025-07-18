@@ -14,20 +14,43 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 loadEnv({ path: path.join(__dirname, '..', '.env') });
 
-// SSH Configuration
-const SSH_CONFIG = {
-  host: process.env.SERVER_HOST || '46.149.70.219',
-  port: parseInt(process.env.SERVER_PORT || '22'),
-  username: process.env.SERVER_USER || 'root',
-  privateKey: process.env.SSH_PRIVATE_KEY ? 
-    await fs.readFile(process.env.SSH_PRIVATE_KEY) : undefined,
-  password: process.env.SERVER_PASSWORD
-};
+// SSH Configuration (deferred loading)
+let sshConfig = null;
 
-// Verify SSH configuration
-if (!SSH_CONFIG.privateKey && !SSH_CONFIG.password) {
-  console.error('Missing SSH authentication: provide either SSH_PRIVATE_KEY or SERVER_PASSWORD in environment');
-  process.exit(1);
+// Function to get SSH configuration
+async function getSSHConfig() {
+  if (sshConfig) {
+    return sshConfig;
+  }
+
+  const privateKeyPath = process.env.SSH_PRIVATE_KEY;
+  const password = process.env.SERVER_PASSWORD;
+
+  if (!privateKeyPath && !password) {
+    throw new Error('Missing SSH authentication: provide either SSH_PRIVATE_KEY or SERVER_PASSWORD in environment');
+  }
+
+  sshConfig = {
+    host: process.env.SERVER_HOST || '46.149.70.219',
+    port: parseInt(process.env.SERVER_PORT || '22'),
+    username: process.env.SERVER_USER || 'root',
+    password: password
+  };
+
+  // Load private key if provided
+  if (privateKeyPath) {
+    try {
+      sshConfig.privateKey = await fs.readFile(privateKeyPath);
+      delete sshConfig.password; // Use key instead of password
+    } catch (error) {
+      console.error('Failed to read SSH private key:', error);
+      if (!password) {
+        throw error;
+      }
+    }
+  }
+
+  return sshConfig;
 }
 
 // Create MCP server
@@ -39,6 +62,8 @@ const server = new McpServer({
 
 // Helper function to execute SSH commands
 async function executeSSHCommand(command) {
+  const config = await getSSHConfig();
+  
   return new Promise((resolve, reject) => {
     const conn = new Client();
     let output = '';
@@ -61,7 +86,7 @@ async function executeSSHCommand(command) {
       });
     }).on('error', (err) => {
       reject(err);
-    }).connect(SSH_CONFIG);
+    }).connect(config);
   });
 }
 

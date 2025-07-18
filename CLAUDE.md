@@ -166,15 +166,36 @@ The system uses Supabase (PostgreSQL) with the following key tables:
 - `dialog_contexts`: Conversation contexts (21 rows)
 - `company_sync_status`: Sync status tracking (0 rows)
 
-### MCP Supabase Integration
+### MCP (Model Context Protocol) Integration
 
-Claude Code now has direct access to Supabase through MCP (Model Context Protocol). Available commands:
-- `@supabase list_tables` - List all tables with row counts
-- `@supabase query_table <table_name>` - Query any table with filters, sorting, limits
-- `@supabase get_database_stats` - Get database statistics
-- `@supabase search_bookings` - Search bookings with complex filters
+**📚 MCP Setup Guide**: See [docs/mcp-servers-guide-v2.md](docs/mcp-servers-guide-v2.md) for the correct setup using CLI commands.
 
-This allows direct database inspection and debugging without writing scripts. Use with caution on production data.
+**⚠️ IMPORTANT**: MCP servers must be configured using `claude mcp add` commands, NOT by editing JSON files!
+
+#### Quick Setup:
+```bash
+# Run this to set up all MCP servers
+./docs/mcp-setup-commands.sh
+```
+
+#### Available MCP Servers:
+1. **@test-simple** - Basic test server (use to verify MCP is working)
+2. **@redis** - Redis cache management (requires SSH tunnel on port 6380)
+3. **@supabase** - Direct database access
+4. **@whatsapp** - WhatsApp testing
+5. **@yclients** - YClients API access
+6. **@logs** - Server logs via SSH
+
+#### Usage:
+- Check status: Type `/mcp` in Claude Code
+- List servers: `claude mcp list`
+- Add server: `claude mcp add <name> <command> [args...]`
+- Remove server: `claude mcp remove <name>`
+
+**Redis Tunnel Required**:
+```bash
+./scripts/maintain-redis-tunnel.sh start
+```
 
 ### YClients API Documentation
 

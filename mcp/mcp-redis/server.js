@@ -19,20 +19,40 @@ const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const REDIS_PASSWORD = process.env.REDIS_PASSWORD;
 const DEFAULT_COMPANY_ID = parseInt(process.env.DEFAULT_COMPANY_ID || '962302');
 
-console.error(`Connecting to Redis at ${REDIS_URL}`);
+// Redis client will be created on first use
+let redis = null;
 
-// Create Redis client with password if provided
-const redisConfig = { url: REDIS_URL };
-if (REDIS_PASSWORD && !REDIS_URL.includes('@')) {
-  // If password is provided separately and not in URL
-  const url = new URL(REDIS_URL);
-  url.password = REDIS_PASSWORD;
-  redisConfig.url = url.toString();
+// Function to get or create Redis connection
+async function getRedisClient() {
+  if (redis && redis.isOpen) {
+    return redis;
+  }
+
+  console.error(`Connecting to Redis at ${REDIS_URL}`);
+  
+  // Create Redis client with password if provided
+  const redisConfig = { url: REDIS_URL };
+  if (REDIS_PASSWORD && !REDIS_URL.includes('@')) {
+    // If password is provided separately and not in URL
+    const url = new URL(REDIS_URL);
+    url.password = REDIS_PASSWORD;
+    redisConfig.url = url.toString();
+  }
+
+  redis = createClient(redisConfig);
+  redis.on('error', err => console.error('Redis Client Error', err));
+  
+  try {
+    await redis.connect();
+    console.error('Redis connected successfully');
+  } catch (error) {
+    console.error('Failed to connect to Redis:', error);
+    redis = null;
+    throw error;
+  }
+  
+  return redis;
 }
-
-const redis = createClient(redisConfig);
-redis.on('error', err => console.error('Redis Client Error', err));
-await redis.connect();
 
 // Create MCP server
 const server = new McpServer({
@@ -55,6 +75,7 @@ server.registerTool("get_context",
     }
   },
   async ({ phone, company_id }) => {
+    const redis = await getRedisClient();
     const contextKey = `context:${phone}:${company_id}`;
     const conversationKey = `conversation:${phone}:${company_id}`;
     const preferencesKey = `preferences:${phone}:${company_id}`;
@@ -95,6 +116,7 @@ server.registerTool("clear_context",
     }
   },
   async ({ phone, company_id }) => {
+    const redis = await getRedisClient();
     const keys = [
       `context:${phone}:${company_id}`,
       `conversation:${phone}:${company_id}`,
@@ -131,6 +153,7 @@ server.registerTool("set_booking_stage",
     }
   },
   async ({ phone, stage, data = {}, company_id }) => {
+    const redis = await getRedisClient();
     const bookingKey = `booking:${phone}:${company_id}`;
     
     const bookingData = {
@@ -168,6 +191,7 @@ server.registerTool("list_active_contexts",
     }
   },
   async ({ company_id, limit }) => {
+    const redis = await getRedisClient();
     // Get all context keys for the company
     const pattern = `context:*:${company_id}`;
     const keys = await redis.keys(pattern);
@@ -222,6 +246,7 @@ server.registerTool("set_client_preferences",
     }
   },
   async ({ phone, preferences, company_id }) => {
+    const redis = await getRedisClient();
     const preferencesKey = `preferences:${phone}:${company_id}`;
     
     // Save preferences
@@ -272,6 +297,7 @@ server.registerTool("simulate_returning_client",
     }
   },
   async ({ phone, visits, last_services, company_id }) => {
+    const redis = await getRedisClient();
     const contextKey = `context:${phone}:${company_id}`;
     const preferencesKey = `preferences:${phone}:${company_id}`;
     
@@ -319,6 +345,7 @@ server.registerTool("get_all_keys",
     }
   },
   async ({ pattern, limit }) => {
+    const redis = await getRedisClient();
     const keys = await redis.keys(pattern);
     const limitedKeys = keys.slice(0, limit);
     
@@ -347,7 +374,9 @@ server.registerTool("get_all_keys",
 
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
-  await redis.quit();
+  if (redis && redis.isOpen) {
+    await redis.quit();
+  }
   process.exit(0);
 });
 
