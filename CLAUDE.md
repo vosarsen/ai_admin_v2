@@ -5,10 +5,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 🔄 Project Awareness & Context
 
 **IMPORTANT**: Before starting any work, ALWAYS:
-1. Read `PLANNING.md` to understand the project architecture and design principles
-2. Check `TASK.md` to see current tasks, completed work, and known issues
-3. Review relevant examples in `examples/` folder for established patterns
-4. Check `INITIAL.md` if working on a new feature request
+1. Run `./start-work.sh` to get current project status
+2. Read `CONTEXT.md` for where we left off last time
+3. Read `PLANNING.md` to understand the project architecture and design principles
+4. Check `TASK.md` to see current tasks, completed work, and known issues
+5. Review `RECOMMENDATIONS.md` for improvement ideas
+6. Check `docs/TROUBLESHOOTING.md` if encountering issues
+7. Review relevant examples in `examples/` folder for established patterns
+8. Check `INITIAL.md` if working on a new feature request
 
 ## Working Environment
 
