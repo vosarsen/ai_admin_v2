@@ -83,7 +83,17 @@ class ServiceMatcher {
     
     // 6. Штраф за слишком длинное название (вероятно комплексная услуга)
     if (serviceWords.length > 5) {
-      score -= 10;
+      score -= 20;
+    }
+    
+    // Дополнительный штраф за услуги с "+"
+    if (serviceTitle.includes('+')) {
+      score -= 30; // Комплексная услуга
+    }
+    
+    // Штраф за премиум-услуги
+    if (serviceTitle.includes('luxina') || serviceTitle.includes('премиум') || serviceTitle.includes('vip')) {
+      score -= 15;
     }
     
     // 7. Бонус за популярные услуги (если есть статистика)
