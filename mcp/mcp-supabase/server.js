@@ -13,21 +13,33 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 loadEnv({ path: path.join(__dirname, '..', '.env') });
 
-// Initialize Supabase client
+// Supabase configuration
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('Missing SUPABASE_URL or SUPABASE_KEY in environment');
-  process.exit(1);
-}
+// Supabase client will be created on first use
+let supabase = null;
 
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false
+// Function to get or create Supabase client
+function getSupabaseClient() {
+  if (supabase) {
+    return supabase;
   }
-});
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Missing SUPABASE_URL or SUPABASE_KEY in environment');
+  }
+
+  console.error('Creating Supabase client...');
+  supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false
+    }
+  });
+  
+  return supabase;
+}
 
 // Create MCP server
 const server = new McpServer({
@@ -53,6 +65,7 @@ server.registerTool("query_table",
     }
   },
   async ({ table, select, filters, limit, orderBy }) => {
+    const supabase = getSupabaseClient();
     let query = supabase.from(table).select(select);
     
     // Apply filters
