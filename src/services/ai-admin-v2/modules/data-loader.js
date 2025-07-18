@@ -141,11 +141,12 @@ class DataLoader {
     
     logger.info(`Loading staff schedules from ${today.toISOString().split('T')[0]} to ${weekLater.toISOString().split('T')[0]}`);
     
-    // Временный фикс: убираем фильтр по company_id, так как колонки нет в таблице
+    // TODO: После выполнения миграции раскомментировать строку с company_id
+    // Миграция: scripts/database/add-company-id-to-staff-schedules-fixed.sql
     const { data, error } = await supabase
       .from('staff_schedules')
       .select('*')
-      // .eq('company_id', companyId) // ВРЕМЕННО ЗАКОММЕНТИРОВАНО
+      // .eq('company_id', companyId) // TODO: Раскомментировать после миграции
       .gte('date', today.toISOString().split('T')[0])
       .lte('date', weekLater.toISOString().split('T')[0])
       .eq('is_working', true)
