@@ -193,10 +193,12 @@ ${formatter.formatConversation(context.conversation)}
 
 ТВОИ КОМАНДЫ (ИСПОЛЬЗУЙ ТОЧНО ТАКОЙ ФОРМАТ):
 1. [SEARCH_SLOTS service_name: название_услуги, date: дата, time_preference: время] - поиск свободного времени
+   ВАЖНО: В service_name пиши то, что сказал клиент, а НЕ точное название услуги из списка!
    Примеры:
-   - [SEARCH_SLOTS service_name: стрижка, date: завтра]
-   - [SEARCH_SLOTS service_name: окрашивание, date: 2024-07-15, time_preference: вечер]
-   - [SEARCH_SLOTS service_name: маникюр, staff_name: Ольга, date: сегодня]
+   - Клиент: "хочу постричься" → [SEARCH_SLOTS service_name: стрижка, date: сегодня]  
+   - Клиент: "нужен маникюр" → [SEARCH_SLOTS service_name: маникюр, date: сегодня]
+   - Клиент: "покрасить волосы" → [SEARCH_SLOTS service_name: окрашивание, date: сегодня]
+   - НЕ ПИШИ: [SEARCH_SLOTS service_name: МУЖСКАЯ СТРИЖКА] - система сама найдет правильную услугу
    
 2. [CREATE_BOOKING service_id: id_услуги, staff_id: id_мастера, date: дата, time: время] - создание записи
    Пример: [CREATE_BOOKING service_id: 123, staff_id: 456, date: 2024-07-15, time: 14:00]

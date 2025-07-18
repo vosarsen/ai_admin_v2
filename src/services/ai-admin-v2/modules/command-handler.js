@@ -1,6 +1,7 @@
 const logger = require('../../../utils/logger').child({ module: 'ai-admin-v2:command-handler' });
 const bookingService = require('../../booking');
 const formatter = require('./formatter');
+const serviceMatcher = require('./service-matcher');
 
 class CommandHandler {
   /**
@@ -97,10 +98,23 @@ class CommandHandler {
    * Поиск свободных слотов
    */
   async searchSlots(params, context) {
-    // Находим service по имени
-    const service = context.services.find(s => 
-      s.title.toLowerCase().includes(params.service_name?.toLowerCase() || '')
-    ) || context.services[0]; // Fallback на популярную услугу
+    // Используем интеллектуальный поиск услуги
+    const service = serviceMatcher.findBestMatch(
+      params.service_name || '', 
+      context.services
+    );
+    
+    if (!service) {
+      logger.warn('Service not found for query:', params.service_name);
+      // Возвращаем пустой массив слотов вместо использования первой услуги
+      return [];
+    }
+    
+    logger.info('Found service for query:', {
+      query: params.service_name,
+      found: service.title,
+      serviceId: service.yclients_id
+    });
     
     // Находим staff если указан
     let targetStaff = null;
