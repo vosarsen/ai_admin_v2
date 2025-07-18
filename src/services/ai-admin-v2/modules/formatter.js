@@ -29,7 +29,9 @@ class Formatter {
     logger.info(`Formatting today's staff for ${today}:`, {
       scheduleCount: todaySchedule.length,
       scheduleByDateKeys: Object.keys(scheduleByDate),
-      staffCount: staffList?.length || 0
+      staffCount: staffList?.length || 0,
+      todaySchedule: todaySchedule,
+      scheduleByDate: scheduleByDate
     });
     
     if (todaySchedule.length === 0) {
@@ -49,9 +51,10 @@ class Formatter {
     
     return workingStaff.map(staff => {
       const schedule = todaySchedule.find(s => s.staff_id === staff.yclients_id);
-      const timeRange = schedule ? `${schedule.start_time}-${schedule.end_time}` : '';
-      return `- ${staff.name} (${timeRange})`;
-    }).join('\n');
+      // Временно убираем время, так как в БД нет start_time и end_time
+      // const timeRange = schedule ? `${schedule.start_time}-${schedule.end_time}` : '';
+      return `- ${staff.name}`;
+    }).join('\n') || "Мастера работают сегодня";
   }
 
   /**

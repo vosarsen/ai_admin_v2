@@ -169,7 +169,11 @@ class DataLoader {
     
     // Логируем расписание на сегодня для отладки
     const todayStr = today.toISOString().split('T')[0];
-    logger.info(`Today's schedule (${todayStr}):`, scheduleByDate[todayStr]?.length || 0, 'records');
+    logger.info(`Today's schedule (${todayStr}):`, {
+      recordsCount: scheduleByDate[todayStr]?.length || 0,
+      todayData: scheduleByDate[todayStr],
+      allDates: Object.keys(scheduleByDate)
+    });
     
     return scheduleByDate;
   }
