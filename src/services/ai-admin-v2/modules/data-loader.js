@@ -139,14 +139,24 @@ class DataLoader {
     const weekLater = new Date();
     weekLater.setDate(today.getDate() + 7);
     
-    const { data } = await supabase
+    logger.info(`Loading staff schedules from ${today.toISOString().split('T')[0]} to ${weekLater.toISOString().split('T')[0]}`);
+    
+    // Временный фикс: убираем фильтр по company_id, так как колонки нет в таблице
+    const { data, error } = await supabase
       .from('staff_schedules')
       .select('*')
-      .eq('company_id', companyId)
+      // .eq('company_id', companyId) // ВРЕМЕННО ЗАКОММЕНТИРОВАНО
       .gte('date', today.toISOString().split('T')[0])
       .lte('date', weekLater.toISOString().split('T')[0])
       .eq('is_working', true)
       .order('date', { ascending: true });
+    
+    if (error) {
+      logger.error('Error loading staff schedules:', error);
+      return {};
+    }
+    
+    logger.info(`Loaded ${data?.length || 0} schedule records`);
     
     // Группируем по дням для удобства
     const scheduleByDate = {};
@@ -156,6 +166,10 @@ class DataLoader {
       }
       scheduleByDate[schedule.date].push(schedule);
     });
+    
+    // Логируем расписание на сегодня для отладки
+    const todayStr = today.toISOString().split('T')[0];
+    logger.info(`Today's schedule (${todayStr}):`, scheduleByDate[todayStr]?.length || 0, 'records');
     
     return scheduleByDate;
   }

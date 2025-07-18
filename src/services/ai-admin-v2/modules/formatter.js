@@ -26,7 +26,14 @@ class Formatter {
     const today = new Date().toISOString().split('T')[0];
     const todaySchedule = scheduleByDate[today] || [];
     
+    logger.info(`Formatting today's staff for ${today}:`, {
+      scheduleCount: todaySchedule.length,
+      scheduleByDateKeys: Object.keys(scheduleByDate),
+      staffCount: staffList?.length || 0
+    });
+    
     if (todaySchedule.length === 0) {
+      logger.warn(`No staff working today (${today})`);
       return "Сегодня никто не работает";
     }
     
@@ -34,6 +41,11 @@ class Formatter {
     const workingStaff = staffList.filter(staff => 
       workingStaffIds.includes(staff.yclients_id)
     );
+    
+    logger.info(`Working staff today:`, {
+      workingStaffIds,
+      workingStaffCount: workingStaff.length
+    });
     
     return workingStaff.map(staff => {
       const schedule = todaySchedule.find(s => s.staff_id === staff.yclients_id);
