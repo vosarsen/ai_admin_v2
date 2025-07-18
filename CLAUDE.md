@@ -49,10 +49,17 @@ AI Admin v2 is a production-ready WhatsApp AI Assistant for beauty salons. It us
 4. ✅ Fixed table name: schedules → staff_schedules
 5. ✅ Fixed missing clients handling with maybeSingle()
 6. ✅ Fixed undefined checks in sortServicesForClient
+7. ✅ Fixed `AIService.generateResponse` error - now using `_callAI` method
+8. ✅ Fixed Redis port conflict (6380 vs 6379) with temporary override
 
 ### Pending Database Issues
 - `staff_schedules` table missing `company_id` column (temporarily bypassed)
 - Need to run migration script: `scripts/database/add-company-id-to-staff-schedules-fixed.sql`
+
+### Important Configuration Notes
+- **Redis Port**: Local development uses port 6380 (for SSH tunnel), but server uses 6379
+- **Temporary Fix**: `smart-cache.js` and `redis-factory.js` have temporary overrides for port 6380→6379
+- **TODO**: Create separate environment configs for local vs production Redis URLs
 
 ## Architecture (v2)
 
