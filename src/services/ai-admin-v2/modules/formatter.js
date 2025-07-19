@@ -95,7 +95,7 @@ class Formatter {
    * Форматирование часов работы
    */
   formatWorkingHours(hours) {
-    return `${hours.start || '09:00'}-${hours.end || '21:00'}`;
+    return `${hours.start || '10:00'}-${hours.end || '22:00'}`;
   }
 
   /**
