@@ -141,12 +141,25 @@ class DataLoader {
     
     logger.info(`Loading staff schedules from ${today.toISOString().split('T')[0]} to ${weekLater.toISOString().split('T')[0]}`);
     
-    // TODO: После выполнения миграции раскомментировать строку с company_id
-    // Миграция: scripts/database/add-company-id-to-staff-schedules-fixed.sql
+    // Получаем список staff_id для данной компании
+    const { data: companyStaff } = await supabase
+      .from('staff')
+      .select('yclients_id')
+      .eq('company_id', companyId)
+      .eq('is_active', true);
+    
+    const staffIds = companyStaff?.map(s => s.yclients_id) || [];
+    
+    if (staffIds.length === 0) {
+      logger.warn('No active staff found for company', companyId);
+      return {};
+    }
+    
+    // Фильтруем расписание по staff_id вместо company_id
     const { data, error } = await supabase
       .from('staff_schedules')
       .select('*')
-      // .eq('company_id', companyId) // TODO: Раскомментировать после миграции
+      .in('staff_id', staffIds)
       .gte('date', today.toISOString().split('T')[0])
       .lte('date', weekLater.toISOString().split('T')[0])
       .eq('is_working', true)
