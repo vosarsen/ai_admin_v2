@@ -1,18 +1,116 @@
 const { supabase } = require('../../../database/supabase');
 const logger = require('../../../utils/logger').child({ module: 'ai-admin-v2:data-loader' });
+const companyInfoSync = require('../../../sync/company-info-sync');
 
 class DataLoader {
   /**
    * Загрузка информации о компании
    */
   async loadCompany(companyId) {
-    const { data } = await supabase
-      .from('companies')
-      .select('*')
-      .eq('company_id', companyId)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('*')
+        .eq('company_id', companyId)
+        .single();
+      
+      if (error && error.code === 'PGRST116') {
+        // Данных нет в БД - синхронизируем из YClients
+        logger.info(`Company ${companyId} not found in DB, syncing from YClients...`);
+        const syncedData = await companyInfoSync.syncCompanyInfo(companyId);
+        return syncedData;
+      }
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Проверяем актуальность данных (обновляем если старше 24 часов)
+      if (data && data.updated_at) {
+        const lastUpdate = new Date(data.updated_at);
+        const hoursSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60);
+        
+        if (hoursSinceUpdate > 24) {
+          logger.info(`Company ${companyId} data is ${hoursSinceUpdate.toFixed(1)} hours old, refreshing...`);
+          try {
+            const syncedData = await companyInfoSync.syncCompanyInfo(companyId);
+            return syncedData;
+          } catch (syncError) {
+            logger.error('Failed to refresh company data, using cached:', syncError);
+            // Используем кэшированные данные если обновление не удалось
+          }
+        }
+      }
+      
+      // Добавляем business_type из raw_data если его нет
+      if (data && !data.business_type && data.raw_data?.short_descr) {
+        data.business_type = this.detectBusinessType(data.raw_data.short_descr);
+      }
+      
+      return data;
+    } catch (error) {
+      logger.error(`Error loading company ${companyId}:`, error);
+      
+      // Возвращаем минимальные данные чтобы бот продолжил работать
+      return {
+        company_id: companyId,
+        title: 'Салон красоты',
+        address: 'Адрес не указан',
+        phone: '',
+        timezone: 'Europe/Moscow',
+        working_hours: {
+          monday: { start: '10:00', end: '22:00' },
+          tuesday: { start: '10:00', end: '22:00' },
+          wednesday: { start: '10:00', end: '22:00' },
+          thursday: { start: '10:00', end: '22:00' },
+          friday: { start: '10:00', end: '22:00' },
+          saturday: { start: '10:00', end: '22:00' },
+          sunday: { start: '10:00', end: '20:00' }
+        }
+      };
+    }
+  }
+
+  /**
+   * Определить тип бизнеса по описанию из YClients
+   */
+  detectBusinessType(shortDescr) {
+    if (!shortDescr) return 'beauty';
     
-    return data;
+    const description = shortDescr.toLowerCase();
+    
+    // Маппинг описаний YClients на типы бизнеса AI Admin
+    const businessTypeMap = {
+      'барбершоп': 'barbershop',
+      'barbershop': 'barbershop',
+      'мужская парикмахерская': 'barbershop',
+      'для мужчин': 'barbershop',
+      'маникюр': 'nails',
+      'ногти': 'nails',
+      'ногтевая': 'nails',
+      'nail': 'nails',
+      'массаж': 'massage',
+      'спа': 'massage',
+      'spa': 'massage',
+      'эпиляция': 'epilation',
+      'депиляция': 'epilation',
+      'шугаринг': 'epilation',
+      'воск': 'epilation',
+      'брови': 'brows',
+      'ресницы': 'brows',
+      'brow': 'brows',
+      'lash': 'brows'
+    };
+
+    // Ищем совпадения
+    for (const [keyword, type] of Object.entries(businessTypeMap)) {
+      if (description.includes(keyword)) {
+        return type;
+      }
+    }
+
+    // По умолчанию - универсальный салон красоты
+    return 'beauty';
   }
 
   /**

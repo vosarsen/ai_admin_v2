@@ -95,7 +95,29 @@ class Formatter {
    * Форматирование часов работы
    */
   formatWorkingHours(hours) {
-    return `${hours.start || '10:00'}-${hours.end || '22:00'}`;
+    // Если передана строка (например "10:00-22:00")
+    if (typeof hours === 'string') {
+      return hours;
+    }
+    
+    // Если передан объект с расписанием по дням
+    if (hours && typeof hours === 'object' && !hours.start) {
+      // Берем сегодняшний день недели
+      const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const today = days[new Date().getDay()];
+      
+      if (hours[today]) {
+        return `${hours[today].start || '10:00'}-${hours[today].end || '22:00'}`;
+      }
+      
+      // Если нет данных на сегодня, берем понедельник как образец
+      if (hours.monday) {
+        return `${hours.monday.start || '10:00'}-${hours.monday.end || '22:00'}`;
+      }
+    }
+    
+    // Старый формат с единым расписанием
+    return `${hours?.start || '10:00'}-${hours?.end || '22:00'}`;
   }
 
   /**
