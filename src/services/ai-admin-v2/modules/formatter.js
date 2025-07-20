@@ -475,7 +475,15 @@ class Formatter {
         text += `${category}:\n`;
       }
       categoryServices.forEach(service => {
-        text += `• ${service.title} - ${service.price} руб (${service.duration} мин)\n`;
+        // Определяем цену
+        const price = service.price_min || service.price || 0;
+        const priceStr = price > 0 ? `${price} руб` : 'цена по запросу';
+        
+        // Определяем длительность
+        const duration = service.seance_length || service.duration;
+        const durationStr = duration ? ` (${Math.round(duration / 60)} мин)` : '';
+        
+        text += `• ${service.title} - ${priceStr}${durationStr}\n`;
       });
       text += '\n';
     });
