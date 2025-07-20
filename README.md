@@ -13,6 +13,7 @@ AI Admin v2 is a next-generation WhatsApp booking assistant designed for beauty 
 ### ✨ Key Features
 
 - 🤖 **AI-First Processing**: Dynamic service/staff resolution without hardcoding
+- ⚡ **Automatic Booking**: Creates bookings instantly when time & service specified
 - 🚀 **Smart Caching**: Intelligent caching with semantic search (avg <10ms response)
 - 🔥 **Rapid-Fire Protection**: Message aggregation prevents spam (5-15s windows)
 - 💡 **Proactive Suggestions**: Never says "unavailable" without alternatives
