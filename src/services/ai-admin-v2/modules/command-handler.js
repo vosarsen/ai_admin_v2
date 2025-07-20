@@ -274,6 +274,23 @@ class CommandHandler {
       }
     }
     
+    // Проверяем доступность выбранного времени из последнего поиска
+    if (context.lastSearch?.slots && params.time) {
+      const requestedTime = params.time;
+      const isTimeAvailable = context.lastSearch.slots.some(slot => 
+        slot.time === requestedTime || 
+        (slot.datetime && slot.datetime.includes(`T${requestedTime}:`))
+      );
+      
+      if (!isTimeAvailable) {
+        logger.warn('Requested time is not available:', { 
+          requestedTime, 
+          availableSlots: context.lastSearch.slots.map(s => s.time) 
+        });
+        throw new Error(`Время ${requestedTime} недоступно. Выберите другое время из предложенных.`);
+      }
+    }
+    
     // Парсим относительную дату (завтра, послезавтра и т.д.)
     const parsedDate = formatter.parseRelativeDate(params.date);
     logger.info('Parsing date for booking:', { 
