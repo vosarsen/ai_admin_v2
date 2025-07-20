@@ -310,6 +310,11 @@ class CommandHandler {
       context.company.yclients_id || context.company.company_id
     );
     
+    // Логируем полный результат для отладки
+    logger.info('Booking created successfully:', {
+      fullResponse: result
+    });
+    
     if (!result.success) {
       throw new Error(result.error || 'Не удалось создать запись');
     }
@@ -317,18 +322,14 @@ class CommandHandler {
     // YClients возвращает массив записей, берем первую
     const bookingRecord = Array.isArray(result.data) ? result.data[0] : result.data;
     
-    // Логируем результат для отладки
-    logger.info('Booking created successfully:', {
-      recordId: bookingRecord?.record_id,
-      recordHash: bookingRecord?.record_hash,
-      fullResponse: bookingRecord
-    });
-    
     // Возвращаем объект с нужными полями для отображения
     return {
       id: bookingRecord?.record_id,
       record_id: bookingRecord?.record_id,
-      record_hash: bookingRecord?.record_hash
+      record_hash: bookingRecord?.record_hash,
+      service_name: context.lastSearch?.service_name,
+      staff_name: context.lastSearch?.staff_name,
+      datetime: `${parsedDate} ${params.time}:00`
     };
   }
 
