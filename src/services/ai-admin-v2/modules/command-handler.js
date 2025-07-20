@@ -145,6 +145,8 @@ class CommandHandler {
     
     for (const staff of staffToCheck) {
       try {
+        // ВАЖНО: Проверяем слоты передавая и serviceId и staffId
+        // YClients API вернет слоты только если мастер оказывает услугу
         const result = await bookingService.findSuitableSlot({
           companyId: context.company.yclients_id || context.company.company_id,
           serviceId: service?.yclients_id,
@@ -292,6 +294,16 @@ class CommandHandler {
         datetime: `${parsedDate} ${params.time}:00`
       }]
     };
+    
+    // Детальное логирование для отладки
+    logger.info('CREATE_BOOKING request data:', {
+      serviceId: serviceId,
+      staffId: staffId,
+      datetime: `${parsedDate} ${params.time}:00`,
+      phone: bookingData.phone,
+      lastSearch: context.lastSearch,
+      fullBookingData: JSON.stringify(bookingData)
+    });
     
     const result = await bookingService.createBooking(
       bookingData, 
