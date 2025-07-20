@@ -306,6 +306,12 @@ ${formatter.formatConversation(context.conversation)}
     // Добавляем остальные результаты
     for (const result of results) {
       if (result.type === 'booking_created') {
+        logger.info('Formatting booking confirmation:', {
+          resultData: result.data,
+          resultDataType: typeof result.data,
+          hasRecordId: !!result.data?.record_id,
+          hasId: !!result.data?.id
+        });
         finalResponse += '\n\n✅ ' + formatter.formatBookingConfirmation(result.data, context.company.type);
       } else if (result.type === 'prices' && !slotResults.length) {
         finalResponse += '\n\n' + formatter.formatPrices(result.data, context.company.type);
