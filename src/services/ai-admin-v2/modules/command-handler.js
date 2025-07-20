@@ -134,13 +134,22 @@ class CommandHandler {
     
     // Проверяем слоты для нескольких мастеров
     const allSlots = [];
+    
+    // Логируем дату для отладки
+    const parsedDate = formatter.parseRelativeDate(params.date);
+    logger.info('SEARCH_SLOTS date parsing:', {
+      originalDate: params.date,
+      parsedDate: parsedDate,
+      params: params
+    });
+    
     for (const staff of staffToCheck) {
       try {
         const result = await bookingService.findSuitableSlot({
           companyId: context.company.yclients_id || context.company.company_id,
           serviceId: service?.yclients_id,
           staffId: staff?.yclients_id,
-          preferredDate: formatter.parseRelativeDate(params.date),
+          preferredDate: parsedDate,
           timePreference: params.time_preference
         });
         
