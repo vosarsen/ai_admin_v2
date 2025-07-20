@@ -4,7 +4,7 @@ const crypto = require('crypto');
 async function testBookingTomorrow() {
     const webhook = {
         from: '79001234567',
-        message: 'Запиши меня на 10:00',
+        message: 'Хочу записаться на стрижку завтра',
         timestamp: Date.now()
     };
 

@@ -3,10 +3,11 @@
 ## 🎯 Current Sprint
 
 ### 🔴 High Priority
+- [ ] Fix ServiceMatcher scoring algorithm - штрафы не применяются правильно
+- [ ] Решить проблему несовместимости услуга-мастер при CREATE_BOOKING
+- [ ] Добавить логирование в ServiceMatcher для отладки scoring
 - [ ] Continue testing Phase 1.2 from checklist (prices, working hours)
-- [ ] Test booking flow (Phase 2)
-- [ ] Implement local database caching to reduce Supabase latency
-- [ ] Add comprehensive error handling for all YClients API calls
+- [ ] Test booking flow (Phase 2) - после исправления проблем
 
 ### 🟡 Medium Priority
 - [ ] Fix Redis configuration (remove temporary hacks)
@@ -51,6 +52,8 @@
 - [x] Implemented automatic company data parsing from YClients API (July 19, 2024)
 - [x] Added business type auto-detection based on company description
 - [x] Made system scalable - new companies auto-configure from YClients
+- [x] Implemented relative date parsing ("завтра" → "2025-07-21") (July 20, 2024)
+- [x] Added improved service matching algorithm with penalties for complex services (July 20, 2024)
 
 ## 🚀 Upcoming Features
 
@@ -95,21 +98,31 @@
 
 ## 🐛 Known Issues
 
-1. **Performance**
+1. **ServiceMatcher**
+   - Алгоритм scoring не применяет штрафы правильно
+   - Все услуги со словом "стрижка" получают одинаковый score (130)
+   - Выбирается первая услуга из списка вместо наиболее подходящей
+
+2. **Booking Flow**
+   - Ошибка "Сотрудник не оказывает выбранную услугу"
+   - lastSearch сохраняет несовместимую пару service_id + staff_id
+   - Нет проверки совместимости услуга-мастер перед созданием записи
+
+3. **Performance**
    - High latency to Supabase from Russia (150-200ms)
    - Context loading can be slow for busy salons
    - No connection pooling
 
-2. **Configuration**
+4. **Configuration**
    - Redis port hardcoded with temporary hacks (6380 → 6379)
    - Need separate configs for local vs production
 
-3. **Reliability**
+5. **Reliability**
    - WhatsApp session can expire
    - No automatic reconnection
    - Queue can get stuck on errors
 
-4. **UX**
+6. **UX**
    - Error messages not user-friendly
    - No typing indicators
    - Limited formatting options
@@ -126,6 +139,7 @@
 
 ## 🔄 Update History
 
+- **2024-07-20**: Added relative date parsing, improved ServiceMatcher (issues remain)
 - **2024-07-19**: Implemented auto-parsing from YClients, fixed working hours
 - **2024-07-16**: Added Context Engineering structure
 - **2024-07-13**: Completed v1 → v2 migration

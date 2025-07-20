@@ -22,13 +22,11 @@ class ServiceMatcher {
     // Сортируем по убыванию score
     scoredServices.sort((a, b) => b.score - a.score);
     
-    // Логируем топ-5 для отладки
-    logger.debug('Top 5 service matches:', 
-      scoredServices.slice(0, 5).map(s => ({
-        title: s.service.title,
-        score: s.score
-      }))
-    );
+    // Логируем топ-3 для отладки с полными деталями
+    logger.info('Top 3 service matches for query:', query);
+    scoredServices.slice(0, 3).forEach((item, index) => {
+      logger.info(`  ${index + 1}. "${item.service.title}" - Score: ${item.score}`);
+    });
     
     // Возвращаем лучшее совпадение если score > 0
     return scoredServices[0]?.score > 0 ? scoredServices[0].service : null;
@@ -52,19 +50,32 @@ class ServiceMatcher {
     const serviceTitle = this.normalizeText(service.title);
     let score = 0;
     
+    // Подробное логирование для отладки
+    const scoreDetails = {
+      service: service.title,
+      normalizedTitle: serviceTitle,
+      query: query,
+      components: []
+    };
+    
     // 1. Точное совпадение = 100 баллов
     if (serviceTitle === query) {
+      scoreDetails.components.push({ rule: 'exact_match', points: 100 });
+      scoreDetails.totalScore = 100;
+      logger.info('Service match details:', scoreDetails);
       return 100;
     }
     
     // 2. Услуга содержит запрос = 80 баллов
     if (serviceTitle.includes(query)) {
       score += 80;
+      scoreDetails.components.push({ rule: 'title_contains_query', points: 80 });
     }
     
     // 3. Запрос содержит услугу = 70 баллов
     if (query.includes(serviceTitle)) {
       score += 70;
+      scoreDetails.components.push({ rule: 'query_contains_title', points: 70 });
     }
     
     // 4. Проверка по словам
@@ -72,39 +83,61 @@ class ServiceMatcher {
     const serviceWords = serviceTitle.split(' ');
     
     // Каждое слово из запроса найдено в услуге = +20 баллов
+    let wordMatchCount = 0;
     queryWords.forEach(qWord => {
       if (serviceWords.some(sWord => sWord.includes(qWord) || qWord.includes(sWord))) {
         score += 20;
+        wordMatchCount++;
       }
     });
+    if (wordMatchCount > 0) {
+      scoreDetails.components.push({ rule: 'word_matches', points: 20 * wordMatchCount, count: wordMatchCount });
+    }
     
     // 5. Проверка синонимов и связанных слов
-    score += this.checkSynonyms(query, serviceTitle);
+    const synonymScore = this.checkSynonyms(query, serviceTitle);
+    if (synonymScore > 0) {
+      score += synonymScore;
+      scoreDetails.components.push({ rule: 'synonyms', points: synonymScore });
+    }
     
     // 6. Штраф за слишком длинное название (вероятно комплексная услуга)
     if (serviceWords.length > 5) {
       score -= 20;
+      scoreDetails.components.push({ rule: 'long_title_penalty', points: -20, words: serviceWords.length });
     }
     
     // Дополнительный штраф за услуги с "+"
-    const plusCount = (serviceTitle.match(/\+/g) || []).length;
+    const plusCount = (service.title.match(/\+/g) || []).length; // Используем оригинальный title для подсчета +
     if (plusCount > 0) {
-      score -= 30 * plusCount; // Комплексная услуга, штраф за каждый "+"
+      const penalty = -30 * plusCount;
+      score += penalty; // Изменено с -= на +=, чтобы корректно добавить отрицательное значение
+      scoreDetails.components.push({ rule: 'complex_service_penalty', points: penalty, plusCount });
     }
     
     // Бонус за простые базовые услуги
-    if (serviceWords.length <= 2 && !serviceTitle.includes('+')) {
-      score += 25; // Предпочитаем простые услуги
+    if (serviceWords.length <= 2 && !service.title.includes('+')) {
+      score += 25;
+      scoreDetails.components.push({ rule: 'simple_service_bonus', points: 25 });
     }
     
     // Штраф за премиум-услуги
     if (serviceTitle.includes('luxina') || serviceTitle.includes('премиум') || serviceTitle.includes('vip')) {
       score -= 15;
+      scoreDetails.components.push({ rule: 'premium_penalty', points: -15 });
     }
     
     // 7. Бонус за популярные услуги (если есть статистика)
     if (service.booking_count > 100) {
       score += 5;
+      scoreDetails.components.push({ rule: 'popular_bonus', points: 5, bookings: service.booking_count });
+    }
+    
+    scoreDetails.totalScore = score;
+    
+    // Логируем только для услуг с высоким score или содержащих ключевые слова
+    if (score > 50 || serviceTitle.includes(query)) {
+      logger.info('Service match details:', scoreDetails);
     }
     
     return score;
