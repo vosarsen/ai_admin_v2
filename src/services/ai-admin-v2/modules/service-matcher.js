@@ -87,8 +87,14 @@ class ServiceMatcher {
     }
     
     // Дополнительный штраф за услуги с "+"
-    if (serviceTitle.includes('+')) {
-      score -= 30; // Комплексная услуга
+    const plusCount = (serviceTitle.match(/\+/g) || []).length;
+    if (plusCount > 0) {
+      score -= 30 * plusCount; // Комплексная услуга, штраф за каждый "+"
+    }
+    
+    // Бонус за простые базовые услуги
+    if (serviceWords.length <= 2 && !serviceTitle.includes('+')) {
+      score += 25; // Предпочитаем простые услуги
     }
     
     // Штраф за премиум-услуги
