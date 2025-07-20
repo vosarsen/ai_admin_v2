@@ -2,9 +2,12 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 async function testBookingTomorrow() {
+    // Получаем сообщение из аргументов командной строки или используем дефолтное
+    const message = process.argv[2] || 'Хочу записаться на стрижку завтра';
+    
     const webhook = {
         from: '79001234567',
-        message: 'Хочу записаться на стрижку завтра',
+        message: message,
         timestamp: Date.now()
     };
 
