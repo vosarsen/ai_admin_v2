@@ -78,6 +78,32 @@ pm2 start ecosystem.config.js --only ai-admin-worker-v2
 pm2 start ecosystem.config.js --only ai-admin-api
 ```
 
+### 7. Booking Record ID Shows as "undefined"
+
+**Problem**: After creating a booking, the confirmation message shows "Номер записи: undefined"
+
+**Root Cause**: YClients API returns nested data structure:
+```javascript
+{
+  success: true,
+  data: {
+    data: [{ id: 1, record_id: 1194929772, record_hash: "..." }],
+    meta: [],
+    success: true
+  }
+}
+```
+
+**Solution**: Fixed in `src/services/ai-admin-v2/modules/command-handler.js`:
+```javascript
+// Extract nested data correctly
+const responseData = result.data?.data || result.data || [];
+const bookingRecord = Array.isArray(responseData) ? responseData[0] : responseData;
+```
+
+**Files affected**:
+- `src/services/ai-admin-v2/modules/command-handler.js`
+
 ## Debugging Commands
 
 ### Check Service Status
