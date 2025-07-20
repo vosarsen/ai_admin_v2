@@ -3,11 +3,13 @@
 ## 🎯 Current Sprint
 
 ### 🔴 High Priority
-- [ ] Fix `staff_schedules` missing `company_id` column
+- [ ] Continue testing Phase 1.2 from checklist (prices, working hours)
+- [ ] Test booking flow (Phase 2)
 - [ ] Implement local database caching to reduce Supabase latency
 - [ ] Add comprehensive error handling for all YClients API calls
 
 ### 🟡 Medium Priority
+- [ ] Fix Redis configuration (remove temporary hacks)
 - [ ] Create integration tests for booking flow
 - [ ] Add monitoring dashboard improvements
 - [ ] Implement webhook retry mechanism
@@ -36,12 +38,19 @@
 - [x] Fixed `AIService.generateResponse is not a function` - using `_callAI` instead (July 18, 2024)
 - [x] Fixed Redis port 6380 issues - temporary override to 6379 (July 18, 2024)
 - [x] Fixed git merge conflicts on server deployment (July 18, 2024)
+- [x] Fixed "no working masters" issue - removed company_id filter from staff_schedules (July 19, 2024)
+- [x] Fixed incorrect working hours (21:00 → 22:00) (July 19, 2024)
 
 ### Optimizations
 - [x] Created database indexes for performance
 - [x] Added MCP Supabase integration
 - [x] Optimized YClients API documentation access
 - [x] Implemented Context Engineering structure
+
+### Features
+- [x] Implemented automatic company data parsing from YClients API (July 19, 2024)
+- [x] Added business type auto-detection based on company description
+- [x] Made system scalable - new companies auto-configure from YClients
 
 ## 🚀 Upcoming Features
 
@@ -91,15 +100,20 @@
    - Context loading can be slow for busy salons
    - No connection pooling
 
-2. **Reliability**
+2. **Configuration**
+   - Redis port hardcoded with temporary hacks (6380 → 6379)
+   - Need separate configs for local vs production
+
+3. **Reliability**
    - WhatsApp session can expire
    - No automatic reconnection
    - Queue can get stuck on errors
 
-3. **UX**
+4. **UX**
    - Error messages not user-friendly
    - No typing indicators
    - Limited formatting options
+   - Prices not showing correctly (format issues)
 
 ## 📊 Metrics to Track
 
@@ -112,6 +126,7 @@
 
 ## 🔄 Update History
 
+- **2024-07-19**: Implemented auto-parsing from YClients, fixed working hours
 - **2024-07-16**: Added Context Engineering structure
 - **2024-07-13**: Completed v1 → v2 migration
 - **2024-07-11**: Fixed database sync issues
