@@ -319,8 +319,9 @@ class CommandHandler {
       throw new Error(result.error || 'Не удалось создать запись');
     }
     
-    // YClients возвращает массив записей, берем первую
-    const bookingRecord = Array.isArray(result.data) ? result.data[0] : result.data;
+    // YClients возвращает вложенную структуру data.data
+    const responseData = result.data?.data || result.data || [];
+    const bookingRecord = Array.isArray(responseData) ? responseData[0] : responseData;
     
     // Возвращаем объект с нужными полями для отображения
     return {
