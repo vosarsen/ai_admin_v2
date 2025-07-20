@@ -314,7 +314,22 @@ class CommandHandler {
       throw new Error(result.error || 'Не удалось создать запись');
     }
     
-    return result.data;
+    // YClients возвращает массив записей, берем первую
+    const bookingRecord = Array.isArray(result.data) ? result.data[0] : result.data;
+    
+    // Логируем результат для отладки
+    logger.info('Booking created successfully:', {
+      recordId: bookingRecord?.record_id,
+      recordHash: bookingRecord?.record_hash,
+      fullResponse: bookingRecord
+    });
+    
+    // Возвращаем объект с нужными полями для отображения
+    return {
+      id: bookingRecord?.record_id,
+      record_id: bookingRecord?.record_id,
+      record_hash: bookingRecord?.record_hash
+    };
   }
 
   /**
