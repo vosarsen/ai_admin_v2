@@ -255,11 +255,23 @@ class CommandHandler {
     const { services } = context;
     
     if (params.category) {
-      return services.filter(s => 
-        s.category?.toLowerCase().includes(params.category.toLowerCase())
+      // Ищем по названию услуги, так как category_title часто null
+      const searchTerm = params.category.toLowerCase();
+      logger.info(`Searching prices for category: "${params.category}"`);
+      
+      const filtered = services.filter(s => 
+        s.title?.toLowerCase().includes(searchTerm) ||
+        s.category_title?.toLowerCase().includes(searchTerm) ||
+        s.description?.toLowerCase().includes(searchTerm)
       );
+      
+      logger.info(`Found ${filtered.length} services matching "${params.category}"`);
+      
+      // Если ничего не нашли, возвращаем все услуги
+      return filtered.length > 0 ? filtered : services;
     }
     
+    logger.info(`Returning all ${services.length} services`);
     return services;
   }
 
