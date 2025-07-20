@@ -56,12 +56,16 @@ class CommandHandler {
       try {
         switch (cmd.command) {
           case 'SEARCH_SLOTS':
-            const slots = await this.searchSlots(cmd.params, context);
-            results.push({ type: 'slots', data: slots });
+            const slotsResult = await this.searchSlots(cmd.params, context);
+            results.push({ type: 'slots', data: slotsResult.slots });
             // Сохраняем информацию о последнем поиске для создания записи
             context.lastSearch = {
               service_name: cmd.params.service_name,
-              slots: slots,
+              service_id: slotsResult.service?.yclients_id,
+              service_title: slotsResult.service?.title,
+              staff_id: slotsResult.staff?.yclients_id,
+              staff_name: slotsResult.staff?.name,
+              slots: slotsResult.slots,
               timestamp: new Date().toISOString()
             };
             break;
@@ -169,13 +173,21 @@ class CommandHandler {
       .sort(([, slotsA], [, slotsB]) => slotsB.length - slotsA.length)[0];
     
     if (!staffWithMostSlots) {
-      return [];
+      return { service, staff: null, slots: [] };
     }
     
-    const [selectedStaff, selectedSlots] = staffWithMostSlots;
+    const [selectedStaffName, selectedSlots] = staffWithMostSlots;
     
-    // Возвращаем слоты только от одного мастера
-    return this.organizeSlotsByTimeZones(selectedSlots, params.time_preference);
+    // Находим объект мастера по имени
+    const selectedStaff = staffToCheck.find(s => s.name === selectedStaffName) || 
+                         context.staff.find(s => s.name === selectedStaffName);
+    
+    // Возвращаем полную информацию
+    return {
+      service: service,
+      staff: selectedStaff,
+      slots: this.organizeSlotsByTimeZones(selectedSlots, params.time_preference)
+    };
   }
 
   /**
@@ -223,6 +235,34 @@ class CommandHandler {
    * Создание записи
    */
   async createBooking(params, context) {
+    // Если AI передал "last", используем данные из последнего поиска
+    let serviceId = params.service_id === 'last' ? 
+      context.lastSearch?.service_id : parseInt(params.service_id);
+    let staffId = params.staff_id === 'last' ? 
+      context.lastSearch?.staff_id : parseInt(params.staff_id);
+    
+    // Если AI передал неправильные ID (1, 2 и т.д.), используем данные из последнего поиска
+    if ((!serviceId || serviceId < 1000) && context.lastSearch?.service_id) {
+      logger.info('Using service_id from lastSearch:', context.lastSearch.service_id);
+      serviceId = context.lastSearch.service_id;
+    }
+    
+    if ((!staffId || staffId < 1000) && context.lastSearch?.staff_id) {
+      logger.info('Using staff_id from lastSearch:', context.lastSearch.staff_id);
+      staffId = context.lastSearch.staff_id;
+    }
+    
+    // Если все еще нет правильных ID, пытаемся найти по имени
+    if (!serviceId || serviceId < 1000) {
+      const service = context.services.find(s => 
+        s.title.toLowerCase().includes('стрижка')
+      );
+      if (service) {
+        serviceId = service.yclients_id;
+        logger.info('Found service by name search:', service.title, serviceId);
+      }
+    }
+    
     const bookingData = {
       phone: context.client?.phone || context.phone,
       fullname: context.client?.name || '',
@@ -230,8 +270,8 @@ class CommandHandler {
       comment: "Запись через AI администратора WhatsApp",
       appointments: [{
         id: 1,
-        services: [parseInt(params.service_id)],
-        staff_id: parseInt(params.staff_id),
+        services: [serviceId],
+        staff_id: staffId,
         datetime: `${params.date} ${params.time}:00`
       }]
     };

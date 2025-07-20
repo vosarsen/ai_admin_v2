@@ -201,7 +201,10 @@ ${formatter.formatConversation(context.conversation)}
    - НЕ ПИШИ: [SEARCH_SLOTS service_name: МУЖСКАЯ СТРИЖКА] - система сама найдет правильную услугу
    
 2. [CREATE_BOOKING service_id: id_услуги, staff_id: id_мастера, date: дата, time: время] - создание записи
-   Пример: [CREATE_BOOKING service_id: 123, staff_id: 456, date: 2024-07-15, time: 14:00]
+   ВАЖНО: Если ты только что показал слоты клиенту и он выбрал время, можно использовать упрощенную форму:
+   [CREATE_BOOKING service_id: last, staff_id: last, date: сегодня, time: 17:00]
+   где "last" означает использовать данные из последнего поиска слотов
+   Полный пример: [CREATE_BOOKING service_id: 18356344, staff_id: 2895125, date: 2024-07-20, time: 14:00]
    
 3. [SHOW_PRICES] или [SHOW_PRICES category: категория] - показать прайс-лист
    
@@ -306,6 +309,16 @@ ${formatter.formatConversation(context.conversation)}
         finalResponse += '\n\n✅ ' + formatter.formatBookingConfirmation(result.data, context.company.type);
       } else if (result.type === 'prices' && !slotResults.length) {
         finalResponse += '\n\n' + formatter.formatPrices(result.data, context.company.type);
+      } else if (result.type === 'error') {
+        // Обрабатываем ошибки команд
+        if (result.command === 'CREATE_BOOKING') {
+          // Заменяем сообщение об успешной записи на сообщение об ошибке
+          finalResponse = finalResponse.replace(
+            /записываю вас|запись создана|вы записаны/gi, 
+            'не удалось создать запись'
+          );
+          finalResponse += '\n\nК сожалению, не удалось создать запись. Попробуйте выбрать другое время или позвоните нам.';
+        }
       }
     }
     
