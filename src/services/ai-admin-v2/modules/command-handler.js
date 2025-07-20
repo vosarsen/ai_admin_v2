@@ -263,6 +263,14 @@ class CommandHandler {
       }
     }
     
+    // Парсим относительную дату (завтра, послезавтра и т.д.)
+    const parsedDate = formatter.parseRelativeDate(params.date);
+    logger.info('Parsing date for booking:', { 
+      originalDate: params.date, 
+      parsedDate: parsedDate,
+      time: params.time 
+    });
+    
     const bookingData = {
       phone: context.client?.phone || context.phone,
       fullname: context.client?.name || '',
@@ -272,7 +280,7 @@ class CommandHandler {
         id: 1,
         services: [serviceId],
         staff_id: staffId,
-        datetime: `${params.date} ${params.time}:00`
+        datetime: `${parsedDate} ${params.time}:00`
       }]
     };
     
