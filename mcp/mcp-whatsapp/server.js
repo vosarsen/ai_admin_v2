@@ -29,9 +29,10 @@ const server = new McpServer({
 const testSessions = new Map();
 
 // Helper function to create HMAC signature
-function createWebhookSignature(data) {
+function createWebhookSignature(method, path, timestamp, body) {
+  const payload = `${method}:${path}:${timestamp}:${body}`;
   const hmac = crypto.createHmac('sha256', SECRET_KEY);
-  hmac.update(JSON.stringify(data));
+  hmac.update(payload);
   return hmac.digest('hex');
 }
 
@@ -61,32 +62,29 @@ server.registerTool("send_message",
       });
     }
 
-    // Create webhook payload
-    const webhookData = {
-      event: 'message',
-      instanceId: 'test-instance',
-      data: {
-        pushName: 'Test User',
-        message: {
-          id: `test_msg_${Date.now()}`,
-          body: message,
-          type: 'chat',
-          t: Math.floor(Date.now() / 1000),
-          from: `${phone}@c.us`,
-          to: `${company_id}@c.us`,
-          isGroupMsg: false
-        }
-      }
+    // Create webhook payload (proper format)
+    const webhookPayload = {
+      from: phone,
+      message: message,
+      timestamp: Date.now()
     };
 
+    // Create signature
+    const timestamp = Date.now().toString();
+    const method = 'POST';
+    const path = '/webhook/whatsapp';
+    const body = JSON.stringify(webhookPayload);
+    const signature = createWebhookSignature(method, path, timestamp, body);
+
     // Send webhook
-    const response = await fetch(`${API_BASE_URL}/api/webhooks/whatsapp`, {
+    const response = await fetch(`${API_BASE_URL}/webhook/whatsapp`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Webhook-Signature': createWebhookSignature(webhookData)
+        'x-signature': signature,
+        'x-timestamp': timestamp
       },
-      body: JSON.stringify(webhookData)
+      body: body
     });
 
     if (!response.ok) {
@@ -94,18 +92,21 @@ server.registerTool("send_message",
       throw new Error(`Failed to send message: ${response.statusText} - ${error}`);
     }
 
+    const responseData = await response.json();
+    
     // Save sent message
     const session = testSessions.get(phone);
     session.messages.push({
       role: 'user',
       content: message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      jobId: responseData.jobId
     });
 
     return {
       content: [{
         type: "text",
-        text: `Message sent to ${phone}: "${message}"\nSession ID: ${sessionId}`
+        text: `✅ Message sent to ${phone}: "${message}"\n📋 Job ID: ${responseData.jobId}\n🔖 Session ID: ${sessionId}`
       }]
     };
   }

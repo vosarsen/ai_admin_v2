@@ -470,36 +470,86 @@ class Formatter {
       return 'К сожалению, прайс-лист временно недоступен.';
     }
     
-    let text = 'Наши услуги:\n\n';
+    // Определяем тип запроса по первой услуге
+    const firstService = services[0]?.title?.toLowerCase() || '';
+    let intro = '';
     
-    // Группируем по категориям если есть
-    const byCategory = {};
+    if (firstService.includes('стрижка')) {
+      intro = 'Наши цены на стрижки:';
+    } else if (firstService.includes('бород')) {
+      intro = 'Услуги для бороды и усов:';
+    } else if (firstService.includes('маникюр')) {
+      intro = 'Наши цены на маникюр:';
+    } else if (firstService.includes('педикюр')) {
+      intro = 'Наши цены на педикюр:';
+    } else if (firstService.includes('бров')) {
+      intro = 'Услуги для бровей:';
+    } else if (firstService.includes('ресниц')) {
+      intro = 'Услуги для ресниц:';
+    } else if (firstService.includes('окрашивание')) {
+      intro = 'Наши цены на окрашивание:';
+    } else {
+      intro = 'Наши услуги:';
+    }
+    
+    let text = intro + '\n\n';
+    
+    // Разделяем услуги на базовые и дополнительные
+    const basicServices = [];
+    const complexServices = [];
+    
     services.forEach(service => {
-      const category = service.category || 'Основные услуги';
-      if (!byCategory[category]) byCategory[category] = [];
-      byCategory[category].push(service);
+      const title = service.title?.toLowerCase() || '';
+      if (title.includes(' + ') || title.includes('luxina') || title.includes('отец')) {
+        complexServices.push(service);
+      } else {
+        basicServices.push(service);
+      }
     });
     
-    Object.entries(byCategory).forEach(([category, categoryServices]) => {
-      if (Object.keys(byCategory).length > 1) {
-        text += `${category}:\n`;
-      }
-      categoryServices.forEach(service => {
-        // Определяем цену
+    // Сначала выводим базовые услуги
+    if (basicServices.length > 0) {
+      basicServices.forEach(service => {
         const price = service.price_min || service.price || 0;
         const priceStr = price > 0 ? `${price} руб` : 'цена по запросу';
         
-        // Определяем длительность из raw_data если основное поле пустое
         const duration = service.seance_length || 
                         service.duration || 
                         service.raw_data?.duration ||
                         0;
         const durationStr = duration ? ` (${Math.round(duration / 60)} мин)` : '';
         
-        text += `• ${service.title} - ${priceStr}${durationStr}\n`;
+        // Сокращаем длинные названия
+        let title = service.title;
+        if (title.length > 40) {
+          title = title.substring(0, 40) + '...';
+        }
+        
+        text += `${title} - ${priceStr}${durationStr}\n`;
       });
-      text += '\n';
-    });
+    }
+    
+    // Если есть комплексные услуги, добавляем их отдельно
+    if (complexServices.length > 0 && services.length > 5) {
+      text += '\nКомплексные услуги:\n';
+      complexServices.slice(0, 3).forEach(service => {
+        const price = service.price_min || service.price || 0;
+        const priceStr = price > 0 ? `${price} руб` : 'цена по запросу';
+        
+        // Сокращаем длинные названия
+        let title = service.title;
+        if (title.length > 40) {
+          title = title.substring(0, 40) + '...';
+        }
+        
+        text += `${title} - ${priceStr}\n`;
+      });
+    }
+    
+    // Добавляем примечание если услуг много
+    if (services.length > 10) {
+      text += '\nПолный прайс-лист можно уточнить у администратора.';
+    }
     
     return text.trim();
   }

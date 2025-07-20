@@ -39,8 +39,21 @@ async function getRedisClient() {
     redisConfig.url = url.toString();
   }
 
-  redis = createClient(redisConfig);
+  redis = createClient({
+    ...redisConfig,
+    socket: {
+      connectTimeout: 5000,
+      commandTimeout: 5000,
+      reconnectStrategy: (times) => {
+        if (times > 3) return false;
+        return Math.min(times * 100, 3000);
+      }
+    }
+  });
+  
   redis.on('error', err => console.error('Redis Client Error', err));
+  redis.on('connect', () => console.error('Redis connecting...'));
+  redis.on('ready', () => console.error('Redis ready'));
   
   try {
     await redis.connect();
@@ -116,22 +129,49 @@ server.registerTool("clear_context",
     }
   },
   async ({ phone, company_id }) => {
-    const redis = await getRedisClient();
-    const keys = [
-      `context:${phone}:${company_id}`,
-      `conversation:${phone}:${company_id}`,
-      `preferences:${phone}:${company_id}`,
-      `booking:${phone}:${company_id}`
-    ];
+    console.error(`Clearing context for ${phone} in company ${company_id}`);
+    
+    try {
+      const redis = await getRedisClient();
+      const keys = [
+        `context:${phone}:${company_id}`,
+        `conversation:${phone}:${company_id}`,
+        `preferences:${phone}:${company_id}`,
+        `booking:${phone}:${company_id}`
+      ];
 
-    await Promise.all(keys.map(key => redis.del(key)));
+      console.error(`Deleting keys: ${keys.join(', ')}`);
+      const startTime = Date.now();
+      
+      // Delete keys with timeout
+      const results = await Promise.all(
+        keys.map(key => 
+          redis.del(key).catch(err => {
+            console.error(`Failed to delete ${key}:`, err);
+            return 0;
+          })
+        )
+      );
+      
+      const duration = Date.now() - startTime;
+      const deletedCount = results.reduce((sum, count) => sum + count, 0);
+      console.error(`Deleted ${deletedCount} keys in ${duration}ms`);
 
-    return {
-      content: [{
-        type: "text",
-        text: `Context cleared for ${phone} in company ${company_id}`
-      }]
-    };
+      return {
+        content: [{
+          type: "text",
+          text: `✅ Context cleared for ${phone} in company ${company_id}\n📊 Deleted ${deletedCount} keys in ${duration}ms`
+        }]
+      };
+    } catch (error) {
+      console.error('Error clearing context:', error);
+      return {
+        content: [{
+          type: "text",
+          text: `❌ Failed to clear context: ${error.message}`
+        }]
+      };
+    }
   }
 );
 
