@@ -13,6 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 6. Check `docs/TROUBLESHOOTING.md` if encountering issues
 7. Review relevant examples in `examples/` folder for established patterns
 8. Check `INITIAL.md` if working on a new feature request
+9. Review `docs/development-diary/` for historical context and decisions
 
 ## Working Environment
 
