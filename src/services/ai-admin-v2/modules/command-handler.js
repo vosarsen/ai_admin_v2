@@ -358,24 +358,74 @@ class CommandHandler {
     const { services } = context;
     
     if (params.category) {
-      // Ищем по названию услуги, так как category_title часто null
-      const searchTerm = params.category.toLowerCase();
+      const searchTerm = params.category.toLowerCase().trim();
       logger.info(`Searching prices for category: "${params.category}"`);
       
-      const filtered = services.filter(s => 
-        s.title?.toLowerCase().includes(searchTerm) ||
-        s.category_title?.toLowerCase().includes(searchTerm) ||
-        s.description?.toLowerCase().includes(searchTerm)
-      );
+      // Создаем карту ключевых слов для лучшего поиска
+      const searchKeywords = {
+        'стрижка': ['мужская стрижка', 'стрижка машинкой', 'стрижка ножницами', 'детская стрижка', 'стрижка для', 'стрижка +'],
+        'борода': ['борода', 'усы', 'моделирование бороды'],
+        'окрашивание': ['окрашивание', 'тонирование', 'мелирование', 'осветление'],
+        'укладка': ['укладка', 'стайлинг', 'прическа'],
+        'маникюр': ['маникюр', 'ногти', 'покрытие', 'дизайн ногтей'],
+        'педикюр': ['педикюр', 'стопы'],
+        'брови': ['брови', 'бровей', 'коррекция бровей', 'окрашивание бровей'],
+        'ресницы': ['ресницы', 'ресниц', 'наращивание ресниц', 'ламинирование ресниц'],
+        'массаж': ['массаж', 'spa', 'релакс'],
+        'эпиляция': ['эпиляция', 'депиляция', 'шугаринг', 'воск']
+      };
       
-      logger.info(`Found ${filtered.length} services matching "${params.category}"`);
+      // Сначала пробуем найти по точному совпадению с ключевыми словами
+      let keywords = searchKeywords[searchTerm] || [searchTerm];
       
-      // Если ничего не нашли, возвращаем все услуги
-      return filtered.length > 0 ? filtered : services;
+      // Фильтруем услуги по релевантности
+      const filtered = services.filter(s => {
+        const title = s.title?.toLowerCase() || '';
+        const category = s.category_title?.toLowerCase() || '';
+        
+        // Приоритет точному совпадению с ключевыми словами
+        return keywords.some(keyword => 
+          title.includes(keyword) || category.includes(keyword)
+        );
+      });
+      
+      // Сортируем по релевантности и цене
+      const sorted = filtered.sort((a, b) => {
+        // Сначала сортируем по точному совпадению в начале названия
+        const aStartsWith = keywords.some(k => a.title?.toLowerCase().startsWith(k));
+        const bStartsWith = keywords.some(k => b.title?.toLowerCase().startsWith(k));
+        
+        if (aStartsWith && !bStartsWith) return -1;
+        if (!aStartsWith && bStartsWith) return 1;
+        
+        // Затем по цене
+        const priceA = a.price_min || a.price || 0;
+        const priceB = b.price_min || b.price || 0;
+        return priceA - priceB;
+      });
+      
+      logger.info(`Found ${sorted.length} services matching "${params.category}"`);
+      
+      // Возвращаем только первые 10 наиболее релевантных услуг
+      return sorted.slice(0, 10);
     }
     
-    logger.info(`Returning all ${services.length} services`);
-    return services;
+    // Если категория не указана, возвращаем популярные услуги
+    logger.info(`Returning popular services`);
+    
+    // Фильтруем базовые услуги (без комплексных)
+    const basicServices = services.filter(s => {
+      const title = s.title?.toLowerCase() || '';
+      // Исключаем комплексные услуги
+      return !title.includes(' + ') && !title.includes('отец') && !title.includes('luxina');
+    });
+    
+    // Сортируем по цене и возвращаем первые 15
+    return basicServices.sort((a, b) => {
+      const priceA = a.price_min || a.price || 0;
+      const priceB = b.price_min || b.price || 0;
+      return priceA - priceB;
+    }).slice(0, 15);
   }
 
   /**

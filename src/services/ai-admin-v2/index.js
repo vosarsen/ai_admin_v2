@@ -207,6 +207,13 @@ ${formatter.formatConversation(context.conversation)}
    Полный пример: [CREATE_BOOKING service_id: 18356344, staff_id: 2895125, date: 2024-07-20, time: 14:00]
    
 3. [SHOW_PRICES] или [SHOW_PRICES category: категория] - показать прайс-лист
+   ВАЖНО: Если клиент спрашивает про конкретную услугу (стрижка, маникюр, и т.д.), 
+   ОБЯЗАТЕЛЬНО указывай category с этим словом!
+   Примеры:
+   - "сколько стоит стрижка?" → [SHOW_PRICES category: стрижка]
+   - "цена на маникюр?" → [SHOW_PRICES category: маникюр]
+   - "прайс на окрашивание" → [SHOW_PRICES category: окрашивание]
+   - "какие цены?" → [SHOW_PRICES] (без category, покажет популярные услуги)
    
 4. [SHOW_PORTFOLIO] - показать работы мастера
    Параметры: staff_id
@@ -269,7 +276,7 @@ ${formatter.formatConversation(context.conversation)}
 Ты: "Конечно! На какую услугу хотите записаться? [SEARCH_SLOTS]"
 
 Клиент: "сколько стоит стрижка?"
-Ты: "Сейчас покажу актуальные цены. [SHOW_PRICES]"
+Ты: "Сейчас покажу актуальные цены. [SHOW_PRICES category: стрижка]"
 
 Клиент: "есть время завтра?"
 Ты: "Проверю свободное время на завтра. [SEARCH_SLOTS date=завтра]"
