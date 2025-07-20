@@ -449,7 +449,9 @@ class Formatter {
    * Форматирование подтверждения записи
    */
   formatBookingConfirmation(booking, businessType) {
-    return `Запись создана! Номер записи: ${booking.id}`;
+    // Поддерживаем разные форматы данных записи
+    const recordId = booking.record_id || booking.id || booking.recordId;
+    return `Запись создана! Номер записи: ${recordId}`;
   }
 
   /**
