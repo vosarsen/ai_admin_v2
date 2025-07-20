@@ -479,8 +479,11 @@ class Formatter {
         const price = service.price_min || service.price || 0;
         const priceStr = price > 0 ? `${price} руб` : 'цена по запросу';
         
-        // Определяем длительность
-        const duration = service.seance_length || service.duration;
+        // Определяем длительность из raw_data если основное поле пустое
+        const duration = service.seance_length || 
+                        service.duration || 
+                        service.raw_data?.duration ||
+                        0;
         const durationStr = duration ? ` (${Math.round(duration / 60)} мин)` : '';
         
         text += `• ${service.title} - ${priceStr}${durationStr}\n`;
