@@ -7,6 +7,7 @@ const whatsappClient = require('../integrations/whatsapp/client');
 const { validateWebhookSignature, validateApiKey } = require('../middlewares/webhook-auth');
 const rateLimiter = require('../middlewares/rate-limiter');
 const circuitBreakerFactory = require('../utils/circuit-breaker');
+const { syncManager } = require('../sync/sync-manager');
 
 const app = express();
 
@@ -152,6 +153,58 @@ app.get('/api/circuit-breakers', rateLimiter, (req, res) => {
     });
   } catch (error) {
     logger.error('Circuit breaker status error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Sync endpoints
+app.get('/api/sync/status', rateLimiter, async (req, res) => {
+  try {
+    const status = await syncManager.getSyncStatus();
+    res.json(status);
+  } catch (error) {
+    logger.error('Sync status error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Manual schedule sync
+app.post('/api/sync/schedules', rateLimiter, validateApiKey, async (req, res) => {
+  try {
+    logger.info('Manual schedule sync requested');
+    const result = await syncManager.syncSchedules();
+    res.json({
+      success: true,
+      message: 'Schedule sync initiated',
+      result
+    });
+  } catch (error) {
+    logger.error('Manual sync error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Full sync (use with caution)
+app.post('/api/sync/full', rateLimiter, validateApiKey, async (req, res) => {
+  try {
+    logger.info('Manual full sync requested');
+    const result = await syncManager.runFullSync();
+    res.json({
+      success: true,
+      message: 'Full sync initiated',
+      result
+    });
+  } catch (error) {
+    logger.error('Full sync error:', error);
     res.status(500).json({
       success: false,
       error: error.message
