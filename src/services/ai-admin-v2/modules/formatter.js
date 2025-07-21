@@ -22,7 +22,7 @@ class Formatter {
   /**
    * Форматирование текущего персонала на сегодня
    */
-  formatTodayStaff(scheduleByDate, staffList) {
+  formatTodayStaff(scheduleByDate, staffList, availableSlots = null) {
     const today = new Date().toISOString().split('T')[0];
     const todaySchedule = scheduleByDate[today] || [];
     
@@ -44,9 +44,30 @@ class Formatter {
     logger.info(`Staff IDs from schedule:`, workingStaffIds);
     logger.info(`Staff list IDs:`, staffList.map(s => ({ id: s.yclients_id, name: s.name })));
     
-    const workingStaff = staffList.filter(staff => 
+    // Фильтруем мастеров из базы данных
+    let workingStaff = staffList.filter(staff => 
       workingStaffIds.includes(staff.yclients_id)
     );
+    
+    // Если переданы доступные слоты, дополнительно фильтруем по ним
+    if (availableSlots) {
+      const staffWithSlots = new Set();
+      availableSlots.forEach(slot => {
+        if (slot.staff_id) {
+          staffWithSlots.add(slot.staff_id);
+        }
+      });
+      
+      // Фильтруем только тех, у кого есть слоты
+      workingStaff = workingStaff.filter(staff => 
+        staffWithSlots.has(staff.yclients_id)
+      );
+      
+      logger.info(`Filtered by available slots:`, {
+        staffWithSlots: Array.from(staffWithSlots),
+        filteredCount: workingStaff.length
+      });
+    }
     
     logger.info(`Working staff today:`, {
       workingStaffIds,
