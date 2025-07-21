@@ -383,9 +383,47 @@ class CommandHandler {
       fullBookingData: JSON.stringify(bookingData)
     });
     
+    // Сначала ищем или создаем клиента в YClients
+    const yclientsClient = bookingService.getYclientsClient();
+    const companyId = context.company.yclients_id || context.company.company_id;
+    
+    try {
+      // Поиск клиента по телефону
+      const searchResult = await yclientsClient.searchClients(bookingData.phone, companyId);
+      
+      if (!searchResult.success || !searchResult.data || searchResult.data.length === 0) {
+        // Клиент не найден - создаем нового
+        logger.info('Client not found in YClients, creating new client:', {
+          phone: bookingData.phone,
+          name: clientName
+        });
+        
+        const createClientResult = await yclientsClient.createClient({
+          name: clientName,
+          phone: bookingData.phone,
+          email: bookingData.email
+        }, companyId);
+        
+        if (!createClientResult.success) {
+          logger.warn('Failed to create client in YClients:', createClientResult);
+          // Продолжаем создание записи даже если не удалось создать клиента
+        } else {
+          logger.info('Client created successfully in YClients:', createClientResult.data);
+        }
+      } else {
+        logger.info('Client found in YClients:', {
+          phone: bookingData.phone,
+          clientsCount: searchResult.data.length
+        });
+      }
+    } catch (error) {
+      logger.error('Error searching/creating client:', error);
+      // Продолжаем создание записи даже при ошибке
+    }
+    
     const result = await bookingService.createBooking(
       bookingData, 
-      context.company.yclients_id || context.company.company_id
+      companyId
     );
     
     // Логируем полный результат для отладки
