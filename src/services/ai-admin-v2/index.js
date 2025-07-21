@@ -30,6 +30,8 @@ class AIAdminV2 {
       
       // Загружаем полный контекст
       const context = await this.loadFullContext(phone, companyId);
+      
+      // Добавляем текущее сообщение в контекст
       context.currentMessage = message;
       
       // Определяем тип бизнеса для адаптации общения
@@ -121,7 +123,8 @@ class AIAdminV2 {
       currentTime: new Date().toLocaleString('ru-RU', { timeZone: config.app.timezone }),
       timezone: config.app.timezone,
       phone,
-      startTime
+      startTime,
+      currentMessage: null  // будет установлено в processMessage
     };
     
     // Сохраняем в кеш
