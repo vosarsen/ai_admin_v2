@@ -25,6 +25,8 @@ class YclientsClient {
     serviceCategories: (companyId) => `company/${companyId}/service_categories`,
     staff: (companyId) => `company/${companyId}/staff`,
     clients: (companyId) => `company/${companyId}/clients`,
+    createClient: (companyId) => `clients/${companyId}`,
+    searchClients: (companyId) => `company/${companyId}/clients/search`,
 
     // Booking endpoints (критичные для высокой нагрузки)
     bookServices: (companyId) => `book_services/${companyId}`,
@@ -310,6 +312,35 @@ class YclientsClient {
     return this.get(YclientsClient.ENDPOINTS.records(companyId), params, {
       cacheTtl: 60 // Записи кэшируются на 1 минуту
     });
+  }
+
+  /**
+   * 🔍 Поиск клиентов по телефону или имени
+   */
+  async searchClients(searchQuery, companyId = this.config.companyId) {
+    return this.post(
+      YclientsClient.ENDPOINTS.searchClients(companyId),
+      { search_term: searchQuery },
+      { cacheTtl: 300 } // Кэшируем на 5 минут
+    );
+  }
+
+  /**
+   * 👤 Создать клиента
+   */
+  async createClient(clientData, companyId = this.config.companyId) {
+    const payload = {
+      name: clientData.name || clientData.fullname,
+      phone: clientData.phone,
+      email: clientData.email || '',
+      comment: clientData.comment || 'Создан через AI администратора'
+    };
+    
+    return this.post(
+      YclientsClient.ENDPOINTS.createClient(companyId),
+      payload,
+      { priority: 'high' }
+    );
   }
 
   // =============== PRIVATE METHODS ===============
