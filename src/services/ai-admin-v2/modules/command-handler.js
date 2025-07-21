@@ -505,7 +505,8 @@ class CommandHandler {
     // Убираем команды в квадратных скобках
     let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|SAVE_CLIENT_NAME)[^\]]*\]/g, '');
     
-    // Убираем технические фразы
+    // Убираем технические фразы в скобках
+    cleaned = cleaned.replace(/\([^)]*(?:клиент|тестовое|команду|обратите внимание|поскольку)[^)]*\)/gi, '');
     cleaned = cleaned.replace(/\(Если клиент.*?\)/g, '');
     cleaned = cleaned.replace(/выполню.*?параметрами\./g, '');
     cleaned = cleaned.replace(/service_name=.*?(?=\s|$)/g, '');
