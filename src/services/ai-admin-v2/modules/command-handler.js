@@ -84,6 +84,11 @@ class CommandHandler {
             const portfolio = await this.getPortfolio(cmd.params, context);
             results.push({ type: 'portfolio', data: portfolio });
             break;
+            
+          case 'SAVE_CLIENT_NAME':
+            const savedName = await this.saveClientName(cmd.params, context);
+            results.push({ type: 'name_saved', data: savedName });
+            break;
         }
       } catch (error) {
         logger.error(`Command ${cmd.command} failed:`, error);
@@ -299,9 +304,29 @@ class CommandHandler {
       time: params.time 
     });
     
+    // Извлекаем чистый номер телефона (убираем @c.us)
+    const cleanPhone = (context.client?.phone || context.phone || '').replace('@c.us', '');
+    
+    // Получаем имя клиента из контекста или Redis
+    let clientName = context.client?.name;
+    
+    // Если имени нет в контексте клиента, проверяем Redis
+    if (!clientName) {
+      const contextService = require('../../context');
+      const redisContext = await contextService.getContext(cleanPhone);
+      if (redisContext && redisContext.clientName) {
+        clientName = redisContext.clientName;
+      }
+    }
+    
+    // Если имя все еще не найдено, это ошибка
+    if (!clientName) {
+      throw new Error('Пожалуйста, сначала представьтесь. Как вас зовут?');
+    }
+    
     const bookingData = {
-      phone: context.client?.phone || context.phone,
-      fullname: context.client?.name || '',
+      phone: cleanPhone,
+      fullname: clientName,
       email: context.client?.email || '',
       comment: "Запись через AI администратора WhatsApp",
       appointments: [{
@@ -439,9 +464,46 @@ class CommandHandler {
   /**
    * Удаление команд из ответа
    */
+  /**
+   * Сохранение имени клиента
+   */
+  async saveClientName(params, context) {
+    if (!params.name) {
+      throw new Error('Имя клиента не указано');
+    }
+
+    const cleanPhone = (context.client?.phone || context.phone || '').replace('@c.us', '');
+    
+    // Сохраняем имя в контексте для текущей сессии
+    if (context.client) {
+      context.client.name = params.name;
+    } else {
+      context.client = {
+        phone: cleanPhone,
+        name: params.name,
+        company_id: context.company.yclients_id || context.company.company_id
+      };
+    }
+    
+    // Сохраняем имя в Redis для будущих сессий
+    const contextService = require('../../context');
+    const redisContext = await contextService.getContext(cleanPhone);
+    if (redisContext) {
+      redisContext.clientName = params.name;
+      await contextService.saveContext(cleanPhone, redisContext);
+    }
+    
+    logger.info('Client name saved:', { phone: cleanPhone, name: params.name });
+    
+    return {
+      name: params.name,
+      phone: cleanPhone
+    };
+  }
+
   removeCommands(response) {
     // Убираем команды в квадратных скобках
-    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO)[^\]]*\]/g, '');
+    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|SAVE_CLIENT_NAME)[^\]]*\]/g, '');
     
     // Убираем технические фразы
     cleaned = cleaned.replace(/\(Если клиент.*?\)/g, '');
