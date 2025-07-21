@@ -338,9 +338,9 @@ class CommandHandler {
         
         // Сохраняем в Redis для будущего использования
         const contextService = require('../../context');
-        const redisContext = await contextService.getContext(cleanPhone) || {};
-        redisContext.clientName = clientName;
-        await contextService.setContext(cleanPhone, redisContext);
+        await contextService.updateContext(cleanPhone, context.company.yclients_id || context.company.company_id, {
+          clientInfo: { name: clientName }
+        });
         
         // Обновляем контекст текущей сессии
         if (context.client) {
