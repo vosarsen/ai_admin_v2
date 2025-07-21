@@ -20,6 +20,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Local directory**: /Users/vosarsen/Documents/GitHub/ai_admin_v2
 - **Server**: ssh root@46.149.70.219
 - **Server path**: /opt/ai-admin
+- **SSH Key**: Available at `~/.ssh/id_ed25519_ai_admin` (use with `-i` flag)
+- **SSH Command**: `ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219`
 
 ## Development Workflow
 
