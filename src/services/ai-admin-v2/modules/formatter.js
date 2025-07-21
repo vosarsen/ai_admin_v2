@@ -357,7 +357,7 @@ class Formatter {
       }
     });
     
-    // Выбираем слоты с промежутками для вариативности (минимум 30 минут между слотами)
+    // Выбираем слоты с промежутками для вариативности (минимум 1 час между слотами)
     const selectSlotsWithGaps = (slots, maxCount) => {
       if (slots.length === 0) return [];
       if (slots.length === 1) return [slots[0].time];
@@ -377,7 +377,7 @@ class Formatter {
       }
       
       // Если слотов больше чем нужно, выбираем с промежутками
-      const minGap = 0.5; // Минимальный промежуток 30 минут
+      const minGap = 1.0; // Минимальный промежуток 1 час
       
       for (let i = 0; i < slots.length; i++) {
         const slot = slots[i];
@@ -397,7 +397,7 @@ class Formatter {
           maxCount
         });
         
-        // Проверяем что прошло минимум 30 минут с последнего выбранного слота
+        // Проверяем что прошло минимум 1 час с последнего выбранного слота
         if (gap >= minGap) {
           selected.push(slot.time);
           lastSelectedHourDecimal = slot.hourDecimal;
