@@ -3,11 +3,11 @@
 ## 🎯 Current Sprint
 
 ### 🔴 High Priority
-- [ ] Fix ServiceMatcher scoring algorithm - штрафы не применяются правильно
-- [ ] Решить проблему несовместимости услуга-мастер при CREATE_BOOKING
-- [ ] Добавить логирование в ServiceMatcher для отладки scoring
-- [ ] Continue testing Phase 1.2 from checklist (prices, working hours)
-- [ ] Test booking flow (Phase 2) - после исправления проблем
+- [ ] Test booking flow (Phase 2) - полный процесс записи
+- [ ] Test modification and cancellation (Phase 3)
+- [ ] Test edge cases and error handling (Phase 4)
+- [ ] Implement webhook integration for real-time updates from YClients
+- [ ] Add Redis caching for slot availability
 
 ### 🟡 Medium Priority
 - [ ] Fix Redis configuration (remove temporary hacks)
@@ -47,6 +47,18 @@
 - [x] Added MCP Supabase integration
 - [x] Optimized YClients API documentation access
 - [x] Implemented Context Engineering structure
+- [x] Increased schedule sync frequency from 2x to 48x daily (July 21, 2024)
+- [x] Implemented smart slot filtering with 1-hour intervals (July 21, 2024)
+
+### Features Added (July 20-21, 2024)
+- [x] ServiceMatcher scoring algorithm with penalties for complex services
+- [x] Relative date parsing ("завтра", "послезавтра", days of week)
+- [x] Automatic booking creation without confirmation when specific time provided
+- [x] Fixed booking number display (correct extraction from YClients response)
+- [x] Price list improvements - filtering, sorting, compact format
+- [x] Staff availability sync script (sync-staff-schedules.js)
+- [x] API endpoints for manual sync control
+- [x] Smart slot filtering - 3 slots per time period with 1-hour gaps
 
 ### Features
 - [x] Implemented automatic company data parsing from YClients API (July 19, 2024)
