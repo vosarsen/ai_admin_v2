@@ -319,6 +319,33 @@ class CommandHandler {
       }
     }
     
+    // Если имя все еще не найдено, пытаемся извлечь из текущего сообщения
+    if (!clientName && context.currentMessage) {
+      clientName = this.extractNameFromMessage(context.currentMessage);
+      
+      // Если нашли имя, сохраняем его для будущих сессий
+      if (clientName) {
+        logger.info('Extracted client name from message:', { name: clientName, phone: cleanPhone });
+        
+        // Сохраняем в Redis для будущего использования
+        const contextService = require('../../context');
+        const redisContext = await contextService.getContext(cleanPhone) || {};
+        redisContext.clientName = clientName;
+        await contextService.saveContext(cleanPhone, redisContext);
+        
+        // Обновляем контекст текущей сессии
+        if (context.client) {
+          context.client.name = clientName;
+        } else {
+          context.client = {
+            phone: cleanPhone,
+            name: clientName,
+            company_id: context.company.yclients_id || context.company.company_id
+          };
+        }
+      }
+    }
+    
     // Если имя все еще не найдено, это ошибка
     if (!clientName) {
       throw new Error('Пожалуйста, сначала представьтесь. Как вас зовут?');
@@ -464,6 +491,63 @@ class CommandHandler {
   /**
    * Удаление команд из ответа
    */
+  /**
+   * Извлечение имени из сообщения
+   */
+  extractNameFromMessage(message) {
+    if (!message) return null;
+    
+    // Паттерны для поиска имени
+    const patterns = [
+      /меня зовут\s+([А-ЯЁа-яё]+)/i,
+      /я\s*[-–—]\s*([А-ЯЁа-яё]+)/i,
+      /это\s+([А-ЯЁа-яё]+)/i,
+      /^([А-ЯЁ][а-яё]+)$/m  // Одиночное слово с заглавной буквы в начале строки
+    ];
+    
+    // Также проверяем распространенные имена в сообщении
+    const commonNames = [
+      'Александр', 'Алексей', 'Андрей', 'Антон', 'Артем', 'Артур', 'Арсений', 'Борис', 
+      'Вадим', 'Валентин', 'Валерий', 'Василий', 'Виктор', 'Виталий', 'Владимир', 'Владислав',
+      'Вячеслав', 'Геннадий', 'Георгий', 'Глеб', 'Григорий', 'Даниил', 'Денис', 'Дмитрий',
+      'Евгений', 'Егор', 'Иван', 'Игорь', 'Илья', 'Кирилл', 'Константин', 'Леонид', 'Максим',
+      'Марк', 'Матвей', 'Михаил', 'Никита', 'Николай', 'Олег', 'Павел', 'Петр', 'Роман',
+      'Руслан', 'Сергей', 'Станислав', 'Степан', 'Тимофей', 'Тимур', 'Федор', 'Филипп', 'Юрий',
+      'Ярослав', 'Анна', 'Алена', 'Алина', 'Алиса', 'Алла', 'Анастасия', 'Ангелина', 'Анжела',
+      'Валентина', 'Валерия', 'Варвара', 'Василиса', 'Вера', 'Вероника', 'Виктория', 'Галина',
+      'Дарья', 'Диана', 'Ева', 'Евгения', 'Екатерина', 'Елена', 'Елизавета', 'Жанна', 'Зинаида',
+      'Инна', 'Ирина', 'Карина', 'Кристина', 'Ксения', 'Лариса', 'Лидия', 'Лилия', 'Любовь',
+      'Людмила', 'Маргарита', 'Марина', 'Мария', 'Милана', 'Надежда', 'Наталья', 'Нина', 'Оксана',
+      'Ольга', 'Полина', 'Раиса', 'Регина', 'Светлана', 'София', 'Таисия', 'Тамара', 'Татьяна',
+      'Ульяна', 'Юлия', 'Яна'
+    ];
+    
+    // Пробуем найти имя по паттернам
+    for (const pattern of patterns) {
+      const match = message.match(pattern);
+      if (match && match[1]) {
+        const name = match[1].trim();
+        // Проверяем, что это похоже на имя (с заглавной буквы)
+        if (name.length > 1 && name[0] === name[0].toUpperCase()) {
+          return name;
+        }
+      }
+    }
+    
+    // Проверяем наличие распространенных имен в сообщении
+    const words = message.split(/\s+/);
+    for (const word of words) {
+      // Приводим к правильному регистру для сравнения
+      const normalizedWord = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      if (commonNames.includes(normalizedWord)) {
+        return normalizedWord;
+      }
+    }
+    
+    logger.debug('Could not extract name from message:', { message });
+    return null;
+  }
+
   /**
    * Сохранение имени клиента
    */
