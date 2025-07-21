@@ -310,6 +310,13 @@ class CommandHandler {
     // Получаем имя клиента из контекста или Redis
     let clientName = context.client?.name;
     
+    logger.info('Initial client name check:', { 
+      clientName, 
+      hasClient: !!context.client,
+      clientData: context.client,
+      currentMessage: context.currentMessage 
+    });
+    
     // Если имени нет в контексте клиента, проверяем Redis
     if (!clientName) {
       const contextService = require('../../context');
@@ -317,21 +324,23 @@ class CommandHandler {
       if (redisContext && redisContext.clientName) {
         clientName = redisContext.clientName;
       }
+      logger.info('Redis context check:', { clientName, redisContext });
     }
     
-    // Если имя все еще не найдено, пытаемся извлечь из текущего сообщения
-    if (!clientName && context.currentMessage) {
-      clientName = this.extractNameFromMessage(context.currentMessage);
+    // Если имя все еще не найдено или это тестовое имя, пытаемся извлечь из текущего сообщения
+    if ((!clientName || clientName === 'Test Client') && context.currentMessage) {
+      const extractedName = this.extractNameFromMessage(context.currentMessage);
       
       // Если нашли имя, сохраняем его для будущих сессий
-      if (clientName) {
+      if (extractedName) {
+        clientName = extractedName;
         logger.info('Extracted client name from message:', { name: clientName, phone: cleanPhone });
         
         // Сохраняем в Redis для будущего использования
         const contextService = require('../../context');
         const redisContext = await contextService.getContext(cleanPhone) || {};
         redisContext.clientName = clientName;
-        await contextService.saveContext(cleanPhone, redisContext);
+        await contextService.setContext(cleanPhone, redisContext);
         
         // Обновляем контекст текущей сессии
         if (context.client) {
@@ -571,11 +580,9 @@ class CommandHandler {
     
     // Сохраняем имя в Redis для будущих сессий
     const contextService = require('../../context');
-    const redisContext = await contextService.getContext(cleanPhone);
-    if (redisContext) {
-      redisContext.clientName = params.name;
-      await contextService.saveContext(cleanPhone, redisContext);
-    }
+    const redisContext = await contextService.getContext(cleanPhone) || {};
+    redisContext.clientName = params.name;
+    await contextService.setContext(cleanPhone, redisContext);
     
     logger.info('Client name saved:', { phone: cleanPhone, name: params.name });
     
