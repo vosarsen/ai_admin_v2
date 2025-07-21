@@ -6,6 +6,7 @@ const dataLoader = require('./modules/data-loader');
 const formatter = require('./modules/formatter');
 const businessLogic = require('./modules/business-logic');
 const commandHandler = require('./modules/command-handler');
+const contextService = require('../context');
 
 /**
  * AI Admin v2 - единый сервис управления AI администратором
@@ -83,15 +84,28 @@ class AIAdminV2 {
     const startTime = Date.now();
     
     // Параллельная загрузка всех данных
-    const [company, client, services, staff, conversation, businessStats, staffSchedules] = await Promise.all([
+    const [company, client, services, staff, conversation, businessStats, staffSchedules, redisContext] = await Promise.all([
       dataLoader.loadCompany(companyId),
       dataLoader.loadClient(phone, companyId),
       dataLoader.loadServices(companyId),
       dataLoader.loadStaff(companyId),
       dataLoader.loadConversation(phone, companyId),
       dataLoader.loadBusinessStats(companyId),
-      dataLoader.loadStaffSchedules(companyId)
+      dataLoader.loadStaffSchedules(companyId),
+      contextService.getContext(phone.replace('@c.us', ''))
     ]);
+    
+    // Если клиента нет в базе, но есть имя в Redis - используем его
+    if (!client && redisContext?.clientName) {
+      client = {
+        phone: phone.replace('@c.us', ''),
+        name: redisContext.clientName,
+        company_id: companyId
+      };
+    } else if (client && !client.name && redisContext?.clientName) {
+      // Если клиент есть, но имя не заполнено - берем из Redis
+      client.name = redisContext.clientName;
+    }
     
     // Сортируем услуги с учетом предпочтений клиента
     const sortedServices = businessLogic.sortServicesForClient(services, client);
@@ -142,7 +156,8 @@ ${context.client ?
 История: ${formatter.formatVisitHistory(context.client.visit_history)}
 Любимые услуги: ${context.client.last_service_ids?.join(', ') || 'нет данных'}
 Любимые мастера: ${context.client.favorite_staff_ids?.join(', ') || 'нет данных'}` :
-  `Новый клиент, телефон: ${phone}`}
+  `Новый клиент, телефон: ${phone}
+ВАЖНО: У нас нет имени клиента в базе!`}
 
 ДОСТУПНЫЕ УСЛУГИ (топ-10):
 ${formatter.formatServices(context.services.slice(0, 10), context.company.type)}
@@ -218,17 +233,25 @@ ${formatter.formatConversation(context.conversation)}
 4. [SHOW_PORTFOLIO] - показать работы мастера
    Параметры: staff_id
 
+5. [SAVE_CLIENT_NAME name: имя_клиента] - сохранить имя клиента
+   Используй эту команду когда клиент представился
+   Пример: [SAVE_CLIENT_NAME name: Александр]
+
 ПРАВИЛА РАБОТЫ:
 1. ВСЕГДА анализируй намерение клиента по секции "АНАЛИЗ НАМЕРЕНИЯ КЛИЕНТА"
-2. АВТОМАТИЧЕСКАЯ ЗАПИСЬ: Если клиент указал конкретное время И услугу (например "записаться на стрижку завтра в 15:00"):
+2. ПЕРЕД ЗАПИСЬЮ ОБЯЗАТЕЛЬНО ПРОВЕРЬ НАЛИЧИЕ ИМЕНИ:
+   - Если у клиента нет имени в базе (см. секцию КЛИЕНТ) - СНАЧАЛА спроси как его зовут
+   - НЕ используй [CREATE_BOOKING] пока не узнаешь имя клиента
+   - После получения имени сохрани его в контексте диалога для будущего использования
+3. АВТОМАТИЧЕСКАЯ ЗАПИСЬ: Если клиент указал конкретное время И услугу И у нас есть его имя:
    - Сначала используй [SEARCH_SLOTS] чтобы проверить доступность
    - Если время свободно - СРАЗУ используй [CREATE_BOOKING] без подтверждения
    - Если время занято - предложи ближайшие альтернативы
-3. Если клиент указал только время БЕЗ услуги - уточни услугу
-4. Если клиент указал только услугу БЕЗ времени - покажи доступные слоты
-5. НЕ СПРАШИВАЙ подтверждение если клиент четко указал услугу и время
-6. Если клиент спрашивает цены - ОБЯЗАТЕЛЬНО используй [SHOW_PRICES]
-7. НЕ отвечай "у нас нет информации" - используй команды для получения данных
+4. Если клиент указал только время БЕЗ услуги - уточни услугу
+5. Если клиент указал только услугу БЕЗ времени - покажи доступные слоты
+6. НЕ СПРАШИВАЙ подтверждение если клиент четко указал услугу и время (и у нас есть имя)
+7. Если клиент спрашивает цены - ОБЯЗАТЕЛЬНО используй [SHOW_PRICES]
+8. НЕ отвечай "у нас нет информации" - используй команды для получения данных
 
 ПРАВИЛА ОБЩЕНИЯ:
 1. Будь ${terminology.communicationStyle}
@@ -272,7 +295,13 @@ ${formatter.formatConversation(context.conversation)}
 2. Затем добавь нужную команду: [КОМАНДА параметры]
 
 ПРИМЕРЫ ПРАВИЛЬНЫХ ОТВЕТОВ:
-Клиент: "хочу записаться"
+Клиент: "хочу записаться" (новый клиент без имени)
+Ты: "Отлично! Как вас зовут?"
+
+Клиент: "Александр"
+Ты: "Приятно познакомиться, Александр! На какую услугу хотите записаться? [SAVE_CLIENT_NAME name: Александр]"
+
+Клиент: "хочу записаться" (клиент с именем)
 Ты: "Конечно! На какую услугу хотите записаться? [SEARCH_SLOTS]"
 
 Клиент: "сколько стоит стрижка?"
@@ -281,12 +310,15 @@ ${formatter.formatConversation(context.conversation)}
 Клиент: "есть время завтра?"
 Ты: "Проверю свободное время на завтра. [SEARCH_SLOTS date=завтра]"
 
-АВТОМАТИЧЕСКАЯ ЗАПИСЬ (БЕЗ ПОДТВЕРЖДЕНИЯ):
-Клиент: "хочу записаться на стрижку завтра в 15:00"
+АВТОМАТИЧЕСКАЯ ЗАПИСЬ (БЕЗ ПОДТВЕРЖДЕНИЯ) - только если есть имя клиента:
+Клиент: "хочу записаться на стрижку завтра в 15:00" (клиент с именем)
 Ты: "Проверю доступность на завтра в 15:00. [SEARCH_SLOTS service_name=стрижка, date=завтра, time_preference=15:00] [CREATE_BOOKING service_id=last, staff_id=last, date=завтра, time=15:00]"
 
-Клиент: "запиши меня на маникюр в пятницу в 17:00"
-Ты: "Сейчас проверю и запишу вас. [SEARCH_SLOTS service_name=маникюр, date=пятница, time_preference=17:00] [CREATE_BOOKING service_id=last, staff_id=last, date=пятница, time=17:00]"
+Клиент: "запиши меня на маникюр в пятницу в 17:00" (новый клиент)
+Ты: "С удовольствием запишу вас! Как вас зовут?"
+
+Клиент: "Мария"
+Ты: "Спасибо, Мария! Сейчас проверю и запишу вас на маникюр в пятницу в 17:00. [SAVE_CLIENT_NAME name: Мария] [SEARCH_SLOTS service_name=маникюр, date=пятница, time_preference=17:00] [CREATE_BOOKING service_id=last, staff_id=last, date=пятница, time=17:00]"
 
 Ответь клиенту и выполни нужное действие:`
   }
