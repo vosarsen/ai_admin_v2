@@ -327,14 +327,23 @@ class CommandHandler {
       logger.info('Redis context check:', { clientName, redisContext });
     }
     
-    // Если имя все еще не найдено или это тестовое имя, пытаемся извлечь из текущего сообщения
-    if ((!clientName || clientName === 'Test Client') && context.currentMessage) {
+    // ВСЕГДА проверяем, не представился ли клиент в текущем сообщении
+    if (context.currentMessage) {
       const extractedName = this.extractNameFromMessage(context.currentMessage);
       
-      // Если нашли имя, сохраняем его для будущих сессий
+      // Если клиент представился в текущем сообщении, используем это имя
       if (extractedName) {
+        // Логируем если имя изменилось
+        if (clientName && clientName !== extractedName) {
+          logger.info('Client introduced with new name:', { 
+            oldName: clientName, 
+            newName: extractedName, 
+            phone: cleanPhone 
+          });
+        }
+        
         clientName = extractedName;
-        logger.info('Extracted client name from message:', { name: clientName, phone: cleanPhone });
+        logger.info('Using name from current message:', { name: clientName, phone: cleanPhone });
         
         // Сохраняем в Redis для будущего использования
         const contextService = require('../../context');
