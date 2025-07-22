@@ -9,7 +9,7 @@ class CommandHandler {
    */
   extractCommands(response) {
     const commands = [];
-    const commandRegex = /\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|CANCEL_BOOKING)([^\]]*)\]/g;
+    const commandRegex = /\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|CANCEL_BOOKING|SAVE_CLIENT_NAME|CONFIRM_BOOKING|MARK_NO_SHOW)([^\]]*)\]/g;
     
     let match;
     while ((match = commandRegex.exec(response)) !== null) {
@@ -93,6 +93,16 @@ class CommandHandler {
           case 'CANCEL_BOOKING':
             const cancelResult = await this.cancelBooking(cmd.params, context);
             results.push({ type: 'booking_list', data: cancelResult });
+            break;
+            
+          case 'CONFIRM_BOOKING':
+            const confirmResult = await this.confirmBooking(cmd.params, context);
+            results.push({ type: 'booking_confirmed', data: confirmResult });
+            break;
+            
+          case 'MARK_NO_SHOW':
+            const noShowResult = await this.markNoShow(cmd.params, context);
+            results.push({ type: 'booking_no_show', data: noShowResult });
             break;
         }
       } catch (error) {
@@ -724,6 +734,21 @@ class CommandHandler {
   async cancelBooking(params, context) {
     const phone = context.phone.replace('@c.us', '');
     
+    // Временное решение - информируем о невозможности отмены через бота
+    return {
+      success: false,
+      temporaryLimitation: true,
+      message: 'К сожалению, отмена записи через бота временно недоступна из-за ограничений API.',
+      instructions: [
+        '📱 Отменить запись через мобильное приложение YClients',
+        '💻 Отменить запись на сайте yclients.com',
+        `📞 Позвонить администратору: ${context.company?.phones?.[0] || '+7 (XXX) XXX-XX-XX'}`
+      ],
+      bookings: [] // Не показываем список записей, так как все равно не можем их отменить
+    };
+    
+    // Старый код закомментирован для будущего использования
+    /*
     // Если передан ID записи, пытаемся сразу удалить
     if (params.booking_id || params.record_id) {
       const recordId = params.booking_id || params.record_id;
@@ -745,6 +770,7 @@ class CommandHandler {
         };
       }
     }
+    */
     
     // Иначе показываем список записей
     const bookingsResult = await bookingService.getClientBookings(phone, context.company.company_id);
@@ -798,9 +824,77 @@ class CommandHandler {
     };
   }
 
+  /**
+   * Подтвердить запись
+   */
+  async confirmBooking(params, context) {
+    // Временное решение - информируем о недоступности
+    return {
+      success: false,
+      temporaryLimitation: true,
+      message: 'К сожалению, подтверждение записи через бота временно недоступно из-за ограничений API.',
+      instructions: [
+        '✅ Ваша запись уже активна',
+        '📱 Статус можно увидеть в приложении YClients',
+        `📞 По вопросам звоните: ${context.company?.phones?.[0] || '+7 (XXX) XXX-XX-XX'}`
+      ]
+    };
+    
+    // Код для будущего использования
+    /*
+    const recordId = params.booking_id || params.record_id;
+    const visitId = params.visit_id || recordId; // По умолчанию visitId = recordId
+    
+    if (!recordId) {
+      return {
+        success: false,
+        error: 'Не указан ID записи для подтверждения'
+      };
+    }
+    
+    const result = await bookingService.confirmBooking(visitId, recordId);
+    return result;
+    */
+  }
+
+  /**
+   * Отметить неявку
+   */
+  async markNoShow(params, context) {
+    // Временное решение - информируем о недоступности
+    return {
+      success: false,
+      temporaryLimitation: true,
+      message: 'К сожалению, отметка о неявке через бота временно недоступна из-за ограничений API.',
+      instructions: [
+        '📱 Отметить неявку можно в приложении YClients',
+        '💬 Или сообщите администратору',
+        `📞 Телефон: ${context.company?.phones?.[0] || '+7 (XXX) XXX-XX-XX'}`
+      ],
+      suggestion: 'Если вы хотите отменить запись, напишите "отменить запись"'
+    };
+    
+    // Код для будущего использования
+    /*
+    const recordId = params.booking_id || params.record_id;
+    const visitId = params.visit_id || recordId;
+    const reason = params.reason || 'Клиент не явился';
+    
+    if (!recordId) {
+      return {
+        success: false,
+        error: 'Не указан ID записи'
+      };
+    }
+    
+    const result = await bookingService.markNoShow(visitId, recordId, reason);
+    return result;
+    */
+  }
+
   removeCommands(response) {
     // Убираем команды в квадратных скобках
-    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|SAVE_CLIENT_NAME|CANCEL_BOOKING)[^\]]*\]/g, '');
+    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|SAVE_CLIENT_NAME|CANCEL_BOOKING|CONFIRM_BOOKING|MARK_NO_SHOW)[^\]]*\]/g, '');
     
     // Убираем технические фразы в скобках
     cleaned = cleaned.replace(/\([^)]*(?:клиент|тестовое|команду|обратите внимание|поскольку)[^)]*\)/gi, '');

@@ -391,6 +391,117 @@ class BookingService {
       return { success: false, error: error.message };
     }
   }
+
+  /**
+   * Cancel user booking with record hash
+   * Использует user endpoint который не требует прав администратора
+   */
+  async cancelUserBooking(recordId, recordHash) {
+    try {
+      logger.info(`🚫 Canceling user booking ${recordId} with hash`);
+      
+      // Отменяем запись через user endpoint
+      const result = await this.getYclientsClient().deleteUserRecord(recordId, recordHash);
+
+      if (result.success) {
+        logger.info(`✅ Successfully canceled user booking ${recordId}`);
+      } else {
+        logger.error(`❌ Failed to cancel user booking ${recordId}: ${result.error}`);
+      }
+
+      return result;
+    } catch (error) {
+      logger.error('Error canceling user booking:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Подтвердить запись клиента
+   * @param {number} visitId - ID визита
+   * @param {number} recordId - ID записи
+   */
+  async confirmBooking(visitId, recordId) {
+    try {
+      logger.info(`✅ Confirming booking ${recordId}`);
+      
+      const result = await this.getYclientsClient().updateVisitStatus(
+        visitId,
+        recordId,
+        2, // Статус "Подтвердил"
+        { comment: 'Подтверждено через WhatsApp бота' }
+      );
+
+      if (result.success) {
+        logger.info(`✅ Successfully confirmed booking ${recordId}`);
+      } else {
+        logger.error(`❌ Failed to confirm booking ${recordId}: ${result.error}`);
+      }
+
+      return result;
+    } catch (error) {
+      logger.error('Error confirming booking:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Отметить неявку клиента
+   * @param {number} visitId - ID визита
+   * @param {number} recordId - ID записи
+   */
+  async markNoShow(visitId, recordId, reason = '') {
+    try {
+      logger.info(`❌ Marking no-show for booking ${recordId}`);
+      
+      const result = await this.getYclientsClient().updateVisitStatus(
+        visitId,
+        recordId,
+        -1, // Статус "Не пришел"
+        { comment: reason || 'Клиент не явился' }
+      );
+
+      if (result.success) {
+        logger.info(`✅ Successfully marked no-show for booking ${recordId}`);
+      } else {
+        logger.error(`❌ Failed to mark no-show for booking ${recordId}: ${result.error}`);
+      }
+
+      return result;
+    } catch (error) {
+      logger.error('Error marking no-show:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Отметить что клиент пришел
+   * @param {number} visitId - ID визита
+   * @param {number} recordId - ID записи
+   */
+  async markArrived(visitId, recordId) {
+    try {
+      logger.info(`✅ Marking arrived for booking ${recordId}`);
+      
+      const result = await this.getYclientsClient().updateVisitStatus(
+        visitId,
+        recordId,
+        1, // Статус "Пришел"
+        { comment: 'Клиент пришел' }
+      );
+
+      if (result.success) {
+        logger.info(`✅ Successfully marked arrived for booking ${recordId}`);
+      } else {
+        logger.error(`❌ Failed to mark arrived for booking ${recordId}: ${result.error}`);
+      }
+
+      return result;
+    } catch (error) {
+      logger.error('Error marking arrived:', error);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 module.exports = new BookingService();
