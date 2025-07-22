@@ -711,11 +711,12 @@ class YclientsClient {
         queryParams.staff_id = params.staff_id;
       }
       
-      const result = await this.request({
-        method: 'GET',
-        endpoint: `records/${companyId}`,
-        params: queryParams
-      });
+      const result = await this.request(
+        'GET',
+        `records/${companyId}`,
+        null,
+        queryParams
+      );
 
       if (result.success && result.data) {
         logger.info(`✅ Found ${result.data.length} records`);
@@ -745,10 +746,12 @@ class YclientsClient {
     try {
       logger.info(`🚫 Deleting record ${recordId} from company ${companyId}`);
       
-      const result = await this.request({
-        method: 'DELETE',
-        endpoint: `record/${companyId}/${recordId}`
-      });
+      const result = await this.request(
+        'DELETE',
+        `record/${companyId}/${recordId}`,
+        null,
+        {}
+      );
 
       if (result.success) {
         logger.info(`✅ Successfully deleted record ${recordId}`);
