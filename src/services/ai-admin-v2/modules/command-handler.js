@@ -251,9 +251,28 @@ class CommandHandler {
    * Создание записи
    */
   async createBooking(params, context) {
-    // Если AI передал "last", используем данные из последнего поиска
-    let serviceId = params.service_id === 'last' ? 
-      context.lastSearch?.service_id : parseInt(params.service_id);
+    // Если передан service_name вместо service_id, ищем услугу
+    let serviceId = params.service_id;
+    if (params.service_name && !params.service_id) {
+      const service = serviceMatcher.findBestMatch(
+        params.service_name, 
+        context.services
+      );
+      if (service) {
+        serviceId = service.yclients_id;
+        logger.info('Found service by name:', { 
+          query: params.service_name, 
+          found: service.title,
+          serviceId: service.yclients_id
+        });
+      }
+    } else if (params.service_id === 'last') {
+      // Если AI передал "last", используем данные из последнего поиска
+      serviceId = context.lastSearch?.service_id;
+    } else {
+      serviceId = parseInt(params.service_id);
+    }
+    
     let staffId = params.staff_id === 'last' ? 
       context.lastSearch?.staff_id : parseInt(params.staff_id);
     
@@ -266,6 +285,41 @@ class CommandHandler {
     if ((!staffId || staffId < 1000) && context.lastSearch?.staff_id) {
       logger.info('Using staff_id from lastSearch:', context.lastSearch.staff_id);
       staffId = context.lastSearch.staff_id;
+    }
+    
+    // Если staff_id не указан, пытаемся найти доступного мастера
+    if (!staffId && serviceId) {
+      // Парсим дату для проверки доступности
+      const parsedDate = formatter.parseRelativeDate(params.date);
+      
+      // Ищем мастера, который может выполнить эту услугу в указанное время
+      for (const staff of context.staff) {
+        try {
+          const slots = await bookingService.getAvailableSlots(
+            context.company.yclients_id || context.company.company_id,
+            staff.yclients_id,
+            parsedDate,
+            serviceId
+          );
+          
+          // Проверяем, есть ли нужное время среди доступных слотов
+          const hasRequestedTime = slots.some(slot => slot.time === params.time);
+          if (hasRequestedTime) {
+            staffId = staff.yclients_id;
+            logger.info('Found available staff for time:', { 
+              staffName: staff.name,
+              staffId: staff.yclients_id,
+              time: params.time 
+            });
+            break;
+          }
+        } catch (error) {
+          logger.warn('Error checking staff availability:', { 
+            staffId: staff.yclients_id, 
+            error: error.message 
+          });
+        }
+      }
     }
     
     // Если все еще нет правильных ID, пытаемся найти по имени

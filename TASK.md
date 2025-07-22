@@ -127,9 +127,18 @@
 
 4. **Configuration**
    - Redis port hardcoded with temporary hacks (6380 → 6379)
+
    - Need separate configs for local vs production
 
-5. **Reliability**
+5. **YClients API Permissions**
+   - API возвращает ошибку 403 при попытке управления клиентами
+   - Невозможно найти клиента по телефону (`POST company/962302/clients/search`)
+   - Невозможно создать нового клиента (`POST clients/962302`)
+   - Но создание записи работает (`POST book_record/962302`)
+   - В результате в YClients отображается "Клиент" вместо реального имени
+   - **Важно**: Код AI Admin v2 работает правильно - проблема в правах доступа API ключа
+
+6. **Reliability**
    - WhatsApp session can expire
    - No automatic reconnection
    - Queue can get stuck on errors
