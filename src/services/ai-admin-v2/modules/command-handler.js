@@ -741,7 +741,7 @@ class CommandHandler {
         return {
           success: false,
           error: cancelResult.error,
-          message: `Не удалось отменить запись ${recordId}. ${cancelResult.error}`
+          message: `Не удалось отменить запись ${recordId}. ${typeof cancelResult.error === 'object' ? JSON.stringify(cancelResult.error) : cancelResult.error}`
         };
       }
     }
