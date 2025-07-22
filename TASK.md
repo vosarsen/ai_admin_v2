@@ -2,8 +2,16 @@
 
 ## 🎯 Current Sprint
 
-### 🔴 High Priority
+### 🔴 High Priority - Testing Required
+- [ ] **Test unnecessary slots display fix** - проверить что слоты не показываются при записи на конкретное время
+  - [ ] Запись на свободное время (должна создаваться без показа слотов)
+  - [ ] Запись на занятое время (должны показаться альтернативы)
+  - [ ] Явный запрос слотов ("когда можно", "есть время")
 - [ ] Test booking flow (Phase 2) - полный процесс записи
+  - [x] Показ прайс-листа (SHOW_PRICES) - протестировано
+  - [ ] Показ портфолио (SHOW_PORTFOLIO)
+  - [ ] Отмена записи
+  - [ ] Перенос записи
 - [ ] Test modification and cancellation (Phase 3)
 - [ ] Test edge cases and error handling (Phase 4)
 - [ ] Implement webhook integration for real-time updates from YClients
@@ -50,7 +58,7 @@
 - [x] Increased schedule sync frequency from 2x to 48x daily (July 21, 2024)
 - [x] Implemented smart slot filtering with 1-hour intervals (July 21, 2024)
 
-### Features Added (July 20-21, 2024)
+### Features Added (July 20-22, 2025)
 - [x] ServiceMatcher scoring algorithm with penalties for complex services
 - [x] Relative date parsing ("завтра", "послезавтра", days of week)
 - [x] Automatic booking creation without confirmation when specific time provided
@@ -59,6 +67,9 @@
 - [x] Staff availability sync script (sync-staff-schedules.js)
 - [x] API endpoints for manual sync control
 - [x] Smart slot filtering - 3 slots per time period with 1-hour gaps
+- [x] Fixed unnecessary slots display when booking specific time (July 22, 2025)
+- [x] CREATE_BOOKING now supports service_name parameter (July 22, 2025)
+- [x] Automatic staff selection if not specified (July 22, 2025)
 
 ### Features
 - [x] Implemented automatic company data parsing from YClients API (July 19, 2024)

@@ -95,7 +95,8 @@ class CommandHandler {
         results.push({ 
           type: 'error', 
           command: cmd.command,
-          error: error.message 
+          error: error.message,
+          params: cmd.params // Добавляем параметры для обработки ошибок
         });
       }
     }
