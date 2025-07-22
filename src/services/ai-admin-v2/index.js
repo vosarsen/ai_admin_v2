@@ -425,7 +425,7 @@ ${formatter.formatConversation(context.conversation)}
         finalResponse += '\n\n' + formatter.formatPrices(result.data, context.company.type);
       } else if (result.type === 'booking_list') {
         // Форматируем список записей для отмены
-        if (result.data.bookings.length > 0) {
+        if (result.data && result.data.bookings && result.data.bookings.length > 0) {
           finalResponse += '\n\n📅 Ваши активные записи:\n';
           result.data.bookings.forEach(booking => {
             finalResponse += `\n${booking.index}. ${booking.date} в ${booking.time}`;
@@ -442,8 +442,10 @@ ${formatter.formatConversation(context.conversation)}
           const redisContext = await contextService.getContext(context.phone.replace('@c.us', ''));
           redisContext.pendingCancellation = result.data.bookings;
           await contextService.setContext(context.phone.replace('@c.us', ''), redisContext);
-        } else {
+        } else if (result.data && result.data.message) {
           finalResponse += '\n\n' + result.data.message;
+        } else {
+          finalResponse += '\n\nНе удалось получить список записей. Попробуйте позже.';
         }
       } else if (result.type === 'error') {
         // Обрабатываем ошибки команд
