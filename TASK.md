@@ -3,10 +3,10 @@
 ## 🎯 Current Sprint
 
 ### 🔴 High Priority - Testing Required
-- [ ] **Test unnecessary slots display fix** - проверить что слоты не показываются при записи на конкретное время
-  - [ ] Запись на свободное время (должна создаваться без показа слотов)
-  - [ ] Запись на занятое время (должны показаться альтернативы)
-  - [ ] Явный запрос слотов ("когда можно", "есть время")
+- [x] **Test unnecessary slots display fix** - проверить что слоты не показываются при записи на конкретное время ✅ ПРОТЕСТИРОВАНО 22.07.2025
+  - [x] Запись на свободное время (должна создаваться без показа слотов) ✅
+  - [x] Запись на занятое время (должны показаться альтернативы) ✅
+  - [x] Явный запрос слотов ("когда можно", "есть время") ✅
 - [ ] Test booking flow (Phase 2) - полный процесс записи
   - [x] Показ прайс-листа (SHOW_PRICES) - протестировано
   - [ ] Показ портфолио (SHOW_PORTFOLIO)
@@ -70,6 +70,9 @@
 - [x] Fixed unnecessary slots display when booking specific time (July 22, 2025)
 - [x] CREATE_BOOKING now supports service_name parameter (July 22, 2025)
 - [x] Automatic staff selection if not specified (July 22, 2025)
+- [x] Automatic alternative slots display on booking errors (July 22, 2025)
+- [x] Fixed YClients detailed error messages extraction (July 22, 2025)
+- [x] Added error handling logging in processAIResponse (July 22, 2025)
 
 ### Features
 - [x] Implemented automatic company data parsing from YClients API (July 19, 2024)
