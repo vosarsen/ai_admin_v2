@@ -695,51 +695,45 @@ class YclientsClient {
     try {
       logger.info(`📋 Getting records for company ${companyId}`, params);
       
-      const queryParams = new URLSearchParams();
+      const queryParams = {};
       
       // Добавляем параметры фильтрации
       if (params.client_phone) {
-        queryParams.append('client_phone', params.client_phone);
+        queryParams.client_phone = params.client_phone;
       }
       if (params.start_date) {
-        queryParams.append('start_date', params.start_date);
+        queryParams.start_date = params.start_date;
       }
       if (params.end_date) {
-        queryParams.append('end_date', params.end_date);
+        queryParams.end_date = params.end_date;
       }
       if (params.staff_id) {
-        queryParams.append('staff_id', params.staff_id);
+        queryParams.staff_id = params.staff_id;
       }
       
-      const response = await this.axiosInstance.get(
-        `/records/${companyId}?${queryParams.toString()}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${this.partnerToken}, User ${await this._getUserToken(companyId)}`
-          }
-        }
-      );
+      const result = await this.request({
+        method: 'GET',
+        endpoint: `records/${companyId}`,
+        params: queryParams
+      });
 
-      if (response.data.success) {
-        logger.info(`✅ Found ${response.data.data.length} records`);
+      if (result.success && result.data) {
+        logger.info(`✅ Found ${result.data.length} records`);
         return {
           success: true,
-          data: response.data.data
+          data: result.data
         };
       }
 
       return {
         success: false,
-        error: response.data.meta?.message || 'Failed to get records'
+        error: result.error || 'Failed to get records'
       };
     } catch (error) {
       logger.error('Error getting records:', error);
-      const formattedError = this.errorHandler.formatError(error);
       return {
         success: false,
-        error: formattedError.message,
-        details: formattedError.details,
-        yclientsErrors: formattedError.yclientsErrors
+        error: error.message
       };
     }
   }
@@ -751,35 +745,28 @@ class YclientsClient {
     try {
       logger.info(`🚫 Deleting record ${recordId} from company ${companyId}`);
       
-      const response = await this.axiosInstance.delete(
-        `/record/${companyId}/${recordId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${this.partnerToken}, User ${await this._getUserToken(companyId)}`
-          }
-        }
-      );
+      const result = await this.request({
+        method: 'DELETE',
+        endpoint: `record/${companyId}/${recordId}`
+      });
 
-      if (response.data.success) {
+      if (result.success) {
         logger.info(`✅ Successfully deleted record ${recordId}`);
         return {
           success: true,
-          data: response.data.data
+          data: result.data
         };
       }
 
       return {
         success: false,
-        error: response.data.meta?.message || 'Failed to delete record'
+        error: result.error || 'Failed to delete record'
       };
     } catch (error) {
       logger.error('Error deleting record:', error);
-      const formattedError = this.errorHandler.formatError(error);
       return {
         success: false,
-        error: formattedError.message,
-        details: formattedError.details,
-        yclientsErrors: formattedError.yclientsErrors
+        error: error.message
       };
     }
   }
