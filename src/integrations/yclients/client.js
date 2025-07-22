@@ -429,10 +429,17 @@ class YclientsClient {
           503: 'Сервис временно недоступен'
         };
 
+        // Извлекаем детальные ошибки от YClients
+        let yclientsErrors = null;
+        if (data?.meta?.errors && Array.isArray(data.meta.errors)) {
+          yclientsErrors = data.meta.errors;
+        }
+        
         return {
           type: `HTTP_${status}`,
           message: errorMap[status] || `HTTP ${status} ошибка`,
           details: data?.message || data?.error,
+          yclientsErrors: yclientsErrors,
           retryable: [429, 500, 502, 503].includes(status)
         };
       },
