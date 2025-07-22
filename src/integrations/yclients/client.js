@@ -778,6 +778,92 @@ class YclientsClient {
   }
 
   /**
+   * Удалить запись пользователя через user endpoint
+   * Требует record_hash для авторизации
+   */
+  async deleteUserRecord(recordId, recordHash) {
+    try {
+      logger.info(`🚫 Deleting user record ${recordId} with hash`);
+      
+      const result = await this.request(
+        'DELETE',
+        `user/records/${recordId}/${recordHash}`,
+        null
+      );
+
+      if (result.success) {
+        logger.info(`✅ Successfully deleted user record ${recordId}`);
+        return {
+          success: true,
+          data: result.data
+        };
+      }
+
+      return {
+        success: false,
+        error: result.meta?.message || 'Failed to delete user record'
+      };
+    } catch (error) {
+      logger.error('Error deleting user record:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Обновить статус посещения (attendance)
+   * @param {number} visitId - ID визита
+   * @param {number} recordId - ID записи
+   * @param {number} attendance - Статус: 2=подтвердил, 1=пришел, 0=ожидание, -1=не пришел
+   * @param {object} additionalData - Дополнительные данные (комментарий, услуги и т.д.)
+   */
+  async updateVisitStatus(visitId, recordId, attendance, additionalData = {}) {
+    try {
+      logger.info(`📝 Updating visit status for record ${recordId}, attendance: ${attendance}`);
+      
+      const attendanceMap = {
+        2: 'Подтвердил',
+        1: 'Пришел',
+        0: 'Ожидание',
+        '-1': 'Не пришел'
+      };
+      
+      const payload = {
+        attendance,
+        ...additionalData
+      };
+      
+      const result = await this.request(
+        'PUT',
+        `visits/${visitId}/${recordId}`,
+        payload
+      );
+
+      if (result.success) {
+        logger.info(`✅ Successfully updated visit status to: ${attendanceMap[attendance]}`);
+        return {
+          success: true,
+          data: result.data,
+          status: attendanceMap[attendance]
+        };
+      }
+
+      return {
+        success: false,
+        error: result.meta?.message || 'Failed to update visit status'
+      };
+    } catch (error) {
+      logger.error('Error updating visit status:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
    * Обновить запись (например, изменить статус)
    */
   async updateRecord(companyId, recordId, updateData) {
