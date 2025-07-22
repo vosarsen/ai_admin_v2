@@ -496,7 +496,24 @@ class CommandHandler {
     });
     
     if (!result.success) {
-      throw new Error(result.error || 'Не удалось создать запись');
+      // Извлекаем детальные ошибки от YClients
+      let errorMessage = 'Не удалось создать запись';
+      
+      // Проверяем наличие ошибок от YClients API
+      if (result.yclientsErrors && Array.isArray(result.yclientsErrors)) {
+        errorMessage = result.yclientsErrors.map(err => err.message).join('. ');
+      } else if (result.error && typeof result.error === 'object') {
+        errorMessage = result.error.message || JSON.stringify(result.error);
+      } else if (result.error) {
+        errorMessage = String(result.error);
+      }
+      
+      logger.error('Booking creation failed with error:', { 
+        errorMessage, 
+        fullResult: result 
+      });
+      
+      throw new Error(errorMessage);
     }
     
     // YClients возвращает вложенную структуру data.data
