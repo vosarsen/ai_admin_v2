@@ -724,7 +724,29 @@ class CommandHandler {
   async cancelBooking(params, context) {
     const phone = context.phone.replace('@c.us', '');
     
-    // Получаем активные записи клиента
+    // Если передан ID записи, пытаемся сразу удалить
+    if (params.booking_id || params.record_id) {
+      const recordId = params.booking_id || params.record_id;
+      logger.info(`Attempting to cancel booking directly with ID: ${recordId}`);
+      
+      const cancelResult = await bookingService.cancelBooking(recordId, context.company.company_id);
+      
+      if (cancelResult.success) {
+        return {
+          success: true,
+          directCancellation: true,
+          message: `Запись ${recordId} успешно отменена!`
+        };
+      } else {
+        return {
+          success: false,
+          error: cancelResult.error,
+          message: `Не удалось отменить запись ${recordId}. ${cancelResult.error}`
+        };
+      }
+    }
+    
+    // Иначе показываем список записей
     const bookingsResult = await bookingService.getClientBookings(phone, context.company.company_id);
     
     if (!bookingsResult.success) {

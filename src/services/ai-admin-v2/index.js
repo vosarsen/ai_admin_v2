@@ -283,9 +283,11 @@ ${formatter.formatConversation(context.conversation)}
    Используй эту команду когда клиент представился
    Пример: [SAVE_CLIENT_NAME name: Александр]
 
-6. [CANCEL_BOOKING] - отменить запись
-   Эта команда покажет список активных записей клиента для выбора
-   Используй, когда клиент хочет отменить запись
+6. [CANCEL_BOOKING] или [CANCEL_BOOKING booking_id: номер_записи] - отменить запись
+   Можно использовать с ID записи для прямой отмены или без ID для показа списка
+   Примеры:
+   - [CANCEL_BOOKING] - покажет список записей
+   - [CANCEL_BOOKING booking_id: 1199065365] - отменит конкретную запись
 
 ПРАВИЛА РАБОТЫ:
 1. ВСЕГДА анализируй намерение клиента по секции "АНАЛИЗ НАМЕРЕНИЯ КЛИЕНТА"
@@ -424,8 +426,15 @@ ${formatter.formatConversation(context.conversation)}
       } else if (result.type === 'prices' && !slotResults.length) {
         finalResponse += '\n\n' + formatter.formatPrices(result.data, context.company.type);
       } else if (result.type === 'booking_list') {
-        // Форматируем список записей для отмены
-        if (result.data && result.data.bookings && result.data.bookings.length > 0) {
+        // Проверяем, была ли это прямая отмена
+        if (result.data && result.data.directCancellation) {
+          if (result.data.success) {
+            finalResponse += '\n\n✅ ' + result.data.message;
+          } else {
+            finalResponse += '\n\n❌ ' + result.data.message;
+          }
+        } else if (result.data && result.data.bookings && result.data.bookings.length > 0) {
+          // Форматируем список записей для отмены
           finalResponse += '\n\n📅 Ваши активные записи:\n';
           result.data.bookings.forEach(booking => {
             finalResponse += `\n${booking.index}. ${booking.date} в ${booking.time}`;

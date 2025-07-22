@@ -775,6 +775,41 @@ class YclientsClient {
   }
 
   /**
+   * Обновить запись (например, изменить статус)
+   */
+  async updateRecord(companyId, recordId, updateData) {
+    try {
+      logger.info(`📝 Updating record ${recordId} in company ${companyId}`, updateData);
+      
+      const result = await this.request(
+        'PUT',
+        `record/${companyId}/${recordId}`,
+        updateData,
+        {}
+      );
+
+      if (result.success) {
+        logger.info(`✅ Successfully updated record ${recordId}`);
+        return {
+          success: true,
+          data: result.data
+        };
+      }
+
+      return {
+        success: false,
+        error: result.error || 'Failed to update record'
+      };
+    } catch (error) {
+      logger.error('Error updating record:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
    * Очистить кэш
    */
   clearCache() {
