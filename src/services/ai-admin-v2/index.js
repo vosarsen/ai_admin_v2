@@ -385,20 +385,57 @@ ${formatter.formatConversation(context.conversation)}
       } else if (result.type === 'error') {
         // Обрабатываем ошибки команд
         if (result.command === 'CREATE_BOOKING') {
-          // Проверяем, это ошибка занятого времени или другая ошибка
-          if (result.error && result.error.includes('недоступно')) {
-            // Время занято - показываем альтернативы
-            finalResponse = 'К сожалению, выбранное время уже занято.';
+          // Проверяем, это ошибка доступности времени или другая ошибка
+          const isAvailabilityError = result.error && (
+            result.error.includes('недоступн') || // недоступно, недоступна, недоступны
+            result.error.includes('Услуга недоступна') ||
+            result.error.includes('Нет доступных') ||
+            result.error.includes('выбранное время') ||
+            result.error.includes('занято')
+          );
+          
+          if (isAvailabilityError) {
+            // Время/мастер недоступны - нужно показать альтернативы
+            finalResponse = 'К сожалению, выбранное время недоступно.';
             
-            // Если есть слоты из предыдущего поиска, показываем их
-            if (context.lastSearch?.slots && context.lastSearch.slots.length > 0) {
+            // Пытаемся найти альтернативные слоты
+            if (result.params) {
+              try {
+                // Извлекаем параметры из неудачной попытки бронирования
+                const { service_name, service_id, date, time } = result.params;
+                
+                // Ищем доступные слоты для этой услуги и даты
+                const searchParams = {
+                  service_name: service_name || (service_id ? null : 'стрижка'),
+                  service_id: service_id,
+                  date: date || 'сегодня'
+                };
+                
+                logger.info('Searching for alternative slots after booking error:', searchParams);
+                const searchResult = await commandHandler.searchSlots(searchParams, context);
+                
+                if (searchResult && searchResult.slots && searchResult.slots.length > 0) {
+                  finalResponse += '\n\nВот доступное время:';
+                  finalResponse += '\n' + formatter.formatSlots(searchResult.slots, context.company.type);
+                  
+                  // Сохраняем результат поиска для последующего использования
+                  context.lastSearch = searchResult;
+                } else {
+                  finalResponse += ' К сожалению, на сегодня все занято. Попробуйте выбрать другой день.';
+                }
+              } catch (searchError) {
+                logger.error('Error searching for alternative slots:', searchError);
+                finalResponse += ' Давайте подберем другое удобное для вас время.';
+              }
+            } else if (context.lastSearch?.slots && context.lastSearch.slots.length > 0) {
+              // Если нет параметров, но есть предыдущий поиск
               finalResponse += '\n\nВот доступное время:';
               finalResponse += '\n' + formatter.formatSlots(context.lastSearch.slots, context.company.type);
             } else {
               finalResponse += ' Давайте подберем другое удобное для вас время.';
             }
           } else {
-            // Другая ошибка
+            // Другая ошибка (не связанная с доступностью)
             finalResponse = finalResponse.replace(
               /записываю вас|запись создана|вы записаны/gi, 
               'не удалось создать запись'
