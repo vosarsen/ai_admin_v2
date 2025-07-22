@@ -384,6 +384,13 @@ ${formatter.formatConversation(context.conversation)}
         finalResponse += '\n\n' + formatter.formatPrices(result.data, context.company.type);
       } else if (result.type === 'error') {
         // Обрабатываем ошибки команд
+        logger.info('Processing error result:', {
+          command: result.command,
+          error: result.error,
+          errorType: typeof result.error,
+          params: result.params
+        });
+        
         if (result.command === 'CREATE_BOOKING') {
           // Проверяем, это ошибка доступности времени или другая ошибка
           const isAvailabilityError = result.error && (
@@ -393,6 +400,11 @@ ${formatter.formatConversation(context.conversation)}
             result.error.includes('выбранное время') ||
             result.error.includes('занято')
           );
+          
+          logger.info('Availability error check:', {
+            isAvailabilityError,
+            error: result.error
+          });
           
           if (isAvailabilityError) {
             // Время/мастер недоступны - нужно показать альтернативы
