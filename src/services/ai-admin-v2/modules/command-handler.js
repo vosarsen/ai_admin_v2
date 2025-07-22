@@ -500,7 +500,9 @@ class CommandHandler {
       let errorMessage = 'Не удалось создать запись';
       
       // Проверяем наличие ошибок от YClients API
-      if (result.yclientsErrors && Array.isArray(result.yclientsErrors)) {
+      if (result.error && result.error.yclientsErrors && Array.isArray(result.error.yclientsErrors)) {
+        errorMessage = result.error.yclientsErrors.map(err => err.message).join('. ');
+      } else if (result.yclientsErrors && Array.isArray(result.yclientsErrors)) {
         errorMessage = result.yclientsErrors.map(err => err.message).join('. ');
       } else if (result.error && typeof result.error === 'object') {
         errorMessage = result.error.message || JSON.stringify(result.error);
