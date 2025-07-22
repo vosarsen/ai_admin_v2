@@ -750,7 +750,10 @@ class YclientsClient {
         'DELETE',
         `record/${companyId}/${recordId}`,
         null,
-        {}
+        {
+          include_consumables: 0,
+          include_finance_transactions: 0
+        }
       );
 
       if (result.success) {
