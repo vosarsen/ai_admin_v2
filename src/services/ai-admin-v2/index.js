@@ -28,6 +28,38 @@ class AIAdminV2 {
     try {
       logger.info(`🤖 AI Admin v2 processing: "${message}" from ${phone}`);
       
+      // Проверяем, есть ли ожидающая отмена
+      const contextService = require('../context');
+      const redisContext = await contextService.getContext(phone.replace('@c.us', ''));
+      
+      if (redisContext?.pendingCancellation) {
+        // Пробуем интерпретировать сообщение как номер записи
+        const selectedNumber = parseInt(message.trim());
+        
+        if (!isNaN(selectedNumber) && selectedNumber > 0 && selectedNumber <= redisContext.pendingCancellation.length) {
+          // Получаем выбранную запись
+          const selectedBooking = redisContext.pendingCancellation[selectedNumber - 1];
+          
+          // Отменяем запись
+          const cancelResult = await bookingService.cancelBooking(selectedBooking.id, companyId);
+          
+          // Очищаем состояние ожидания
+          delete redisContext.pendingCancellation;
+          await contextService.setContext(phone.replace('@c.us', ''), redisContext);
+          
+          if (cancelResult.success) {
+            return `✅ Запись успешно отменена!\n\n${selectedBooking.date} в ${selectedBooking.time}\n${selectedBooking.services}\nМастер: ${selectedBooking.staff}\n\nЕсли захотите записаться снова - обращайтесь! 😊`;
+          } else {
+            return `❌ Не удалось отменить запись: ${cancelResult.error}\n\nПопробуйте позже или свяжитесь с администратором.`;
+          }
+        }
+        
+        // Если ввели не номер или неправильный номер - продолжаем обычную обработку
+        // но очищаем состояние ожидания
+        delete redisContext.pendingCancellation;
+        await contextService.setContext(phone.replace('@c.us', ''), redisContext);
+      }
+      
       // Загружаем полный контекст
       const context = await this.loadFullContext(phone, companyId);
       
@@ -214,6 +246,11 @@ ${formatter.formatConversation(context.conversation)}
 6. МОИ ЗАПИСИ - проверь в истории клиента:
    - "мои записи", "когда я записан", "проверить запись"
    - "во сколько я записан?", "покажи мои визиты"
+   
+7. ОТМЕНА ЗАПИСИ - используй [CANCEL_BOOKING] когда клиент:
+   - "отменить запись", "отменить визит", "не приду"
+   - "удалить запись", "снять запись"
+   - "отмена", "отменяю" (в контексте записи)
 
 ТВОИ КОМАНДЫ (ИСПОЛЬЗУЙ ТОЧНО ТАКОЙ ФОРМАТ):
 1. [SEARCH_SLOTS service_name: название_услуги, date: дата, time_preference: время] - поиск свободного времени
@@ -245,6 +282,10 @@ ${formatter.formatConversation(context.conversation)}
 5. [SAVE_CLIENT_NAME name: имя_клиента] - сохранить имя клиента
    Используй эту команду когда клиент представился
    Пример: [SAVE_CLIENT_NAME name: Александр]
+
+6. [CANCEL_BOOKING] - отменить запись
+   Эта команда покажет список активных записей клиента для выбора
+   Используй, когда клиент хочет отменить запись
 
 ПРАВИЛА РАБОТЫ:
 1. ВСЕГДА анализируй намерение клиента по секции "АНАЛИЗ НАМЕРЕНИЯ КЛИЕНТА"
@@ -382,6 +423,28 @@ ${formatter.formatConversation(context.conversation)}
         finalResponse += '\n\n✅ ' + formatter.formatBookingConfirmation(result.data, context.company.type);
       } else if (result.type === 'prices' && !slotResults.length) {
         finalResponse += '\n\n' + formatter.formatPrices(result.data, context.company.type);
+      } else if (result.type === 'booking_list') {
+        // Форматируем список записей для отмены
+        if (result.data.bookings.length > 0) {
+          finalResponse += '\n\n📅 Ваши активные записи:\n';
+          result.data.bookings.forEach(booking => {
+            finalResponse += `\n${booking.index}. ${booking.date} в ${booking.time}`;
+            finalResponse += `\n   Услуга: ${booking.services}`;
+            finalResponse += `\n   Мастер: ${booking.staff}`;
+            if (booking.price > 0) {
+              finalResponse += `\n   Стоимость: ${booking.price} руб.`;
+            }
+          });
+          finalResponse += '\n\nНапишите номер записи, которую хотите отменить.';
+          
+          // Сохраняем список записей в контекст для последующей обработки
+          const contextService = require('../../context');
+          const redisContext = await contextService.getContext(context.phone.replace('@c.us', ''));
+          redisContext.pendingCancellation = result.data.bookings;
+          await contextService.setContext(context.phone.replace('@c.us', ''), redisContext);
+        } else {
+          finalResponse += '\n\n' + result.data.message;
+        }
       } else if (result.type === 'error') {
         // Обрабатываем ошибки команд
         logger.info('Processing error result:', {
