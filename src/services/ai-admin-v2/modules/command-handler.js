@@ -9,7 +9,7 @@ class CommandHandler {
    */
   extractCommands(response) {
     const commands = [];
-    const commandRegex = /\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO)([^\]]*)\]/g;
+    const commandRegex = /\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|CANCEL_BOOKING)([^\]]*)\]/g;
     
     let match;
     while ((match = commandRegex.exec(response)) !== null) {
@@ -88,6 +88,11 @@ class CommandHandler {
           case 'SAVE_CLIENT_NAME':
             const savedName = await this.saveClientName(cmd.params, context);
             results.push({ type: 'name_saved', data: savedName });
+            break;
+            
+          case 'CANCEL_BOOKING':
+            const cancelResult = await this.cancelBooking(cmd.params, context);
+            results.push({ type: 'booking_list', data: cancelResult });
             break;
         }
       } catch (error) {
@@ -713,9 +718,67 @@ class CommandHandler {
     };
   }
 
+  /**
+   * Обработка отмены записи
+   */
+  async cancelBooking(params, context) {
+    const phone = context.phone.replace('@c.us', '');
+    
+    // Получаем активные записи клиента
+    const bookingsResult = await bookingService.getClientBookings(phone, context.company.company_id);
+    
+    if (!bookingsResult.success) {
+      return {
+        success: false,
+        error: bookingsResult.error
+      };
+    }
+    
+    if (!bookingsResult.bookings || bookingsResult.bookings.length === 0) {
+      return {
+        success: true,
+        bookings: [],
+        message: 'У вас нет активных записей'
+      };
+    }
+    
+    // Форматируем список записей для показа клиенту
+    const formattedBookings = bookingsResult.bookings.map((booking, index) => {
+      const date = new Date(booking.datetime);
+      const dateStr = date.toLocaleDateString('ru-RU', { 
+        day: 'numeric', 
+        month: 'long',
+        weekday: 'short'
+      });
+      const timeStr = date.toLocaleTimeString('ru-RU', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      
+      const services = booking.services.map(s => s.title).join(', ');
+      const staff = booking.staff ? booking.staff.name : 'Любой мастер';
+      
+      return {
+        index: index + 1,
+        id: booking.id,
+        date: dateStr,
+        time: timeStr,
+        services: services,
+        staff: staff,
+        price: booking.price_min || 0
+      };
+    });
+    
+    return {
+      success: true,
+      bookings: formattedBookings,
+      message: 'Выберите запись для отмены'
+    };
+  }
+
   removeCommands(response) {
     // Убираем команды в квадратных скобках
-    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|SAVE_CLIENT_NAME)[^\]]*\]/g, '');
+    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|SAVE_CLIENT_NAME|CANCEL_BOOKING)[^\]]*\]/g, '');
     
     // Убираем технические фразы в скобках
     cleaned = cleaned.replace(/\([^)]*(?:клиент|тестовое|команду|обратите внимание|поскольку)[^)]*\)/gi, '');

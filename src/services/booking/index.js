@@ -331,6 +331,66 @@ class BookingService {
       return { success: false, error: error.message };
     }
   }
+
+  /**
+   * Get client bookings
+   */
+  async getClientBookings(phone, companyId = config.yclients.companyId) {
+    try {
+      logger.info(`📋 Getting bookings for client ${phone} at company ${companyId}`);
+      
+      // Получаем записи через YClients API
+      const bookings = await this.getYclientsClient().getRecords(companyId, {
+        client_phone: phone,
+        start_date: format(new Date(), 'yyyy-MM-dd'),
+        end_date: format(addDays(new Date(), 30), 'yyyy-MM-dd')
+      });
+
+      if (!bookings.success || !bookings.data) {
+        return { success: false, error: 'Failed to fetch bookings' };
+      }
+
+      // Фильтруем только активные записи (не отмененные и не прошедшие)
+      const activeBookings = bookings.data.filter(booking => {
+        const bookingDate = new Date(booking.datetime);
+        const now = new Date();
+        return bookingDate > now && booking.deleted === false;
+      });
+
+      logger.info(`✅ Found ${activeBookings.length} active bookings for ${phone}`);
+      
+      return { 
+        success: true, 
+        bookings: activeBookings 
+      };
+    } catch (error) {
+      logger.error('Error getting client bookings:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Cancel booking
+   */
+  async cancelBooking(recordId, companyId = config.yclients.companyId) {
+    try {
+      logger.info(`🚫 Canceling booking ${recordId} at company ${companyId}`);
+      
+      // Отменяем запись через YClients API
+      const result = await this.getYclientsClient().deleteRecord(companyId, recordId);
+
+      if (result.success) {
+        logger.info(`✅ Successfully canceled booking ${recordId}`);
+      } else {
+        logger.error(`❌ Failed to cancel booking ${recordId}: ${result.error}`);
+      }
+
+      return result;
+    } catch (error) {
+      logger.error('Error canceling booking:', error);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 module.exports = new BookingService();
