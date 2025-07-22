@@ -711,7 +711,7 @@ class YclientsClient {
         queryParams.append('staff_id', params.staff_id);
       }
       
-      const response = await this.api.get(
+      const response = await this.axiosInstance.get(
         `/records/${companyId}?${queryParams.toString()}`,
         {
           headers: {
@@ -751,7 +751,7 @@ class YclientsClient {
     try {
       logger.info(`🚫 Deleting record ${recordId} from company ${companyId}`);
       
-      const response = await this.api.delete(
+      const response = await this.axiosInstance.delete(
         `/record/${companyId}/${recordId}`,
         {
           headers: {
