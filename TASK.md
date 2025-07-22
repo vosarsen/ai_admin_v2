@@ -10,7 +10,7 @@
 - [ ] Test booking flow (Phase 2) - полный процесс записи
   - [x] Показ прайс-листа (SHOW_PRICES) - протестировано
   - [ ] Показ портфолио (SHOW_PORTFOLIO)
-  - [ ] Отмена записи
+  - [x] Отмена записи - ✅ код реализован, ❌ не работает из-за прав API
   - [ ] Перенос записи
 - [ ] Test modification and cancellation (Phase 3)
 - [ ] Test edge cases and error handling (Phase 4)
@@ -59,6 +59,23 @@
 - [x] Implemented smart slot filtering with 1-hour intervals (July 21, 2024)
 
 ### Features Added (July 20-22, 2025)
+- [x] ServiceMatcher scoring algorithm with penalties for complex services
+- [x] Relative date parsing ("завтра", "послезавтра", days of week)
+- [x] Automatic booking creation without confirmation when specific time provided
+- [x] Fixed booking number display (correct extraction from YClients response)
+- [x] Price list improvements - filtering, sorting, compact format
+- [x] Staff availability sync script (sync-staff-schedules.js)
+- [x] API endpoints for manual sync control
+- [x] Smart slot filtering - 3 slots per time period with 1-hour gaps
+- [x] Fixed unnecessary slots display when booking specific time (July 22, 2025)
+- [x] CREATE_BOOKING now supports service_name parameter (July 22, 2025)
+- [x] Automatic staff selection if not specified (July 22, 2025)
+- [x] Automatic alternative slots display on booking errors (July 22, 2025)
+- [x] Fixed YClients detailed error messages extraction (July 22, 2025)
+- [x] Added error handling logging in processAIResponse (July 22, 2025)
+- [x] Implemented CANCEL_BOOKING command with direct ID support (July 22, 2025)
+
+### Features Added (July 22, 2025)
 - [x] ServiceMatcher scoring algorithm with penalties for complex services
 - [x] Relative date parsing ("завтра", "послезавтра", days of week)
 - [x] Automatic booking creation without confirmation when specific time provided
