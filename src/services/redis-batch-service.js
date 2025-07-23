@@ -8,7 +8,7 @@ class RedisBatchService {
     this.redis = null;
     this.batchPrefix = 'rapid-fire:';
     this.lastMessagePrefix = 'last-msg:';
-    this.defaultTTL = 10; // секунд
+    this.defaultTTL = 60; // секунд - должно быть больше чем batchTimeout
     this.batchTimeout = 10000; // 10 секунд после последнего сообщения
     this.maxBatchSize = 10; // максимум сообщений в батче
   }
@@ -47,7 +47,8 @@ class RedisBatchService {
       // Обновляем время последнего сообщения
       await this.redis.set(lastMsgKey, Date.now());
 
-      // Устанавливаем TTL для автоматической очистки
+      // Обновляем TTL при каждом новом сообщении для автоматической очистки
+      // TTL должен быть больше чем batchTimeout + запас на обработку
       await this.redis.expire(batchKey, this.defaultTTL);
       await this.redis.expire(lastMsgKey, this.defaultTTL);
 
@@ -123,7 +124,10 @@ class RedisBatchService {
       // Проверяем время последнего сообщения
       const lastMessageTime = await this.redis.get(lastMsgKey);
       if (!lastMessageTime) {
-        return true; // Если нет времени, обрабатываем
+        // Если нет времени, но есть батч - возможно TTL истек
+        logger.warn(`No last message time for ${phone}, checking if batch exists`);
+        const exists = await this.redis.exists(batchKey);
+        return exists > 0; // Обрабатываем только если батч существует
       }
 
       const idleTime = Date.now() - parseInt(lastMessageTime);
@@ -157,6 +161,9 @@ class RedisBatchService {
       const rawMessages = await this.redis.lrange(batchKey, 0, -1);
       
       if (rawMessages.length === 0) {
+        logger.warn(`Batch for ${phone} is empty - possibly expired by TTL`);
+        // Очищаем ключи на всякий случай
+        await this.redis.del(batchKey, lastMsgKey);
         return;
       }
 
