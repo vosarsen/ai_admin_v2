@@ -15,6 +15,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 8. Check `INITIAL.md` if working on a new feature request
 9. Review `docs/development-diary/` for historical context and decisions
 
+**AFTER completing any feature or significant work**:
+- Create a development diary entry in `docs/development-diary/YYYY-MM-DD-feature-name.md`
+- This helps maintain project history and share knowledge for future development
+
 ## Working Environment
 
 - **Local directory**: /Users/vosarsen/Documents/GitHub/ai_admin_v2
@@ -30,13 +34,17 @@ We use a strict workflow for all changes:
 1. **Local** - analyze and modify files locally
 2. **Commit & Push** - git add, commit with descriptive message, push to GitHub
 3. **Server** - git pull from server, test changes, check logs
-4. **Iterate** - if issues found, repeat from step 1
+4. **Development Diary** - create entry in `docs/development-diary/` after implementing features
+5. **Iterate** - if issues found, repeat from step 1
 
 **Important**: 
 - Files in local directory and server are synchronized through Git
 - We use `TodoWrite` for task tracking throughout the conversation
 - NEVER modify files directly on server
 - ALWAYS test on server after pushing changes
+- **ALWAYS create development diary entry** after implementing new features or fixing significant bugs
+  - Format: `docs/development-diary/YYYY-MM-DD-feature-name.md`
+  - Include: context, what was done, technical details, problems & solutions, lessons learned
 
 ## Project Overview
 
