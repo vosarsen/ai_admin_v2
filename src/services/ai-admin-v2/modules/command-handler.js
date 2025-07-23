@@ -763,9 +763,9 @@ class CommandHandler {
     
     // Сохраняем имя в Redis для будущих сессий
     const contextService = require('../../context');
-    const redisContext = await contextService.getContext(cleanPhone) || {};
-    redisContext.clientName = params.name;
-    await contextService.setContext(cleanPhone, redisContext);
+    await contextService.updateContext(cleanPhone, context.company.yclients_id || context.company.company_id, {
+      clientInfo: { name: params.name }
+    });
     
     logger.info('Client name saved:', { phone: cleanPhone, name: params.name });
     

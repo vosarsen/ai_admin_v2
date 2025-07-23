@@ -5,6 +5,7 @@ const app = require('./api');
 const messageQueue = require('./queue/message-queue');
 const { validateRedisConfig } = require('./utils/redis-factory');
 const secureConfig = require('./config/secure-config');
+const { syncManager } = require('./sync/sync-manager');
 
 // Handle uncaught errors
 process.on('uncaughtException', (error) => {
@@ -32,6 +33,9 @@ async function shutdown() {
       logger.info('✅ HTTP server closed');
     });
   }
+  
+  // Stop sync manager
+  await syncManager.shutdown();
   
   // Close queue connections
   await messageQueue.shutdown();
@@ -61,6 +65,11 @@ async function startServer() {
       logger.info(`🏢 Company ID: ${config.yclients.companyId}`);
       logger.info('🔒 Redis authentication: enabled');
     });
+    
+    // Initialize sync manager
+    logger.info('🔄 Initializing sync manager...');
+    await syncManager.initialize();
+    logger.info('✅ Sync manager started successfully');
     
     return server;
   } catch (error) {
