@@ -69,9 +69,11 @@ class RedisBatchService {
   async processPendingBatches() {
     try {
       // Получаем все ключи батчей
+      logger.debug(`Searching for batch keys with pattern: ${this.batchPrefix}*`);
       const keys = await this.redis.keys(`${this.batchPrefix}*`);
       
       if (keys.length === 0) {
+        logger.debug('No pending batches found');
         return { processed: 0 };
       }
 
