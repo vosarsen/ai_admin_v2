@@ -10,7 +10,17 @@
   - [x] Тесты и документация
   - [x] Сообщения теперь корректно объединяются!
 
-### 🔴 High Priority - Testing Required
+### 🔴 High Priority - Critical Bugs to Fix
+- [ ] **Fix missing staff_id in booking creation**
+  - [ ] Handle `staff_id: "last"` from AI context
+  - [ ] Ensure staff_id is included in appointment object
+  - [ ] Test with real booking scenarios
+- [ ] **Add automatic alternative slots on booking errors**
+  - [ ] When booking fails, immediately show available slots
+  - [ ] Format slots nicely for user
+  - [ ] Test with various error scenarios
+
+### 🟡 Medium Priority - Testing Required
 - [x] **Тестирование некорректных вводов**
   - [x] Опечатки и сокращения в командах ✅
   - [x] Неполная информация от пользователя ✅
@@ -180,7 +190,11 @@
    - Все услуги со словом "стрижка" получают одинаковый score (130)
    - Выбирается первая услуга из списка вместо наиболее подходящей
 
-2. **Booking Flow**
+2. **Booking Flow** (Updated July 23, 2025)
+   - ❌ **CRITICAL**: Missing staff_id when creating booking
+   - ❌ AI uses `staff_id: "last"` but code doesn't handle it
+   - ❌ No automatic alternative slots shown on booking errors
+   - ✅ FIXED: Wrong parameter order in getAvailableSlots
    - Ошибка "Сотрудник не оказывает выбранную услугу"
    - lastSearch сохраняет несовместимую пару service_id + staff_id
    - Нет проверки совместимости услуга-мастер перед созданием записи
