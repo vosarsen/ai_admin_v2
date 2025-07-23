@@ -7,6 +7,16 @@ const batchService = require('../../services/redis-batch-service');
 const { validateWebhookSignature } = require('../../middlewares/webhook-auth');
 const rateLimiter = require('../../middlewares/rate-limiter');
 
+// Инициализируем batch service при загрузке модуля
+(async () => {
+  try {
+    await batchService.initialize();
+    logger.info('Batch service initialized in webhook');
+  } catch (error) {
+    logger.error('Failed to initialize batch service in webhook:', error);
+  }
+})();
+
 /**
  * WhatsApp webhook с Redis-based батчингом
  * 
