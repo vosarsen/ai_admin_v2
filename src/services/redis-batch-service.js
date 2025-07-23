@@ -109,6 +109,8 @@ class RedisBatchService {
       if (batchSize === 0) {
         return false;
       }
+      
+      logger.debug(`Checking batch for ${phone}: size=${batchSize}, maxSize=${this.maxBatchSize}`);
 
       // Если достигнут максимальный размер батча
       if (batchSize >= this.maxBatchSize) {
@@ -126,7 +128,10 @@ class RedisBatchService {
       const shouldProcess = idleTime >= this.batchTimeout;
 
       if (shouldProcess) {
-        logger.debug(`Batch for ${phone} idle for ${idleTime}ms (timeout: ${this.batchTimeout}ms), processing`);
+        logger.debug(`Batch for ${phone} idle for ${idleTime}ms, processing`);
+      } else {
+        // Добавляем логирование для отладки
+        logger.debug(`Batch for ${phone} not ready: idle ${idleTime}ms < timeout ${this.batchTimeout}ms`);
       }
 
       return shouldProcess;
