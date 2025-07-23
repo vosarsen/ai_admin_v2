@@ -36,6 +36,11 @@ class RedisBatchService {
     const lastMsgKey = `${this.lastMessagePrefix}${phone}`;
 
     try {
+      // Диагностика подключения
+      if (!this.redis) {
+        logger.error('Redis client is not initialized in addMessage');
+        throw new Error('Redis client not initialized');
+      }
       // Добавляем сообщение в список
       await this.redis.rpush(batchKey, JSON.stringify({
         message,
