@@ -4,7 +4,6 @@ const config = require('../config');
 const logger = require('../utils/logger');
 const aiAdminV2 = require('../services/ai-admin-v2');
 const whatsappClient = require('../integrations/whatsapp/client');
-const rapidFireProtection = require('../services/rapid-fire-protection');
 const messageQueue = require('../queue/message-queue');
 
 /**
@@ -74,20 +73,20 @@ class MessageWorkerV2 {
 
   async processMessage(job) {
     const startTime = Date.now();
-    const { from, message, companyId } = job.data;
+    const { from, message, companyId, metadata = {} } = job.data;
     
     logger.info(`💬 Processing message from ${from}: "${message}"`);
     
-    // Rapid-Fire Protection
-    return new Promise((resolve, reject) => {
-      rapidFireProtection.processMessage(from, message, async (combinedMessage, metadata = {}) => {
-        try {
-          if (metadata.isRapidFireBatch) {
-            logger.info(`🔥 Rapid-fire batch: ${metadata.originalMessagesCount} messages combined`);
-          }
-
-          // Передаем AI Admin v2
-          const result = await aiAdminV2.processMessage(combinedMessage, from, companyId);
+    // Проверяем, применялась ли уже rapid-fire protection в webhook
+    if (metadata.isRapidFireBatch) {
+      logger.info(`🔥 Processing rapid-fire batch: ${metadata.originalMessagesCount} messages combined`);
+      logger.info(`Original messages: ${metadata.originalMessages?.join(' | ')}`);
+    }
+    
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Сообщение уже обработано через rapid-fire в webhook
+        const result = await aiAdminV2.processMessage(message, from, companyId);
           
           if (!result.success) {
             throw new Error(result.error || 'Processing failed');
@@ -128,13 +127,12 @@ class MessageWorkerV2 {
             logger.error('Failed to send error message:', sendError);
           }
           
-          resolve({
-            success: false,
-            error: error.message,
-            processingTime: Date.now() - startTime
-          });
-        }
-      });
+        resolve({
+          success: false,
+          error: error.message,
+          processingTime: Date.now() - startTime
+        });
+      }
     });
   }
 
