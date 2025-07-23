@@ -150,6 +150,8 @@ class RedisBatchService {
     const batchKey = `${this.batchPrefix}${phone}`;
     const lastMsgKey = `${this.lastMessagePrefix}${phone}`;
 
+    logger.info(`Starting to process batch for ${phone}`);
+
     try {
       // Получаем все сообщения из батча
       const rawMessages = await this.redis.lrange(batchKey, 0, -1);
