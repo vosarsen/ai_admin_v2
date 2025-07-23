@@ -11,6 +11,7 @@ const { syncManager } = require('../sync/sync-manager');
 
 // Import webhook routes
 const whatsappAiAdminWebhook = require('./webhooks/whatsapp-ai-admin');
+const whatsappBatchedWebhook = require('./webhooks/whatsapp-batched');
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.use((req, res, next) => {
 
 // Mount webhook routes
 app.use(whatsappAiAdminWebhook);
+app.use(whatsappBatchedWebhook);
 
 // Health check (with relaxed rate limit)
 app.get('/health', rateLimiter, async (req, res) => {
