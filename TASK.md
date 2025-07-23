@@ -11,8 +11,11 @@
   - [x] Показ прайс-листа (SHOW_PRICES) - протестировано
   - [ ] Показ портфолио (SHOW_PORTFOLIO)
   - [x] Отмена записи - ✅ код реализован, ❌ не работает из-за прав API
-  - [ ] Перенос записи
-- [ ] Test modification and cancellation (Phase 3)
+  - [x] Перенос записи - ✅ реализовано 23.07.2025
+- [x] Test modification and cancellation (Phase 3) - ✅ ЗАВЕРШЕНО 23.07.2025
+  - [x] Реализована команда RESCHEDULE_BOOKING
+  - [x] Протестирована обработка ошибок
+  - [x] Все функции готовы, ожидают расширенных прав API
 - [ ] Test edge cases and error handling (Phase 4)
 - [ ] Implement webhook integration for real-time updates from YClients
 - [ ] Add Redis caching for slot availability
@@ -79,6 +82,8 @@
 - [x] Researched all YClients API methods for record management (July 22, 2025)
 - [x] Created BACKLOG.md for post-MVP features (July 22, 2025)
 - [x] Updated documentation with API limitations (July 22, 2025)
+- [x] Implemented RESCHEDULE_BOOKING command (July 23, 2025)
+- [x] Completed Phase 3 testing - all modification features ready (July 23, 2025)
 
 ### Features Added (July 22, 2025)
 - [x] ServiceMatcher scoring algorithm with penalties for complex services
