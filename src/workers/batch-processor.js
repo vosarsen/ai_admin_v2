@@ -38,7 +38,9 @@ class BatchProcessor {
       this.setupShutdownHandlers();
 
       // Сразу проверяем батчи при запуске
+      logger.info('Running initial batch check...');
       await this.processBatches();
+      logger.info('Initial batch check completed');
 
     } catch (error) {
       logger.error('Failed to start batch processor:', error);
@@ -53,6 +55,7 @@ class BatchProcessor {
 
     try {
       const startTime = Date.now();
+      logger.debug('Calling processPendingBatches...');
       const result = await batchService.processPendingBatches();
       
       if (result.processed > 0) {
