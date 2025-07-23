@@ -21,6 +21,10 @@ class BatchProcessor {
       // Инициализируем batch service
       await batchService.initialize();
       
+      // Добавляем задержку для синхронизации
+      logger.info('Waiting 2 seconds for Redis sync...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       this.isRunning = true;
       logger.info('Batch processor started');
 
