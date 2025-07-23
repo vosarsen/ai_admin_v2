@@ -107,6 +107,12 @@ class RedisBatchService {
     const lastMsgKey = `${this.lastMessagePrefix}${phone}`;
 
     try {
+      // Проверяем TTL батча для отладки
+      const ttl = await this.redis.ttl(batchKey);
+      if (ttl > 0 && ttl < 5) {
+        logger.warn(`Batch ${batchKey} TTL is very low: ${ttl} seconds`);
+      }
+      
       // Получаем количество сообщений в батче
       const batchSize = await this.redis.llen(batchKey);
       
@@ -138,7 +144,10 @@ class RedisBatchService {
         logger.info(`Batch for ${phone} idle for ${idleTime}ms, processing`);
       } else {
         // Добавляем логирование для отладки
-        if (idleTime > 9000) {
+        if (idleTime > 9500) {
+          // Критически близко к таймауту
+          logger.warn(`Batch for ${phone} VERY close to timeout: idle ${idleTime}ms, need ${this.batchTimeout}ms, diff=${this.batchTimeout - idleTime}ms`);
+        } else if (idleTime > 9000) {
           // Логируем подробнее когда близко к таймауту
           logger.info(`Batch for ${phone} approaching timeout: idle ${idleTime}ms, need ${this.batchTimeout}ms`);
         } else {
