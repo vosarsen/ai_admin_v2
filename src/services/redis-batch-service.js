@@ -9,7 +9,7 @@ class RedisBatchService {
     this.batchPrefix = 'rapid-fire:';
     this.lastMessagePrefix = 'last-msg:';
     this.defaultTTL = 10; // секунд
-    this.batchTimeout = 5000; // 5 секунд после последнего сообщения
+    this.batchTimeout = 10000; // 10 секунд после последнего сообщения
     this.maxBatchSize = 10; // максимум сообщений в батче
   }
 
@@ -126,7 +126,7 @@ class RedisBatchService {
       const shouldProcess = idleTime >= this.batchTimeout;
 
       if (shouldProcess) {
-        logger.debug(`Batch for ${phone} idle for ${idleTime}ms, processing`);
+        logger.debug(`Batch for ${phone} idle for ${idleTime}ms (timeout: ${this.batchTimeout}ms), processing`);
       }
 
       return shouldProcess;

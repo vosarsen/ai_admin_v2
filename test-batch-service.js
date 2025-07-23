@@ -52,8 +52,8 @@ async function testBatchService() {
     let shouldProcess = await batchService.shouldProcessBatch(testPhone);
     console.log(`   - Should process immediately: ${shouldProcess}`);
     
-    console.log('   - Ждем 5.5 секунд...');
-    await sleep(5500);
+    console.log('   - Ждем 10.5 секунд...');
+    await sleep(10500);
     
     shouldProcess = await batchService.shouldProcessBatch(testPhone);
     console.log(`   - Should process after timeout: ${shouldProcess}\n`);
