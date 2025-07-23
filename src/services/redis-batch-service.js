@@ -131,10 +131,11 @@ class RedisBatchService {
       // Проверяем время последнего сообщения
       const lastMessageTime = await this.redis.get(lastMsgKey);
       if (!lastMessageTime) {
-        // Если нет времени, но есть батч - возможно TTL истек
-        logger.warn(`No last message time for ${phone}, checking if batch exists`);
-        const exists = await this.redis.exists(batchKey);
-        return exists > 0; // Обрабатываем только если батч существует
+        // Если нет времени, но есть батч - возможно TTL истек или ключ не был создан
+        logger.warn(`No last message time for ${phone}, skipping batch processing`);
+        // НЕ обрабатываем батч без времени последнего сообщения
+        // Это предотвратит преждевременное удаление батчей
+        return false;
       }
 
       const idleTime = Date.now() - parseInt(lastMessageTime);
@@ -177,8 +178,8 @@ class RedisBatchService {
       
       if (rawMessages.length === 0) {
         logger.warn(`Batch for ${phone} is empty - possibly expired by TTL`);
-        // Очищаем ключи на всякий случай
-        await this.redis.del(batchKey, lastMsgKey);
+        // НЕ удаляем ключи автоматически - пусть истекут по TTL
+        // Это предотвратит race conditions между добавлением и обработкой
         return;
       }
 
