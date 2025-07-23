@@ -312,6 +312,22 @@ class CommandHandler {
       }
     }
     
+    // Если все еще нет staff_id, пытаемся найти в тексте сообщения упоминание мастера
+    if (!staffId && context.currentMessage) {
+      const message = context.currentMessage.toLowerCase();
+      const staffMember = context.staff.find(s => 
+        message.includes(s.name.toLowerCase())
+      );
+      if (staffMember) {
+        staffId = staffMember.yclients_id;
+        logger.info('Found staff by name in message:', { 
+          found: staffMember.name,
+          staffId: staffMember.yclients_id,
+          message: context.currentMessage
+        });
+      }
+    }
+    
     // Если AI передал неправильные ID (1, 2 и т.д.), используем данные из последнего поиска
     if ((!serviceId || serviceId < 1000) && context.lastSearch?.service_id) {
       logger.info('Using service_id from lastSearch:', context.lastSearch.service_id);
@@ -332,10 +348,10 @@ class CommandHandler {
       for (const staff of context.staff) {
         try {
           const slots = await bookingService.getAvailableSlots(
-            context.company.yclients_id || context.company.company_id,
             staff.yclients_id,
             parsedDate,
-            serviceId
+            serviceId,
+            context.company.yclients_id || context.company.company_id
           );
           
           // Проверяем, есть ли нужное время среди доступных слотов
