@@ -260,7 +260,12 @@ ${formatter.formatConversation(context.conversation)}
 9. НЕЯВКА - используй [MARK_NO_SHOW] когда клиент:
    - "не смогу прийти", "не приду", "не получится"
    - "заболел", "опоздаю больше 15 минут"
-   - "перенести на другой день" (сначала отметь неявку, потом предложи новое время)
+   - НЕ используй для переноса - для этого есть отдельная команда
+
+10. ПЕРЕНОС ЗАПИСИ - используй [RESCHEDULE_BOOKING] когда клиент:
+   - "перенести запись", "перенести визит", "изменить время"
+   - "можно перенести на", "давайте перенесем"
+   - "хочу изменить дату", "нужно другое время"
 
 ТВОИ КОМАНДЫ (ИСПОЛЬЗУЙ ТОЧНО ТАКОЙ ФОРМАТ):
 1. [SEARCH_SLOTS service_name: название_услуги, date: дата, time_preference: время] - поиск свободного времени
@@ -306,6 +311,12 @@ ${formatter.formatConversation(context.conversation)}
 8. [MARK_NO_SHOW booking_id: номер_записи, visit_id: номер_визита, reason: причина] - отметить неявку
    Используй когда клиент сообщает что НЕ придет (но не хочет отменять)
    Примеры: "не смогу прийти", "опоздаю больше чем на 15 минут", "заболел"
+
+9. [RESCHEDULE_BOOKING] или [RESCHEDULE_BOOKING booking_id: номер_записи, date: новая_дата, time: новое_время] - перенести запись
+   Можно использовать без параметров для показа списка записей или с параметрами для прямого переноса
+   Примеры:
+   - [RESCHEDULE_BOOKING] - покажет список записей для выбора
+   - [RESCHEDULE_BOOKING booking_id: 1199065365, date: завтра, time: 15:00] - перенесет конкретную запись
 
 ПРАВИЛА РАБОТЫ:
 1. ВСЕГДА анализируй намерение клиента по секции "АНАЛИЗ НАМЕРЕНИЯ КЛИЕНТА"
@@ -473,6 +484,41 @@ ${formatter.formatConversation(context.conversation)}
           finalResponse += '\n\n' + result.data.message;
         } else {
           finalResponse += '\n\nНе удалось получить список записей. Попробуйте позже.';
+        }
+      } else if (result.type === 'booking_rescheduled') {
+        // Обработка результата переноса записи
+        if (result.data && result.data.temporaryLimitation) {
+          // Временное ограничение API
+          finalResponse += '\n\n' + result.data.message;
+          if (result.data.instructions && result.data.instructions.length > 0) {
+            finalResponse += '\n\nВы можете:';
+            result.data.instructions.forEach(instruction => {
+              finalResponse += '\n' + instruction;
+            });
+          }
+        } else if (result.data && result.data.success) {
+          finalResponse += '\n\n✅ ' + result.data.message;
+        } else if (result.data && result.data.bookings && result.data.needsSelection) {
+          // Показываем список записей для выбора
+          finalResponse += '\n\n📅 Ваши активные записи:\n';
+          result.data.bookings.forEach((booking, index) => {
+            finalResponse += `\n${index + 1}. ${booking.date} в ${booking.time}`;
+            finalResponse += `\n   Услуга: ${booking.services}`;
+            finalResponse += `\n   Мастер: ${booking.staff}`;
+          });
+          finalResponse += '\n\nНапишите номер записи, которую хотите перенести.';
+          
+          // Сохраняем в контекст для следующего шага
+          const contextService = require('../../context');
+          const redisContext = await contextService.getContext(context.phone.replace('@c.us', '')) || {};
+          redisContext.rescheduleStep = 'selectBooking';
+          redisContext.activeBookings = result.data.bookings;
+          await contextService.setContext(context.phone.replace('@c.us', ''), redisContext);
+        } else {
+          finalResponse += '\n\n❌ Не удалось перенести запись.';
+          if (result.data && result.data.error) {
+            finalResponse += ' ' + result.data.error;
+          }
         }
       } else if (result.type === 'error') {
         // Обрабатываем ошибки команд

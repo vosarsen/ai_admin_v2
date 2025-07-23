@@ -74,6 +74,11 @@
 - [x] Fixed YClients detailed error messages extraction (July 22, 2025)
 - [x] Added error handling logging in processAIResponse (July 22, 2025)
 - [x] Implemented CANCEL_BOOKING command with direct ID support (July 22, 2025)
+- [x] Added CONFIRM_BOOKING command for booking confirmation (July 22, 2025)
+- [x] Added MARK_NO_SHOW command for no-show marking (July 22, 2025)
+- [x] Researched all YClients API methods for record management (July 22, 2025)
+- [x] Created BACKLOG.md for post-MVP features (July 22, 2025)
+- [x] Updated documentation with API limitations (July 22, 2025)
 
 ### Features Added (July 22, 2025)
 - [x] ServiceMatcher scoring algorithm with penalties for complex services
@@ -161,16 +166,19 @@
 
    - Need separate configs for local vs production
 
-5. **YClients API Permissions**
+5. **YClients API Permissions** (Updated July 22, 2025)
    - API возвращает ошибку 403 при попытке управления клиентами
    - Невозможно найти клиента по телефону (`POST company/962302/clients/search`)
    - Невозможно создать нового клиента (`POST clients/962302`)
    - Невозможно получить список записей (`GET records/962302`) - ошибка 403
    - Невозможно удалить запись (`DELETE record/962302/{id}`) - ошибка 403
    - Невозможно получить информацию о записи (`GET record/962302/{id}`) - ошибка 403
+   - Невозможно изменить запись (`PUT record/962302/{id}`) - ошибка 403
+   - Невозможно изменить статус визита (`PUT visits/{visit_id}/{record_id}`) - ошибка 404
+   - User endpoints требуют специальный user token (`DELETE user/records/{id}/{hash}`)
    - Но создание записи работает (`POST book_record/962302`)
    - В результате в YClients отображается "Клиент" вместо реального имени
-   - **Важно**: Код AI Admin v2 работает правильно - проблема в правах доступа API ключа
+   - **Важно**: Весь код для управления записями готов - проблема только в правах API
    - **Решение**: Необходимо запросить у YClients расширение прав для API ключа
 
 6. **Reliability**
