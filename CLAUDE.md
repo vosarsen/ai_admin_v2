@@ -73,6 +73,12 @@ AI Admin v2 is a production-ready WhatsApp AI Assistant for beauty salons. It us
 - **Temporary Fix**: `smart-cache.js` and `redis-factory.js` have temporary overrides for port 6380→6379
 - **TODO**: Create separate environment configs for local vs production Redis URLs
 
+### ⚠️ Critical Issue: Rapid-Fire Protection
+- **Problem**: Messages sent in parts are NOT combined (e.g., "Hi," "book" "me" → processed as 3 separate messages)
+- **Impact**: Bot doesn't understand context when users send fragmented messages
+- **Solution Planned**: Redis-based batching (see docs/development-diary/2025-07-23-rapid-fire-redis-solution.md)
+- **Status**: To be implemented in next session
+
 ## Architecture (v2)
 
 ### Old Architecture (v1):
