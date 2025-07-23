@@ -86,6 +86,7 @@ class RedisBatchService {
         const shouldProcess = await this.shouldProcessBatch(phone);
 
         if (shouldProcess) {
+          logger.info(`Will process batch for ${phone}`);
           await this.processBatch(phone);
           processedCount++;
         }
@@ -134,10 +135,15 @@ class RedisBatchService {
       const shouldProcess = idleTime >= this.batchTimeout;
 
       if (shouldProcess) {
-        logger.debug(`Batch for ${phone} idle for ${idleTime}ms, processing`);
+        logger.info(`Batch for ${phone} idle for ${idleTime}ms, processing`);
       } else {
         // Добавляем логирование для отладки
-        logger.debug(`Batch for ${phone} not ready: idle ${idleTime}ms < timeout ${this.batchTimeout}ms`);
+        if (idleTime > 9000) {
+          // Логируем подробнее когда близко к таймауту
+          logger.info(`Batch for ${phone} approaching timeout: idle ${idleTime}ms, need ${this.batchTimeout}ms`);
+        } else {
+          logger.debug(`Batch for ${phone} not ready: idle ${idleTime}ms < timeout ${this.batchTimeout}ms`);
+        }
       }
 
       return shouldProcess;
