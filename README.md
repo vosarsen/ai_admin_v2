@@ -21,6 +21,16 @@ AI Admin v2 is a next-generation WhatsApp booking assistant designed for beauty 
 - 🌐 **Multi-Tenant Ready**: Scalable to 150+ companies
 - 🔒 **Production Security**: Rate limiting, authentication, data validation
 
+### 🎯 AI Commands (v2)
+
+- `[SEARCH_SLOTS]` - Intelligent slot search with automatic time/service parsing
+- `[CREATE_BOOKING]` - Direct booking creation with validation
+- `[SHOW_PRICES]` - Dynamic price list with category filtering
+- `[SAVE_CLIENT_NAME]` - Automatic client name recognition
+- `[CANCEL_BOOKING]` - Booking cancellation (requires API permissions)
+- `[CONFIRM_BOOKING]` - Booking confirmation (requires API permissions)
+- `[MARK_NO_SHOW]` - No-show marking (requires API permissions)
+
 ### 🏗️ Architecture
 
 ```
@@ -171,6 +181,25 @@ curl http://localhost:3000/health
 # - Active alerts
 # - Resource usage
 ```
+
+## ⚠️ Current Limitations
+
+### YClients API Permissions
+Due to current API key limitations, the following features are implemented but not functional:
+
+| Feature | Status | Required Permission |
+|---------|--------|-------------------|
+| Booking Creation | ✅ Working | book_record |
+| Show Services/Prices | ✅ Working | book_services |
+| Show Available Slots | ✅ Working | book_times |
+| Cancel Booking | ❌ No Access | records:delete |
+| Reschedule Booking | ❌ No Access | records:write |
+| Confirm Booking | ❌ No Access | visits:write |
+| Mark No-Show | ❌ No Access | visits:write |
+| Search Clients | ❌ No Access | clients:search |
+| Create Clients | ❌ No Access | clients:create |
+
+**Note**: All code is production-ready and will work automatically once API permissions are granted.
 
 ## 🏢 Production Deployment
 

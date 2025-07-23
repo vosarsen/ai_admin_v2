@@ -9,7 +9,7 @@ class CommandHandler {
    */
   extractCommands(response) {
     const commands = [];
-    const commandRegex = /\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|CANCEL_BOOKING|SAVE_CLIENT_NAME|CONFIRM_BOOKING|MARK_NO_SHOW)([^\]]*)\]/g;
+    const commandRegex = /\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|CANCEL_BOOKING|SAVE_CLIENT_NAME|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING)([^\]]*)\]/g;
     
     let match;
     while ((match = commandRegex.exec(response)) !== null) {
@@ -103,6 +103,11 @@ class CommandHandler {
           case 'MARK_NO_SHOW':
             const noShowResult = await this.markNoShow(cmd.params, context);
             results.push({ type: 'booking_no_show', data: noShowResult });
+            break;
+            
+          case 'RESCHEDULE_BOOKING':
+            const rescheduleResult = await this.rescheduleBooking(cmd.params, context);
+            results.push({ type: 'booking_rescheduled', data: rescheduleResult });
             break;
         }
       } catch (error) {
@@ -892,9 +897,108 @@ class CommandHandler {
     */
   }
 
+  /**
+   * Перенос записи
+   */
+  async rescheduleBooking(params, context) {
+    const phone = context.phone.replace('@c.us', '');
+    
+    // Временное решение - информируем о невозможности переноса через бота
+    return {
+      success: false,
+      temporaryLimitation: true,
+      message: 'К сожалению, перенос записи через бота временно недоступен из-за ограничений API.',
+      instructions: [
+        '📱 Перенести запись через мобильное приложение YClients',
+        '💻 Перенести запись на сайте yclients.com',
+        `📞 Позвонить администратору: ${context.company?.phones?.[0] || '+7 (XXX) XXX-XX-XX'}`
+      ]
+    };
+    
+    // Код для будущего использования когда получим права API
+    /*
+    // Если не указан ID записи, показываем список
+    if (!params.booking_id && !params.record_id) {
+      const bookingsResult = await bookingService.getClientBookings(phone, context.company.company_id);
+      
+      if (!bookingsResult.success) {
+        return {
+          success: false,
+          error: bookingsResult.error
+        };
+      }
+      
+      const activeBookings = bookingsResult.data?.filter(b => 
+        new Date(b.datetime) > new Date()
+      ) || [];
+      
+      // Сохраняем список в контексте для следующего шага
+      const contextService = require('../../context');
+      const redisContext = await contextService.getContext(phone) || {};
+      redisContext.rescheduleStep = 'selectBooking';
+      redisContext.activeBookings = activeBookings;
+      await contextService.setContext(phone, redisContext);
+      
+      return {
+        success: true,
+        bookings: activeBookings,
+        needsSelection: true
+      };
+    }
+    
+    const recordId = params.booking_id || params.record_id;
+    const newDate = params.date;
+    const newTime = params.time;
+    
+    if (!newDate || !newTime) {
+      return {
+        success: false,
+        error: 'Не указаны новые дата и время для переноса'
+      };
+    }
+    
+    // Форматируем дату для YClients
+    const dateTime = formatter.parseRelativeDate(newDate);
+    const formattedDateTime = `${dateTime} ${newTime}:00`;
+    
+    // Обновляем запись
+    const updateData = {
+      datetime: formattedDateTime,
+      comment: 'Перенесено через WhatsApp бота'
+    };
+    
+    const updateResult = await bookingService.getYclientsClient().updateRecord(
+      context.company.company_id, 
+      recordId, 
+      updateData
+    );
+    
+    if (updateResult.success) {
+      // Очищаем контекст переноса
+      const contextService = require('../../context');
+      const redisContext = await contextService.getContext(phone) || {};
+      delete redisContext.rescheduleStep;
+      delete redisContext.activeBookings;
+      await contextService.setContext(phone, redisContext);
+      
+      return {
+        success: true,
+        recordId: recordId,
+        newDateTime: formattedDateTime,
+        message: `Запись успешно перенесена на ${formatter.formatDate(dateTime)} в ${newTime}`
+      };
+    } else {
+      return {
+        success: false,
+        error: updateResult.error
+      };
+    }
+    */
+  }
+
   removeCommands(response) {
     // Убираем команды в квадратных скобках
-    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|SAVE_CLIENT_NAME|CANCEL_BOOKING|CONFIRM_BOOKING|MARK_NO_SHOW)[^\]]*\]/g, '');
+    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|SAVE_CLIENT_NAME|CANCEL_BOOKING|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING)[^\]]*\]/g, '');
     
     // Убираем технические фразы в скобках
     cleaned = cleaned.replace(/\([^)]*(?:клиент|тестовое|команду|обратите внимание|поскольку)[^)]*\)/gi, '');
