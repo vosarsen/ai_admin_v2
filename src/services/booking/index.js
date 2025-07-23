@@ -166,7 +166,7 @@ class BookingService {
             const staffSlots = await this.getAvailableSlots(
               staffMember.yclients_id,
               targetDate,
-              actualServiceId,
+              { service_id: actualServiceId },
               companyId
             );
             
@@ -241,7 +241,7 @@ class BookingService {
       const slotsResult = await this.getAvailableSlots(
         staffId,
         targetDate,
-        actualServiceId,
+        { service_id: actualServiceId },
         companyId
       );
 

@@ -15,7 +15,7 @@ async function testBookingTomorrow() {
     const timestamp = Date.now().toString();
     const secretKey = 'sk_venom_webhook_3553';
     const method = 'POST';
-    const path = '/webhook/whatsapp';
+    const path = '/webhook/whatsapp/batched';
     const body = JSON.stringify(webhook);
     const payload = `${method}:${path}:${timestamp}:${body}`;
     const signature = crypto.createHmac('sha256', secretKey).update(payload).digest('hex');
@@ -23,7 +23,7 @@ async function testBookingTomorrow() {
     try {
         console.log('📤 Отправляю сообщение:', webhook.message);
         
-        const response = await axios.post('http://46.149.70.219:3000/webhook/whatsapp', webhook, {
+        const response = await axios.post('http://46.149.70.219:3000/webhook/whatsapp/batched', webhook, {
             headers: { 
                 'Content-Type': 'application/json',
                 'x-signature': signature,
