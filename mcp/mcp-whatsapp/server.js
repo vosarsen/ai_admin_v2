@@ -72,12 +72,12 @@ server.registerTool("send_message",
     // Create signature
     const timestamp = Date.now().toString();
     const method = 'POST';
-    const path = '/webhook/whatsapp';
+    const path = '/webhook/whatsapp/batched';
     const body = JSON.stringify(webhookPayload);
     const signature = createWebhookSignature(method, path, timestamp, body);
 
     // Send webhook
-    const response = await fetch(`${API_BASE_URL}/webhook/whatsapp`, {
+    const response = await fetch(`${API_BASE_URL}/webhook/whatsapp/batched`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
