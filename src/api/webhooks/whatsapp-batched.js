@@ -8,10 +8,15 @@ const { validateWebhookSignature } = require('../../middlewares/webhook-auth');
 const rateLimiter = require('../../middlewares/rate-limiter');
 
 // Инициализируем batch service при загрузке модуля
+let batchServiceInitialized = false;
 (async () => {
   try {
     await batchService.initialize();
-    logger.info('Batch service initialized in webhook');
+    batchServiceInitialized = true;
+    logger.info('Batch service initialized in webhook', {
+      env: process.env.NODE_ENV,
+      redisUrl: process.env.REDIS_URL
+    });
   } catch (error) {
     logger.error('Failed to initialize batch service in webhook:', error);
   }
@@ -27,6 +32,12 @@ router.post('/webhook/whatsapp/batched', rateLimiter, validateWebhookSignature, 
   const startTime = Date.now();
   
   try {
+    // Проверяем инициализацию
+    if (!batchServiceInitialized) {
+      logger.warn('Batch service not initialized, initializing now...');
+      await batchService.initialize();
+      batchServiceInitialized = true;
+    }
     // Поддержка разных форматов входных данных
     let messages = [];
     let from = null;
