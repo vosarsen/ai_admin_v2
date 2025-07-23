@@ -28,6 +28,20 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       max_memory_restart: '400M',
       kill_timeout: 10000
+    },
+    {
+      name: 'ai-admin-batch-processor',
+      script: './src/workers/batch-processor.js',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        NODE_ENV: 'production'
+      },
+      error_file: './logs/batch-processor-error.log',
+      out_file: './logs/batch-processor-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      max_memory_restart: '200M',
+      kill_timeout: 5000
     }
   ]
 };
