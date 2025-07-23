@@ -12,21 +12,10 @@ function createRedisClient(role = 'default') {
     throw new Error('Redis password is required in production. Please set REDIS_PASSWORD environment variable.');
   }
 
-  // Временный фикс: переопределяем порт 6380 на 6379 для сервера
-  let redisUrlString = config.redis.url;
-  if (redisUrlString && redisUrlString.includes('6380')) {
-    redisUrlString = redisUrlString.replace('6380', '6379');
-  }
-
-  // Parse Redis URL
-  const redisUrl = new URL(redisUrlString);
-  
-  // Create client options
+  // Используем централизованную конфигурацию
+  const { getRedisConfig } = require('../config/redis-config');
   const clientOptions = {
-    host: redisUrl.hostname,
-    port: redisUrl.port || 6379,
-    password: config.redis.password,
-    ...config.redis.options,
+    ...getRedisConfig(),
     lazyConnect: true // Don't connect immediately
   };
 
