@@ -9,6 +9,9 @@ const rateLimiter = require('../middlewares/rate-limiter');
 const circuitBreakerFactory = require('../utils/circuit-breaker');
 const { syncManager } = require('../sync/sync-manager');
 
+// Import webhook routes
+const whatsappAiAdminWebhook = require('./webhooks/whatsapp-ai-admin');
+
 const app = express();
 
 // Middleware
@@ -23,6 +26,9 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// Mount webhook routes
+app.use(whatsappAiAdminWebhook);
 
 // Health check (with relaxed rate limit)
 app.get('/health', rateLimiter, async (req, res) => {
