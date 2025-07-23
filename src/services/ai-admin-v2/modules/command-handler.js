@@ -297,13 +297,28 @@ class CommandHandler {
     let staffId = params.staff_id === 'last' ? 
       context.lastSearch?.staff_id : parseInt(params.staff_id);
     
+    // Если указано имя мастера вместо ID, ищем по имени
+    if (params.staff_name && (!staffId || isNaN(staffId))) {
+      const staffMember = context.staff.find(s => 
+        s.name.toLowerCase().includes(params.staff_name.toLowerCase())
+      );
+      if (staffMember) {
+        staffId = staffMember.yclients_id;
+        logger.info('Found staff by name:', { 
+          query: params.staff_name, 
+          found: staffMember.name,
+          staffId: staffMember.yclients_id
+        });
+      }
+    }
+    
     // Если AI передал неправильные ID (1, 2 и т.д.), используем данные из последнего поиска
     if ((!serviceId || serviceId < 1000) && context.lastSearch?.service_id) {
       logger.info('Using service_id from lastSearch:', context.lastSearch.service_id);
       serviceId = context.lastSearch.service_id;
     }
     
-    if ((!staffId || staffId < 1000) && context.lastSearch?.staff_id) {
+    if ((!staffId || staffId < 1000 || isNaN(staffId)) && context.lastSearch?.staff_id) {
       logger.info('Using staff_id from lastSearch:', context.lastSearch.staff_id);
       staffId = context.lastSearch.staff_id;
     }
@@ -442,6 +457,16 @@ class CommandHandler {
     // Если имя все еще не найдено, это ошибка
     if (!clientName) {
       throw new Error('Пожалуйста, сначала представьтесь. Как вас зовут?');
+    }
+    
+    // Проверяем, что staff_id определен
+    if (!staffId || isNaN(staffId)) {
+      logger.error('Staff ID is not defined:', { 
+        staffId, 
+        params,
+        lastSearch: context.lastSearch
+      });
+      throw new Error('Не удалось определить мастера для записи. Пожалуйста, укажите конкретного мастера.');
     }
     
     const bookingData = {

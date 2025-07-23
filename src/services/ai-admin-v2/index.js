@@ -276,11 +276,21 @@ ${formatter.formatConversation(context.conversation)}
    - Клиент: "покрасить волосы" → [SEARCH_SLOTS service_name: окрашивание, date: сегодня]
    - НЕ ПИШИ: [SEARCH_SLOTS service_name: МУЖСКАЯ СТРИЖКА] - система сама найдет правильную услугу
    
-2. [CREATE_BOOKING service_id: id_услуги, staff_id: id_мастера, date: дата, time: время] - создание записи
+2. [CREATE_BOOKING service_id: id_услуги, staff_id: id_мастера, staff_name: имя_мастера, date: дата, time: время] - создание записи
    ВАЖНО: Если ты только что показал слоты клиенту и он выбрал время, можно использовать упрощенную форму:
    [CREATE_BOOKING service_id: last, staff_id: last, date: сегодня, time: 17:00]
    где "last" означает использовать данные из последнего поиска слотов
+   
+   ВАЖНО: Если клиент указал имя мастера (например "к Бари"), ОБЯЗАТЕЛЬНО передавай staff_name:
+   [CREATE_BOOKING service_id: last, staff_id: last, staff_name: Бари, date: завтра, time: 19:00]
+   
    Полный пример: [CREATE_BOOKING service_id: 18356344, staff_id: 2895125, date: 2024-07-20, time: 14:00]
+   
+   ВАЖНО ПРО ВРЕМЯ:
+   - "в 3" = 15:00 (НЕ 15:30!)
+   - "в 3:30" или "в три тридцать" = 15:30
+   - "в половину четвертого" = 15:30
+   - Всегда интерпретируй "в X" как X:00, если не указаны минуты!
    
 3. [SHOW_PRICES] или [SHOW_PRICES category: категория] - показать прайс-лист
    ВАЖНО: Если клиент спрашивает про конкретную услугу (стрижка, маникюр, и т.д.), 
