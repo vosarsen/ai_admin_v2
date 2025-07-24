@@ -542,7 +542,10 @@ class Formatter {
       // Генерируем ссылку для Google Calendar
       const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${startDate}/${endDate}&details=${encodeURIComponent(details)}${booking.address ? `&location=${encodeURIComponent(booking.address)}` : ''}`;
       
-      summary += `\n\n📱 _Добавить в календарь:_\n${googleCalendarUrl}`;
+      summary += `\n\n📅 _Добавить в календарь:_\n${googleCalendarUrl}`;
+      
+      // Добавляем инструкцию для iOS пользователей
+      summary += `\n\n📱 _Для iPhone: скопируйте детали записи и добавьте вручную в приложение Календарь_`;
     }
     
     return summary;
