@@ -474,8 +474,44 @@ class Formatter {
       recordIdValue: booking?.record_id,
       idValue: booking?.id
     });
-    // Убираем показ номера записи клиенту
-    return `Запись создана!`;
+    
+    // Форматируем красивое саммари записи
+    let summary = '✅ *Запись успешно создана!*\n\n';
+    summary += '📋 *Детали вашей записи:*\n';
+    
+    // Дата и время
+    if (booking.datetime) {
+      const [dateStr, timeStr] = booking.datetime.split(' ');
+      const formattedDate = this.formatDateForDisplay(dateStr);
+      const time = timeStr ? timeStr.substring(0, 5) : '';
+      summary += `📅 ${formattedDate}\n`;
+      summary += `🕐 ${time}\n`;
+    }
+    
+    // Услуга
+    if (booking.service_name) {
+      summary += `💇 ${booking.service_name}\n`;
+    }
+    
+    // Мастер
+    if (booking.staff_name) {
+      const masterLabel = businessType === 'barbershop' ? 'Барбер' : 'Мастер';
+      summary += `👤 ${masterLabel}: ${booking.staff_name}\n`;
+    }
+    
+    // Стоимость
+    if (booking.price) {
+      summary += `💰 Стоимость: ${booking.price} руб.\n`;
+    }
+    
+    // Адрес (если есть в контексте)
+    if (booking.address) {
+      summary += `📍 ${booking.address}\n`;
+    }
+    
+    summary += '\n💬 _Ждём вас! Если планы изменятся, пожалуйста, предупредите заранее._';
+    
+    return summary;
   }
 
   /**
