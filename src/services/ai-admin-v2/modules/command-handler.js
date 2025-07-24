@@ -1052,6 +1052,7 @@ class CommandHandler {
     
     // Парсим дату
     const dateStr = formatter.parseRelativeDate(date || 'сегодня');
+    const targetDate = new Date(dateStr);
     
     // Находим мастера по имени
     let staff = null;
