@@ -1063,7 +1063,7 @@ class CommandHandler {
     }
     
     // Получаем расписание из базы данных
-    const supabase = require('../../../database/supabase');
+    const { supabase } = require('../../../database/supabase');
     
     let query = supabase
       .from('staff_schedules')
