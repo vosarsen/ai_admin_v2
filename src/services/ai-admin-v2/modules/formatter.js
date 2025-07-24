@@ -518,36 +518,6 @@ class Formatter {
     
     summary += '\n💬 _Ждём вас! Если планы изменятся, пожалуйста, предупредите заранее._';
     
-    // Добавляем ссылку для добавления в календарь
-    if (booking.datetime && booking.service_name) {
-      const [dateStr, timeStr] = booking.datetime.split(' ');
-      const [year, month, day] = dateStr.split('-');
-      const [hour, minute] = timeStr.split(':');
-      
-      // Формируем даты для Google Calendar (YYYYMMDDTHHmmSS)
-      const startDate = `${year}${month}${day}T${hour}${minute}00`;
-      const endDate = `${year}${month}${day}T${String(parseInt(hour) + 1).padStart(2, '0')}${minute}00`;
-      
-      // Формируем текст события
-      let eventTitle = booking.service_name;
-      if (booking.staff_name) {
-        eventTitle += ` (${booking.staff_name})`;
-      }
-      
-      // Формируем описание
-      let details = 'Запись в салон красоты';
-      if (booking.service_name) details += `\nУслуга: ${booking.service_name}`;
-      if (booking.staff_name) details += `\nМастер: ${booking.staff_name}`;
-      
-      // Генерируем ссылку для Google Calendar
-      const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${startDate}/${endDate}&details=${encodeURIComponent(details)}${booking.address ? `&location=${encodeURIComponent(booking.address)}` : ''}`;
-      
-      summary += `\n\n📅 _Добавить в календарь:_\n${googleCalendarUrl}`;
-      
-      // Добавляем инструкцию для iOS пользователей
-      summary += `\n\n📱 _Для iPhone: скопируйте детали записи и добавьте вручную в приложение Календарь_`;
-    }
-    
     return summary;
   }
 

@@ -154,9 +154,7 @@ class MessageWorkerV2 {
 
   async sendCalendarInvite(booking, phone, companyId) {
     try {
-      const icsGenerator = require('../utils/ics-generator');
-      const fs = require('fs').promises;
-      const path = require('path');
+      const axios = require('axios');
       const { supabase } = require('../database/supabase');
       
       // Получаем данные компании для названия
@@ -175,53 +173,37 @@ class MessageWorkerV2 {
         logger.warn('Failed to fetch company name for ICS:', error);
       }
       
-      // Генерируем содержимое .ics файла
-      const icsContent = icsGenerator.generateBookingICS(booking, companyName);
-      const fileName = icsGenerator.generateFileName(booking);
-      
-      // Сохраняем файл временно
-      const tempDir = path.join(__dirname, '../../temp/ics');
-      await fs.mkdir(tempDir, { recursive: true });
-      const filePath = path.join(tempDir, fileName);
-      await fs.writeFile(filePath, icsContent, 'utf8');
-      
-      logger.info('📅 Generated ICS file:', { fileName, filePath });
-      
-      // Отправляем файл через WhatsApp
-      // Пока отключаем отправку .ics файла до выяснения поддержки Venom Bot
-      logger.warn('ICS file generation is ready but sending is disabled until Venom Bot support is verified');
-      
-      // TODO: Уточнить API Venom Bot для отправки документов
-      // Варианты:
-      // 1. sendFile с base64
-      // 2. sendDocument 
-      // 3. Отправка как ссылка на скачивание
-      
-      /* Закомментировано до выяснения
-      const caption = '📅 Добавьте запись в календарь';
-      const sendResult = await whatsappClient.sendFile(
-        phone,
-        filePath,
-        caption
-      );
-      */
-      
-      const sendResult = { success: false, error: 'ICS sending temporarily disabled' };
-      
-      if (sendResult.success) {
-        logger.info('📅 Calendar invite sent successfully');
-      } else {
-        logger.error('Failed to send calendar invite:', sendResult.error);
+      // Генерируем ссылку через API
+      const apiBaseUrl = process.env.API_BASE_URL || 'http://46.149.70.219:3000';
+      try {
+        const response = await axios.post(`${apiBaseUrl}/api/calendar/generate-ics-link`, {
+          booking,
+          companyName
+        });
+        
+        if (response.data.success && response.data.url) {
+          // Отправляем ссылку на скачивание .ics файла
+          const message = `📅 *Добавить в календарь:*\n\n` +
+                         `Нажмите на ссылку ниже, чтобы добавить запись в календарь вашего телефона:\n\n` +
+                         `🔗 ${response.data.url}\n\n` +
+                         `_Ссылка действительна в течение 1 часа_`;
+          
+          const sendResult = await whatsappClient.sendMessage(phone, message);
+          
+          if (sendResult.success) {
+            logger.info('📅 Calendar link sent successfully', { url: response.data.url });
+          } else {
+            logger.error('Failed to send calendar link:', sendResult.error);
+          }
+        }
+      } catch (error) {
+        logger.error('Failed to generate calendar link:', error);
+        // Не прерываем основной процесс если не удалось создать ссылку
       }
-      
-      // Удаляем временный файл
-      await fs.unlink(filePath).catch(err => 
-        logger.warn('Failed to delete temp ICS file:', err)
-      );
       
     } catch (error) {
       logger.error('Error in sendCalendarInvite:', error);
-      throw error;
+      // Не пробрасываем ошибку, чтобы не прервать основной процесс
     }
   }
 
