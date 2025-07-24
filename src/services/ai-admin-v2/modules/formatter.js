@@ -2,6 +2,107 @@ const logger = require('../../../utils/logger').child({ module: 'ai-admin-v2:for
 
 class Formatter {
   /**
+   * Склонение имён в родительный падеж (у кого?)
+   * Простые правила для распространённых окончаний
+   */
+  getGenitiveName(name) {
+    if (!name) return '';
+    
+    // Особые случаи
+    const specialCases = {
+      'Бари': 'Бари', // неизменяемое
+      'Рами': 'Рами', // неизменяемое
+      'Рамзан': 'Рамзана', // Рамзан → Рамзана
+    };
+    
+    if (specialCases[name]) {
+      return specialCases[name];
+    }
+    
+    // Мужские имена
+    if (name.endsWith('ей') || name.endsWith('ий')) {
+      // Сергей → Сергея, Дмитрий → Дмитрия
+      return name.slice(0, -1) + 'я';
+    } else if (name.endsWith('ь')) {
+      // Игорь → Игоря
+      return name.slice(0, -1) + 'я';
+    } else if (name.endsWith('а')) {
+      // Никита → Никиты
+      return name.slice(0, -1) + 'ы';
+    } else if (name.endsWith('я')) {
+      // Илья → Ильи
+      return name.slice(0, -1) + 'и';
+    } else if (name.endsWith('н') || name.endsWith('р') || name.endsWith('л')) {
+      // Иван → Ивана, Петр → Петра, Павел → Павла
+      return name + 'а';
+    }
+    
+    // Женские имена
+    if (name.endsWith('ия')) {
+      // Мария → Марии
+      return name.slice(0, -1) + 'и';
+    } else if (name.endsWith('а') && !name.endsWith('ша')) {
+      // Анна → Анны, Ольга → Ольги
+      const lastChar = name[name.length - 2];
+      if ('гкхжшщчц'.includes(lastChar)) {
+        return name.slice(0, -1) + 'и';
+      }
+      return name.slice(0, -1) + 'ы';
+    }
+    
+    // По умолчанию добавляем 'а' к согласным
+    return name + 'а';
+  }
+
+  /**
+   * Склонение имён в дательный падеж (к кому?)
+   * Простые правила для распространённых окончаний
+   */
+  getDativeName(name) {
+    if (!name) return '';
+    
+    // Особые случаи
+    const specialCases = {
+      'Бари': 'Бари', // неизменяемое
+      'Рами': 'Рами', // неизменяемое
+      'Рамзан': 'Рамзану', // Рамзан → Рамзану
+    };
+    
+    if (specialCases[name]) {
+      return specialCases[name];
+    }
+    
+    // Мужские имена
+    if (name.endsWith('ей') || name.endsWith('ий')) {
+      // Сергей → Сергею, Дмитрий → Дмитрию
+      return name.slice(0, -1) + 'ю';
+    } else if (name.endsWith('ь')) {
+      // Игорь → Игорю
+      return name.slice(0, -1) + 'ю';
+    } else if (name.endsWith('а')) {
+      // Никита → Никите
+      return name.slice(0, -1) + 'е';
+    } else if (name.endsWith('я')) {
+      // Илья → Илье
+      return name.slice(0, -1) + 'е';
+    } else if (name.endsWith('н') || name.endsWith('р') || name.endsWith('л')) {
+      // Иван → Ивану, Петр → Петру, Павел → Павлу
+      return name + 'у';
+    }
+    
+    // Женские имена
+    if (name.endsWith('ия')) {
+      // Мария → Марии
+      return name.slice(0, -1) + 'и';
+    } else if (name.endsWith('а')) {
+      // Анна → Анне, Ольга → Ольге
+      return name.slice(0, -1) + 'е';
+    }
+    
+    // По умолчанию добавляем 'у' к согласным
+    return name + 'у';
+  }
+  /**
    * Форматирование услуг для отображения
    */
   formatServices(services, businessType) {
@@ -290,7 +391,7 @@ class Formatter {
         const hasSlots = timeGroups.morning.length > 0 || timeGroups.day.length > 0 || timeGroups.evening.length > 0;
         
         if (hasSlots) {
-          text += `У ${staffName} свободно ${formattedDate.toLowerCase()}:\n`;
+          text += `У ${this.getGenitiveName(staffName)} свободно ${formattedDate.toLowerCase()}:\n`;
           
           const timePeriods = [];
           if (timeGroups.morning.length > 0) {
