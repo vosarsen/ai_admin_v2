@@ -102,10 +102,17 @@ class MessageWorkerV2 {
           }
           
           // Планируем напоминания если создана запись
-          if (result.executedCommands?.some(cmd => cmd.command === 'CREATE_BOOKING')) {
-            const bookingResult = result.results.find(r => r.type === 'booking_created');
+          const commands = result.executedCommands || result.commands;
+          if (commands?.some(cmd => cmd.command === 'CREATE_BOOKING')) {
+            const bookingResult = result.results?.find(r => r.type === 'booking_created');
             if (bookingResult?.data) {
               await this.scheduleReminders(bookingResult.data, from);
+              logger.info('📅 Reminders scheduled for booking:', {
+                recordId: bookingResult.data.record_id,
+                datetime: bookingResult.data.datetime
+              });
+            } else {
+              logger.warn('CREATE_BOOKING command executed but no booking data found');
             }
           }
           

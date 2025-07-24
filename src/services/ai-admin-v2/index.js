@@ -88,7 +88,9 @@ class AIAdminV2 {
       return {
         success: true,
         response: result.response,
-        commands: result.executedCommands
+        commands: result.executedCommands,
+        executedCommands: result.executedCommands,
+        results: result.results
       };
       
     } catch (error) {
