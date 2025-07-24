@@ -95,7 +95,7 @@ class AIAdminV2 {
       logger.error('Error in AI Admin v2:', error);
       return {
         success: false,
-        response: 'Извините, произошла ошибка. Пожалуйста, попробуйте еще раз.',
+        response: '[ERROR_OCCURRED]', // AI сам сформулирует сообщение об ошибке
         error: error.message
       };
     }
@@ -464,6 +464,22 @@ ${formatter.formatConversation(context.conversation)}
 2. Затем добавь нужную команду: [КОМАНДА параметры] ТОЛЬКО если это нужно
 3. НЕ ДОБАВЛЯЙ КОМАНДУ если просто спрашиваешь время у клиента!
 
+ОБРАБОТКА СТРУКТУРИРОВАННЫХ ДАННЫХ:
+Если видишь [SLOTS_DATA: ...] или [ALTERNATIVE_SLOTS: ...] - это данные о слотах:
+- Сам сформулируй текст о доступном времени
+- Используй правильные падежи: "У Сергея", не "У Сергей"
+- Будь естественным: "Сергей может вас принять завтра в следующее время:"
+- Группируй по периодам дня как удобно
+- НЕ копируй структуру JSON, преобразуй в естественный текст
+
+Специальные маркеры (преобразуй в естественный текст):
+- [NO_SLOTS_AVAILABLE] - скажи что нет свободного времени
+- [SUGGEST_NEW_TIME] - предложи выбрать другое время
+- [PREVIOUS_SLOTS] - покажи ранее найденные слоты
+- [ERROR_OCCURRED] - извинись за техническую ошибку
+- [BOOKING_TIME_UNAVAILABLE] - выбранное время недоступно
+- [BOOKING_CREATION_FAILED] - не удалось создать запись
+
 ПРИМЕРЫ ПРАВИЛЬНЫХ ОТВЕТОВ:
 Клиент: "хочу записаться" (новый клиент без имени)
 Ты: "Отлично! Как вас зовут?"
@@ -565,7 +581,11 @@ ${formatter.formatConversation(context.conversation)}
       }, []);
       
       if (allSlots.length > 0) {
-        finalResponse += '\n\n' + formatter.formatSlots(allSlots, context.company.type);
+        const slotsData = formatter.formatSlots(allSlots, context.company.type);
+        if (slotsData) {
+          // Добавляем структурированные данные в ответ для AI
+          finalResponse += `\n\n[SLOTS_DATA: ${JSON.stringify(slotsData)}]`;
+        }
       }
     }
     
@@ -694,7 +714,7 @@ ${formatter.formatConversation(context.conversation)}
           
           if (isAvailabilityError) {
             // Время/мастер недоступны - нужно показать альтернативы
-            finalResponse = 'К сожалению, выбранное время недоступно.';
+            finalResponse = '[BOOKING_TIME_UNAVAILABLE]';
             
             // Пытаемся найти альтернативные слоты
             if (result.params) {
@@ -713,13 +733,15 @@ ${formatter.formatConversation(context.conversation)}
                 const searchResult = await commandHandler.searchSlots(searchParams, context);
                 
                 if (searchResult && searchResult.slots && searchResult.slots.length > 0) {
-                  finalResponse += '\n\nВот доступное время:';
-                  finalResponse += '\n' + formatter.formatSlots(searchResult.slots, context.company.type);
+                  const slotsData = formatter.formatSlots(searchResult.slots, context.company.type);
+                  if (slotsData) {
+                    finalResponse += `\n\n[ALTERNATIVE_SLOTS: ${JSON.stringify(slotsData)}]`;
+                  }
                   
                   // Сохраняем результат поиска для последующего использования
                   context.lastSearch = searchResult;
                 } else {
-                  finalResponse += ' К сожалению, на сегодня все занято. Попробуйте выбрать другой день.';
+                  finalResponse += '\n\n[NO_SLOTS_AVAILABLE]';
                 }
               } catch (searchError) {
                 logger.error('Error searching for alternative slots:', searchError);
@@ -727,10 +749,12 @@ ${formatter.formatConversation(context.conversation)}
               }
             } else if (context.lastSearch?.slots && context.lastSearch.slots.length > 0) {
               // Если нет параметров, но есть предыдущий поиск
-              finalResponse += '\n\nВот доступное время:';
-              finalResponse += '\n' + formatter.formatSlots(context.lastSearch.slots, context.company.type);
+              const slotsData = formatter.formatSlots(context.lastSearch.slots, context.company.type);
+              if (slotsData) {
+                finalResponse += `\n\n[PREVIOUS_SLOTS: ${JSON.stringify(slotsData)}]`;
+              }
             } else {
-              finalResponse += ' Давайте подберем другое удобное для вас время.';
+              finalResponse += '\n\n[SUGGEST_NEW_TIME]';
             }
           } else {
             // Другая ошибка (не связанная с доступностью)
@@ -738,7 +762,7 @@ ${formatter.formatConversation(context.conversation)}
               /записываю вас|запись создана|вы записаны/gi, 
               'не удалось создать запись'
             );
-            finalResponse += '\n\nК сожалению, не удалось создать запись. Попробуйте выбрать другое время или позвоните нам.';
+            finalResponse += '\n\n[BOOKING_CREATION_FAILED]';
           }
         }
       }

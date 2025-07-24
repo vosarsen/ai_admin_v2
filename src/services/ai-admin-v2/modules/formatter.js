@@ -244,13 +244,12 @@ class Formatter {
 
   /**
    * Форматирование слотов для отображения
+   * Возвращает структурированные данные вместо готового текста
    */
   formatSlots(slots, businessType) {
     if (!slots || !slots.length) {
-      return '😔 К сожалению, на выбранное время нет свободных слотов. Могу предложить другое время или день.';
+      return null; // AI сам решит как сказать об отсутствии слотов
     }
-    
-    let text = '';
     
     // Группируем по мастерам если есть
     const byStaff = {};
@@ -260,7 +259,9 @@ class Formatter {
       byStaff[staffName].push(slot);
     });
     
-    Object.entries(byStaff).slice(0, 3).forEach(([staffName, staffSlots], index) => {
+    const result = {};
+    
+    Object.entries(byStaff).slice(0, 3).forEach(([staffName, staffSlots]) => {
       // Группируем по датам
       const byDate = {};
       staffSlots.forEach(slot => {
@@ -279,6 +280,8 @@ class Formatter {
         byDate[date].push(slot);
       });
       
+      result[staffName] = {};
+      
       // Для каждой даты
       Object.entries(byDate).forEach(([date, dateSlots]) => {
         const formattedDate = this.formatDateForDisplay(date);
@@ -290,25 +293,17 @@ class Formatter {
         const hasSlots = timeGroups.morning.length > 0 || timeGroups.day.length > 0 || timeGroups.evening.length > 0;
         
         if (hasSlots) {
-          text += `У ${staffName} свободно ${formattedDate.toLowerCase()}:\n`;
-          
-          const timePeriods = [];
-          if (timeGroups.morning.length > 0) {
-            timePeriods.push(`С утра: ${timeGroups.morning.join(', ')}`);
-          }
-          if (timeGroups.day.length > 0) {
-            timePeriods.push(`Днём: ${timeGroups.day.join(', ')}`);
-          }
-          if (timeGroups.evening.length > 0) {
-            timePeriods.push(`Вечером: ${timeGroups.evening.join(', ')}`);
-          }
-          
-          text += timePeriods.join('\n') + '\n\n';
+          result[staffName][formattedDate] = {
+            morning: timeGroups.morning,
+            day: timeGroups.day,
+            evening: timeGroups.evening,
+            rawDate: date
+          };
         }
       });
     });
     
-    return text.trim();
+    return result;
   }
 
   /**
@@ -488,7 +483,7 @@ class Formatter {
    */
   formatPrices(services, businessType) {
     if (!services || services.length === 0) {
-      return 'К сожалению, прайс-лист временно недоступен.';
+      return null; // AI сам решит как сказать об отсутствии прайса
     }
     
     // Определяем тип запроса по первой услуге
