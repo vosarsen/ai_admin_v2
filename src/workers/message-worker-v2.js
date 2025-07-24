@@ -101,16 +101,25 @@ class MessageWorkerV2 {
             }
           }
           
-          // Планируем напоминания если создана запись
+          // Планируем напоминания и отправляем .ics файл если создана запись
           const commands = result.executedCommands || result.commands;
           if (commands?.some(cmd => cmd.command === 'CREATE_BOOKING')) {
             const bookingResult = result.results?.find(r => r.type === 'booking_created');
             if (bookingResult?.data) {
+              // Планируем напоминания
               await this.scheduleReminders(bookingResult.data, from);
               logger.info('📅 Reminders scheduled for booking:', {
                 recordId: bookingResult.data.record_id,
                 datetime: bookingResult.data.datetime
               });
+              
+              // Генерируем и отправляем .ics файл
+              try {
+                await this.sendCalendarInvite(bookingResult.data, from, job.data.companyId);
+              } catch (error) {
+                logger.error('Failed to send calendar invite:', error);
+                // Не прерываем основной процесс если не удалось отправить календарь
+              }
             } else {
               logger.warn('CREATE_BOOKING command executed but no booking data found');
             }
@@ -141,6 +150,79 @@ class MessageWorkerV2 {
         });
       }
     });
+  }
+
+  async sendCalendarInvite(booking, phone, companyId) {
+    try {
+      const icsGenerator = require('../utils/ics-generator');
+      const fs = require('fs').promises;
+      const path = require('path');
+      const { supabase } = require('../database/supabase');
+      
+      // Получаем данные компании для названия
+      let companyName = 'Салон красоты';
+      try {
+        const { data: company } = await supabase
+          .from('companies')
+          .select('title')
+          .eq('company_id', companyId)
+          .maybeSingle();
+        
+        if (company?.title) {
+          companyName = company.title;
+        }
+      } catch (error) {
+        logger.warn('Failed to fetch company name for ICS:', error);
+      }
+      
+      // Генерируем содержимое .ics файла
+      const icsContent = icsGenerator.generateBookingICS(booking, companyName);
+      const fileName = icsGenerator.generateFileName(booking);
+      
+      // Сохраняем файл временно
+      const tempDir = path.join(__dirname, '../../temp/ics');
+      await fs.mkdir(tempDir, { recursive: true });
+      const filePath = path.join(tempDir, fileName);
+      await fs.writeFile(filePath, icsContent, 'utf8');
+      
+      logger.info('📅 Generated ICS file:', { fileName, filePath });
+      
+      // Отправляем файл через WhatsApp
+      // Пока отключаем отправку .ics файла до выяснения поддержки Venom Bot
+      logger.warn('ICS file generation is ready but sending is disabled until Venom Bot support is verified');
+      
+      // TODO: Уточнить API Venom Bot для отправки документов
+      // Варианты:
+      // 1. sendFile с base64
+      // 2. sendDocument 
+      // 3. Отправка как ссылка на скачивание
+      
+      /* Закомментировано до выяснения
+      const caption = '📅 Добавьте запись в календарь';
+      const sendResult = await whatsappClient.sendFile(
+        phone,
+        filePath,
+        caption
+      );
+      */
+      
+      const sendResult = { success: false, error: 'ICS sending temporarily disabled' };
+      
+      if (sendResult.success) {
+        logger.info('📅 Calendar invite sent successfully');
+      } else {
+        logger.error('Failed to send calendar invite:', sendResult.error);
+      }
+      
+      // Удаляем временный файл
+      await fs.unlink(filePath).catch(err => 
+        logger.warn('Failed to delete temp ICS file:', err)
+      );
+      
+    } catch (error) {
+      logger.error('Error in sendCalendarInvite:', error);
+      throw error;
+    }
   }
 
   async scheduleReminders(booking, phone) {
