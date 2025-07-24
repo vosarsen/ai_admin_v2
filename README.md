@@ -20,6 +20,7 @@ AI Admin v2 is a next-generation WhatsApp booking assistant designed for beauty 
 - 📊 **Performance Monitoring**: Real-time metrics and health checks
 - 🌐 **Multi-Tenant Ready**: Scalable to 150+ companies
 - 🔒 **Production Security**: Rate limiting, authentication, data validation
+- ⏰ **Automatic Reminders**: Two-tier reminder system (day before + 2 hours before)
 
 ### 🎯 AI Commands (v2)
 
@@ -44,10 +45,31 @@ AI Admin v2 is a next-generation WhatsApp booking assistant designed for beauty 
 │   (Redis/Memory)│    │   Protection     │    │   API           │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                                 ▼
-                       ┌──────────────────┐
-                       │   Proactive      │
-                       │   Suggestions    │
-                       └──────────────────┘
+                       ┌──────────────────┐    ┌─────────────────┐
+                       │   Proactive      │    │   Reminder      │
+                       │   Suggestions    │    │   Worker        │
+                       └──────────────────┘    └─────────────────┘
+```
+
+### ⏰ Reminder System
+
+AI Admin v2 includes a sophisticated reminder system that automatically sends WhatsApp messages to clients about their upcoming appointments:
+
+**Features:**
+- 📅 **Day-before reminder**: Sent between 19:00-21:00 (random time for natural feel)
+- ⏰ **2-hour reminder**: Sent exactly 2 hours before the appointment
+- 🔄 **Automatic scheduling**: Reminders are scheduled when booking is created
+- 🛡️ **Duplicate protection**: Each reminder is sent only once
+- 📊 **Status tracking**: Database records when each reminder was sent
+
+**Example messages:**
+```
+Добрый вечер! 🌙
+Напоминаем, что вы записаны на завтра:
+📅 25 июля
+⏰ 15:00
+💇 Мужская стрижка
+👤 Сергей
 ```
 
 ## 🚀 Quick Start

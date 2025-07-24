@@ -66,7 +66,7 @@
   - [ ] Fix Redis configuration (убрать временные хаки)
 
 ### 🟡 Medium Priority - Phase 4: Продвинутые функции
-- [ ] Автоматические напоминания (за день, за 2 часа)
+- [x] Автоматические напоминания (за день, за 2 часа) ✅ (July 24, 2025)
 - [ ] Webhook интеграция с YClients для real-time обновлений
 - [ ] Redis кеширование для доступности слотов
 - [ ] Показ портфолио [SHOW_PORTFOLIO]
@@ -137,6 +137,21 @@
 - [x] Updated documentation with API limitations (July 22, 2025)
 - [x] Implemented RESCHEDULE_BOOKING command (July 23, 2025)
 - [x] Completed Phase 3 testing - all modification features ready (July 23, 2025)
+
+### Features Added (July 24, 2025)
+- [x] Implemented automatic reminder system
+  - [x] Day-before reminders (19:00-21:00 random time)
+  - [x] 2-hour before reminders
+  - [x] Automatic scheduling on booking creation
+  - [x] Duplicate protection via database flags
+  - [x] Separate PM2 process for reminder worker
+  - [x] Full WhatsApp integration
+  - [x] Comprehensive logging and monitoring
+- [x] Fixed automatic reminder scheduling bug
+  - [x] Fixed executedCommands/commands compatibility
+  - [x] Added results passing from AI Admin v2
+  - [x] Added detailed logging for debugging
+- [x] Removed booking ID from client messages (stored in DB instead)
 
 ### Features Added (July 22, 2025)
 - [x] ServiceMatcher scoring algorithm with penalties for complex services
