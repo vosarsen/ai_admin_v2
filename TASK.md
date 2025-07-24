@@ -1,8 +1,21 @@
 # AI Admin v2 - Task Tracker
 
+## 📅 Last Updated: July 24, 2025, 18:40
+
 ## 🎯 Current Sprint - Phase 3: Edge Cases и надежность
 
-### ✅ Completed - CHECK_STAFF_SCHEDULE Added (July 24, 2025)
+### ✅ Completed - Critical Fixes (July 24, 2025 Evening)
+- [x] **Исправлен импорт Supabase в command-handler.js**
+  - [x] Ошибка: supabase.from is not a function
+  - [x] Решение: деструктурированный импорт { supabase }
+- [x] **Исправлена отправка внутренних размышлений AI**
+  - [x] Добавлены четкие инструкции в промпт
+  - [x] AI больше не добавляет свой анализ в ответы
+- [x] **Исправлена ошибка targetDate is not defined**
+  - [x] Добавлено определение переменной в checkStaffSchedule
+  - [x] Воркер теперь работает стабильно
+
+### ✅ Completed - CHECK_STAFF_SCHEDULE Added (July 24, 2025 Morning)
 - [x] **Добавлена команда CHECK_STAFF_SCHEDULE**
   - [x] Быстрая проверка расписания через БД
   - [x] Обработка результатов в processAIResponse
@@ -20,14 +33,18 @@
   - [x] Сообщения теперь корректно объединяются!
 
 ### 🔴 High Priority - Critical Bugs to Fix
-- [ ] **Fix missing staff_id in booking creation**
-  - [ ] Handle `staff_id: "last"` from AI context
-  - [ ] Ensure staff_id is included in appointment object
-  - [ ] Test with real booking scenarios
+- [ ] **Fix YClients API permission errors**
+  - [ ] 403: "Нет прав на управление компанией" при поиске клиента
+  - [ ] 403: "Нет прав на управление филиалом" при создании клиента
+  - [ ] 422: "Нет доступных для записи сотрудников" при создании записи
+  - [ ] Request expanded API permissions from YClients
 - [ ] **Add automatic alternative slots on booking errors**
   - [ ] When booking fails, immediately show available slots
   - [ ] Format slots nicely for user
   - [ ] Test with various error scenarios
+- [ ] **Fix AI time understanding**
+  - [ ] AI should understand "на 3" as 15:00
+  - [ ] Test various time formats
 
 ### 🟡 Medium Priority - Testing Required
 - [x] **Тестирование некорректных вводов**
