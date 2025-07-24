@@ -589,6 +589,15 @@ class CommandHandler {
     const responseData = result.data?.data || result.data || [];
     const bookingRecord = Array.isArray(responseData) ? responseData[0] : responseData;
     
+    // Найдем информацию о цене услуги
+    let servicePrice = null;
+    if (serviceId && context.services) {
+      const service = context.services.find(s => s.yclients_id === serviceId);
+      if (service) {
+        servicePrice = service.price_min || service.price || null;
+      }
+    }
+    
     // Возвращаем объект с нужными полями для отображения
     return {
       id: bookingRecord?.record_id,
@@ -596,7 +605,9 @@ class CommandHandler {
       record_hash: bookingRecord?.record_hash,
       service_name: context.lastSearch?.service_name,
       staff_name: context.lastSearch?.staff_name,
-      datetime: `${parsedDate} ${params.time}:00`
+      datetime: `${parsedDate} ${params.time}:00`,
+      address: context.company?.address || null,
+      price: servicePrice
     };
   }
 
