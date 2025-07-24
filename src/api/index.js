@@ -32,6 +32,10 @@ app.use((req, res, next) => {
 app.use(whatsappAiAdminWebhook);
 app.use(whatsappBatchedWebhook);
 
+// Mount API routes
+const calendarRoutes = require('./routes/calendar');
+app.use('/api/calendar', calendarRoutes);
+
 // Health check (with relaxed rate limit)
 app.get('/health', rateLimiter, async (req, res) => {
   try {
