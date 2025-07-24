@@ -589,12 +589,22 @@ class CommandHandler {
     const responseData = result.data?.data || result.data || [];
     const bookingRecord = Array.isArray(responseData) ? responseData[0] : responseData;
     
-    // Найдем информацию о цене услуги
-    let servicePrice = null;
-    if (serviceId && context.services) {
+    // Найдем информацию о услуге и мастере
+    let serviceName = context.lastSearch?.service_name;
+    let staffName = context.lastSearch?.staff_name;
+    
+    // Если нет в lastSearch, ищем по ID
+    if (!serviceName && serviceId && context.services) {
       const service = context.services.find(s => s.yclients_id === serviceId);
       if (service) {
-        servicePrice = service.price_min || service.price || null;
+        serviceName = service.title;
+      }
+    }
+    
+    if (!staffName && staffId && context.staff) {
+      const staff = context.staff.find(s => s.yclients_id === staffId);
+      if (staff) {
+        staffName = staff.name;
       }
     }
     
@@ -603,11 +613,10 @@ class CommandHandler {
       id: bookingRecord?.record_id,
       record_id: bookingRecord?.record_id,
       record_hash: bookingRecord?.record_hash,
-      service_name: context.lastSearch?.service_name,
-      staff_name: context.lastSearch?.staff_name,
+      service_name: serviceName,
+      staff_name: staffName,
       datetime: `${parsedDate} ${params.time}:00`,
-      address: context.company?.address || null,
-      price: servicePrice
+      address: context.company?.address || null
     };
   }
 

@@ -484,7 +484,19 @@ class Formatter {
       const [dateStr, timeStr] = booking.datetime.split(' ');
       const formattedDate = this.formatDateForDisplay(dateStr);
       const time = timeStr ? timeStr.substring(0, 5) : '';
-      summary += `📅 ${formattedDate}\n`;
+      
+      // Добавляем числовую дату после "Завтра" или "Сегодня"
+      const date = new Date(dateStr + 'T12:00:00');
+      const dateNumber = date.getDate();
+      const monthNames = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 
+                          'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+      const month = monthNames[date.getMonth()];
+      
+      if (formattedDate === 'Завтра' || formattedDate === 'Сегодня') {
+        summary += `📅 ${formattedDate} (${dateNumber} ${month})\n`;
+      } else {
+        summary += `📅 ${formattedDate}\n`;
+      }
       summary += `🕐 ${time}\n`;
     }
     
@@ -497,11 +509,6 @@ class Formatter {
     if (booking.staff_name) {
       const masterLabel = businessType === 'barbershop' ? 'Барбер' : 'Мастер';
       summary += `👤 ${masterLabel}: ${booking.staff_name}\n`;
-    }
-    
-    // Стоимость
-    if (booking.price) {
-      summary += `💰 Стоимость: ${booking.price} руб.\n`;
     }
     
     // Адрес (если есть в контексте)
