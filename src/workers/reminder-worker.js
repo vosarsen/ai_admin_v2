@@ -94,7 +94,13 @@ class ReminderWorker {
         throw new Error(`Failed to send reminder: ${sendResult.error}`);
       }
       
-      // 3. Log success
+      // 3. Mark reminder as sent in database
+      if (job.data.bookingId) {
+        const reminderService = require('../services/reminder');
+        await reminderService.markReminderSent(job.data.bookingId, type);
+      }
+      
+      // 4. Log success
       this.processedCount++;
       const processingTime = Date.now() - startTime;
       
@@ -104,7 +110,7 @@ class ReminderWorker {
         success: true,
         processingTime,
         type,
-        booking: booking.id
+        booking: booking.record_id || booking.id
       };
       
     } catch (error) {
@@ -117,38 +123,49 @@ class ReminderWorker {
    * Generate day before reminder
    */
   _generateDayBeforeReminder(booking) {
-    const date = new Date(booking.datetime);
+    const date = new Date(booking.datetime || `${booking.date} ${booking.time}`);
     const timeStr = date.toLocaleTimeString('ru-RU', { 
       hour: '2-digit', 
       minute: '2-digit' 
     });
+    const dateStr = date.toLocaleDateString('ru-RU', {
+      day: 'numeric',
+      month: 'long'
+    });
+    
+    // Извлекаем имя услуги и мастера
+    const serviceName = booking.service || booking.service_name || 'услуга';
+    const staffName = booking.staff || booking.staff_name || 'мастер';
     
     return `Добрый вечер! 🌙\n\n` +
-           `Напоминаем о вашей записи завтра:\n` +
-           `📅 ${booking.service}\n` +
-           `👤 Мастер: ${booking.staff}\n` +
-           `🕐 Время: ${timeStr}\n\n` +
-           `Будете завтра? Ответьте:\n` +
-           `✅ Да - подтвердить\n` +
-           `❌ Нет - отменить запись`;
+           `Напоминаем, что вы записаны на завтра:\n\n` +
+           `📅 ${dateStr}\n` +
+           `⏰ ${timeStr}\n` +
+           `💇 ${serviceName}\n` +
+           `👤 ${staffName}\n\n` +
+           `Ждём вас! Если планы изменились, пожалуйста, дайте знать.`;
   }
 
   /**
    * Generate hours before reminder
    */
   _generateHoursBeforeReminder(booking, hours) {
-    const date = new Date(booking.datetime);
+    const date = new Date(booking.datetime || `${booking.date} ${booking.time}`);
     const timeStr = date.toLocaleTimeString('ru-RU', { 
       hour: '2-digit', 
       minute: '2-digit' 
     });
     
+    // Извлекаем имя услуги и мастера
+    const serviceName = booking.service || booking.service_name || 'услуга';
+    const staffName = booking.staff || booking.staff_name || 'мастер';
+    
     return `Напоминание! ⏰\n\n` +
-           `Через ${hours} ${this._getHoursWord(hours)} у вас запись:\n` +
-           `📅 ${booking.service}\n` +
-           `👤 Мастер: ${booking.staff}\n` +
-           `🕐 Время: ${timeStr}\n\n` +
-           `Ждем вас! До встречи 😊`;
+           `Через ${hours} ${this._getHoursWord(hours)} у вас запись:\n\n` +
+           `⏰ ${timeStr}\n` +
+           `💇 ${serviceName}\n` +
+           `👤 ${staffName}\n\n` +
+           `До встречи! 😊`;
   }
 
   /**

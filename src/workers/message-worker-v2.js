@@ -140,10 +140,14 @@ class MessageWorkerV2 {
     try {
       const bookingTime = new Date(booking.datetime || `${booking.date} ${booking.time}`);
       
-      // Напоминание за день
+      // Напоминание за день в случайное время между 19:00 и 21:00
       const dayBefore = new Date(bookingTime);
       dayBefore.setDate(dayBefore.getDate() - 1);
-      dayBefore.setHours(20, 0, 0, 0);
+      
+      // Выбираем случайное время между 19:00 и 21:00
+      const randomHour = 19 + Math.floor(Math.random() * 2); // 19 или 20
+      const randomMinute = Math.floor(Math.random() * 60); // 0-59
+      dayBefore.setHours(randomHour, randomMinute, 0, 0);
       
       if (dayBefore > new Date()) {
         await messageQueue.addReminder({
@@ -151,6 +155,7 @@ class MessageWorkerV2 {
           booking,
           phone
         }, dayBefore);
+        logger.info(`📅 Scheduled day-before reminder for ${dayBefore.toLocaleString('ru-RU')}`);
       }
       
       // Напоминание за 2 часа
