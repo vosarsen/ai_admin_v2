@@ -596,6 +596,40 @@ ${JSON.stringify(slotsData)}
           hasRecordId: !!result.data?.record_id,
           hasId: !!result.data?.id
         });
+        
+        // Сохраняем информацию о записи в базу данных
+        if (result.data?.record_id) {
+          try {
+            const { supabase } = require('../../database/supabase');
+            const bookingData = {
+              user_id: context.phone.replace('@c.us', ''),
+              record_id: result.data.record_id,
+              appointment_datetime: result.data.datetime,
+              metadata: {
+                record_hash: result.data.record_hash,
+                service_name: result.data.service_name,
+                staff_name: result.data.staff_name,
+                company_id: context.company.company_id
+              }
+            };
+            
+            const { error } = await supabase
+              .from('bookings')
+              .insert([bookingData]);
+              
+            if (error) {
+              logger.error('Failed to save booking to database:', error);
+            } else {
+              logger.info('Booking saved to database:', {
+                record_id: result.data.record_id,
+                user_id: bookingData.user_id
+              });
+            }
+          } catch (error) {
+            logger.error('Error saving booking to database:', error);
+          }
+        }
+        
         finalResponse += '\n\n✅ ' + formatter.formatBookingConfirmation(result.data, context.company.type);
       } else if (result.type === 'prices' && !slotResults.length) {
         finalResponse += '\n\n' + formatter.formatPrices(result.data, context.company.type);

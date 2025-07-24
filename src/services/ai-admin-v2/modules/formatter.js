@@ -474,8 +474,8 @@ class Formatter {
       recordIdValue: booking?.record_id,
       idValue: booking?.id
     });
-    const recordId = booking?.record_id || booking?.id || booking?.recordId;
-    return `Запись создана! Номер записи: ${recordId}`;
+    // Убираем показ номера записи клиенту
+    return `Запись создана!`;
   }
 
   /**
