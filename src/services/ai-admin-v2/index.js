@@ -95,7 +95,7 @@ class AIAdminV2 {
       logger.error('Error in AI Admin v2:', error);
       return {
         success: false,
-        response: '[ERROR_OCCURRED]', // AI сам сформулирует сообщение об ошибке
+        response: 'Извините, произошла ошибка. Пожалуйста, попробуйте еще раз.',
         error: error.message
       };
     }
@@ -464,21 +464,6 @@ ${formatter.formatConversation(context.conversation)}
 2. Затем добавь нужную команду: [КОМАНДА параметры] ТОЛЬКО если это нужно
 3. НЕ ДОБАВЛЯЙ КОМАНДУ если просто спрашиваешь время у клиента!
 
-ОБРАБОТКА СТРУКТУРИРОВАННЫХ ДАННЫХ:
-Если видишь [SLOTS_DATA: ...] или [ALTERNATIVE_SLOTS: ...] - это данные о слотах:
-- Сам сформулируй текст о доступном времени
-- Используй правильные падежи: "У Сергея", не "У Сергей"
-- Будь естественным: "Сергей может вас принять завтра в следующее время:"
-- Группируй по периодам дня как удобно
-- НЕ копируй структуру JSON, преобразуй в естественный текст
-
-Специальные маркеры (преобразуй в естественный текст):
-- [NO_SLOTS_AVAILABLE] - скажи что нет свободного времени
-- [SUGGEST_NEW_TIME] - предложи выбрать другое время
-- [PREVIOUS_SLOTS] - покажи ранее найденные слоты
-- [ERROR_OCCURRED] - извинись за техническую ошибку
-- [BOOKING_TIME_UNAVAILABLE] - выбранное время недоступно
-- [BOOKING_CREATION_FAILED] - не удалось создать запись
 
 ПРИМЕРЫ ПРАВИЛЬНЫХ ОТВЕТОВ:
 Клиент: "хочу записаться" (новый клиент без имени)
@@ -572,8 +557,7 @@ ${formatter.formatConversation(context.conversation)}
     // Формируем финальный ответ
     let finalResponse = cleanResponse;
     
-    // Добавляем результаты выполнения команд
-    // Сначала объединяем все слоты если их несколько
+    // Обрабатываем слоты если они есть
     const slotResults = results.filter(r => r.type === 'slots');
     if (slotResults.length > 0) {
       const allSlots = slotResults.reduce((acc, result) => {
@@ -583,8 +567,15 @@ ${formatter.formatConversation(context.conversation)}
       if (allSlots.length > 0) {
         const slotsData = formatter.formatSlots(allSlots, context.company.type);
         if (slotsData) {
-          // Добавляем структурированные данные в ответ для AI
-          finalResponse += `\n\n[SLOTS_DATA: ${JSON.stringify(slotsData)}]`;
+          // Вызываем AI для форматирования слотов
+          const slotsPrompt = `Покажи доступное время на основе данных:
+${JSON.stringify(slotsData)}
+
+Используй правильные падежи. Например: "У Сергея свободно", не "У Сергей".
+Сгруппируй по периодам дня. Будь кратким и естественным.`;
+          
+          const formattedSlots = await this.callAI(slotsPrompt);
+          finalResponse += '\n\n' + formattedSlots;
         }
       }
     }
@@ -714,7 +705,7 @@ ${formatter.formatConversation(context.conversation)}
           
           if (isAvailabilityError) {
             // Время/мастер недоступны - нужно показать альтернативы
-            finalResponse = '[BOOKING_TIME_UNAVAILABLE]';
+            finalResponse = 'К сожалению, выбранное время недоступно.';
             
             // Пытаемся найти альтернативные слоты
             if (result.params) {
@@ -735,13 +726,21 @@ ${formatter.formatConversation(context.conversation)}
                 if (searchResult && searchResult.slots && searchResult.slots.length > 0) {
                   const slotsData = formatter.formatSlots(searchResult.slots, context.company.type);
                   if (slotsData) {
-                    finalResponse += `\n\n[ALTERNATIVE_SLOTS: ${JSON.stringify(slotsData)}]`;
+                    // Вызываем AI для форматирования альтернативных слотов
+                    const altPrompt = `Предложи альтернативное время на основе данных:
+${JSON.stringify(slotsData)}
+
+Начни с фразы вроде "Вот доступное время:" или "Могу предложить другое время:".
+Используй правильные падежи. Будь кратким.`;
+                    
+                    const formattedAltSlots = await this.callAI(altPrompt);
+                    finalResponse += '\n\n' + formattedAltSlots;
                   }
                   
                   // Сохраняем результат поиска для последующего использования
                   context.lastSearch = searchResult;
                 } else {
-                  finalResponse += '\n\n[NO_SLOTS_AVAILABLE]';
+                  finalResponse += ' К сожалению, на сегодня все занято. Попробуйте выбрать другой день.';
                 }
               } catch (searchError) {
                 logger.error('Error searching for alternative slots:', searchError);
@@ -751,10 +750,16 @@ ${formatter.formatConversation(context.conversation)}
               // Если нет параметров, но есть предыдущий поиск
               const slotsData = formatter.formatSlots(context.lastSearch.slots, context.company.type);
               if (slotsData) {
-                finalResponse += `\n\n[PREVIOUS_SLOTS: ${JSON.stringify(slotsData)}]`;
+                const prevPrompt = `Покажи ранее найденное время на основе данных:
+${JSON.stringify(slotsData)}
+
+Начни с "Вот доступное время:". Используй правильные падежи.`;
+                
+                const formattedPrevSlots = await this.callAI(prevPrompt);
+                finalResponse += '\n\n' + formattedPrevSlots;
               }
             } else {
-              finalResponse += '\n\n[SUGGEST_NEW_TIME]';
+              finalResponse += ' Давайте подберем другое удобное для вас время.';
             }
           } else {
             // Другая ошибка (не связанная с доступностью)
@@ -762,7 +767,7 @@ ${formatter.formatConversation(context.conversation)}
               /записываю вас|запись создана|вы записаны/gi, 
               'не удалось создать запись'
             );
-            finalResponse += '\n\n[BOOKING_CREATION_FAILED]';
+            finalResponse += '\n\nК сожалению, не удалось создать запись. Попробуйте выбрать другое время или позвоните нам.';
           }
         }
       }
