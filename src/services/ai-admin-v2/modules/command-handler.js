@@ -2,6 +2,7 @@ const logger = require('../../../utils/logger').child({ module: 'ai-admin-v2:com
 const bookingService = require('../../booking');
 const formatter = require('./formatter');
 const serviceMatcher = require('./service-matcher');
+const dateParser = require('../../../utils/date-parser');
 
 class CommandHandler {
   /**
@@ -9,7 +10,7 @@ class CommandHandler {
    */
   extractCommands(response) {
     const commands = [];
-    const commandRegex = /\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|CANCEL_BOOKING|SAVE_CLIENT_NAME|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING)([^\]]*)\]/g;
+    const commandRegex = /\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|CANCEL_BOOKING|SAVE_CLIENT_NAME|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING|CHECK_STAFF_SCHEDULE)([^\]]*)\]/g;
     
     let match;
     while ((match = commandRegex.exec(response)) !== null) {
@@ -108,6 +109,11 @@ class CommandHandler {
           case 'RESCHEDULE_BOOKING':
             const rescheduleResult = await this.rescheduleBooking(cmd.params, context);
             results.push({ type: 'booking_rescheduled', data: rescheduleResult });
+            break;
+            
+          case 'CHECK_STAFF_SCHEDULE':
+            const scheduleResult = await this.checkStaffSchedule(cmd.params, context);
+            results.push({ type: 'staff_schedule', data: scheduleResult });
             break;
         }
       } catch (error) {
@@ -1038,9 +1044,93 @@ class CommandHandler {
     */
   }
 
+  /**
+   * Проверить расписание мастера
+   */
+  async checkStaffSchedule(params, context) {
+    const { staff_name, date } = params;
+    
+    // Парсим дату
+    const targetDate = await dateParser.parseRelativeDate(date || 'сегодня');
+    const dateStr = targetDate.toISOString().split('T')[0];
+    
+    // Находим мастера по имени
+    let staff = null;
+    if (staff_name) {
+      staff = context.staff.find(s => 
+        s.name.toLowerCase().includes(staff_name.toLowerCase()) ||
+        staff_name.toLowerCase().includes(s.name.toLowerCase())
+      );
+    }
+    
+    // Получаем расписание из базы данных
+    const supabase = require('../../../database/supabase');
+    
+    let query = supabase
+      .from('staff_schedules')
+      .select('*')
+      .eq('date', dateStr);
+      
+    if (staff) {
+      query = query.eq('staff_id', staff.yclients_id);
+    }
+    
+    const { data: schedules, error } = await query;
+    
+    if (error) {
+      logger.error('Error fetching staff schedules:', error);
+      return {
+        success: false,
+        error: 'Не удалось получить расписание'
+      };
+    }
+    
+    // Формируем результат
+    const result = {
+      date: dateStr,
+      formattedDate: formatter.formatDate(targetDate),
+      staff: [],
+      working: [],
+      notWorking: []
+    };
+    
+    if (schedules && schedules.length > 0) {
+      schedules.forEach(schedule => {
+        const staffInfo = {
+          id: schedule.staff_id,
+          name: schedule.staff_name,
+          isWorking: schedule.is_working,
+          hasSlots: schedule.has_booking_slots,
+          workStart: schedule.work_start,
+          workEnd: schedule.work_end
+        };
+        
+        result.staff.push(staffInfo);
+        
+        if (schedule.is_working && schedule.has_booking_slots) {
+          result.working.push(schedule.staff_name);
+        } else {
+          result.notWorking.push(schedule.staff_name);
+        }
+      });
+    }
+    
+    // Если искали конкретного мастера
+    if (staff_name && staff) {
+      const staffSchedule = schedules.find(s => s.staff_id === staff.yclients_id);
+      result.targetStaff = {
+        name: staff.name,
+        found: !!staffSchedule,
+        isWorking: staffSchedule?.is_working && staffSchedule?.has_booking_slots
+      };
+    }
+    
+    return result;
+  }
+
   removeCommands(response) {
     // Убираем команды в квадратных скобках
-    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|SAVE_CLIENT_NAME|CANCEL_BOOKING|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING)[^\]]*\]/g, '');
+    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|SAVE_CLIENT_NAME|CANCEL_BOOKING|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING|CHECK_STAFF_SCHEDULE)[^\]]*\]/g, '');
     
     // Убираем технические фразы в скобках
     cleaned = cleaned.replace(/\([^)]*(?:клиент|тестовое|команду|обратите внимание|поскольку)[^)]*\)/gi, '');
