@@ -2,7 +2,7 @@ const logger = require('../../../utils/logger').child({ module: 'ai-admin-v2:com
 const bookingService = require('../../booking');
 const formatter = require('./formatter');
 const serviceMatcher = require('./service-matcher');
-const dateParser = require('../../../utils/date-parser');
+// dateParser теперь используется из formatter
 
 class CommandHandler {
   /**
@@ -1051,8 +1051,7 @@ class CommandHandler {
     const { staff_name, date } = params;
     
     // Парсим дату
-    const targetDate = await dateParser.parseRelativeDate(date || 'сегодня');
-    const dateStr = targetDate.toISOString().split('T')[0];
+    const dateStr = formatter.parseRelativeDate(date || 'сегодня');
     
     // Находим мастера по имени
     let staff = null;
