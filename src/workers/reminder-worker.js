@@ -74,7 +74,11 @@ class ReminderWorker {
     const startTime = Date.now();
     const { type, booking, phone, hours } = job.data;
     
-    logger.info(`📨 Processing reminder ${type} for ${phone}`);
+    logger.info(`📨 Processing reminder ${type} for ${phone}`, {
+      bookingData: booking,
+      hasServiceName: !!booking.service_name,
+      hasStaffName: !!booking.staff_name
+    });
     
     try {
       // 1. Generate reminder message
@@ -133,9 +137,9 @@ class ReminderWorker {
       month: 'long'
     });
     
-    // Извлекаем имя услуги и мастера
-    const serviceName = booking.service || booking.service_name || 'услуга';
-    const staffName = booking.staff || booking.staff_name || 'мастер';
+    // Извлекаем имя услуги и мастера (проверяем разные варианты)
+    const serviceName = booking.service || booking.service_name || booking.service_title || 'услуга';
+    const staffName = booking.staff || booking.staff_name || booking.master || 'мастер';
     
     return `Добрый вечер! 🌙\n\n` +
            `Напоминаем, что вы записаны на завтра:\n\n` +
@@ -156,9 +160,9 @@ class ReminderWorker {
       minute: '2-digit' 
     });
     
-    // Извлекаем имя услуги и мастера
-    const serviceName = booking.service || booking.service_name || 'услуга';
-    const staffName = booking.staff || booking.staff_name || 'мастер';
+    // Извлекаем имя услуги и мастера (проверяем разные варианты)
+    const serviceName = booking.service || booking.service_name || booking.service_title || 'услуга';
+    const staffName = booking.staff || booking.staff_name || booking.master || 'мастер';
     
     return `Напоминание! ⏰\n\n` +
            `Через ${hours} ${this._getHoursWord(hours)} у вас запись:\n\n` +
