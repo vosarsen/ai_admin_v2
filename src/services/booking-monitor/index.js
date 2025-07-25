@@ -2,8 +2,20 @@ const logger = require('../../utils/logger');
 const { supabase } = require('../../database/supabase');
 const YclientsClient = require('../../integrations/yclients/client');
 const WhatsAppClient = require('../../integrations/whatsapp/client');
-const { formatDate, formatTime } = require('../../utils/date-utils');
 const config = require('../../config');
+
+// Простые функции форматирования даты
+const formatDate = (date) => {
+  const d = new Date(date);
+  const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 
+                  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+  return `${d.getDate()} ${months[d.getMonth()]}`;
+};
+
+const formatTime = (date) => {
+  const d = new Date(date);
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+};
 
 /**
  * Сервис мониторинга новых записей в YClients
@@ -81,9 +93,17 @@ class BookingMonitorService {
       logger.debug(`📅 Checking bookings for today and tomorrow`);
 
       // Получаем записи из YClients
+      const formatDateForAPI = (date) => {
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = (d.getMonth() + 1).toString().padStart(2, '0');
+        const day = d.getDate().toString().padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
       const records = await this.yclientsClient.getRecords({
-        start_date: formatDate(today),
-        end_date: formatDate(tomorrow)
+        start_date: formatDateForAPI(today),
+        end_date: formatDateForAPI(tomorrow)
       }, companyId);
 
       if (!records.data || records.data.length === 0) {
