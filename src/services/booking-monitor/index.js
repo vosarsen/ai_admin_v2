@@ -101,10 +101,10 @@ class BookingMonitorService {
         return `${year}-${month}-${day}`;
       };
 
-      const records = await this.yclientsClient.getRecords({
+      const records = await this.yclientsClient.getRecords(companyId, {
         start_date: formatDateForAPI(today),
         end_date: formatDateForAPI(tomorrow)
-      }, companyId);
+      });
 
       if (!records.data || records.data.length === 0) {
         logger.debug('✅ No bookings found');
