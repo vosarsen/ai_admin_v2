@@ -373,14 +373,14 @@ class ContextService {
     const contextKey = `${companyId}:${normalizedPhone}`;
     
     try {
-      // Save main context data
-      await this.redis.hset(contextKey, {
-        'phone': normalizedPhone,
-        'companyId': companyId,
-        'lastActivity': new Date().toISOString(),
-        'state': contextData.state || 'active',
-        'data': JSON.stringify(contextData.data || {})
-      });
+      // Save main context data - использовать правильный формат для hset
+      await this.redis.hset(contextKey, 
+        'phone', normalizedPhone,
+        'companyId', companyId,
+        'lastActivity', new Date().toISOString(),
+        'state', contextData.state || 'active',
+        'data', JSON.stringify(contextData.data || {})
+      );
       
       // Set TTL
       await this.redis.expire(contextKey, this.contextTTL);
