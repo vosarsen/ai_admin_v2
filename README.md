@@ -5,6 +5,7 @@
 [![MVP Status](https://img.shields.io/badge/MVP-Production%20Ready-green)](https://github.com/your-repo/ai_admin_v2)
 [![Architecture](https://img.shields.io/badge/Architecture-AI--First-blue)](https://github.com/your-repo/ai_admin_v2)
 [![Performance](https://img.shields.io/badge/Performance-Optimized-brightgreen)](https://github.com/your-repo/ai_admin_v2)
+[![Pilot](https://img.shields.io/badge/Pilot-Live%20Since%2025.07.2025-success)](https://github.com/your-repo/ai_admin_v2)
 
 ## 🎯 Overview
 
