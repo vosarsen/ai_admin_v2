@@ -105,5 +105,13 @@ module.exports = {
       masterKey: getConfig('MASTER_KEY'),
       secretsPath: process.env.SECRETS_PATH || '.secrets'
     };
+  },
+
+  get bookingMonitor() {
+    return {
+      enabled: process.env.BOOKING_MONITOR_ENABLED !== 'false',
+      checkInterval: parseInt(process.env.BOOKING_MONITOR_INTERVAL) || 60000, // 1 минута
+      notificationDelay: parseInt(process.env.BOOKING_NOTIFICATION_DELAY) || 30000, // 30 секунд задержка перед отправкой
+    };
   }
 };
