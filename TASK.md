@@ -36,8 +36,9 @@
 - [ ] **Fix YClients API permission errors**
   - [ ] 403: "Нет прав на управление компанией" при поиске клиента
   - [ ] 403: "Нет прав на управление филиалом" при создании клиента
+  - [ ] 403: "Недостаточно прав" при получении списка записей (блокирует Booking Monitor)
   - [ ] 422: "Нет доступных для записи сотрудников" при создании записи
-  - [ ] Request expanded API permissions from YClients
+  - [ ] Request expanded API permissions from YClients (включая records:read)
 - [ ] **Add automatic alternative slots on booking errors**
   - [ ] When booking fails, immediately show available slots
   - [ ] Format slots nicely for user
@@ -137,6 +138,15 @@
 - [x] Updated documentation with API limitations (July 22, 2025)
 - [x] Implemented RESCHEDULE_BOOKING command (July 23, 2025)
 - [x] Completed Phase 3 testing - all modification features ready (July 23, 2025)
+
+### Features Added (July 25, 2025)
+- [x] Booking Monitor - система мониторинга новых записей
+  - [x] Автоматическое отслеживание записей администратора
+  - [x] WhatsApp уведомления клиентам о новых записях
+  - [x] Polling каждую минуту с 30-секундной задержкой
+  - [x] PM2 процесс развернут в production
+  - [x] Полная документация и troubleshooting
+  - [ ] Ожидает расширенных прав API для работы
 
 ### Features Added (July 24, 2025)
 - [x] Implemented automatic reminder system
