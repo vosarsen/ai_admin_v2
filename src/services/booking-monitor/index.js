@@ -1,7 +1,7 @@
 const logger = require('../../utils/logger');
 const { supabase } = require('../../database/supabase');
 const { YclientsClient } = require('../../integrations/yclients/client');
-const WhatsAppClient = require('../../integrations/whatsapp/client');
+const whatsappClient = require('../../integrations/whatsapp/client');
 const config = require('../../config');
 
 // Простые функции форматирования даты
@@ -24,7 +24,7 @@ const formatTime = (date) => {
 class BookingMonitorService {
   constructor() {
     this.yclientsClient = new YclientsClient();
-    this.whatsappClient = new WhatsAppClient();
+    this.whatsappClient = whatsappClient; // Используем уже созданный экземпляр
     this.checkInterval = config.bookingMonitor?.checkInterval || 60000; // 1 минута по умолчанию
     this.isRunning = false;
     this.intervalId = null;
