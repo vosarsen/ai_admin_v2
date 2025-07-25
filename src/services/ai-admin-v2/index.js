@@ -145,15 +145,16 @@ class AIAdminV2 {
     ]);
     
     // Если клиента нет в базе, но есть имя в Redis - используем его
-    if (!client && redisContext?.clientName) {
+    const clientNameFromRedis = redisContext?.client?.name || redisContext?.clientName;
+    if (!client && clientNameFromRedis) {
       client = {
         phone: phone.replace('@c.us', ''),
-        name: redisContext.clientName,
+        name: clientNameFromRedis,
         company_id: companyId
       };
-    } else if (client && !client.name && redisContext?.clientName) {
+    } else if (client && !client.name && clientNameFromRedis) {
       // Если клиент есть, но имя не заполнено - берем из Redis
-      client.name = redisContext.clientName;
+      client.name = clientNameFromRedis;
     }
     
     // Сортируем услуги с учетом предпочтений клиента
