@@ -1,6 +1,6 @@
 const logger = require('../../utils/logger');
 const { supabase } = require('../../database/supabase');
-const YclientsClient = require('../../integrations/yclients/client');
+const { YclientsClient } = require('../../integrations/yclients/client');
 const WhatsAppClient = require('../../integrations/whatsapp/client');
 const config = require('../../config');
 
