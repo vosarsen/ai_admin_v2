@@ -162,13 +162,16 @@ class ContextService {
   async _getClient(phone, companyId) {
     try {
       // Check cache first
+      // Note: Proxy уже добавляет префикс 'context:', поэтому не нужно его дублировать
       const cached = await this.redis.hget(`clients:${companyId}`, phone);
       if (cached) {
+        logger.debug(`Found client in Redis cache for ${phone}`);
         return JSON.parse(cached);
       }
       
       // TODO: Fetch from Supabase if not in cache
       // For now, return null (new client)
+      logger.debug(`No client found in cache for ${phone}`);
       return null;
     } catch (error) {
       logger.error('Failed to get client:', error);
@@ -181,17 +184,23 @@ class ContextService {
    */
   async _updateClient(phone, companyId, clientInfo) {
     try {
+      const data = {
+        ...clientInfo,
+        lastUpdated: new Date().toISOString()
+      };
+      
+      logger.debug(`Updating client in Redis: ${phone} in clients:${companyId}`, data);
+      
       await this.redis.hset(
         `clients:${companyId}`, 
         phone, 
-        JSON.stringify({
-          ...clientInfo,
-          lastUpdated: new Date().toISOString()
-        })
+        JSON.stringify(data)
       );
       
       // Set TTL on the hash
       await this.redis.expire(`clients:${companyId}`, 7 * 24 * 60 * 60); // 7 days
+      
+      logger.info(`Client info saved in Redis for ${phone}`);
     } catch (error) {
       logger.error('Failed to update client:', error);
     }
