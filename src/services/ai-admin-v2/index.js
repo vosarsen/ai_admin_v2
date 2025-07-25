@@ -139,7 +139,7 @@ class AIAdminV2 {
       dataLoader.loadConversation(phone, companyId),
       dataLoader.loadBusinessStats(companyId),
       dataLoader.loadStaffSchedules(companyId),
-      contextService.getContext(phone.replace('@c.us', '')),
+      contextService.getContext(phone.replace('@c.us', ''), companyId),
       contextService.getPreferences(phone.replace('@c.us', ''), companyId),
       contextService.getConversationSummary(phone.replace('@c.us', ''), companyId)
     ]);
@@ -356,6 +356,8 @@ ${formatter.formatConversation(context.conversation)}
 ТВОИ КОМАНДЫ (ИСПОЛЬЗУЙ ТОЧНО ТАКОЙ ФОРМАТ):
 1. [CHECK_STAFF_SCHEDULE staff_name: имя_мастера, date: дата] - быстрая проверка работает ли мастер
    ИСПОЛЬЗУЙ когда клиент спрашивает "работает ли мастер" БЕЗ запроса на показ слотов
+   ВАЖНО: Эта команда вернет ТОЧНУЮ информацию из базы данных. ДОВЕРЯЙ результату команды!
+   НЕ противоречь себе - если команда показала кто работает, НЕ добавляй других мастеров!
    Примеры:
    - "Сергей работает завтра?" → [CHECK_STAFF_SCHEDULE staff_name: Сергей, date: завтра]
    - "кто работает в пятницу?" → [CHECK_STAFF_SCHEDULE date: пятница]
@@ -650,6 +652,25 @@ ${JSON.stringify(slotsData)}
           
           const formattedSlots = await this.callAI(slotsPrompt);
           finalResponse += '\n\n' + formattedSlots;
+        }
+      }
+    }
+    
+    // Обрабатываем результаты CHECK_STAFF_SCHEDULE
+    const staffScheduleResults = results.filter(r => r.type === 'staff_schedule');
+    if (staffScheduleResults.length > 0) {
+      const scheduleResult = staffScheduleResults[0].data;
+      if (scheduleResult.success && scheduleResult.working?.length > 0) {
+        // AI уже включил эту информацию в свой ответ, но мы можем добавить детали
+        const workingNames = scheduleResult.working.join(', ');
+        const notWorkingNames = scheduleResult.notWorking.join(', ');
+        
+        // Добавляем детальную информацию только если она еще не в ответе
+        if (!finalResponse.includes(workingNames) && !finalResponse.includes(notWorkingNames)) {
+          finalResponse += `\n\n${scheduleResult.formattedDate} работают: ${workingNames}.`;
+          if (notWorkingNames) {
+            finalResponse += `\nНе работают: ${notWorkingNames}.`;
+          }
         }
       }
     }

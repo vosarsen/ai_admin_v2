@@ -1149,8 +1149,13 @@ class CommandHandler {
       formattedDate: formatter.formatDate(targetDate),
       staff: [],
       working: [],
-      notWorking: []
+      notWorking: [],
+      success: true
     };
+    
+    // Получаем всех мастеров компании
+    const allStaffIds = context.staff.map(s => s.yclients_id);
+    const workingStaffIds = new Set();
     
     if (schedules && schedules.length > 0) {
       schedules.forEach(schedule => {
@@ -1167,11 +1172,17 @@ class CommandHandler {
         
         if (schedule.is_working && schedule.has_booking_slots) {
           result.working.push(schedule.staff_name);
-        } else {
-          result.notWorking.push(schedule.staff_name);
+          workingStaffIds.add(schedule.staff_id);
         }
       });
     }
+    
+    // Находим всех кто НЕ работает
+    context.staff.forEach(staffMember => {
+      if (!workingStaffIds.has(staffMember.yclients_id)) {
+        result.notWorking.push(staffMember.name);
+      }
+    });
     
     // Если искали конкретного мастера
     if (staff_name && staff) {
