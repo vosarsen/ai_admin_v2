@@ -2,6 +2,7 @@ const logger = require('../../../utils/logger').child({ module: 'ai-admin-v2:com
 const bookingService = require('../../booking');
 const formatter = require('./formatter');
 const serviceMatcher = require('./service-matcher');
+const contextService = require('../../context');
 // dateParser теперь используется из formatter
 
 class CommandHandler {
@@ -605,6 +606,32 @@ class CommandHandler {
       const staff = context.staff.find(s => s.yclients_id === staffId);
       if (staff) {
         staffName = staff.name;
+      }
+    }
+    
+    // Сохраняем предпочтения клиента после успешной записи
+    if (context.phone && serviceName && staffName) {
+      try {
+        const preferences = {
+          favoriteService: serviceName,
+          favoriteStaff: staffName,
+          preferredTime: params.time.includes(':') ? 
+            (parseInt(params.time.split(':')[0]) < 12 ? 'morning' : 
+             parseInt(params.time.split(':')[0]) < 17 ? 'afternoon' : 'evening') : 
+            'any',
+          lastBookingDate: parsedDate
+        };
+        
+        await contextService.savePreferences(
+          context.phone.replace('@c.us', ''), 
+          context.company.company_id || context.company.yclients_id,
+          preferences
+        );
+        
+        logger.info('Client preferences saved after booking:', preferences);
+      } catch (error) {
+        logger.error('Failed to save preferences:', error);
+        // Не прерываем процесс если не удалось сохранить предпочтения
       }
     }
     

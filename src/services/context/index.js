@@ -31,8 +31,10 @@ class ContextService {
       }
     });
     
-    this.contextTTL = 24 * 60 * 60; // 24 hours
-    this.maxMessages = 20; // Keep last 20 messages
+    this.contextTTL = 30 * 24 * 60 * 60; // 30 days
+    this.maxMessages = 50; // Keep last 50 messages for better context
+    this.shortTTL = 24 * 60 * 60; // 24 hours for temporary data
+    this.preferenceTTL = 365 * 24 * 60 * 60; // 1 year for preferences
   }
 
   /**
@@ -315,6 +317,196 @@ class ContextService {
       logger.debug(`Saved booking for ${normalizedPhone}`);
     } catch (error) {
       logger.error('Failed to save booking:', error);
+    }
+  }
+
+  /**
+   * Set full context (missing method implementation)
+   */
+  async setContext(phone, companyId, contextData) {
+    const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
+    const contextKey = `${companyId}:${normalizedPhone}`;
+    
+    try {
+      // Save main context data
+      await this.redis.hset(contextKey, {
+        'phone': normalizedPhone,
+        'companyId': companyId,
+        'lastActivity': new Date().toISOString(),
+        'state': contextData.state || 'active',
+        'data': JSON.stringify(contextData.data || {})
+      });
+      
+      // Set TTL
+      await this.redis.expire(contextKey, this.contextTTL);
+      
+      logger.debug(`Context set for ${normalizedPhone}`);
+      return { success: true };
+    } catch (error) {
+      logger.error('Failed to set context:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Save user preferences
+   */
+  async savePreferences(phone, companyId, preferences) {
+    const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
+    const prefKey = `preferences:${companyId}:${normalizedPhone}`;
+    
+    try {
+      const existingPrefs = await this.redis.get(prefKey);
+      const currentPrefs = existingPrefs ? JSON.parse(existingPrefs) : {};
+      
+      const updatedPrefs = {
+        ...currentPrefs,
+        ...preferences,
+        lastUpdated: new Date().toISOString()
+      };
+      
+      await this.redis.setex(
+        prefKey,
+        this.preferenceTTL,
+        JSON.stringify(updatedPrefs)
+      );
+      
+      logger.debug(`Preferences saved for ${normalizedPhone}:`, updatedPrefs);
+      return { success: true, preferences: updatedPrefs };
+    } catch (error) {
+      logger.error('Failed to save preferences:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get user preferences
+   */
+  async getPreferences(phone, companyId) {
+    const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
+    const prefKey = `preferences:${companyId}:${normalizedPhone}`;
+    
+    try {
+      const prefs = await this.redis.get(prefKey);
+      return prefs ? JSON.parse(prefs) : null;
+    } catch (error) {
+      logger.error('Failed to get preferences:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Check if conversation can be continued
+   */
+  async canContinueConversation(phone, companyId) {
+    const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
+    const contextKey = `${companyId}:${normalizedPhone}`;
+    
+    try {
+      // Check if context exists
+      const exists = await this.redis.exists(contextKey);
+      if (!exists) return false;
+      
+      // Get last activity
+      const lastActivity = await this.redis.hget(contextKey, 'lastActivity');
+      if (!lastActivity) return false;
+      
+      // Check if conversation is not too old (e.g., last activity within 24 hours)
+      const lastActivityTime = new Date(lastActivity);
+      const hoursSinceLastActivity = (Date.now() - lastActivityTime.getTime()) / (1000 * 60 * 60);
+      
+      return hoursSinceLastActivity < 24;
+    } catch (error) {
+      logger.error('Failed to check conversation continuity:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get conversation summary for continuation
+   */
+  async getConversationSummary(phone, companyId) {
+    const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
+    const contextKey = `${companyId}:${normalizedPhone}`;
+    
+    try {
+      const [messages, lastBooking, preferences] = await Promise.all([
+        this._getMessages(contextKey),
+        this._getLastBooking(normalizedPhone, companyId),
+        this.getPreferences(normalizedPhone, companyId)
+      ]);
+      
+      // Get last few messages for context
+      const recentMessages = messages.slice(0, 5);
+      
+      return {
+        hasHistory: messages.length > 0,
+        messageCount: messages.length,
+        recentMessages,
+        lastBooking,
+        preferences,
+        canContinue: await this.canContinueConversation(phone, companyId)
+      };
+    } catch (error) {
+      logger.error('Failed to get conversation summary:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Clear old contexts (for scheduled cleanup)
+   */
+  async clearOldContexts(daysToKeep = 30) {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+      
+      // Get all context keys
+      const keys = await this.redis.keys('context:*');
+      let clearedCount = 0;
+      
+      for (const key of keys) {
+        const lastActivity = await this.redis.hget(key.replace('context:', ''), 'lastActivity');
+        if (lastActivity) {
+          const activityDate = new Date(lastActivity);
+          if (activityDate < cutoffDate) {
+            await this.redis.del(key.replace('context:', ''));
+            await this.redis.del(key.replace('context:', '') + ':messages');
+            clearedCount++;
+          }
+        }
+      }
+      
+      logger.info(`Cleared ${clearedCount} old contexts older than ${daysToKeep} days`);
+      return { success: true, cleared: clearedCount };
+    } catch (error) {
+      logger.error('Failed to clear old contexts:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Mark context for important follow-up
+   */
+  async markForFollowUp(phone, companyId, reason, followUpDate) {
+    const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
+    const followUpKey = `followup:${companyId}:${normalizedPhone}`;
+    
+    try {
+      await this.redis.setex(
+        followUpKey,
+        30 * 24 * 60 * 60, // 30 days
+        JSON.stringify({
+          reason,
+          followUpDate,
+          createdAt: new Date().toISOString()
+        })
+      );
+      
+      return { success: true };
+    } catch (error) {
+      logger.error('Failed to mark for follow-up:', error);
+      return { success: false, error: error.message };
     }
   }
 
