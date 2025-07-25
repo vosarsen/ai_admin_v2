@@ -122,7 +122,7 @@ class AIAdminV2 {
     // Параллельная загрузка всех данных
     const [
       company, 
-      client, 
+      clientFromDb, 
       services, 
       staff, 
       conversation, 
@@ -153,6 +153,7 @@ class AIAdminV2 {
     });
     
     // Если клиента нет в базе, но есть имя в Redis - используем его
+    let client = clientFromDb;
     const clientNameFromRedis = redisContext?.client?.name || redisContext?.clientName;
     if (!client && clientNameFromRedis) {
       client = {
@@ -163,7 +164,7 @@ class AIAdminV2 {
       logger.info('Using client name from Redis:', { name: clientNameFromRedis });
     } else if (client && !client.name && clientNameFromRedis) {
       // Если клиент есть, но имя не заполнено - берем из Redis
-      client.name = clientNameFromRedis;
+      client = { ...client, name: clientNameFromRedis };
       logger.info('Updated client name from Redis:', { name: clientNameFromRedis });
     }
     
