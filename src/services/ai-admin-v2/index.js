@@ -120,7 +120,18 @@ class AIAdminV2 {
     const startTime = Date.now();
     
     // Параллельная загрузка всех данных
-    const [company, client, services, staff, conversation, businessStats, staffSchedules, redisContext] = await Promise.all([
+    const [
+      company, 
+      client, 
+      services, 
+      staff, 
+      conversation, 
+      businessStats, 
+      staffSchedules, 
+      redisContext,
+      preferences,
+      conversationSummary
+    ] = await Promise.all([
       dataLoader.loadCompany(companyId),
       dataLoader.loadClient(phone, companyId),
       dataLoader.loadServices(companyId),
@@ -128,7 +139,9 @@ class AIAdminV2 {
       dataLoader.loadConversation(phone, companyId),
       dataLoader.loadBusinessStats(companyId),
       dataLoader.loadStaffSchedules(companyId),
-      contextService.getContext(phone.replace('@c.us', ''))
+      contextService.getContext(phone.replace('@c.us', '')),
+      contextService.getPreferences(phone.replace('@c.us', ''), companyId),
+      contextService.getConversationSummary(phone.replace('@c.us', ''), companyId)
     ]);
     
     // Если клиента нет в базе, но есть имя в Redis - используем его
@@ -158,7 +171,11 @@ class AIAdminV2 {
       timezone: config.app.timezone,
       phone,
       startTime,
-      currentMessage: null  // будет установлено в processMessage
+      currentMessage: null,  // будет установлено в processMessage
+      preferences: preferences || {},
+      conversationSummary: conversationSummary || {},
+      canContinueConversation: conversationSummary?.canContinue || false,
+      isReturningClient: conversationSummary?.hasHistory || false
     };
     
     // Сохраняем в кеш
@@ -177,8 +194,31 @@ class AIAdminV2 {
   buildSmartPrompt(message, context, phone) {
     const terminology = businessLogic.getBusinessTerminology(context.company.type);
     
-    return `Ты - ${terminology.role} "${context.company.title}".
+    // Добавляем информацию о продолжении диалога
+    let continuationInfo = '';
+    if (context.canContinueConversation && context.conversationSummary?.recentMessages?.length > 0) {
+      continuationInfo = `
+ВАЖНО: Это продолжение прерванного диалога. Последние сообщения:
+${context.conversationSummary.recentMessages.map(m => `${m.role}: ${m.content}`).join('\n')}
 
+Учти контекст предыдущего разговора при ответе.
+`;
+    }
+    
+    // Добавляем информацию о предпочтениях
+    let preferencesInfo = '';
+    if (context.preferences && Object.keys(context.preferences).length > 0) {
+      preferencesInfo = `
+ПРЕДПОЧТЕНИЯ КЛИЕНТА:
+${context.preferences.favoriteService ? `- Любимая услуга: ${context.preferences.favoriteService}` : ''}
+${context.preferences.favoriteStaff ? `- Предпочитаемый мастер: ${context.preferences.favoriteStaff}` : ''}
+${context.preferences.preferredTime ? `- Предпочитаемое время: ${context.preferences.preferredTime}` : ''}
+${context.preferences.notes ? `- Заметки: ${context.preferences.notes}` : ''}
+`;
+    }
+    
+    return `Ты - ${terminology.role} "${context.company.title}".
+${continuationInfo}
 ИНФОРМАЦИЯ О САЛОНЕ:
 Название: ${context.company.title}
 Адрес: ${context.company.address || 'Не указан'}
@@ -195,6 +235,7 @@ ${context.client ?
 Любимые мастера: ${context.client.favorite_staff_ids?.join(', ') || 'нет данных'}` :
   `Новый клиент, телефон: ${phone}
 ВАЖНО: У нас нет имени клиента в базе!`}
+${preferencesInfo}
 
 ДОСТУПНЫЕ УСЛУГИ (топ-10):
 ${formatter.formatServices(context.services.slice(0, 10), context.company.type)}
@@ -407,6 +448,16 @@ ${formatter.formatConversation(context.conversation)}
 6. Задавай ОДИН вопрос за раз, не перегружай информацией
 7. НИКОГДА не пиши технические комментарии в скобках - они видны клиенту!
 8. НЕ объясняй свою логику клиенту - просто отвечай на вопрос
+
+ПРИВЕТСТВИЕ ВЕРНУВШИХСЯ КЛИЕНТОВ:
+${context.isReturningClient && context.client?.name ? `
+- Обращайся по имени: "${context.client.name}"
+- Если это продолжение диалога в течение дня - НЕ здоровайся повторно
+- Если прошло больше суток - поздоровайся кратко: "Привет, ${context.client.name}!"
+${context.preferences?.favoriteService ? `- Можешь предложить любимую услугу: "${context.preferences.favoriteService}"` : ''}
+${context.preferences?.favoriteStaff ? `- Можешь предложить любимого мастера: "${context.preferences.favoriteStaff}"` : ''}
+${context.canContinueConversation ? '- Учти контекст предыдущего разговора при ответе' : ''}
+` : ''}
 
 ГРАММАТИКА РУССКОГО ЯЗЫКА (КРИТИЧЕСКИ ВАЖНО):
 Имена в РОДИТЕЛЬНОМ падеже (у кого? чего?):
