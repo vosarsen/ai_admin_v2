@@ -62,17 +62,35 @@ class ContextService {
         this.redis.hgetall(contextKey)
       ]);
 
+      // Логируем что получили из Redis
+      logger.info('Context data from Redis:', {
+        hasContextData: !!contextData,
+        contextKeys: Object.keys(contextData || {}),
+        dataField: contextData?.data
+      });
+      
       // Если клиент не найден в кэше, но есть имя в контексте
       let finalClient = client;
       if (!finalClient && contextData) {
-        const savedData = contextData.data ? JSON.parse(contextData.data) : {};
+        let savedData = {};
+        try {
+          savedData = contextData.data ? JSON.parse(contextData.data) : {};
+        } catch (e) {
+          logger.error('Failed to parse context data:', e);
+        }
+        
+        logger.info('Parsed context data:', {
+          savedData,
+          hasClientName: !!savedData.clientName
+        });
+        
         if (savedData.clientName) {
           finalClient = {
             phone: normalizedPhone,
             name: savedData.clientName,
             company_id: companyId
           };
-          logger.debug(`Found client name in context data: ${savedData.clientName}`);
+          logger.info(`Found client name in context data: ${savedData.clientName}`);
         }
       }
 
