@@ -634,9 +634,11 @@ ${context.canContinueConversation ? '- Учти контекст предыду�
    */
   async processAIResponse(aiResponse, context) {
     logger.info('Processing AI response...');
+    logger.debug('AI response text:', aiResponse);
     
     // Извлекаем команды из ответа
     const commands = commandHandler.extractCommands(aiResponse);
+    logger.debug('Extracted commands:', commands);
     const cleanResponse = commandHandler.removeCommands(aiResponse);
     
     // Выполняем команды
