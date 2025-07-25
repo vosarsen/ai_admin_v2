@@ -144,6 +144,14 @@ class AIAdminV2 {
       contextService.getConversationSummary(phone.replace('@c.us', ''), companyId)
     ]);
     
+    // Логируем что загрузилось из Redis
+    logger.info('Redis context loaded:', {
+      hasRedisContext: !!redisContext,
+      hasClient: !!redisContext?.client,
+      clientName: redisContext?.clientName,
+      clientFromContext: redisContext?.client
+    });
+    
     // Если клиента нет в базе, но есть имя в Redis - используем его
     const clientNameFromRedis = redisContext?.client?.name || redisContext?.clientName;
     if (!client && clientNameFromRedis) {
@@ -152,9 +160,11 @@ class AIAdminV2 {
         name: clientNameFromRedis,
         company_id: companyId
       };
+      logger.info('Using client name from Redis:', { name: clientNameFromRedis });
     } else if (client && !client.name && clientNameFromRedis) {
       // Если клиент есть, но имя не заполнено - берем из Redis
       client.name = clientNameFromRedis;
+      logger.info('Updated client name from Redis:', { name: clientNameFromRedis });
     }
     
     // Сортируем услуги с учетом предпочтений клиента
