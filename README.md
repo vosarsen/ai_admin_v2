@@ -21,6 +21,7 @@ AI Admin v2 is a next-generation WhatsApp booking assistant designed for beauty 
 - 🌐 **Multi-Tenant Ready**: Scalable to 150+ companies
 - 🔒 **Production Security**: Rate limiting, authentication, data validation
 - ⏰ **Automatic Reminders**: Two-tier reminder system (day before + 2 hours before)
+- 🔔 **Booking Monitor**: Auto-notifies clients when admin creates bookings
 
 ### 🎯 AI Commands (v2)
 
@@ -49,6 +50,11 @@ AI Admin v2 is a next-generation WhatsApp booking assistant designed for beauty 
                        │   Proactive      │    │   Reminder      │
                        │   Suggestions    │    │   Worker        │
                        └──────────────────┘    └─────────────────┘
+                                                       ▲
+                       ┌──────────────────┐    ┌─────────────────┐
+                       │  Booking Monitor │───▶│   WhatsApp      │
+                       │   (Polling)      │    │   Notifications │
+                       └──────────────────┘    └─────────────────┘
 ```
 
 ### ⏰ Reminder System
@@ -70,6 +76,34 @@ AI Admin v2 includes a sophisticated reminder system that automatically sends Wh
 ⏰ 15:00
 💇 Мужская стрижка
 👤 Сергей
+```
+
+### 🔔 Booking Monitor
+
+AI Admin v2 includes an automatic notification system for bookings created by administrators:
+
+**How it works:**
+- 🔍 **Polling-based monitoring**: Checks for new bookings every minute
+- ⏱️ **30-second delay**: Gives admin time to make corrections before notification
+- 🎯 **Smart filtering**: Only notifies for admin-created bookings (not bot bookings)
+- 📱 **WhatsApp delivery**: Sends professional confirmation message to client
+
+**Status**: ✅ Deployed to production (requires extended YClients API permissions)
+
+**Example notification:**
+```
+✅ *Ваша запись подтверждена!*
+
+📋 *Детали записи:*
+🏢 Барбершоп "Название"
+📅 25 июля
+🕐 15:00
+💇 Мужская стрижка
+👤 Сергей
+💰 Стоимость: 1500 руб.
+📍 ул. Ленина 10, Москва
+
+💬 _Ждём вас! Если планы изменятся, пожалуйста, предупредите заранее._
 ```
 
 ## 🚀 Quick Start
