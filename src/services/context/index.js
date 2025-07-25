@@ -9,6 +9,9 @@ class ContextService {
     // Используем фабрику для создания Redis клиента с правильной конфигурацией
     const redisClient = createRedisClient('context');
     
+    // Сохраняем прямую ссылку на клиент для операций без префикса
+    this.redisRaw = redisClient;
+    
     // Добавляем keyPrefix через proxy для сохранения функциональности
     this.redis = new Proxy(redisClient, {
       get(target, prop) {
@@ -64,9 +67,11 @@ class ContextService {
 
       // Логируем что получили из Redis
       logger.info('Context data from Redis:', {
+        contextKey,
         hasContextData: !!contextData,
         contextKeys: Object.keys(contextData || {}),
-        dataField: contextData?.data
+        dataField: contextData?.data,
+        fullData: JSON.stringify(contextData)
       });
       
       // Если клиент не найден в кэше, но есть имя в контексте
