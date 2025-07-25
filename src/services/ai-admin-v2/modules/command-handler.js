@@ -816,11 +816,17 @@ class CommandHandler {
     
     // Сохраняем имя в Redis для будущих сессий
     const contextService = require('../../context');
-    await contextService.updateContext(cleanPhone, context.company.yclients_id || context.company.company_id, {
+    const companyId = context.company.yclients_id || context.company.company_id;
+    await contextService.updateContext(cleanPhone, companyId, {
       clientInfo: { name: params.name }
     });
     
-    logger.info('Client name saved:', { phone: cleanPhone, name: params.name });
+    // Инвалидируем кеш контекста чтобы при следующем запросе загрузить обновленные данные
+    const aiAdminV2 = require('../index');
+    const cacheKey = `${context.phone}_${companyId}`;
+    aiAdminV2.contextCache.delete(cacheKey);
+    
+    logger.info('Client name saved:', { phone: cleanPhone, name: params.name, cacheInvalidated: true });
     
     return {
       name: params.name,
