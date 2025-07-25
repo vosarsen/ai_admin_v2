@@ -51,24 +51,42 @@ class ContextService {
         messages,
         services,
         staff,
-        lastBooking
+        lastBooking,
+        contextData
       ] = await Promise.all([
         this._getClient(normalizedPhone, companyId),
         this._getMessages(contextKey),
         this._getServices(companyId),
         this._getStaff(companyId),
-        this._getLastBooking(normalizedPhone, companyId)
+        this._getLastBooking(normalizedPhone, companyId),
+        this.redis.hgetall(contextKey)
       ]);
+
+      // Если клиент не найден в кэше, но есть имя в контексте
+      let finalClient = client;
+      if (!finalClient && contextData) {
+        const savedData = contextData.data ? JSON.parse(contextData.data) : {};
+        if (savedData.clientName) {
+          finalClient = {
+            phone: normalizedPhone,
+            name: savedData.clientName,
+            company_id: companyId
+          };
+          logger.debug(`Found client name in context data: ${savedData.clientName}`);
+        }
+      }
 
       return {
         phone: normalizedPhone,
         companyId,
-        client,
+        client: finalClient,
         lastMessages: messages,
         services,
         staff,
         lastBooking,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        // Добавляем сохраненное имя для обратной совместимости
+        clientName: finalClient?.name || contextData?.clientName
       };
     } catch (error) {
       logger.error('Failed to get context:', error);

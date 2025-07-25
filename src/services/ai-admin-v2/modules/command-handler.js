@@ -821,6 +821,11 @@ class CommandHandler {
       clientInfo: { name: params.name }
     });
     
+    // Также сохраняем в основной контекст для обратной совместимости
+    await contextService.setContext(cleanPhone, companyId, {
+      data: { clientName: params.name }
+    });
+    
     // Инвалидируем кеш контекста чтобы при следующем запросе загрузить обновленные данные
     const aiAdminV2 = require('../index');
     const cacheKey = `${context.phone}_${companyId}`;
