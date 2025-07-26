@@ -121,10 +121,11 @@ class DataLoader {
       // Убираем @c.us если есть
       const cleanPhone = phone.replace('@c.us', '');
       
+      // Ищем по raw_phone который содержит номер с +
       const { data, error } = await supabase
         .from('clients')
         .select('*')
-        .eq('phone', cleanPhone)
+        .eq('raw_phone', cleanPhone)
         .eq('company_id', companyId)
         .maybeSingle();
       
