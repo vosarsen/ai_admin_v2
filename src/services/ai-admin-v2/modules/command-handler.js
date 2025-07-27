@@ -1209,6 +1209,15 @@ class CommandHandler {
     cleaned = cleaned.replace(/date=.*?(?=\s|$)/g, '');
     cleaned = cleaned.replace(/time_preference=.*?(?=\s|$)/g, '');
     
+    // ВАЖНО: Убираем форматирование WhatsApp (звездочки)
+    // Заменяем **текст** на текст
+    cleaned = cleaned.replace(/\*\*(.+?)\*\*/g, '$1');
+    // Заменяем *текст* на текст
+    cleaned = cleaned.replace(/\*(.+?)\*/g, '$1');
+    // Убираем подчеркивания и другое форматирование
+    cleaned = cleaned.replace(/_(.+?)_/g, '$1');
+    cleaned = cleaned.replace(/~(.+?)~/g, '$1');
+    
     // Убираем лишние пробелы и переносы строк
     cleaned = cleaned.replace(/\s+/g, ' ').trim();
     
