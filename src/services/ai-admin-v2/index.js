@@ -718,7 +718,9 @@ ${JSON.stringify(slotsData)}
 Сгруппируй по периодам дня. Будь кратким и естественным.`;
           
           const formattedSlots = await this.callAI(slotsPrompt);
-          finalResponse += '\n\n' + formattedSlots;
+          // Удаляем форматирование из ответа AI о слотах
+          const cleanFormattedSlots = commandHandler.removeCommands(formattedSlots);
+          finalResponse += '\n\n' + cleanFormattedSlots;
         }
       }
     }
