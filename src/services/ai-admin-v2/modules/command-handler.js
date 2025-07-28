@@ -1071,7 +1071,7 @@ class CommandHandler {
       const recordId = bookingToReschedule.id;
       
       // Парсим новую дату и время
-      const targetDate = this.parseDate(params.date);
+      const targetDate = formatter.parseRelativeDate(params.date);
       const newDateTime = `${targetDate} ${params.time}:00`;
       const isoDateTime = new Date(newDateTime).toISOString();
       
