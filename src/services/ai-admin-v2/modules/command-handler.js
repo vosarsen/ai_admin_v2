@@ -845,21 +845,6 @@ class CommandHandler {
   async cancelBooking(params, context) {
     const phone = context.phone.replace('@c.us', '');
     
-    // Временное решение - информируем о невозможности отмены через бота
-    return {
-      success: false,
-      temporaryLimitation: true,
-      message: 'К сожалению, отмена записи через бота временно недоступна из-за ограничений API.',
-      instructions: [
-        '📱 Отменить запись через мобильное приложение YClients',
-        '💻 Отменить запись на сайте yclients.com',
-        `📞 Позвонить администратору: ${context.company?.phones?.[0] || '+7 (XXX) XXX-XX-XX'}`
-      ],
-      bookings: [] // Не показываем список записей, так как все равно не можем их отменить
-    };
-    
-    // Старый код закомментирован для будущего использования
-    /*
     // Если передан ID записи, пытаемся сразу удалить
     if (params.booking_id || params.record_id) {
       const recordId = params.booking_id || params.record_id;
@@ -871,17 +856,16 @@ class CommandHandler {
         return {
           success: true,
           directCancellation: true,
-          message: `Запись ${recordId} успешно отменена!`
+          message: `✅ Запись успешно отменена!`
         };
       } else {
         return {
           success: false,
           error: cancelResult.error,
-          message: `Не удалось отменить запись ${recordId}. ${typeof cancelResult.error === 'object' ? JSON.stringify(cancelResult.error) : cancelResult.error}`
+          message: `Не удалось отменить запись. ${typeof cancelResult.error === 'object' ? JSON.stringify(cancelResult.error) : cancelResult.error}`
         };
       }
     }
-    */
     
     // Иначе показываем список записей
     const bookingsResult = await bookingService.getClientBookings(phone, context.company.company_id);
