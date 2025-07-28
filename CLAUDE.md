@@ -19,6 +19,79 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Create a development diary entry in `docs/development-diary/YYYY-MM-DD-feature-name.md`
 - This helps maintain project history and share knowledge for future development
 
+## 🔧 MCP Servers Usage (CRITICAL - USE THESE INSTEAD OF SSH/SCRIPTS)
+
+**ALWAYS USE MCP SERVERS** for direct service access. These are faster and more reliable than SSH commands:
+
+### Available MCP Servers:
+
+1. **@logs** - Direct server logs access
+   - Use for: Checking PM2 logs, searching errors, monitoring services
+   - Example: `@logs logs_tail service:ai-admin-worker-v2 lines:50`
+   - **REPLACES**: `ssh root@46.149.70.219 "pm2 logs ..."`
+
+2. **@whatsapp** - WhatsApp testing
+   - Use for: Sending test messages, checking bot responses, running scenarios
+   - Example: `@whatsapp send_message phone:79001234567 message:"Привет! Хочу записаться"`
+   - **REPLACES**: `node test-direct-webhook.js` and other test scripts
+
+3. **@supabase** - Direct database access
+   - Use for: Querying tables, checking data, database operations
+   - Example: `@supabase query_table table:clients filters:{"phone":"79001234567"}`
+   - **REPLACES**: SSH + psql commands or Supabase dashboard
+
+4. **@yclients** - YClients API access
+   - Use for: Getting services, checking slots, creating bookings
+   - Example: `@yclients get_available_slots date:2025-07-29`
+   - **REPLACES**: Curl commands to YClients API
+
+5. **@redis** - Redis cache management
+   - Use for: Checking/clearing context, testing conversation flow
+   - Example: `@redis get_context phone:79001234567`
+   - **REPLACES**: redis-cli commands
+   - **REQUIRES**: SSH tunnel on port 6380 (run `./scripts/maintain-redis-tunnel.sh start`)
+
+### When to Use MCP:
+- **ALWAYS** for checking logs - use @logs instead of SSH
+- **ALWAYS** for database queries - use @supabase instead of psql
+- **ALWAYS** for testing WhatsApp - use @whatsapp instead of test scripts
+- **ALWAYS** for Redis operations - use @redis instead of redis-cli
+- **ALWAYS** for YClients API - use @yclients instead of curl
+
+### MCP Usage Examples:
+
+```
+# Check recent errors (instead of SSH + pm2 logs)
+@logs logs_errors service:ai-admin-worker-v2 minutes:30
+
+# Test WhatsApp message (instead of node test-direct-webhook.js)
+@whatsapp send_message phone:79001234567 message:"Привет! Хочу записаться на стрижку завтра в 15:00"
+
+# Check client in database (instead of psql or Supabase dashboard)
+@supabase query_table table:clients filters:{"phone":"79001234567"}
+
+# Get available slots (instead of YClients API curl)
+@yclients get_available_slots date:2025-07-29 service_ids:[45]
+
+# Check conversation context (instead of redis-cli)
+@redis get_context phone:79001234567
+
+# Clear context for testing (instead of redis-cli DEL)
+@redis clear_context phone:79001234567
+
+# Run full booking scenario
+@whatsapp run_scenario scenario:booking_flow phone:79001234567
+
+# Check if YClients integration received any webhooks
+@logs logs_search pattern:"yclients" service:ai-admin-api lines:5
+```
+
+### Important Notes:
+- MCP servers provide real-time access to production services
+- No need to copy/paste long SSH commands
+- Results are returned directly in the conversation
+- Always prefer MCP over traditional tools when available
+
 ## Working Environment
 
 - **Local directory**: /Users/vosarsen/Documents/GitHub/ai_admin_v2
