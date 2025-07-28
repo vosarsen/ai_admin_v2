@@ -4,7 +4,7 @@ const { YclientsClient } = require('../../integrations/yclients/client');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const DataTransformers = require('../../utils/data-transformers');
-const { format, addDays, parse, isAfter, isBefore } = require('date-fns');
+const { format, addDays, subDays, parse, isAfter, isBefore } = require('date-fns');
 const { utcToZonedTime, zonedTimeToUtc } = require('date-fns-tz');
 
 class BookingService {
@@ -340,9 +340,10 @@ class BookingService {
       logger.info(`📋 Getting bookings for client ${phone} at company ${companyId}`);
       
       // Получаем записи через YClients API
+      // Ищем записи за последние 7 дней и на 30 дней вперед, чтобы не пропустить недавно созданные записи
       const bookings = await this.getYclientsClient().getRecords(companyId, {
         client_phone: phone,
-        start_date: format(new Date(), 'yyyy-MM-dd'),
+        start_date: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
         end_date: format(addDays(new Date(), 30), 'yyyy-MM-dd')
       });
 
