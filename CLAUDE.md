@@ -56,7 +56,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **ALWAYS** for database queries - use @supabase instead of psql
 - **ALWAYS** for testing WhatsApp - use @whatsapp instead of test scripts
 - **ALWAYS** for Redis operations - use @redis instead of redis-cli
-- **ALWAYS** for YClients API - use @yclients instead of curl
+- **ONLY for debugging** YClients API - use @yclients to check raw API responses
+
+### ⚠️ IMPORTANT: Testing Bot Functionality
+**NEVER use MCP servers to test bot features!** MCP servers are for debugging and infrastructure access only.
+
+To test bot functionality:
+1. **Use @whatsapp** to send messages to the bot
+2. **Check bot responses** with @logs or @whatsapp get_last_response
+3. **Verify database changes** with @supabase
+4. **Check conversation context** with @redis
+
+Example of CORRECT bot testing:
+```
+# 1. Send test message to bot
+@whatsapp send_message phone:79001234567 message:"Хочу отменить запись"
+
+# 2. Check bot's response
+@whatsapp get_last_response phone:79001234567
+
+# 3. Check logs for processing details
+@logs logs_tail service:ai-admin-worker-v2 lines:50
+
+# 4. Verify context if needed
+@redis get_context phone:79001234567
+```
+
+Example of INCORRECT testing:
+```
+# ❌ WRONG - This tests YClients API directly, not our bot!
+@yclients search_clients search:79001234567
+```
 
 ### MCP Usage Examples:
 
