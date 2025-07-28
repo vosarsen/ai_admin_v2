@@ -999,7 +999,7 @@ class CommandHandler {
       logger.info('📋 Getting bookings for reschedule', { phone, companyId });
       const bookingsResult = await bookingService.getClientBookings(phone, companyId);
       
-      if (!bookingsResult.success || !bookingsResult.data || bookingsResult.data.length === 0) {
+      if (!bookingsResult.success || !bookingsResult.bookings || bookingsResult.bookings.length === 0) {
         return {
           success: false,
           error: 'У вас нет активных записей'
@@ -1008,7 +1008,7 @@ class CommandHandler {
       
       // Фильтруем только будущие записи
       const now = new Date();
-      const futureBookings = bookingsResult.data.filter(booking => {
+      const futureBookings = bookingsResult.bookings.filter(booking => {
         const bookingDate = new Date(booking.datetime);
         return bookingDate > now;
       });
