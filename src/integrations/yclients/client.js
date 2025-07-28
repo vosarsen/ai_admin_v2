@@ -825,6 +825,44 @@ class YclientsClient {
   }
 
   /**
+   * Отменить запись через изменение статуса (мягкая отмена)
+   * Устанавливает статус "Не пришел" вместо удаления
+   */
+  async cancelRecordSoft(companyId, recordId, comment = 'Отменено клиентом через WhatsApp') {
+    try {
+      logger.info(`🚫 Soft canceling record ${recordId} at company ${companyId}`);
+      
+      const result = await this.request(
+        'PUT',
+        `record/${companyId}/${recordId}`,
+        {
+          attendance: -1, // Не пришел
+          comment
+        }
+      );
+
+      if (result.status === 200 || result.status === 201 || result.success) {
+        logger.info(`✅ Successfully soft-cancelled record ${recordId}`);
+        return {
+          success: true,
+          data: result.data
+        };
+      }
+
+      return {
+        success: false,
+        error: result.error || result.meta?.message || 'Failed to cancel record'
+      };
+    } catch (error) {
+      logger.error('Error soft canceling record:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
    * Обновить статус посещения (attendance)
    * @param {number} visitId - ID визита
    * @param {number} recordId - ID записи
