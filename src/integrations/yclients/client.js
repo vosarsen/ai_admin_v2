@@ -490,6 +490,17 @@ class YclientsClient {
 
         const response = await this.axiosInstance.request(config);
 
+        // Обработка специального случая для статуса 204 No Content
+        if (response.status === 204) {
+          return {
+            success: true,
+            data: null,
+            status: response.status,
+            startTime,
+            attempt
+          };
+        }
+
         return {
           success: true,
           data: response.data,
@@ -756,7 +767,8 @@ class YclientsClient {
         }
       );
 
-      if (result.success) {
+      // Проверяем успешность по статусу 204 или флагу success
+      if (result.status === 204 || result.success) {
         logger.info(`✅ Successfully deleted record ${recordId}`);
         return {
           success: true,
