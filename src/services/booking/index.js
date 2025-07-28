@@ -350,8 +350,20 @@ class BookingService {
         return { success: false, error: 'Failed to fetch bookings' };
       }
 
+      // Логируем структуру ответа для отладки
+      logger.debug('Bookings response structure:', { 
+        type: typeof bookings.data,
+        isArray: Array.isArray(bookings.data),
+        keys: Object.keys(bookings.data || {}),
+        sample: JSON.stringify(bookings.data).substring(0, 200)
+      });
+
+      // Проверяем формат данных - YClients может вернуть объект с массивом data
+      const bookingsList = Array.isArray(bookings.data) ? bookings.data : 
+                          (bookings.data.data ? bookings.data.data : []);
+      
       // Фильтруем только активные записи (не отмененные и не прошедшие)
-      const activeBookings = bookings.data.filter(booking => {
+      const activeBookings = bookingsList.filter(booking => {
         const bookingDate = new Date(booking.datetime);
         const now = new Date();
         return bookingDate > now && booking.deleted === false;
