@@ -832,9 +832,27 @@ class YclientsClient {
     try {
       logger.info(`🚫 Soft canceling record ${recordId} at company ${companyId}`);
       
+      // Сначала получаем детали записи для получения visit_id
+      const recordDetails = await this.request(
+        'GET',
+        `record/${companyId}/${recordId}`
+      );
+      
+      if (!recordDetails.success || !recordDetails.data?.visit_id) {
+        logger.error('Failed to get record details or visit_id');
+        return {
+          success: false,
+          error: 'Не удалось получить информацию о записи'
+        };
+      }
+      
+      const visitId = recordDetails.data.visit_id;
+      logger.info(`Found visit_id: ${visitId} for record ${recordId}`);
+      
+      // Используем endpoint /visits для изменения статуса
       const result = await this.request(
         'PUT',
-        `record/${companyId}/${recordId}`,
+        `visits/${visitId}/${recordId}`,
         {
           attendance: -1, // Не пришел
           comment
@@ -842,10 +860,12 @@ class YclientsClient {
       );
 
       if (result.status === 200 || result.status === 201 || result.success) {
-        logger.info(`✅ Successfully soft-cancelled record ${recordId}`);
+        logger.info(`✅ Successfully soft-cancelled record ${recordId} via visit ${visitId}`);
         return {
           success: true,
-          data: result.data
+          data: result.data,
+          visitId,
+          recordId
         };
       }
 
