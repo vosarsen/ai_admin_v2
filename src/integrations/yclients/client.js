@@ -980,6 +980,54 @@ class YclientsClient {
   }
 
   /**
+   * Перенести запись на новое время
+   * @param {number} companyId - ID компании
+   * @param {number} recordId - ID записи
+   * @param {string} datetime - Новая дата и время в формате ISO 8601
+   * @param {string} comment - Комментарий (опционально)
+   * @returns {Promise<Object>} Результат переноса
+   */
+  async rescheduleRecord(companyId, recordId, datetime, comment = '') {
+    try {
+      logger.info(`📅 Rescheduling record ${recordId} to ${datetime}`, {
+        companyId,
+        recordId,
+        datetime,
+        comment
+      });
+
+      const result = await this.request(
+        'PUT',
+        `book_record/${companyId}/${recordId}`,
+        {
+          datetime,
+          comment
+        },
+        {}
+      );
+
+      if (result.success) {
+        logger.info(`✅ Successfully rescheduled record ${recordId} to ${datetime}`);
+        return {
+          success: true,
+          data: result.data
+        };
+      }
+
+      return {
+        success: false,
+        error: result.meta?.message || 'Failed to reschedule record'
+      };
+    } catch (error) {
+      logger.error('❌ Error rescheduling record:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
    * Graceful shutdown
    */
   destroy() {

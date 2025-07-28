@@ -853,7 +853,17 @@ ${JSON.stringify(slotsData)}
             });
           }
         } else if (result.data && result.data.success) {
-          finalResponse += '\n\n✅ ' + result.data.message;
+          // Успешный перенос
+          const formatter = this.responseFormatter;
+          const formattedResult = formatter.formatRescheduleConfirmation(result.data);
+          if (formattedResult && formattedResult !== '') {
+            finalResponse += '\n\n' + formattedResult;
+          } else {
+            finalResponse += '\n\n✅ Запись успешно перенесена!';
+          }
+        } else if (result.data && result.data.needsDateTime) {
+          // Запрашиваем дату и время
+          finalResponse += '\n\n' + result.data.message;
         } else if (result.data && result.data.bookings && result.data.needsSelection) {
           // Показываем список записей для выбора
           finalResponse += '\n\n📅 Ваши активные записи:\n';

@@ -640,6 +640,53 @@ class Formatter {
     
     return errorMessages[error.code] || errorMessages.default;
   }
+  /**
+   * Форматирование подтверждения переноса записи
+   */
+  formatRescheduleConfirmation(data) {
+    try {
+      if (!data || !data.newDateTime) {
+        return '';
+      }
+
+      const oldDate = new Date(data.oldDateTime);
+      const newDate = new Date(data.newDateTime);
+      
+      // Форматируем даты
+      const formatter = new Intl.DateTimeFormat('ru', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'long',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      const oldFormatted = formatter.format(oldDate);
+      const newFormatted = formatter.format(newDate);
+      
+      let response = `✅ ✅ Запись успешно перенесена!\n\n`;
+      response += `📋 Детали переноса:\n`;
+      response += `❌ Старое время: ${oldFormatted}\n`;
+      response += `✅ Новое время: ${newFormatted}\n`;
+      
+      if (data.services && data.services.length > 0) {
+        const serviceName = data.services[0].title || data.services[0].name || 'Услуга';
+        response += `💇 Услуга: ${serviceName}\n`;
+      }
+      
+      if (data.staff) {
+        const staffName = data.staff.name || data.staff.title || 'Мастер';
+        response += `👤 Мастер: ${staffName}\n`;
+      }
+      
+      response += `\n💬 _Ждём вас в новое время! Если планы изменятся, пожалуйста, предупредите заранее._`;
+      
+      return response;
+    } catch (error) {
+      logger.error('Error formatting reschedule confirmation:', error);
+      return '✅ Запись успешно перенесена!';
+    }
+  }
 }
 
 module.exports = new Formatter();

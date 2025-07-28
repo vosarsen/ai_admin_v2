@@ -992,55 +992,134 @@ class CommandHandler {
    */
   async rescheduleBooking(params, context) {
     const phone = context.phone.replace('@c.us', '');
+    const companyId = context.company.yclients_id || context.company.company_id;
     
-    // Временное решение - информируем о невозможности переноса через бота
-    return {
-      success: false,
-      temporaryLimitation: true,
-      message: 'К сожалению, перенос записи через бота временно недоступен из-за ограничений API.',
-      instructions: [
-        '📱 Перенести запись через мобильное приложение YClients',
-        '💻 Перенести запись на сайте yclients.com',
-        `📞 Позвонить администратору: ${context.company?.phones?.[0] || '+7 (XXX) XXX-XX-XX'}`
-      ]
-    };
-    
-    // Код для будущего использования когда получим права API
-    /*
-    // Если не указан ID записи, показываем список
-    if (!params.booking_id && !params.record_id) {
-      const bookingsResult = await bookingService.getClientBookings(phone, context.company.company_id);
+    try {
+      // Получаем список записей клиента
+      logger.info('📋 Getting bookings for reschedule', { phone, companyId });
+      const bookingsResult = await bookingService.getClientBookings(phone, companyId);
       
-      if (!bookingsResult.success) {
+      if (!bookingsResult.success || !bookingsResult.data || bookingsResult.data.length === 0) {
         return {
           success: false,
-          error: bookingsResult.error
+          error: 'У вас нет активных записей'
         };
       }
       
-      const activeBookings = bookingsResult.data?.filter(b => 
-        new Date(b.datetime) > new Date()
-      ) || [];
+      // Фильтруем только будущие записи
+      const now = new Date();
+      const futureBookings = bookingsResult.data.filter(booking => {
+        const bookingDate = new Date(booking.datetime);
+        return bookingDate > now;
+      });
       
-      // Сохраняем список в контексте для следующего шага
-      const contextService = require('../../context');
-      const redisContext = await contextService.getContext(phone) || {};
-      redisContext.rescheduleStep = 'selectBooking';
-      redisContext.activeBookings = activeBookings;
-      await contextService.setContext(phone, redisContext);
+      if (futureBookings.length === 0) {
+        return {
+          success: false,
+          error: 'У вас нет предстоящих записей для переноса'
+        };
+      }
       
+      // Если не указаны новые дата и время, запрашиваем их
+      if (!params.date || !params.time) {
+        return {
+          success: false,
+          needsDateTime: true,
+          bookings: futureBookings,
+          message: 'На какую дату и время вы хотите перенести запись?'
+        };
+      }
+      
+      // Берем последнюю запись для переноса
+      const bookingToReschedule = futureBookings[0];
+      const recordId = bookingToReschedule.id;
+      
+      // Парсим новую дату и время
+      const targetDate = this.parseDate(params.date);
+      const newDateTime = `${targetDate} ${params.time}:00`;
+      const isoDateTime = new Date(newDateTime).toISOString();
+      
+      logger.info('📅 Attempting to reschedule booking', {
+        recordId,
+        currentDateTime: bookingToReschedule.datetime,
+        newDateTime: isoDateTime,
+        staffId: bookingToReschedule.staff?.id,
+        services: bookingToReschedule.services
+      });
+      
+      // Пытаемся перенести запись через простой API
+      const rescheduleResult = await yclientsClient.rescheduleRecord(
+        companyId,
+        recordId,
+        isoDateTime,
+        `Перенос записи через WhatsApp бота`
+      );
+      
+      if (rescheduleResult.success) {
+        logger.info('✅ Successfully rescheduled booking', { recordId, newDateTime });
+        return {
+          success: true,
+          oldDateTime: bookingToReschedule.datetime,
+          newDateTime: isoDateTime,
+          services: bookingToReschedule.services,
+          staff: bookingToReschedule.staff
+        };
+      }
+      
+      // Если простой метод не сработал, пробуем через полное обновление
+      logger.warn('Simple reschedule failed, trying full update', { error: rescheduleResult.error });
+      
+      const updateResult = await yclientsClient.updateRecord(
+        companyId,
+        recordId,
+        {
+          datetime: isoDateTime,
+          staff_id: bookingToReschedule.staff?.id || bookingToReschedule.staff_id,
+          services: bookingToReschedule.services?.map(s => ({
+            id: s.id,
+            cost: s.cost || s.price_min || 0,
+            discount: s.discount || 0
+          })) || [],
+          client: {
+            phone: phone,
+            name: context.client?.name || bookingToReschedule.client?.name || '',
+            email: bookingToReschedule.client?.email || ''
+          },
+          comment: `Перенос записи через WhatsApp бота с ${bookingToReschedule.datetime} на ${isoDateTime}`
+        }
+      );
+      
+      if (updateResult.success) {
+        logger.info('✅ Successfully rescheduled booking via full update', { recordId, newDateTime });
+        return {
+          success: true,
+          oldDateTime: bookingToReschedule.datetime,
+          newDateTime: isoDateTime,
+          services: bookingToReschedule.services,
+          staff: bookingToReschedule.staff
+        };
+      }
+      
+      // Если ничего не сработало, возвращаем инструкции
       return {
-        success: true,
-        bookings: activeBookings,
-        needsSelection: true
+        success: false,
+        temporaryLimitation: true,
+        error: updateResult.error || 'Не удалось перенести запись',
+        message: 'К сожалению, не удалось перенести запись через бота.',
+        instructions: [
+          '📱 Перенесите запись через мобильное приложение YClients',
+          '💻 Перенесите запись на сайте yclients.com',
+          `📞 Позвоните администратору: ${context.company?.phones?.[0] || '+7 (XXX) XXX-XX-XX'}`
+        ]
+      };
+      
+    } catch (error) {
+      logger.error('Error in rescheduleBooking:', error);
+      return {
+        success: false,
+        error: error.message || 'Произошла ошибка при переносе записи'
       };
     }
-    
-    const recordId = params.booking_id || params.record_id;
-    const newDate = params.date;
-    const newTime = params.time;
-    
-    if (!newDate || !newTime) {
       return {
         success: false,
         error: 'Не указаны новые дата и время для переноса'
