@@ -388,16 +388,25 @@ class BookingService {
     try {
       logger.info(`🚫 Canceling booking ${recordId} at company ${companyId}`);
       
-      // Отменяем запись через YClients API
-      const result = await this.getYclientsClient().deleteRecord(companyId, recordId);
+      // Сначала пробуем мягкую отмену через изменение статуса
+      const softCancelResult = await this.getYclientsClient().cancelRecordSoft(companyId, recordId);
+      
+      if (softCancelResult.success) {
+        logger.info(`✅ Successfully soft-canceled booking ${recordId} (status: не пришел)`);
+        return softCancelResult;
+      }
+      
+      // Если мягкая отмена не удалась, пробуем удалить запись
+      logger.warn(`⚠️ Soft cancel failed, trying to delete record ${recordId}`);
+      const deleteResult = await this.getYclientsClient().deleteRecord(companyId, recordId);
 
-      if (result.success) {
-        logger.info(`✅ Successfully canceled booking ${recordId}`);
+      if (deleteResult.success) {
+        logger.info(`✅ Successfully deleted booking ${recordId}`);
       } else {
-        logger.error(`❌ Failed to cancel booking ${recordId}: ${result.error}`);
+        logger.error(`❌ Failed to cancel booking ${recordId}: ${deleteResult.error}`);
       }
 
-      return result;
+      return deleteResult;
     } catch (error) {
       logger.error('Error canceling booking:', error);
       return { success: false, error: error.message };
