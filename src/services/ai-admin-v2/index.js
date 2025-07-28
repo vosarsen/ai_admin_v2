@@ -832,7 +832,7 @@ ${JSON.stringify(slotsData)}
           finalResponse += '\n\nНапишите номер записи, которую хотите отменить.';
           
           // Сохраняем список записей в контекст для последующей обработки
-          const contextService = require('../../context');
+          const contextService = require('../context');
           const redisContext = await contextService.getContext(context.phone.replace('@c.us', ''));
           redisContext.pendingCancellation = result.data.bookings;
           await contextService.setContext(context.phone.replace('@c.us', ''), redisContext);
@@ -865,7 +865,7 @@ ${JSON.stringify(slotsData)}
           finalResponse += '\n\nНапишите номер записи, которую хотите перенести.';
           
           // Сохраняем в контекст для следующего шага
-          const contextService = require('../../context');
+          const contextService = require('../context');
           const redisContext = await contextService.getContext(context.phone.replace('@c.us', '')) || {};
           redisContext.rescheduleStep = 'selectBooking';
           redisContext.activeBookings = result.data.bookings;
