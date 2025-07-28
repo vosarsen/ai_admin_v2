@@ -1095,6 +1095,7 @@ class CommandHandler {
       });
       
       // Получаем доступные слоты
+      const yclientsClient = bookingService.getYclientsClient();
       const slotsResult = await yclientsClient.getAvailableSlots(
         staffId,
         targetDate,
