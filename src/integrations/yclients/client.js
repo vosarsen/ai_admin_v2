@@ -298,11 +298,19 @@ class YclientsClient {
    * 📝 Создать запись
    */
   async createBooking(bookingData, companyId = this.config.companyId) {
-    return this.post(
+    const result = await this.post(
       YclientsClient.ENDPOINTS.bookRecord(companyId), 
       bookingData,
       { priority: 'critical' }
     );
+    
+    // Очищаем кэш после создания записи
+    if (result.success) {
+      this.clearCache();
+      logger.info('🗑️ Cache cleared after creating booking');
+    }
+    
+    return result;
   }
 
   /**
@@ -310,7 +318,7 @@ class YclientsClient {
    */
   async getRecords(params = {}, companyId = this.config.companyId) {
     return this.get(YclientsClient.ENDPOINTS.records(companyId), params, {
-      cacheTtl: 60 // Записи кэшируются на 1 минуту
+      cacheTtl: 0 // Отключаем кэш для записей, чтобы всегда получать актуальные данные
     });
   }
 
@@ -770,6 +778,9 @@ class YclientsClient {
       // Проверяем успешность по статусу 204 или флагу success
       if (result.status === 204 || result.success) {
         logger.info(`✅ Successfully deleted record ${recordId}`);
+        // Очищаем кэш после удаления записи
+        this.clearCache();
+        logger.info('🗑️ Cache cleared after deleting record');
         return {
           success: true,
           data: result.data
@@ -864,6 +875,9 @@ class YclientsClient {
 
       if (result.status === 200 || result.status === 201 || result.success) {
         logger.info(`✅ Successfully soft-cancelled record ${recordId} via visit ${visitId}`);
+        // Очищаем кэш после отмены записи
+        this.clearCache();
+        logger.info('🗑️ Cache cleared after soft cancelling record');
         return {
           success: true,
           data: result.data,
@@ -916,6 +930,9 @@ class YclientsClient {
 
       if (result.success) {
         logger.info(`✅ Successfully updated visit status to: ${attendanceMap[attendance]}`);
+        // Очищаем кэш после изменения статуса визита
+        this.clearCache();
+        logger.info('🗑️ Cache cleared after updating visit status');
         return {
           success: true,
           data: result.data,
@@ -952,6 +969,9 @@ class YclientsClient {
 
       if (result.success) {
         logger.info(`✅ Successfully updated record ${recordId}`);
+        // Очищаем кэш после обновления записи
+        this.clearCache();
+        logger.info('🗑️ Cache cleared after updating record');
         return {
           success: true,
           data: result.data
@@ -1008,6 +1028,9 @@ class YclientsClient {
 
       if (result.success) {
         logger.info(`✅ Successfully rescheduled record ${recordId} to ${datetime}`);
+        // Очищаем кэш после переноса записи
+        this.clearCache();
+        logger.info('🗑️ Cache cleared after rescheduling booking');
         return {
           success: true,
           data: result.data
