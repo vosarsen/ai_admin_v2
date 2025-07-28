@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройка AI Admin</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .step {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #4CAF50;
+        }
+        .step h3 {
+            margin: 0 0 10px 0;
+            color: #4CAF50;
+        }
+        .code {
+            background: #263238;
+            color: #aed581;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        .button {
+            display: inline-block;
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            text-decoration: none;
+            margin-top: 20px;
+        }
+        .button:hover {
+            background: #45a049;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Настройка AI Admin</h1>
+        
+        <div class="warning">
+            <strong>Важно!</strong> Для работы бота необходимо подключить WhatsApp Business API или настроить Venom Bot.
+        </div>
+
+        <div class="step">
+            <h3>Шаг 1: Проверьте подключение</h3>
+            <p>Ваш company_id: <strong><span id="company-id"></span></strong></p>
+            <p>Интеграция успешно подключена к YClients.</p>
+        </div>
+
+        <div class="step">
+            <h3>Шаг 2: Настройте WhatsApp</h3>
+            <p>Свяжитесь с нашей поддержкой для подключения WhatsApp номера к боту:</p>
+            <div class="code">
+                support@ai-admin.ru
+            </div>
+        </div>
+
+        <div class="step">
+            <h3>Шаг 3: Тестирование</h3>
+            <p>После подключения WhatsApp отправьте тестовое сообщение боту:</p>
+            <div class="code">
+                Привет! Хочу записаться на стрижку
+            </div>
+        </div>
+
+        <a href="https://yclients.com" class="button">Готово</a>
+    </div>
+
+    <script>
+        // Получаем company_id из URL
+        const params = new URLSearchParams(window.location.search);
+        const companyId = params.get('company_id');
+        if (companyId) {
+            document.getElementById('company-id').textContent = companyId;
+        }
+    </script>
+</body>
+</html>
