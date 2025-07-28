@@ -1257,6 +1257,7 @@ class CommandHandler {
         success: false,
         error: error.message || 'Произошла ошибка при переносе записи'
       };
+    }
   }
 
   /**
