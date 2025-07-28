@@ -1022,6 +1022,26 @@ class CommandHandler {
       
       // Если не указаны новые дата и время, запрашиваем их
       if (!params.date || !params.time) {
+        // Если у клиента несколько записей, показываем их список
+        if (futureBookings.length > 1) {
+          const bookingsList = futureBookings.map((booking, index) => {
+            const date = new Date(booking.datetime);
+            const dateStr = formatter.formatDate(date);
+            const timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+            const serviceName = booking.services?.[0]?.title || booking.services?.[0]?.name || 'Услуга';
+            const staffName = booking.staff?.name || 'Мастер';
+            return `${index + 1}. ${dateStr} в ${timeStr} - ${serviceName} (${staffName})`;
+          }).join('\n');
+          
+          return {
+            success: false,
+            needsDateTime: true,
+            multipleBookings: true,
+            bookings: futureBookings,
+            message: `У вас есть несколько записей:\n\n${bookingsList}\n\nКакую запись хотите перенести? Укажите номер и новые дату/время.`
+          };
+        }
+        
         return {
           success: false,
           needsDateTime: true,
@@ -1030,8 +1050,24 @@ class CommandHandler {
         };
       }
       
-      // Берем последнюю запись для переноса
-      const bookingToReschedule = futureBookings[0];
+      // Определяем, какую запись переносить
+      let bookingToReschedule;
+      
+      // Если указан номер записи (для случая с несколькими записями)
+      if (params.booking_number && futureBookings.length > 1) {
+        const bookingIndex = parseInt(params.booking_number) - 1;
+        if (bookingIndex >= 0 && bookingIndex < futureBookings.length) {
+          bookingToReschedule = futureBookings[bookingIndex];
+        } else {
+          return {
+            success: false,
+            error: `Неверный номер записи. Укажите число от 1 до ${futureBookings.length}`
+          };
+        }
+      } else {
+        // Берем последнюю запись для переноса
+        bookingToReschedule = futureBookings[0];
+      }
       const recordId = bookingToReschedule.id;
       
       // Парсим новую дату и время
@@ -1047,6 +1083,57 @@ class CommandHandler {
         services: bookingToReschedule.services
       });
       
+      // Проверяем доступность нового времени
+      const staffId = bookingToReschedule.staff?.id || bookingToReschedule.staff_id;
+      const serviceIds = bookingToReschedule.services?.map(s => s.id) || [];
+      
+      logger.info('🔍 Checking slot availability for reschedule', {
+        staffId,
+        date: targetDate,
+        time: params.time,
+        serviceIds
+      });
+      
+      // Получаем доступные слоты
+      const slotsResult = await yclientsClient.getAvailableSlots(
+        staffId,
+        targetDate,
+        { service_ids: serviceIds },
+        companyId
+      );
+      
+      if (slotsResult.success && Array.isArray(slotsResult.data)) {
+        // Проверяем, есть ли нужное время в доступных слотах
+        const requestedTime = params.time;
+        const slotAvailable = slotsResult.data.some(slot => {
+          const slotTime = slot.time || slot;
+          return slotTime === requestedTime || slotTime === `${requestedTime}:00`;
+        });
+        
+        if (!slotAvailable) {
+          // Находим ближайшие доступные слоты
+          const nearbySlots = slotsResult.data
+            .map(slot => slot.time || slot)
+            .filter(time => {
+              const slotHour = parseInt(time.split(':')[0]);
+              const requestedHour = parseInt(requestedTime.split(':')[0]);
+              return Math.abs(slotHour - requestedHour) <= 2; // В пределах 2 часов
+            })
+            .slice(0, 3);
+          
+          return {
+            success: false,
+            slotNotAvailable: true,
+            requestedTime: requestedTime,
+            nearbySlots: nearbySlots,
+            message: `К сожалению, время ${requestedTime} уже занято.`,
+            suggestions: nearbySlots.length > 0 
+              ? `Доступное время поблизости: ${nearbySlots.join(', ')}`
+              : 'В этот день нет доступного времени рядом с желаемым.'
+          };
+        }
+      }
+      
       // Пытаемся перенести запись через простой API
       const rescheduleResult = await yclientsClient.rescheduleRecord(
         companyId,
@@ -1057,6 +1144,32 @@ class CommandHandler {
       
       if (rescheduleResult.success) {
         logger.info('✅ Successfully rescheduled booking', { recordId, newDateTime });
+        
+        // Обновляем напоминания для новой даты
+        try {
+          const reminderService = require('../../reminders/scheduler');
+          const phone = context.phone.replace('@c.us', '');
+          
+          // Отменяем старые напоминания
+          await reminderService.cancelRemindersForBooking(recordId);
+          
+          // Планируем новые напоминания
+          await reminderService.scheduleBookingReminders({
+            bookingId: recordId,
+            bookingDate: isoDateTime,
+            clientPhone: phone,
+            clientName: context.client?.name || bookingToReschedule.client?.name || 'Клиент',
+            serviceName: bookingToReschedule.services?.[0]?.title || 'услуга',
+            staffName: bookingToReschedule.staff?.name || 'мастер',
+            companyId: companyId
+          });
+          
+          logger.info('✅ Reminders rescheduled for booking', { recordId });
+        } catch (reminderError) {
+          logger.error('Failed to reschedule reminders:', reminderError);
+          // Не блокируем основной процесс из-за ошибки с напоминаниями
+        }
+        
         return {
           success: true,
           oldDateTime: bookingToReschedule.datetime,
@@ -1091,6 +1204,31 @@ class CommandHandler {
       
       if (updateResult.success) {
         logger.info('✅ Successfully rescheduled booking via full update', { recordId, newDateTime });
+        
+        // Обновляем напоминания для новой даты
+        try {
+          const reminderService = require('../../reminders/scheduler');
+          const phone = context.phone.replace('@c.us', '');
+          
+          // Отменяем старые напоминания
+          await reminderService.cancelRemindersForBooking(recordId);
+          
+          // Планируем новые напоминания
+          await reminderService.scheduleBookingReminders({
+            bookingId: recordId,
+            bookingDate: isoDateTime,
+            clientPhone: phone,
+            clientName: context.client?.name || bookingToReschedule.client?.name || 'Клиент',
+            serviceName: bookingToReschedule.services?.[0]?.title || 'услуга',
+            staffName: bookingToReschedule.staff?.name || 'мастер',
+            companyId: companyId
+          });
+          
+          logger.info('✅ Reminders rescheduled for booking (via full update)', { recordId });
+        } catch (reminderError) {
+          logger.error('Failed to reschedule reminders:', reminderError);
+        }
+        
         return {
           success: true,
           oldDateTime: bookingToReschedule.datetime,
@@ -1119,50 +1257,6 @@ class CommandHandler {
         success: false,
         error: error.message || 'Произошла ошибка при переносе записи'
       };
-    }
-      return {
-        success: false,
-        error: 'Не указаны новые дата и время для переноса'
-      };
-    }
-    
-    // Форматируем дату для YClients
-    const dateTime = formatter.parseRelativeDate(newDate);
-    const formattedDateTime = `${dateTime} ${newTime}:00`;
-    
-    // Обновляем запись
-    const updateData = {
-      datetime: formattedDateTime,
-      comment: 'Перенесено через WhatsApp бота'
-    };
-    
-    const updateResult = await bookingService.getYclientsClient().updateRecord(
-      context.company.company_id, 
-      recordId, 
-      updateData
-    );
-    
-    if (updateResult.success) {
-      // Очищаем контекст переноса
-      const contextService = require('../../context');
-      const redisContext = await contextService.getContext(phone) || {};
-      delete redisContext.rescheduleStep;
-      delete redisContext.activeBookings;
-      await contextService.setContext(phone, redisContext);
-      
-      return {
-        success: true,
-        recordId: recordId,
-        newDateTime: formattedDateTime,
-        message: `Запись успешно перенесена на ${formatter.formatDate(dateTime)} в ${newTime}`
-      };
-    } else {
-      return {
-        success: false,
-        error: updateResult.error
-      };
-    }
-    */
   }
 
   /**
