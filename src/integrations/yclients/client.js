@@ -838,8 +838,8 @@ class YclientsClient {
         `record/${companyId}/${recordId}`
       );
       
-      if (!recordDetails.success || !recordDetails.data?.visit_id) {
-        logger.error('Failed to get record details or visit_id');
+      if (!recordDetails.data?.visit_id) {
+        logger.error('Failed to get visit_id from record details', { recordDetails });
         return {
           success: false,
           error: 'Не удалось получить информацию о записи'
