@@ -92,12 +92,32 @@ class MessageWorkerV2 {
             throw new Error(result.error || 'Processing failed');
           }
           
-          // Отправляем ответ
+          // Отправляем ответ (разделяем на несколько сообщений)
           if (result.response) {
-            logger.info(`🤖 Bot response to ${from}: "${result.response}"`);
-            const sendResult = await whatsappClient.sendMessage(from, result.response);
-            if (!sendResult.success) {
-              throw new Error(`Failed to send message: ${sendResult.error}`);
+            // Разделяем ответ на отдельные сообщения по символу |
+            const messages = result.response.split('|').map(msg => msg.trim()).filter(msg => msg);
+            
+            if (messages.length === 0) {
+              // Если нет разделителя, отправляем как одно сообщение
+              messages.push(result.response);
+            }
+            
+            logger.info(`🤖 Bot sending ${messages.length} messages to ${from}`);
+            
+            // Отправляем каждое сообщение с небольшой задержкой
+            for (let i = 0; i < messages.length; i++) {
+              const message = messages[i];
+              logger.info(`🤖 Message ${i + 1}/${messages.length} to ${from}: "${message}"`);
+              
+              const sendResult = await whatsappClient.sendMessage(from, message);
+              if (!sendResult.success) {
+                throw new Error(`Failed to send message ${i + 1}: ${sendResult.error}`);
+              }
+              
+              // Добавляем задержку между сообщениями (кроме последнего)
+              if (i < messages.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 500)); // 500ms задержка
+              }
             }
           }
           
