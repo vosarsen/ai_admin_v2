@@ -838,7 +838,10 @@ class YclientsClient {
         `record/${companyId}/${recordId}`
       );
       
-      if (!recordDetails.data?.visit_id) {
+      // Проверяем разные варианты структуры ответа
+      const recordData = recordDetails.data?.data || recordDetails.data;
+      
+      if (!recordData?.visit_id) {
         logger.error('Failed to get visit_id from record details', { recordDetails });
         return {
           success: false,
@@ -846,7 +849,7 @@ class YclientsClient {
         };
       }
       
-      const visitId = recordDetails.data.visit_id;
+      const visitId = recordData.visit_id;
       logger.info(`Found visit_id: ${visitId} for record ${recordId}`);
       
       // Используем endpoint /visits для изменения статуса
