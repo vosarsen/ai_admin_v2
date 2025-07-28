@@ -845,35 +845,14 @@ class CommandHandler {
   async cancelBooking(params, context) {
     const phone = context.phone.replace('@c.us', '');
     
-    // Если передан ID записи, пытаемся сразу удалить
-    if (params.booking_id || params.record_id) {
-      const recordId = params.booking_id || params.record_id;
-      logger.info(`Attempting to cancel booking directly with ID: ${recordId}`);
-      
-      const cancelResult = await bookingService.cancelBooking(recordId, context.company.company_id);
-      
-      if (cancelResult.success) {
-        return {
-          success: true,
-          directCancellation: true,
-          message: `✅ Запись успешно отменена!`
-        };
-      } else {
-        return {
-          success: false,
-          error: cancelResult.error,
-          message: `Не удалось отменить запись. ${typeof cancelResult.error === 'object' ? JSON.stringify(cancelResult.error) : cancelResult.error}`
-        };
-      }
-    }
-    
-    // Иначе показываем список записей
+    // Получаем список всех записей клиента
     const bookingsResult = await bookingService.getClientBookings(phone, context.company.company_id);
     
     if (!bookingsResult.success) {
       return {
         success: false,
-        error: bookingsResult.error
+        error: bookingsResult.error,
+        message: 'Не удалось получить список записей'
       };
     }
     
@@ -885,9 +864,30 @@ class CommandHandler {
       };
     }
     
-    // Форматируем список записей для показа клиенту
-    const formattedBookings = bookingsResult.bookings.map((booking, index) => {
-      const date = new Date(booking.datetime);
+    // Сортируем записи по дате создания (последние созданные первыми)
+    const sortedBookings = bookingsResult.bookings.sort((a, b) => {
+      // Если есть поле created_at, используем его
+      if (a.created && b.created) {
+        return new Date(b.created) - new Date(a.created);
+      }
+      // Иначе используем ID (больший ID = более новая запись)
+      return b.id - a.id;
+    });
+    
+    // Берём последнюю созданную запись
+    const lastBooking = sortedBookings[0];
+    
+    logger.info(`Attempting to cancel last booking with ID: ${lastBooking.id}`, {
+      datetime: lastBooking.datetime,
+      services: lastBooking.services?.map(s => s.title).join(', '),
+      staff: lastBooking.staff?.name
+    });
+    
+    // Отменяем последнюю запись
+    const cancelResult = await bookingService.cancelBooking(lastBooking.id, context.company.company_id);
+    
+    if (cancelResult.success) {
+      const date = new Date(lastBooking.datetime);
       const dateStr = date.toLocaleDateString('ru-RU', { 
         day: 'numeric', 
         month: 'long',
@@ -898,25 +898,25 @@ class CommandHandler {
         minute: '2-digit' 
       });
       
-      const services = booking.services.map(s => s.title).join(', ');
-      const staff = booking.staff ? booking.staff.name : 'Любой мастер';
-      
       return {
-        index: index + 1,
-        id: booking.id,
-        date: dateStr,
-        time: timeStr,
-        services: services,
-        staff: staff,
-        price: booking.price_min || 0
+        success: true,
+        directCancellation: true,
+        cancelledBooking: {
+          date: dateStr,
+          time: timeStr,
+          services: lastBooking.services?.map(s => s.title).join(', '),
+          staff: lastBooking.staff?.name
+        },
+        message: `✅ Запись на ${dateStr} в ${timeStr} успешно отменена!`
       };
-    });
+    } else {
+      return {
+        success: false,
+        error: cancelResult.error,
+        message: `Не удалось отменить запись. ${typeof cancelResult.error === 'object' ? JSON.stringify(cancelResult.error) : cancelResult.error}`
+      };
+    }
     
-    return {
-      success: true,
-      bookings: formattedBookings,
-      message: 'Выберите запись для отмены'
-    };
   }
 
   /**
