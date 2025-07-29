@@ -1,8 +1,21 @@
 # AI Admin v2 - Task Tracker
 
-## 📅 Last Updated: July 28, 2025, 14:45
+## 📅 Last Updated: July 29, 2025, 15:35
 
 ## 🎯 Current Sprint - Phase 3: Edge Cases и надежность
+
+### ✅ Completed - AI and Schedule Improvements (July 29, 2025)
+- [x] **Исправлен поиск клиентов в базе данных**
+  - [x] Изменен поиск с raw_phone на phone поле
+  - [x] AI теперь правильно находит существующих клиентов
+- [x] **Расширен период расписания до 30 дней**
+  - [x] Увеличена загрузка с 7 до 30 дней
+  - [x] Увеличено отображение с 3 до 30 дней
+  - [x] Синхронизация YClients теперь на 30 дней
+- [x] **Улучшены промпты AI**
+  - [x] Добавлены правила проверки загруженного расписания
+  - [x] Добавлено распознавание услуг
+  - [x] AI не использует лишние команды
 
 ### ✅ Completed - Critical Fixes (July 24, 2025 Evening)
 - [x] **Исправлен импорт Supabase в command-handler.js**
@@ -50,12 +63,17 @@
   - [ ] Получение истории посещений клиента
   - [ ] Обновить код для использования правильных заголовков
 
-### 🔴 High Priority - Critical Bugs to Fix
+### 🔴 High Priority - Testing After Fixes
+- [ ] **Test all functions with improved AI**
+  - [ ] Test booking with existing clients
+  - [ ] Test booking for dates beyond 7 days
+  - [ ] Test service recognition
+  - [ ] Test staff schedule visibility
 - [ ] **Add automatic alternative slots on booking errors**
   - [ ] When booking fails, immediately show available slots
   - [ ] Format slots nicely for user
   - [ ] Test with various error scenarios
-- [ ] **Fix AI time understanding**
+- [ ] **Test AI time understanding**
   - [ ] AI should understand "на 3" as 15:00
   - [ ] Test various time formats
 
@@ -278,7 +296,17 @@
 
    - Need separate configs for local vs production
 
-5. **YClients API Permissions** (✅ FIXED July 28, 2025)
+5. **Client Search Issue** (✅ FIXED July 29, 2025)
+   - ✅ **ПРОБЛЕМА РЕШЕНА** - изменен поиск с raw_phone на phone
+   - ✅ AI теперь правильно находит существующих клиентов
+   - ✅ Не спрашивает имя повторно у существующих клиентов
+
+6. **Schedule Visibility Issue** (✅ FIXED July 29, 2025)
+   - ✅ **ПРОБЛЕМА РЕШЕНА** - увеличен период до 30 дней
+   - ✅ AI теперь видит расписание на месяц вперед
+   - ✅ Синхронизация обновлена для загрузки 30 дней
+
+7. **YClients API Permissions** (✅ FIXED July 28, 2025)
    - ✅ **ПРОБЛЕМА РЕШЕНА** - добавлен заголовок `X-Partner-Id: 8444`
    - ✅ Поиск клиента по телефону (`POST company/962302/clients/search`) - РАБОТАЕТ
    - ✅ Получение списка записей (`GET records/962302`) - РАБОТАЕТ
@@ -294,12 +322,12 @@
      X-Partner-Id: 8444
      ```
 
-6. **Reliability**
+8. **Reliability**
    - WhatsApp session can expire
    - No automatic reconnection
    - Queue can get stuck on errors
 
-6. **UX**
+9. **UX**
    - Error messages not user-friendly
    - No typing indicators
    - Limited formatting options
@@ -316,6 +344,10 @@
 
 ## 🔄 Update History
 
+- **2025-07-29**: Fixed client search, extended schedule to 30 days, improved AI prompts
+- **2025-07-28**: Fixed YClients API permissions, implemented booking cancellation
+- **2025-07-24**: Added CHECK_STAFF_SCHEDULE, fixed AI internal thoughts
+- **2025-07-23**: Implemented Redis batching for rapid-fire messages
 - **2024-07-20**: Added relative date parsing, improved ServiceMatcher (issues remain)
 - **2024-07-19**: Implemented auto-parsing from YClients, fixed working hours
 - **2024-07-16**: Added Context Engineering structure
