@@ -706,7 +706,7 @@ class UniversalYclientsSync {
       let errors = 0;
       let totalDays = 0;
 
-      // Получаем расписание на следующие 14 дней  
+      // Получаем расписание на следующие 30 дней  
       const today = new Date();
       
       for (const master of staff) {
@@ -730,8 +730,8 @@ class UniversalYclientsSync {
             console.log(`   📊 Working dates found: ${workingDates.length}, Booking dates: ${bookingDates.length}`);
           }
 
-          // Обрабатываем следующие 14 дней
-          for (let i = 0; i < 14; i++) {
+          // Обрабатываем следующие 30 дней
+          for (let i = 0; i < 30; i++) {
             const date = new Date(today);
             date.setDate(date.getDate() + i);
             const dateStr = date.toISOString().split('T')[0];

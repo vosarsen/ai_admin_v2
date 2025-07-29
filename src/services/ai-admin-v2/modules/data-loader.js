@@ -233,10 +233,10 @@ class DataLoader {
    * Загрузка расписания персонала
    */
   async loadStaffSchedules(companyId) {
-    // Загружаем расписание на ближайшие 7 дней
+    // Загружаем расписание на ближайшие 30 дней
     const today = new Date();
     const weekLater = new Date();
-    weekLater.setDate(today.getDate() + 7);
+    weekLater.setDate(today.getDate() + 30);
     
     logger.info(`Loading staff schedules from ${today.toISOString().split('T')[0]} to ${weekLater.toISOString().split('T')[0]}`);
     
