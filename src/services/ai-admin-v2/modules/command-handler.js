@@ -115,6 +115,15 @@ class CommandHandler {
           case 'CHECK_STAFF_SCHEDULE':
             const scheduleResult = await this.checkStaffSchedule(cmd.params, context);
             results.push({ type: 'staff_schedule', data: scheduleResult });
+            // Сохраняем результат проверки для последующего использования в CREATE_BOOKING
+            if (scheduleResult.targetStaff) {
+              context.lastStaffCheck = {
+                staff_name: scheduleResult.targetStaff.name,
+                is_working: scheduleResult.targetStaff.isWorking,
+                date: scheduleResult.date,
+                timestamp: new Date().toISOString()
+              };
+            }
             break;
         }
       } catch (error) {
@@ -279,6 +288,22 @@ class CommandHandler {
    * Создание записи
    */
   async createBooking(params, context) {
+    // Проверяем, если указан конкретный мастер
+    if (params.staff_name && context.lastStaffCheck) {
+      // Проверяем, что это тот же мастер и дата
+      if (context.lastStaffCheck.staff_name === params.staff_name && 
+          context.lastStaffCheck.date === formatter.parseRelativeDate(params.date)) {
+        
+        if (!context.lastStaffCheck.is_working) {
+          logger.info('Staff is not working according to previous check:', context.lastStaffCheck);
+          return {
+            success: false,
+            error: `${params.staff_name} не работает ${params.date}`
+          };
+        }
+      }
+    }
+    
     // Если передан service_name вместо service_id, ищем услугу
     let serviceId = params.service_id;
     if (params.service_name && !params.service_id) {
