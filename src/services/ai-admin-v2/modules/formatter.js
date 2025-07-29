@@ -92,7 +92,7 @@ class Formatter {
    * Форматирование расписания персонала
    */
   formatStaffSchedules(scheduleByDate, staffList) {
-    const days = Object.keys(scheduleByDate).sort().slice(0, 8);
+    const days = Object.keys(scheduleByDate).sort().slice(0, 30);
     return days.map(date => {
       const daySchedule = scheduleByDate[date];
       const staffNames = this.getStaffNames(
