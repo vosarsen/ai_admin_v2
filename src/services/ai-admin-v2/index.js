@@ -16,6 +16,7 @@ class AIAdminV2 {
   constructor() {
     this.contextCache = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5 минут
+    this.responseFormatter = formatter; // Добавляем форматтер
     
     // Запускаем периодическую очистку кеша
     setInterval(() => this.cleanupCache(), 60 * 1000); // каждую минуту
@@ -372,6 +373,7 @@ ${formatter.formatConversation(context.conversation)}
    - "хочу записаться на другое время/день" (если у клиента УЖЕ ЕСТЬ запись)
    ВАЖНО: если клиент говорит "не смогу прийти" и НЕ просит перенос - используй CANCEL_BOOKING
    КРИТИЧНО: При переносе НЕ ИСПОЛЬЗУЙ CHECK_STAFF_SCHEDULE! Сразу используй RESCHEDULE_BOOKING!
+   КРИТИЧНО: При переносе НЕ СПРАШИВАЙ "на какую услугу" - услуги остаются те же что в существующей записи!
 
 ТВОИ КОМАНДЫ (ИСПОЛЬЗУЙ ТОЧНО ТАКОЙ ФОРМАТ):
 1. [CHECK_STAFF_SCHEDULE staff_name: имя_мастера, date: дата] - быстрая проверка работает ли мастер
@@ -460,6 +462,8 @@ ${formatter.formatConversation(context.conversation)}
 
 9. [RESCHEDULE_BOOKING] или [RESCHEDULE_BOOKING date: новая_дата, time: новое_время, booking_number: номер_записи] - перенести запись
    Система автоматически проверит доступность времени перед переносом!
+   ВАЖНО: НЕ СПРАШИВАЙ "на какую услугу перенести" - услуги сохраняются из существующей записи!
+   ВАЖНО: НЕ ГОВОРИ "на какую услугу вам перенести запись?" - просто спроси новую дату и время!
    Примеры:
    - [RESCHEDULE_BOOKING] - покажет список записей и запросит новое время
    - [RESCHEDULE_BOOKING date: завтра, time: 15:00] - перенесет последнюю запись
@@ -855,7 +859,11 @@ ${JSON.stringify(slotsData)}
         }
       } else if (result.type === 'booking_rescheduled') {
         // Обработка результата переноса записи
-        if (result.data && result.data.temporaryLimitation) {
+        if (result.data && result.data.permissionError) {
+          // Ошибка прав доступа - запись создана через другой канал
+          finalResponse += '\n\n' + result.data.error;
+          // Убираем лишний текст с инструкциями
+        } else if (result.data && result.data.temporaryLimitation) {
           // Временное ограничение API
           finalResponse += '\n\n' + result.data.message;
           if (result.data.instructions && result.data.instructions.length > 0) {
@@ -912,9 +920,9 @@ ${JSON.stringify(slotsData)}
           if (staff.isWorking) {
             // Мастер работает - не добавляем ничего, AI сам ответит
           } else if (staff.found && !staff.isWorking) {
-            finalResponse += `\n\n${staff.name} не работает ${result.data.formattedDate}.`;
+            finalResponse += `\n\n${staff.name} не работает ${staff.formattedDate || result.data.formattedDate}.`;
           } else {
-            finalResponse += `\n\n${staff.name} не найден в расписании на ${result.data.formattedDate}.`;
+            finalResponse += `\n\n${staff.name} не найден в расписании на ${staff.formattedDate || result.data.formattedDate}.`;
           }
         } else if (result.data && result.data.working.length > 0) {
           // Общее расписание

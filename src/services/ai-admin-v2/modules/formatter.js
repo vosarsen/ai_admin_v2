@@ -214,6 +214,39 @@ class Formatter {
       return this.getNextWeekday(0);
     }
     
+    // Проверяем формат "число месяц" (например, "7 августа")
+    const monthPattern = /(\d{1,2})\s*(январ|феврал|март|апрел|май|мая|июн|июл|август|сентябр|октябр|ноябр|декабр)/i;
+    const monthMatch = lowerDate.match(monthPattern);
+    if (monthMatch) {
+      const day = parseInt(monthMatch[1]);
+      const monthStr = monthMatch[2];
+      const monthMap = {
+        'январ': 0, 'феврал': 1, 'март': 2, 'апрел': 3, 
+        'май': 4, 'мая': 4, 'июн': 5, 'июл': 6, 
+        'август': 7, 'сентябр': 8, 'октябр': 9, 
+        'ноябр': 10, 'декабр': 11
+      };
+      
+      for (const [key, monthIndex] of Object.entries(monthMap)) {
+        if (monthStr.startsWith(key)) {
+          const year = today.getFullYear();
+          const targetDate = new Date(year, monthIndex, day);
+          
+          // Если дата уже прошла в этом году, берем следующий год
+          if (targetDate < today) {
+            targetDate.setFullYear(year + 1);
+          }
+          
+          // Форматируем дату правильно для локального времени
+          const yearStr = targetDate.getFullYear();
+          const monthStr = String(targetDate.getMonth() + 1).padStart(2, '0');
+          const dayStr = String(targetDate.getDate()).padStart(2, '0');
+          
+          return `${yearStr}-${monthStr}-${dayStr}`;
+        }
+      }
+    }
+    
     // Пробуем распарсить как обычную дату
     const parsed = new Date(dateStr);
     if (!isNaN(parsed.getTime())) {

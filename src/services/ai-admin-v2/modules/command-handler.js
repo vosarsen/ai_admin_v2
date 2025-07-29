@@ -1020,28 +1020,18 @@ class CommandHandler {
         };
       }
       
+      // Сортируем записи по дате создания (последние созданные первыми)
+      futureBookings.sort((a, b) => {
+        // Если есть дата создания, используем её
+        if (a.create_date && b.create_date) {
+          return new Date(b.create_date) - new Date(a.create_date);
+        }
+        // Иначе сортируем по ID (больший ID = более новая запись)
+        return (b.id || 0) - (a.id || 0);
+      });
+      
       // Если не указаны новые дата и время, запрашиваем их
       if (!params.date || !params.time) {
-        // Если у клиента несколько записей, показываем их список
-        if (futureBookings.length > 1) {
-          const bookingsList = futureBookings.map((booking, index) => {
-            const date = new Date(booking.datetime);
-            const dateStr = formatter.formatDate(date);
-            const timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-            const serviceName = booking.services?.[0]?.title || booking.services?.[0]?.name || 'Услуга';
-            const staffName = booking.staff?.name || 'Мастер';
-            return `${index + 1}. ${dateStr} в ${timeStr} - ${serviceName} (${staffName})`;
-          }).join('\n');
-          
-          return {
-            success: false,
-            needsDateTime: true,
-            multipleBookings: true,
-            bookings: futureBookings,
-            message: `У вас есть несколько записей:\n\n${bookingsList}\n\nКакую запись хотите перенести? Укажите номер и новые дату/время.`
-          };
-        }
-        
         return {
           success: false,
           needsDateTime: true,
@@ -1053,27 +1043,29 @@ class CommandHandler {
       // Определяем, какую запись переносить
       let bookingToReschedule;
       
-      // Если указан номер записи (для случая с несколькими записями)
-      if (params.booking_number && futureBookings.length > 1) {
-        const bookingIndex = parseInt(params.booking_number) - 1;
-        if (bookingIndex >= 0 && bookingIndex < futureBookings.length) {
-          bookingToReschedule = futureBookings[bookingIndex];
-        } else {
-          return {
-            success: false,
-            error: `Неверный номер записи. Укажите число от 1 до ${futureBookings.length}`
-          };
-        }
-      } else {
-        // Берем последнюю запись для переноса
-        bookingToReschedule = futureBookings[0];
-      }
+      // Всегда берем последнюю созданную запись (первую после сортировки)
+      bookingToReschedule = futureBookings[0];
+      
+      logger.info('📋 Selected booking for reschedule', {
+        bookingId: bookingToReschedule.id,
+        datetime: bookingToReschedule.datetime,
+        services: bookingToReschedule.services,
+        staff: bookingToReschedule.staff,
+        createDate: bookingToReschedule.create_date
+      });
       const recordId = bookingToReschedule.id;
       
       // Парсим новую дату и время
       const targetDate = formatter.parseRelativeDate(params.date);
-      const newDateTime = `${targetDate} ${params.time}:00`;
-      const isoDateTime = new Date(newDateTime).toISOString();
+      // Формируем дату-время для YClients API (ожидает локальное время)
+      const isoDateTime = `${targetDate}T${params.time}:00`;
+      
+      logger.info('📅 Date formatting for reschedule', {
+        inputDate: params.date,
+        inputTime: params.time,
+        parsedDate: targetDate,
+        formattedDateTime: isoDateTime
+      });
       
       logger.info('📅 Attempting to reschedule booking', {
         recordId,
@@ -1147,29 +1139,8 @@ class CommandHandler {
         logger.info('✅ Successfully rescheduled booking', { recordId, newDateTime });
         
         // Обновляем напоминания для новой даты
-        try {
-          const reminderService = require('../../reminders/scheduler');
-          const phone = context.phone.replace('@c.us', '');
-          
-          // Отменяем старые напоминания
-          await reminderService.cancelRemindersForBooking(recordId);
-          
-          // Планируем новые напоминания
-          await reminderService.scheduleBookingReminders({
-            bookingId: recordId,
-            bookingDate: isoDateTime,
-            clientPhone: phone,
-            clientName: context.client?.name || bookingToReschedule.client?.name || 'Клиент',
-            serviceName: bookingToReschedule.services?.[0]?.title || 'услуга',
-            staffName: bookingToReschedule.staff?.name || 'мастер',
-            companyId: companyId
-          });
-          
-          logger.info('✅ Reminders rescheduled for booking', { recordId });
-        } catch (reminderError) {
-          logger.error('Failed to reschedule reminders:', reminderError);
-          // Не блокируем основной процесс из-за ошибки с напоминаниями
-        }
+        // TODO: Добавить обновление напоминаний когда модуль будет доступен
+        logger.info('⚠️ Reminder rescheduling skipped - module not available');
         
         return {
           success: true,
@@ -1183,12 +1154,47 @@ class CommandHandler {
       // Если простой метод не сработал, пробуем через полное обновление
       logger.warn('Simple reschedule failed, trying full update', { error: rescheduleResult.error });
       
+      // Проверяем, если это ошибка доступа (403), даем более понятное сообщение
+      if (rescheduleResult.error && rescheduleResult.error.includes('403')) {
+        logger.error('Permission denied for reschedule - booking may be created through different channel', {
+          recordId,
+          error: rescheduleResult.error
+        });
+        
+        return {
+          success: false,
+          permissionError: true,
+          error: 'К сожалению, не удалось перенести запись через бота.',
+          alternativeAction: 'cancel_and_rebook'
+        };
+      }
+      
+      // Получаем длительность услуги для fallback метода
+      let seanceLength = 3600; // По умолчанию 1 час
+      
+      if (bookingToReschedule.services && bookingToReschedule.services.length > 0) {
+        const serviceId = bookingToReschedule.services[0].id;
+        try {
+          const servicesResult = await yclientsClient.getServices({}, companyId);
+          if (servicesResult.success && servicesResult.data) {
+            const service = servicesResult.data.find(s => s.id === serviceId);
+            if (service && service.seance_length) {
+              seanceLength = service.seance_length;
+              logger.info('Found service seance_length', { serviceId, seanceLength });
+            }
+          }
+        } catch (error) {
+          logger.warn('Failed to get service seance_length, using default', { error: error.message });
+        }
+      }
+      
       const updateResult = await yclientsClient.updateRecord(
         companyId,
         recordId,
         {
           datetime: isoDateTime,
           staff_id: bookingToReschedule.staff?.id || bookingToReschedule.staff_id,
+          seance_length: seanceLength,
           services: bookingToReschedule.services?.map(s => ({
             id: s.id,
             cost: s.cost || s.price_min || 0,
@@ -1204,31 +1210,11 @@ class CommandHandler {
       );
       
       if (updateResult.success) {
-        logger.info('✅ Successfully rescheduled booking via full update', { recordId, newDateTime });
+        logger.info('✅ Successfully rescheduled booking via full update', { recordId, newDateTime: isoDateTime });
         
         // Обновляем напоминания для новой даты
-        try {
-          const reminderService = require('../../reminders/scheduler');
-          const phone = context.phone.replace('@c.us', '');
-          
-          // Отменяем старые напоминания
-          await reminderService.cancelRemindersForBooking(recordId);
-          
-          // Планируем новые напоминания
-          await reminderService.scheduleBookingReminders({
-            bookingId: recordId,
-            bookingDate: isoDateTime,
-            clientPhone: phone,
-            clientName: context.client?.name || bookingToReschedule.client?.name || 'Клиент',
-            serviceName: bookingToReschedule.services?.[0]?.title || 'услуга',
-            staffName: bookingToReschedule.staff?.name || 'мастер',
-            companyId: companyId
-          });
-          
-          logger.info('✅ Reminders rescheduled for booking (via full update)', { recordId });
-        } catch (reminderError) {
-          logger.error('Failed to reschedule reminders:', reminderError);
-        }
+        // TODO: Добавить обновление напоминаний когда модуль будет доступен
+        logger.info('⚠️ Reminder rescheduling skipped - module not available');
         
         return {
           success: true,
@@ -1239,17 +1225,10 @@ class CommandHandler {
         };
       }
       
-      // Если ничего не сработало, возвращаем инструкции
+      // Если ничего не сработало, возвращаем ошибку
       return {
         success: false,
-        temporaryLimitation: true,
-        error: updateResult.error || 'Не удалось перенести запись',
-        message: 'К сожалению, не удалось перенести запись через бота.',
-        instructions: [
-          '📱 Перенесите запись через мобильное приложение YClients',
-          '💻 Перенесите запись на сайте yclients.com',
-          `📞 Позвоните администратору: ${context.company?.phones?.[0] || '+7 (XXX) XXX-XX-XX'}`
-        ]
+        error: updateResult.error || 'Не удалось перенести запись'
       };
       
     } catch (error) {
@@ -1305,6 +1284,7 @@ class CommandHandler {
     // Формируем результат
     const result = {
       date: dateStr,
+      originalDate: date || 'сегодня',
       formattedDate: formatter.formatDate(targetDate),
       staff: [],
       working: [],
@@ -1349,7 +1329,9 @@ class CommandHandler {
       result.targetStaff = {
         name: staff.name,
         found: !!staffSchedule,
-        isWorking: staffSchedule?.is_working && staffSchedule?.has_booking_slots
+        isWorking: staffSchedule?.is_working && staffSchedule?.has_booking_slots,
+        date: result.originalDate,
+        formattedDate: result.formattedDate
       };
     }
     
@@ -1358,11 +1340,13 @@ class CommandHandler {
 
   removeCommands(response) {
     // Убираем команды в квадратных скобках
-    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|SAVE_CLIENT_NAME|CANCEL_BOOKING|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING|CHECK_STAFF_SCHEDULE)[^\]]*\]/g, '');
+    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|SAVE_CLIENT_NAME|CANCEL_BOOKING|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING|CHECK_STAFF_SCHEDULE|SHOWBOOKINGS)[^\]]*\]/g, '');
     
-    // Убираем технические фразы в скобках
-    cleaned = cleaned.replace(/\([^)]*(?:клиент|тестовое|команду|обратите внимание|поскольку)[^)]*\)/gi, '');
+    // Убираем технические фразы в скобках (расширенный список)
+    cleaned = cleaned.replace(/\([^)]*(?:клиент|тестовое|команду|обратите внимание|поскольку|После выполнения|если.*работает|Если.*работает|После проверки|продолжить запись|предложить альтернативы|сразу запишем)[^)]*\)/gi, '');
     cleaned = cleaned.replace(/\(Если клиент.*?\)/g, '');
+    cleaned = cleaned.replace(/\(После.*?\)/gi, '');
+    cleaned = cleaned.replace(/\(если.*?\)/gi, '');
     cleaned = cleaned.replace(/выполню.*?параметрами\./g, '');
     cleaned = cleaned.replace(/service_name=.*?(?=\s|$)/g, '');
     cleaned = cleaned.replace(/date=.*?(?=\s|$)/g, '');
