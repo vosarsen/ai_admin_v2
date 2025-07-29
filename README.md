@@ -34,7 +34,7 @@ AI Admin v2 is a next-generation WhatsApp booking assistant designed for beauty 
 - `[RESCHEDULE_BOOKING]` - ✅ Booking rescheduling with dual-method fallback
 - `[CONFIRM_BOOKING]` - Booking confirmation (in development)
 - `[MARK_NO_SHOW]` - No-show marking (in development)
-- `[CHECK_STAFF_SCHEDULE]` - Check staff availability for specific date
+- `[CHECK_STAFF_SCHEDULE]` - ✅ Silent staff availability check (no client notification)
 
 ### 🏗️ Architecture
 
