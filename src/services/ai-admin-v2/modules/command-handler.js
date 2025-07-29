@@ -517,6 +517,16 @@ class CommandHandler {
       throw new Error('Не удалось определить мастера для записи. Пожалуйста, укажите конкретного мастера.');
     }
     
+    // Проверяем, что время указано
+    if (!params.time) {
+      logger.error('Time is not specified in CREATE_BOOKING:', {
+        params,
+        message: context.message,
+        conversation: context.conversation
+      });
+      throw new Error('Не указано время для записи. Пожалуйста, укажите желаемое время.');
+    }
+    
     const bookingData = {
       phone: cleanPhone,
       fullname: clientName,
