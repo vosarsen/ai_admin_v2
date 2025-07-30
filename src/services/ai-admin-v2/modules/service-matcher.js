@@ -58,29 +58,41 @@ class ServiceMatcher {
       components: []
     };
     
-    // 1. Точное совпадение = 100 баллов
+    // 1. Точное совпадение = 1000 баллов (максимальный приоритет)
     if (serviceTitle === query) {
-      scoreDetails.components.push({ rule: 'exact_match', points: 100 });
-      scoreDetails.totalScore = 100;
+      scoreDetails.components.push({ rule: 'exact_match', points: 1000 });
+      scoreDetails.totalScore = 1000;
       logger.info('Service match details:', scoreDetails);
-      return 100;
+      return 1000;
     }
     
-    // 2. Услуга содержит запрос = 80 баллов
+    // Разбиваем на слова для последующих проверок
+    const queryWords = query.split(' ');
+    const serviceWords = serviceTitle.split(' ');
+    
+    // 2. Проверка, что все слова запроса есть в названии услуги = 500 баллов
+    const significantQueryWords = queryWords.filter(w => w.length > 2); // Игнорируем предлоги
+    const allQueryWordsInService = significantQueryWords.length > 1 && 
+      significantQueryWords.every(qWord => 
+        serviceWords.some(sWord => sWord.includes(qWord))
+      );
+    
+    if (allQueryWordsInService) {
+      score += 500;
+      scoreDetails.components.push({ rule: 'all_words_match', points: 500 });
+    }
+    
+    // 3. Услуга содержит запрос = 80 баллов
     if (serviceTitle.includes(query)) {
       score += 80;
       scoreDetails.components.push({ rule: 'title_contains_query', points: 80 });
     }
     
-    // 3. Запрос содержит услугу = 70 баллов
+    // 4. Запрос содержит услугу = 70 баллов
     if (query.includes(serviceTitle)) {
       score += 70;
       scoreDetails.components.push({ rule: 'query_contains_title', points: 70 });
     }
-    
-    // 4. Проверка по словам
-    const queryWords = query.split(' ');
-    const serviceWords = serviceTitle.split(' ');
     
     // Каждое слово из запроса найдено в услуге = +20 баллов
     let wordMatchCount = 0;
