@@ -136,29 +136,6 @@
   - [ ] При занятом времени должны предлагаться 3 ближайших слота
   - [ ] Не должны показываться все слоты дня
 
-### 🔴 High Priority - Test Previously Blocked Functions
-- [ ] **Протестировать все функции, которые были заблокированы из-за прав**
-  - [ ] Отмена записи (DELETE /record/962302/{id})
-  - [ ] Изменение записи (PUT /record/962302/{id})
-  - [ ] Создание клиента (POST /clients/962302)
-  - [ ] Получение информации о записи (GET /record/962302/{id})
-  - [ ] Изменение статуса визита (PUT /visits/{visit_id}/{record_id})
-  - [ ] Получение истории посещений клиента
-  - [ ] Обновить код для использования правильных заголовков
-
-### 🔴 High Priority - Testing After Fixes
-- [ ] **Test all functions with improved AI**
-  - [ ] Test booking with existing clients
-  - [ ] Test booking for dates beyond 7 days
-  - [ ] Test service recognition
-  - [ ] Test staff schedule visibility
-- [ ] **Add automatic alternative slots on booking errors**
-  - [ ] When booking fails, immediately show available slots
-  - [ ] Format slots nicely for user
-  - [ ] Test with various error scenarios
-- [ ] **Test AI time understanding**
-  - [ ] AI should understand "на 3" as 15:00
-  - [ ] Test various time formats
 
 ### 🟡 Medium Priority - Testing Required
 - [x] **Тестирование некорректных вводов**
