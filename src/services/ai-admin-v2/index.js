@@ -925,16 +925,23 @@ ${JSON.stringify(slotsData)}
         if (result.data?.record_id) {
           try {
             const { supabase } = require('../../database/supabase');
+            // Находим клиента по телефону
+            const phone = context.phone.replace('@c.us', '');
+            const { data: clientData } = await supabase
+              .from('clients')
+              .select('id')
+              .eq('phone', phone)
+              .eq('company_id', context.company.company_id)
+              .maybeSingle();
+            
             const bookingData = {
-              user_id: context.phone.replace('@c.us', ''),
-              record_id: result.data.record_id,
-              appointment_datetime: result.data.datetime,
-              metadata: {
-                record_hash: result.data.record_hash,
-                service_name: result.data.service_name,
-                staff_name: result.data.staff_name,
-                company_id: context.company.company_id
-              }
+              company_id: context.company.company_id,
+              client_id: clientData?.id || null,
+              yclients_record_id: String(result.data.record_id),
+              service_name: result.data.service_name || null,
+              staff_name: result.data.staff_name || null,
+              scheduled_at: result.data.datetime || null,
+              status: 'confirmed'
             };
             
             const { error } = await supabase
@@ -942,11 +949,17 @@ ${JSON.stringify(slotsData)}
               .insert([bookingData]);
               
             if (error) {
-              logger.error('Failed to save booking to database:', error);
+              logger.error('Failed to save booking to database:', {
+                error: error.message,
+                details: error.details,
+                hint: error.hint,
+                code: error.code
+              });
             } else {
               logger.info('Booking saved to database:', {
-                record_id: result.data.record_id,
-                user_id: bookingData.user_id
+                yclients_record_id: bookingData.yclients_record_id,
+                client_id: bookingData.client_id,
+                company_id: bookingData.company_id
               });
             }
           } catch (error) {
