@@ -1366,9 +1366,12 @@ class CommandHandler {
       });
     }
     
-    // Находим всех кто НЕ работает
+    // Находим всех кто НЕ работает из тех, кто есть в расписании
+    // Если мастера нет в расписании на эту дату - считаем что он не работает
+    const scheduledStaffIds = new Set(schedules.map(s => s.staff_id));
+    
     context.staff.forEach(staffMember => {
-      if (!workingStaffIds.has(staffMember.yclients_id)) {
+      if (!scheduledStaffIds.has(staffMember.yclients_id) || !workingStaffIds.has(staffMember.yclients_id)) {
         result.notWorking.push(staffMember.name);
       }
     });
