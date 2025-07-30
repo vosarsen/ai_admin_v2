@@ -934,36 +934,63 @@ ${JSON.stringify(slotsData)}
               .eq('company_id', context.company.company_id)
               .maybeSingle();
             
-            const bookingData = {
+            // Найдем service_id и staff_id по названиям
+            let service_id = null;
+            let staff_id = null;
+            
+            if (result.data.service_name) {
+              const { data: serviceData } = await supabase
+                .from('services')
+                .select('yclients_id')
+                .eq('title', result.data.service_name)
+                .eq('company_id', context.company.company_id)
+                .maybeSingle();
+              service_id = serviceData?.yclients_id || null;
+            }
+            
+            if (result.data.staff_name) {
+              const { data: staffData } = await supabase
+                .from('staff')
+                .select('yclients_id')
+                .eq('name', result.data.staff_name)
+                .eq('company_id', context.company.company_id)
+                .maybeSingle();
+              staff_id = staffData?.yclients_id || null;
+            }
+            
+            const appointmentData = {
+              yclients_record_id: parseInt(result.data.record_id),
               company_id: context.company.company_id,
               client_id: clientData?.id || null,
-              yclients_record_id: String(result.data.record_id),
-              service_name: result.data.service_name || null,
-              staff_name: result.data.staff_name || null,
-              scheduled_at: result.data.datetime || null,
-              status: 'confirmed'
+              service_id: service_id,
+              staff_id: staff_id,
+              appointment_datetime: result.data.datetime || null,
+              status: 'confirmed',
+              comment: 'Запись через AI администратора WhatsApp',
+              synced_at: new Date().toISOString()
             };
             
             const { error } = await supabase
-              .from('bookings')
-              .insert([bookingData]);
+              .from('appointments_cache')
+              .insert([appointmentData]);
               
             if (error) {
-              logger.error('Failed to save booking to database:', {
+              logger.error('Failed to save appointment to appointments_cache:', {
                 error: error.message,
                 details: error.details,
                 hint: error.hint,
                 code: error.code
               });
             } else {
-              logger.info('Booking saved to database:', {
-                yclients_record_id: bookingData.yclients_record_id,
-                client_id: bookingData.client_id,
-                company_id: bookingData.company_id
+              logger.info('Appointment saved to appointments_cache:', {
+                yclients_record_id: appointmentData.yclients_record_id,
+                client_id: appointmentData.client_id,
+                service_id: appointmentData.service_id,
+                staff_id: appointmentData.staff_id
               });
             }
           } catch (error) {
-            logger.error('Error saving booking to database:', error);
+            logger.error('Error saving appointment to appointments_cache:', error);
           }
         }
         
