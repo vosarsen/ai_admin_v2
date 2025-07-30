@@ -230,6 +230,14 @@ class MessageWorkerV2 {
   async scheduleReminders(booking, phone) {
     try {
       const bookingTime = new Date(booking.datetime || `${booking.date} ${booking.time}`);
+      const now = new Date();
+      const hoursUntilBooking = (bookingTime - now) / (1000 * 60 * 60);
+      
+      // ВАЖНО: Не создаем напоминания если до записи менее 4 часов
+      if (hoursUntilBooking < 4) {
+        logger.info(`⏭️ Skipping reminders - booking in ${hoursUntilBooking.toFixed(1)} hours (less than 4 hours)`);
+        return;
+      }
       
       // Напоминание за день в случайное время между 19:00 и 21:00
       const dayBefore = new Date(bookingTime);
@@ -240,7 +248,7 @@ class MessageWorkerV2 {
       const randomMinute = Math.floor(Math.random() * 60); // 0-59
       dayBefore.setHours(randomHour, randomMinute, 0, 0);
       
-      if (dayBefore > new Date()) {
+      if (dayBefore > now) {
         await messageQueue.addReminder({
           type: 'day_before',
           booking,
@@ -249,19 +257,20 @@ class MessageWorkerV2 {
         logger.info(`📅 Scheduled day-before reminder for ${dayBefore.toLocaleString('ru-RU')}`);
       }
       
-      // Напоминание за 2 часа
+      // Напоминание за 2 часа (только если запись не раньше чем через 4 часа)
       const twoHoursBefore = new Date(bookingTime.getTime() - 2 * 60 * 60 * 1000);
       
-      if (twoHoursBefore > new Date()) {
+      if (twoHoursBefore > now) {
         await messageQueue.addReminder({
           type: 'hours_before',
           booking,
           phone,
           hours: 2
         }, twoHoursBefore);
+        logger.info(`⏰ Scheduled 2-hour reminder for ${twoHoursBefore.toLocaleString('ru-RU')}`);
       }
       
-      logger.info(`⏰ Scheduled reminders for booking`);
+      logger.info(`✅ Reminders scheduled for booking at ${bookingTime.toLocaleString('ru-RU')}`);
     } catch (error) {
       logger.error('Failed to schedule reminders:', error);
     }
