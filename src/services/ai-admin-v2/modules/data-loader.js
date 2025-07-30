@@ -314,6 +314,7 @@ class DataLoader {
       // Оставляем только последние 20 сообщений
       const recentMessages = messages.slice(-20);
       
+      // Сохраняем в Supabase
       await supabase
         .from('dialog_contexts')
         .upsert({
@@ -325,6 +326,25 @@ class DataLoader {
         }, {
           onConflict: 'user_id,company_id'
         });
+      
+      // ВАЖНО: Также сохраняем контекст в Redis для быстрого доступа
+      const contextService = require('../../context');
+      
+      // Сохраняем информацию о последней команде и услуге
+      const contextData = {
+        lastCommand: result.executedCommands?.[0]?.command || null,
+        lastService: result.executedCommands?.[0]?.params?.service_name || null,
+        lastStaff: result.executedCommands?.[0]?.params?.staff_name || null,
+        lastMessageTime: new Date().toISOString(),
+        recentMessages: recentMessages.slice(-5), // Последние 5 сообщений для контекста
+        clientName: context.client?.name || null
+      };
+      
+      await contextService.setContext(cleanPhone, companyId, {
+        data: contextData
+      });
+      
+      logger.info('Context saved to both Supabase and Redis');
     } catch (error) {
       logger.error('Error saving context:', error);
     }
