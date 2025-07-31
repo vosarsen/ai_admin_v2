@@ -14,12 +14,7 @@ const contextService = require('../context');
  */
 class AIAdminV2 {
   constructor() {
-    this.contextCache = new Map();
-    this.cacheTimeout = 5 * 60 * 1000; // 5 минут
     this.responseFormatter = formatter; // Добавляем форматтер
-    
-    // Запускаем периодическую очистку кеша
-    setInterval(() => this.cleanupCache(), 60 * 1000); // каждую минуту
   }
 
   /**
@@ -105,20 +100,20 @@ class AIAdminV2 {
   }
 
   /**
-   * Загрузка полного контекста (с кешированием)
+   * Загрузка полного контекста (с Redis кешированием)
    */
   async loadFullContext(phone, companyId) {
-    const cacheKey = `${phone}_${companyId}`;
-    const cached = this.contextCache.get(cacheKey);
+    const startTime = Date.now();
     
-    // Проверяем кеш
-    if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
-      logger.info('Using cached context');
-      return { ...cached.data, startTime: Date.now() };
+    // 1. Проверяем Redis кеш
+    logger.info(`Checking Redis cache for ${phone}@${companyId}`);
+    const cachedContext = await contextService.getCachedFullContext(phone, companyId);
+    if (cachedContext) {
+      logger.info(`✅ Context loaded from Redis cache in ${Date.now() - startTime}ms`);
+      return { ...cachedContext, startTime: Date.now() };
     }
     
-    logger.info('Loading full context from database...');
-    const startTime = Date.now();
+    logger.info('❌ No cached context found, loading from database...');
     
     // Параллельная загрузка всех данных
     const [
@@ -191,13 +186,10 @@ class AIAdminV2 {
       isReturningClient: conversationSummary?.hasHistory || false
     };
     
-    // Сохраняем в кеш
-    this.contextCache.set(cacheKey, {
-      data: context,
-      timestamp: Date.now()
-    });
+    // Сохраняем в Redis кеш на 12 часов
+    await contextService.setCachedFullContext(phone, companyId, context);
     
-    logger.info(`Context loaded in ${Date.now() - startTime}ms`);
+    logger.info(`Context loaded from DB in ${Date.now() - startTime}ms`);
     return context;
   }
 
@@ -1249,17 +1241,6 @@ ${JSON.stringify(slotsData)}
     return await this.aiProvider._callAI(prompt);
   }
 
-  /**
-   * Очистка устаревших записей в кеше
-   */
-  cleanupCache() {
-    const now = Date.now();
-    for (const [key, value] of this.contextCache.entries()) {
-      if (now - value.timestamp > this.cacheTimeout) {
-        this.contextCache.delete(key);
-      }
-    }
-  }
 }
 
 module.exports = new AIAdminV2();

@@ -504,6 +504,68 @@ class ContextService {
   }
 
   /**
+   * Get cached full context from Redis
+   */
+  async getCachedFullContext(phone, companyId) {
+    const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
+    const cacheKey = `full_context:${companyId}:${normalizedPhone}`;
+    
+    try {
+      logger.debug(`Looking for cached context with key: ${cacheKey}`);
+      const cached = await this.redisRaw.get(cacheKey);
+      if (cached) {
+        logger.info(`Full context found in Redis cache, size: ${cached.length} bytes`);
+        return JSON.parse(cached);
+      }
+      logger.debug(`No cached context found for key: ${cacheKey}`);
+      return null;
+    } catch (error) {
+      logger.error('Error getting cached context:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Set cached full context in Redis with TTL
+   */
+  async setCachedFullContext(phone, companyId, context, ttl = 12 * 60 * 60) {
+    const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
+    const cacheKey = `full_context:${companyId}:${normalizedPhone}`;
+    
+    try {
+      const contextStr = JSON.stringify(context);
+      logger.debug(`Caching context with key: ${cacheKey}, size: ${contextStr.length} bytes, TTL: ${ttl}s`);
+      await this.redisRaw.setex(
+        cacheKey,
+        ttl, // 12 часов по умолчанию
+        contextStr
+      );
+      logger.info(`Full context cached in Redis with key: ${cacheKey}`);
+      return true;
+    } catch (error) {
+      logger.error('Error caching context:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Invalidate cached full context
+   */
+  async invalidateCachedContext(phone, companyId) {
+    const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
+    const cacheKey = `full_context:${companyId}:${normalizedPhone}`;
+    
+    try {
+      await this.redisRaw.del(cacheKey);
+      logger.info('Cached context invalidated');
+      return true;
+    } catch (error) {
+      logger.error('Error invalidating cache:', error);
+      return false;
+    }
+  }
+
+  /**
    * Clear old contexts (for scheduled cleanup)
    */
   async clearOldContexts(daysToKeep = 30) {

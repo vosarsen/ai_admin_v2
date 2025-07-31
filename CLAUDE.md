@@ -129,6 +129,7 @@ Example of INCORRECT testing:
 - **Server path**: /opt/ai-admin
 - **SSH Key**: Available at `~/.ssh/id_ed25519_ai_admin` (use with `-i` flag)
 - **SSH Command**: `ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219`
+- **Test phone number**: +79686484488 (используй для всех тестов WhatsApp)
 
 ## Development Workflow
 

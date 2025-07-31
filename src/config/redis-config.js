@@ -6,9 +6,13 @@ const logger = require('../utils/logger');
  * Гарантирует, что все процессы используют одинаковые настройки
  */
 function getRedisConfig() {
+  // Определяем порт в зависимости от окружения
+  const isLocal = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+  const port = isLocal ? 6380 : 6379; // Локально используем SSH туннель на 6380
+  
   const config = {
     host: 'localhost',
-    port: 6379, // ВСЕГДА используем 6379 на сервере
+    port: port,
     password: process.env.REDIS_PASSWORD,
     db: 0, // Явно указываем базу данных 0
     connectTimeout: 10000,
