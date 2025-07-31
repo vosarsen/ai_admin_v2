@@ -1,6 +1,6 @@
 // src/sync/sync-manager.js
 const logger = require('../utils/logger');
-const { UniversalYclientsSync } = require('../../universal-yclients-sync');
+const { UniversalYclientsSync } = require('../../scripts/universal-yclients-sync');
 
 /**
  * 🔄 SYNC MANAGER - Централизованное управление синхронизацией
