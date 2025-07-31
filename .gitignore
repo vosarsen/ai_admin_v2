@@ -8,6 +8,33 @@ lerna-debug.log*
 
 # Temporary files
 temp/
+*.tmp
+*.bak
+*.backup
+*.swp
+*.swo
+*~
+
+# MCP test files
+mcp-test-config.json
+
+# Redis tunnel logs
+.redis-tunnel.log
+
+# Local test data
+test-data/
+
+# WhatsApp sessions
+venom-bot-session/
+tokens/
+
+# Development environment
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json

@@ -4,54 +4,80 @@ const router = express.Router();
 const logger = require('../../utils/logger');
 const config = require('../../config');
 const { supabase } = require('../../database/supabase');
+const YClientsWebhookProcessor = require('../../services/webhook-processor');
+
+// Инициализация процессора webhook
+const webhookProcessor = new YClientsWebhookProcessor();
 
 /**
  * YClients Webhook endpoint
  * Получает уведомления от YClients о событиях (новые записи, изменения и т.д.)
  */
 router.post('/webhook/yclients', async (req, res) => {
+  const startTime = Date.now();
+  const eventId = req.headers['x-event-id'] || `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
   try {
-    logger.info('YClients webhook received:', {
+    logger.info('📨 YClients webhook received:', {
+      eventId,
+      eventType: req.body?.event,
       headers: req.headers,
       body: req.body
     });
 
-    // Проверяем подпись запроса (если YClients присылает)
-    // const signature = req.headers['x-yclients-signature'];
-    // TODO: Implement signature validation
+    // Быстро отвечаем YClients, чтобы избежать повторов
+    res.status(200).json({ success: true, eventId });
 
-    const { event, data } = req.body;
+    // Проверяем дубликаты
+    const { data: existingEvent } = await supabase
+      .from('webhook_events')
+      .select('id')
+      .eq('event_id', eventId)
+      .single();
 
-    // Обрабатываем разные типы событий
-    switch (event) {
-      case 'record.created':
-        // Новая запись создана через YClients
-        logger.info('New booking created in YClients:', data);
-        // TODO: Синхронизировать с нашей БД
-        break;
-
-      case 'record.updated':
-        // Запись изменена
-        logger.info('Booking updated in YClients:', data);
-        // TODO: Обновить в нашей БД
-        break;
-
-      case 'record.deleted':
-        // Запись удалена
-        logger.info('Booking deleted in YClients:', data);
-        // TODO: Обновить статус в нашей БД
-        break;
-
-      default:
-        logger.warn('Unknown YClients event:', event);
+    if (existingEvent) {
+      logger.warn('⚠️ Duplicate webhook event', { eventId });
+      return;
     }
 
-    // Всегда отвечаем 200 OK
-    res.status(200).json({ success: true });
+    // Сохраняем событие для аудита
+    const { error: saveError } = await supabase
+      .from('webhook_events')
+      .insert({
+        event_id: eventId,
+        event_type: req.body.event,
+        company_id: req.body.data?.company_id || req.body.company_id,
+        record_id: req.body.data?.id,
+        payload: req.body,
+        created_at: new Date().toISOString()
+      });
+
+    if (saveError) {
+      logger.error('❌ Failed to save webhook event', { eventId, error: saveError });
+    }
+
+    // Обрабатываем событие
+    await webhookProcessor.processEvent({
+      id: eventId,
+      type: req.body.event,
+      companyId: req.body.data?.company_id || req.body.company_id,
+      data: req.body.data,
+      timestamp: req.body.created_at || new Date().toISOString()
+    });
+
+    const processingTime = Date.now() - startTime;
+    logger.info('✅ Webhook processed successfully', {
+      eventId,
+      processingTime,
+      eventType: req.body.event
+    });
+
   } catch (error) {
-    logger.error('YClients webhook error:', error);
-    // YClients ожидает 200 OK, иначе будет повторять запрос
-    res.status(200).json({ success: false, error: error.message });
+    logger.error('❌ YClients webhook error:', {
+      eventId,
+      error: error.message,
+      stack: error.stack
+    });
   }
 });
 
@@ -145,10 +171,75 @@ router.get('/yclients/test', (req, res) => {
     endpoints: {
       webhook: '/webhook/yclients',
       callback: '/callback/yclients',
-      redirect: '/auth/yclients/redirect'
+      redirect: '/auth/yclients/redirect',
+      testWebhook: '/webhook/yclients/test'
     },
     message: 'YClients integration endpoints are ready'
   });
+});
+
+/**
+ * Тестовый endpoint для эмуляции webhook событий
+ */
+router.post('/webhook/yclients/test', async (req, res) => {
+  try {
+    const { eventType = 'record.created', phone = '79001234567', ...customData } = req.body;
+    
+    // Создаем тестовое событие
+    const testEvent = {
+      event: eventType,
+      data: {
+        id: Math.floor(Math.random() * 100000),
+        company_id: config.yclients?.companyId || 962302,
+        datetime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Завтра
+        services: [
+          {
+            id: 1,
+            title: customData.service || 'Тестовая стрижка',
+            cost: customData.cost || 1500
+          }
+        ],
+        staff: {
+          id: 1,
+          name: customData.master || 'Мастер Тест'
+        },
+        client: {
+          id: 1,
+          name: customData.clientName || 'Тестовый Клиент',
+          phone: phone
+        },
+        comment: customData.comment || 'Тестовая запись для проверки webhook',
+        ...customData
+      },
+      created_at: new Date().toISOString()
+    };
+    
+    logger.info('🧪 Simulating webhook event', testEvent);
+    
+    // Вызываем обработчик webhook
+    const eventId = `test_${Date.now()}`;
+    await webhookProcessor.processEvent({
+      id: eventId,
+      type: testEvent.event,
+      companyId: testEvent.data.company_id,
+      data: testEvent.data,
+      timestamp: testEvent.created_at
+    });
+    
+    res.json({
+      success: true,
+      message: 'Test webhook processed',
+      eventId,
+      testEvent
+    });
+    
+  } catch (error) {
+    logger.error('❌ Test webhook error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 module.exports = router;

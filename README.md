@@ -15,11 +15,11 @@ AI Admin v2 is a next-generation WhatsApp booking assistant designed for beauty 
 
 - 🤖 **AI-First Processing**: Dynamic service/staff resolution without hardcoding
 - ⚡ **Automatic Booking**: Creates bookings instantly when time & service specified
-- 🚀 **Smart Caching**: Intelligent caching with semantic search (avg <10ms response)
-- 🔥 **Rapid-Fire Protection**: Message aggregation prevents spam (5-15s windows)
+- 🚀 **Smart Caching**: Redis-based context caching with 12-hour TTL
+- 🔥 **Rapid-Fire Protection**: Redis-based message batching (10s window)
 - 💡 **Proactive Suggestions**: Never says "unavailable" without alternatives
 - 📊 **Performance Monitoring**: Real-time metrics and health checks
-- 🌐 **Multi-Tenant Ready**: Scalable to 150+ companies
+- 🌐 **Multi-Tenant Ready**: Scalable to 10,000+ companies
 - 🔒 **Production Security**: Rate limiting, authentication, data validation
 - ⏰ **Automatic Reminders**: Two-tier reminder system (day before + 2 hours before)
 - 🔔 **Booking Monitor**: Auto-notifies clients when admin creates bookings
@@ -32,90 +32,53 @@ AI Admin v2 is a next-generation WhatsApp booking assistant designed for beauty 
 - `[SAVE_CLIENT_NAME]` - Automatic client name recognition
 - `[CANCEL_BOOKING]` - ✅ Booking cancellation (soft delete via attendance status)
 - `[RESCHEDULE_BOOKING]` - ✅ Booking rescheduling with dual-method fallback
-- `[CONFIRM_BOOKING]` - Booking confirmation (in development)
-- `[MARK_NO_SHOW]` - No-show marking (in development)
-- `[CHECK_STAFF_SCHEDULE]` - ✅ Silent staff availability check (no client notification)
+- `[CHECK_STAFF_SCHEDULE]` - ✅ Silent staff availability check
 
-### 🏗️ Architecture
+## 📁 Project Structure
 
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   WhatsApp      │───▶│   Message        │───▶│   AI Service    │
-│   Webhook       │    │   Worker         │    │   + Entity      │
-└─────────────────┘    └──────────────────┘    │   Resolver      │
-                                ▼               └─────────────────┘
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Smart Cache   │◀──▶│   Rapid-Fire     │───▶│   YClients      │
-│   (Redis/Memory)│    │   Protection     │    │   API           │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-                                ▼
-                       ┌──────────────────┐    ┌─────────────────┐
-                       │   Proactive      │    │   Reminder      │
-                       │   Suggestions    │    │   Worker        │
-                       └──────────────────┘    └─────────────────┘
-                                                       ▲
-                       ┌──────────────────┐    ┌─────────────────┐
-                       │  Booking Monitor │───▶│   WhatsApp      │
-                       │   (Polling)      │    │   Notifications │
-                       └──────────────────┘    └─────────────────┘
-```
-
-### ⏰ Reminder System
-
-AI Admin v2 includes a sophisticated reminder system that automatically sends WhatsApp messages to clients about their upcoming appointments:
-
-**Features:**
-- 📅 **Day-before reminder**: Sent between 19:00-21:00 (random time for natural feel)
-- ⏰ **2-hour reminder**: Sent exactly 2 hours before the appointment
-- 🔄 **Automatic scheduling**: Reminders are scheduled when booking is created
-- 🛡️ **Duplicate protection**: Each reminder is sent only once
-- 📊 **Status tracking**: Database records when each reminder was sent
-
-**Example messages:**
-```
-Добрый вечер! 🌙
-Напоминаем, что вы записаны на завтра:
-📅 25 июля
-⏰ 15:00
-💇 Мужская стрижка
-👤 Сергей
-```
-
-### 🔔 Booking Monitor
-
-AI Admin v2 includes an automatic notification system for bookings created by administrators:
-
-**How it works:**
-- 🔍 **Polling-based monitoring**: Checks for new bookings every minute
-- ⏱️ **30-second delay**: Gives admin time to make corrections before notification
-- 🎯 **Smart filtering**: Only notifies for admin-created bookings (not bot bookings)
-- 📱 **WhatsApp delivery**: Sends professional confirmation message to client
-
-**Status**: ✅ Deployed to production (requires extended YClients API permissions)
-
-**Example notification:**
-```
-✅ *Ваша запись подтверждена!*
-
-📋 *Детали записи:*
-🏢 Барбершоп "Название"
-📅 25 июля
-🕐 15:00
-💇 Мужская стрижка
-👤 Сергей
-💰 Стоимость: 1500 руб.
-📍 ул. Ленина 10, Москва
-
-💬 _Ждём вас! Если планы изменятся, пожалуйста, предупредите заранее._
+ai_admin_v2/
+├── src/                    # Source code
+│   ├── api/               # REST API endpoints & webhooks
+│   ├── config/            # Configuration (business types, settings)
+│   ├── database/          # Database clients (Supabase, Redis)
+│   ├── integrations/      # External integrations (WhatsApp, YClients)
+│   ├── queue/             # Message queue management (BullMQ)
+│   ├── services/          # Core services
+│   │   ├── ai-admin-v2/   # Main AI service
+│   │   ├── booking/       # Booking operations
+│   │   └── context/       # Context management
+│   └── workers/           # Background workers
+├── docs/                  # Documentation
+│   ├── development-diary/ # Daily development logs
+│   ├── features/          # Feature documentation
+│   ├── guides/            # Setup and usage guides
+│   └── sessions/          # Session summaries
+├── scripts/               # Utility scripts
+│   ├── database/          # Database management
+│   └── deployment/        # Deployment scripts
+├── tests/                 # Test suites
+│   ├── manual/            # Manual test scripts
+│   │   ├── booking/       # Booking related tests
+│   │   ├── context/       # Context management tests
+│   │   ├── redis/         # Redis and batching tests
+│   │   ├── whatsapp/      # WhatsApp integration tests
+│   │   ├── yclients/      # YClients API tests
+│   │   └── misc/          # Other test scripts
+│   └── integration/       # Integration tests
+├── mcp/                   # MCP servers for testing
+├── examples/              # Code examples and patterns
+├── legacy/                # Legacy v1 code (archived)
+└── public/                # Static files
 ```
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- Node.js 18+ 
-- Redis (optional, falls back to memory cache)
-- Supabase account (optional, falls back to mocks)
+- Node.js 18+
+- Redis server
+- PostgreSQL (via Supabase)
 - YClients API access
 - WhatsApp Business API or Venom Bot
 
@@ -129,433 +92,97 @@ cd ai_admin_v2
 # Install dependencies
 npm install
 
-# Copy environment template
+# Copy environment variables
 cp .env.example .env
 
-# Configure environment variables
-nano .env
-```
-
-### Environment Configuration
-
-```bash
-# Application Settings
-NODE_ENV=production
-PORT=3000
-MASTER_KEY=your-secure-master-key
-
-# AI Configuration
-AI_PROVIDER=deepseek
-AI_API_KEY=your-ai-api-key
-AI_MODEL=deepseek-chat
-AI_BASE_URL=https://api.deepseek.com
-
-# Database
-SUPABASE_URL=your-supabase-url
-SUPABASE_KEY=your-supabase-anon-key
-
-# YClients Integration
-YCLIENTS_API_KEY=your-yclients-api-key
-YCLIENTS_COMPANY_ID=your-company-id
-
-# WhatsApp Integration
-VENOM_API_KEY=your-venom-api-key
-VENOM_SECRET_KEY=your-venom-secret
-WEBHOOK_SECRET=your-webhook-secret
-
-# Performance & Caching
-REDIS_URL=redis://localhost:6379
-CACHE_TTL_DEFAULT=1800
-SMART_CACHE_ENABLED=true
-
-# Rate Limiting
-RATE_LIMIT_ENABLED=true
-RATE_LIMIT_REQUESTS_PER_MINUTE=30
-RATE_LIMIT_BURST_LIMIT=5
-
-# Monitoring
-MONITORING_ENABLED=true
-HEALTH_CHECK_INTERVAL=300000
-```
-
-### Running the Application
-
-```bash
-# Development mode
+# Start development
 npm run dev
-
-# Production mode
-npm start
-
-# Run tests
-npm test
-
-# Test architecture
-node test-architecture-simple.js
-
-# Test proactive AI
-node test-proactive-ai.js
-
-# Test monitoring
-node test-monitoring-simple.js
 ```
 
-## 📊 Performance & Testing
-
-### Performance Benchmarks
-
-Based on comprehensive testing:
-
-- **Average Response Time**: <10ms (with cache)
-- **Cache Hit Rate**: 70-90% (typical production)
-- **Throughput**: 30 requests/minute per phone number
-- **Error Rate**: <2% (production average)
-- **Memory Usage**: ~50MB base, scales linearly
-
-### Test Suite
+### Key Scripts
 
 ```bash
-# Run all tests
-npm test
-
-# Individual component tests
-node test-architecture-simple.js    # Core architecture
-node test-proactive-ai.js           # AI suggestions
-node test-monitoring-simple.js      # Monitoring system
-
-# Performance stress test
-node test-architecture-simple.js    # Includes stress testing
+npm run dev              # Start development server
+npm run worker:v2        # Start v2 workers
+npm test                 # Run tests
+npm run monitor          # Real-time monitoring
+./start-work.sh          # Quick project status
 ```
-
-### Health Monitoring
-
-Access real-time monitoring at `/health` endpoint:
-
-```bash
-curl http://localhost:3000/health
-
-# Response includes:
-# - Component health status
-# - Performance metrics  
-# - Active alerts
-# - Resource usage
-```
-
-## ⚠️ Current Limitations
-
-### YClients API Permissions
-Due to current API key limitations, the following features are implemented but not functional:
-
-| Feature | Status | Required Permission |
-|---------|--------|-------------------|
-| Booking Creation | ✅ Working | book_record |
-| Show Services/Prices | ✅ Working | book_services |
-| Show Available Slots | ✅ Working | book_times |
-| Cancel Booking | ❌ No Access | records:delete |
-| Reschedule Booking | ❌ No Access | records:write |
-| Confirm Booking | ❌ No Access | visits:write |
-| Mark No-Show | ❌ No Access | visits:write |
-| Search Clients | ❌ No Access | clients:search |
-| Create Clients | ❌ No Access | clients:create |
-
-**Note**: All code is production-ready and will work automatically once API permissions are granted.
-
-## 🏢 Production Deployment
-
-### Environment Setup
-
-1. **Configure Supabase**:
-   ```sql
-   -- Tables: companies, services, staff, clients, appointments_cache
-   -- See: src/database/SB_schema.js
-   ```
-
-2. **Setup Redis** (recommended for production):
-   ```bash
-   # Local Redis
-   redis-server
-   
-   # Or use cloud Redis (AWS ElastiCache, etc.)
-   ```
-
-3. **Configure YClients**:
-   ```bash
-   # Get API key from YClients
-   # Set YCLIENTS_API_KEY and YCLIENTS_COMPANY_ID
-   ```
-
-4. **WhatsApp Integration**:
-   ```bash
-   # Option 1: Venom Bot (easier setup)
-   # Option 2: WhatsApp Business API (enterprise)
-   ```
-
-### Scaling Configuration
-
-For **30-150 companies**:
-
-```bash
-# Increase workers
-WORKER_CONCURRENCY=5
-
-# Optimize cache
-CACHE_TTL_DEFAULT=3600
-SMART_CACHE_MAX_SIZE=10000
-
-# Rate limiting per tenant
-RATE_LIMIT_PER_COMPANY=true
-
-# Monitoring intervals
-HEALTH_CHECK_INTERVAL=300000  # 5 minutes
-METRICS_LOG_INTERVAL=120000   # 2 minutes
-```
-
-### Monitoring & Alerts
-
-Production monitoring includes:
-
-- **Health Checks**: All components every 5 minutes
-- **Performance Metrics**: Response times, error rates, cache performance
-- **Resource Monitoring**: Memory, CPU, connection counts
-- **Business Metrics**: Bookings created, customer satisfaction
 
 ## 🔧 Configuration
 
-### Smart Caching
-
-The system uses intelligent caching with:
-
-- **Redis Context Cache**: Full dialogue context cached for 12 hours
-- **Semantic Caching**: Similar queries share cache entries
-- **Adaptive TTL**: Popular items cached longer
-- **Memory Fallback**: Works without Redis
-- **Cache Warming**: Pre-loads frequently accessed data
-- **Auto-invalidation**: Cache refreshes on booking changes
-
-```javascript
-// Context caching example (v2.5):
-// First request: Loads from DB (8.2s)
-// Subsequent requests: Loads from Redis (2.7s) - 3x faster!
-// Cache survives worker restarts and scales across instances
-
-// Entity resolution with smart cache:
-const service = await entityResolver.resolveService(
-  'стрижка машинкой',  // User input
-  'company_123',       // Company context
-  userContext          // Personalization
-);
-// Returns: { yclients_id: 18356041, title: 'Стрижка машинкой', ... }
-```
-
-### Rapid-Fire Protection
-
-Prevents spam and improves UX:
-
-```javascript
-// Multiple messages within 5 seconds get combined:
-// Message 1: "Хочу записаться"
-// Message 2: "На стрижку"  
-// Message 3: "К Сергею"
-// 
-// Combined: "Хочу записаться. На стрижку. К Сергею"
-// Processed as single intelligent request
-```
-
-### Proactive AI Suggestions
-
-Never leaves customers without options:
-
-```javascript
-// Instead of: "Это время недоступно"
-// AI responds: "Это время занято, но у меня есть отличные альтернативы:
-//              • 16:00 - Сергей свободен  
-//              • 15:00 у Бари (рейтинг 4.9)
-//              🔥 Горящий слот: 14:00 со скидкой 10%"
-```
-
-## 🎯 Business Features
-
-### Multi-Company Support
-
-- **Tenant Isolation**: Each company has isolated data
-- **Custom Branding**: Company-specific responses
-- **Flexible Pricing**: Per-company service pricing
-- **Staff Management**: Company-specific staff and schedules
-
-### AI Capabilities
-
-- **Natural Language**: Understands various ways to express requests
-- **Context Awareness**: Remembers conversation history
-- **Personalization**: Adapts to customer preferences
-- **Fuzzy Matching**: Handles typos and variations
-- **Intelligent Fallbacks**: Always provides alternatives
-
-### Customer Experience
-
-- **Instant Responses**: <2s typical response time
-- **24/7 Availability**: AI handles requests anytime
-- **Multilingual**: Easy to add language support
-- **Proactive Service**: Suggests popular combinations
-- **Booking Confirmations**: Automated with cancellation options
-
-## 🔒 Security Features
-
-- **Authentication**: HMAC-SHA256 signature validation for webhooks and API calls
-- **Redis Security**: Mandatory password authentication in production
-- **Rate Limiting**: Protection against DDoS and abuse (30 req/min per phone)
-- **Secrets Management**: Built-in encryption for sensitive data
-- **Circuit Breaker**: Fault tolerance for external services
-- **Input Validation**: Comprehensive request validation
-
-See [SECURITY.md](./SECURITY.md) for detailed security guidelines.
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-1. **Slow Response Times**:
-   ```bash
-   # Check cache hit rate
-   curl http://localhost:3000/health
-   
-   # Increase cache TTL
-   CACHE_TTL_DEFAULT=3600
-   ```
-
-2. **High Error Rates**:
-   ```bash
-   # Check AI service health
-   # Verify API keys
-   # Review logs for patterns
-   ```
-
-3. **Memory Growth**:
-   ```bash
-   # Monitor with built-in tools
-   # Cache size limits
-   # Restart workers periodically
-   ```
-
-### Debug Mode
+### Environment Variables
 
 ```bash
-# Enable detailed logging
-DEBUG=ai-admin:*
-LOG_LEVEL=debug
+# AI Configuration
+AI_PROVIDER=deepseek
+DEEPSEEK_API_KEY=your_key
+DEEPSEEK_MODEL=deepseek-chat
 
-# Run with debug
-npm run dev
+# Database
+SUPABASE_URL=your_url
+SUPABASE_KEY=your_key
+REDIS_URL=redis://localhost:6379
+
+# YClients Integration
+YCLIENTS_API_KEY=your_key
+YCLIENTS_PARTNER_ID=8444
+YCLIENTS_COMPANY_ID=962302
+
+# WhatsApp
+WHATSAPP_PROVIDER=venom
+SECRET_KEY=your_hmac_key
 ```
 
-### Performance Analysis
+### Business Types
 
-```bash
-# Run comprehensive test
-node test-monitoring-simple.js
+Configure in `src/config/business-types.js`:
+- barbershop
+- nails
+- massage
+- epilation
+- brows
+- beauty
 
-# Check specific metrics
-curl http://localhost:3000/metrics
+## 📊 Performance
 
-# Analyze slow operations
-curl http://localhost:3000/health?details=true
-```
+- **Message throughput**: 100-200 msg/min (3 workers)
+- **Response time**: 2-5 seconds average
+- **Cache hit rate**: >70%
+- **Memory usage**: <150MB per worker
+- **Error rate**: <2%
 
-## API Endpoints
+## 🔐 Security
 
-- `POST /webhook/whatsapp` - WhatsApp webhook
-- `GET /health` - Health check
-- `GET /api/metrics` - Queue metrics
-- `POST /api/send-message` - Manual message send
-
-## Scaling
-
-1. **30 companies**: 1 server, 3 workers
-2. **150 companies**: 2 servers, 5 workers, Redis cluster
-3. **1500 companies**: 5+ servers, Kubernetes
-4. **10000 companies**: Multi-region, auto-scaling
-
-## 📈 Roadmap
-
-### ✅ Phase 1: Basic Functionality (COMPLETED)
-- ✅ AI-First architecture  
-- ✅ Text understanding and intent recognition
-- ✅ Business type detection
-- ✅ Slot search and booking creation
-- ✅ Context management and rapid-fire protection
-
-### ✅ Phase 2: Extended Features (COMPLETED)
-- ✅ Price list display
-- ✅ Booking cancellation (code ready, needs API rights)
-- ✅ Booking rescheduling (code ready, needs API rights)
-- ✅ Client history and preferences
-
-### 🔄 Phase 3: Edge Cases & Reliability (CURRENT)
-- 🔄 Testing incorrect user inputs
-- 🔄 Boundary cases with dates/times
-- 🔄 External service failures handling
-- 🔄 Performance under load
-
-### 📋 Phase 4: Advanced Features
-- 📋 Automated reminders
-- 📋 Webhook integration with YClients
-- 📋 Portfolio display
-- 📋 Redis caching for slots
-
-### 🚀 Phase 5-6: Scaling & Additional Features
-- 🚀 Multi-language support
-- 🔄 Advanced analytics dashboard
-- 🔄 Customer feedback integration
-- 🔄 Automated marketing campaigns
-
-### Phase 3: Enterprise
-- 🔄 Advanced AI models
-- 🔄 Voice message support
-- 🔄 Integration marketplace
-- 🔄 White-label solutions
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
-### Development Guidelines
-
-- Follow existing code style
-- Add tests for new features
-- Update documentation
-- Test with `test-*` scripts
-- Ensure all health checks pass
-
-## 📝 License
-
-Proprietary
-
-## 🙏 Acknowledgments
-
-- **YClients API** for booking integration
-- **Supabase** for database infrastructure  
-- **DeepSeek AI** for natural language processing
-- **Redis** for high-performance caching
-- **Venom Bot** for WhatsApp integration
+- HMAC-SHA256 webhook authentication
+- Rate limiting (30 req/min per phone)
+- Input validation and sanitization
+- Secrets encryption (AES-256-GCM)
+- Company-based data isolation
 
 ## 📚 Documentation
 
-- **Setup Guide**: [CLAUDE.md](./CLAUDE.md) - Complete setup and configuration
-- **Planning**: [PLANNING.md](./PLANNING.md) - Architecture and design decisions
-- **Task Tracking**: [TASK.md](./TASK.md) - Current tasks and completed work
-- **Troubleshooting**: [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) - Common issues and solutions
-- **YClients API**: [YCLIENTS_API.md](./YCLIENTS_API.md) - Complete API documentation
+- [CLAUDE.md](CLAUDE.md) - AI assistant instructions
+- [PLANNING.md](PLANNING.md) - Architecture overview
+- [TASK.md](TASK.md) - Current tasks and progress
+- [docs/guides/](docs/guides/) - Setup and deployment guides
+- [docs/features/](docs/features/) - Feature documentation
 
-## 📞 Support
+## 🤝 Contributing
 
-- **Issues**: [GitHub Issues](https://github.com/your-repo/ai_admin_v2/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-repo/ai_admin_v2/discussions)
+1. Read [CLAUDE.md](CLAUDE.md) for development guidelines
+2. Check [TASK.md](TASK.md) for current priorities
+3. Follow existing code patterns
+4. Write tests for new features
+5. Update documentation
 
----
+## 📈 Status
 
-**Built with ❤️ for the beauty industry**
+- **Production**: Live pilot since July 25, 2025
+- **Architecture**: v2 (AI-First)
+- **Current Phase**: Phase 3 - Edge cases & reliability
+- **Next**: Phase 4 - Advanced features
 
-*Ready for 30 pilot deployments, scalable to 150+ companies*
+## 📜 License
+
+Proprietary - All rights reserved
