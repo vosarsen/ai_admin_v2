@@ -1104,8 +1104,12 @@ class CommandHandler {
         return (b.id || 0) - (a.id || 0);
       });
       
+      // Поддерживаем оба формата параметров для обратной совместимости
+      const date = params.date || params.new_date;
+      const time = params.time || params.new_time;
+      
       // Если не указаны новые дата и время, запрашиваем их
-      if (!params.date || !params.time) {
+      if (!date || !time) {
         return {
           success: false,
           needsDateTime: true,
@@ -1130,13 +1134,13 @@ class CommandHandler {
       const recordId = bookingToReschedule.id;
       
       // Парсим новую дату и время
-      const targetDate = formatter.parseRelativeDate(params.date);
+      const targetDate = formatter.parseRelativeDate(date);
       // Формируем дату-время для YClients API (ожидает локальное время)
-      const isoDateTime = `${targetDate}T${params.time}:00`;
+      const isoDateTime = `${targetDate}T${time}:00`;
       
       logger.info('📅 Date formatting for reschedule', {
-        inputDate: params.date,
-        inputTime: params.time,
+        inputDate: date,
+        inputTime: time,
         parsedDate: targetDate,
         formattedDateTime: isoDateTime
       });
@@ -1156,7 +1160,7 @@ class CommandHandler {
       logger.info('🔍 Checking slot availability for reschedule', {
         staffId,
         date: targetDate,
-        time: params.time,
+        time: time,
         serviceIds
       });
       
@@ -1171,7 +1175,7 @@ class CommandHandler {
       
       if (slotsResult.success && Array.isArray(slotsResult.data)) {
         // Проверяем, есть ли нужное время в доступных слотах
-        const requestedTime = params.time;
+        const requestedTime = time;
         const slotAvailable = slotsResult.data.some(slot => {
           const slotTime = slot.time || slot;
           return slotTime === requestedTime || slotTime === `${requestedTime}:00`;
