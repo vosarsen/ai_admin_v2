@@ -201,11 +201,7 @@ class YClientsWebhookProcessor {
     
     if (totalCost > 0) {
       if (totalDiscount > 0) {
-        message += `💰 Стоимость: ${totalCost} руб`;
-        message += ` (скидка ${totalDiscount}%)\n`;
-        if (totalFirstCost !== totalCost) {
-          message += `   Без скидки: ${totalFirstCost} руб\n`;
-        }
+        message += `💰 Стоимость: ~${totalFirstCost} руб~ ${totalCost} руб (скидка ${totalDiscount}%)\n`;
       } else {
         message += `💰 Стоимость: ${totalCost} руб\n`;
       }
@@ -273,11 +269,7 @@ class YClientsWebhookProcessor {
 
     if (totalCost > 0) {
       if (totalDiscount > 0) {
-        message += `💰 Стоимость: ${totalCost} руб`;
-        message += ` (скидка ${totalDiscount}%)\n`;
-        if (totalFirstCost !== totalCost) {
-          message += `   Без скидки: ${totalFirstCost} руб\n`;
-        }
+        message += `💰 Стоимость: ~${totalFirstCost} руб~ ${totalCost} руб (скидка ${totalDiscount}%)\n`;
       } else {
         message += `💰 Стоимость: ${totalCost} руб\n`;
       }
