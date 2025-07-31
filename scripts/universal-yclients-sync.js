@@ -1,6 +1,6 @@
 // universal-yclients-sync.js - Универсальная синхронизация ВСЕХ данных YClients -> Supabase
 require('dotenv').config();
-const { supabase } = require('./src/database/supabase');
+const { supabase } = require('../src/database/supabase');
 const axios = require('axios');
 const cron = require('node-cron');
 
