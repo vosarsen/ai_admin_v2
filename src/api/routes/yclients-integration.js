@@ -20,13 +20,37 @@ router.post('/webhook/yclients', async (req, res) => {
   try {
     logger.info('📨 YClients webhook received:', {
       eventId,
-      eventType: req.body?.event,
+      resource: req.body?.resource,
+      status: req.body?.status,
       headers: req.headers,
       body: req.body
     });
 
     // Быстро отвечаем YClients, чтобы избежать повторов
     res.status(200).json({ success: true, eventId });
+
+    // Преобразуем формат YClients в наш формат
+    let eventType = 'unknown';
+    let eventData = req.body.data || req.body;
+    
+    // YClients отправляет формат: { resource: "record", status: "create/update/delete" }
+    if (req.body.resource === 'record') {
+      if (req.body.status === 'create') {
+        eventType = 'record.created';
+      } else if (req.body.status === 'update') {
+        eventType = 'record.updated';
+      } else if (req.body.status === 'delete') {
+        eventType = 'record.deleted';
+      }
+    } else if (req.body.resource === 'finances_operation') {
+      // Финансовые операции пока игнорируем
+      logger.info('💰 Financial operation webhook, skipping', { eventId });
+      return;
+    } else {
+      // Другие типы событий тоже пока игнорируем
+      logger.info(`📦 ${req.body.resource} webhook, skipping`, { eventId });
+      return;
+    }
 
     // Проверяем дубликаты
     const { data: existingEvent } = await supabase
@@ -45,9 +69,9 @@ router.post('/webhook/yclients', async (req, res) => {
       .from('webhook_events')
       .insert({
         event_id: eventId,
-        event_type: req.body.event,
-        company_id: req.body.data?.company_id || req.body.company_id,
-        record_id: req.body.data?.id,
+        event_type: eventType,
+        company_id: req.body.company_id,
+        record_id: eventData?.id || req.body.resource_id,
         payload: req.body,
         created_at: new Date().toISOString()
       });
@@ -59,9 +83,9 @@ router.post('/webhook/yclients', async (req, res) => {
     // Обрабатываем событие
     await webhookProcessor.processEvent({
       id: eventId,
-      type: req.body.event,
-      companyId: req.body.data?.company_id || req.body.company_id,
-      data: req.body.data,
+      type: eventType,
+      companyId: req.body.company_id,
+      data: eventData,
       timestamp: req.body.created_at || new Date().toISOString()
     });
 
