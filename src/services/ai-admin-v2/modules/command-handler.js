@@ -670,6 +670,18 @@ class CommandHandler {
       }
     }
     
+    // Инвалидируем кеш контекста после успешного создания записи
+    try {
+      await contextService.invalidateCachedContext(
+        context.phone || cleanPhone, 
+        context.company.company_id || context.company.yclients_id
+      );
+      logger.info('Context cache invalidated after booking creation');
+    } catch (error) {
+      logger.error('Failed to invalidate context cache:', error);
+      // Не прерываем процесс если не удалось инвалидировать кеш
+    }
+    
     // Возвращаем объект с нужными полями для отображения
     return {
       id: bookingRecord?.record_id,
@@ -947,6 +959,18 @@ class CommandHandler {
         hour: '2-digit', 
         minute: '2-digit' 
       });
+      
+      // Инвалидируем кеш контекста после успешной отмены
+      try {
+        const contextService = require('../../context');
+        await contextService.invalidateCachedContext(
+          context.phone, 
+          context.company.company_id || context.company.yclients_id
+        );
+        logger.info('Context cache invalidated after booking cancellation');
+      } catch (error) {
+        logger.error('Failed to invalidate context cache:', error);
+      }
       
       return {
         success: true,
