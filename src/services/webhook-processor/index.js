@@ -117,7 +117,11 @@ class YClientsWebhookProcessor {
     // Определяем что именно изменилось
     const changes = this.detectChanges(previousRecord, recordData);
     
-    if (Object.keys(changes).length === 0) {
+    // Если нет предыдущей записи в кеше, всё равно отправляем уведомление
+    // так как запись была изменена (YClients отправил webhook)
+    if (!previousRecord) {
+      logger.info('📝 No previous record in cache, but sending update notification anyway');
+    } else if (Object.keys(changes).length === 0) {
       logger.info('✅ No significant changes detected');
       return;
     }
@@ -184,15 +188,27 @@ class YClientsWebhookProcessor {
 
     const services = record.services?.map(s => s.title).join(', ') || 'Услуга';
     const staffName = record.staff?.name || 'Мастер';
-    const cost = record.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0;
+    
+    // Рассчитываем общую стоимость и скидку
+    const totalCost = record.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0;
+    const totalFirstCost = record.services?.reduce((sum, s) => sum + (s.first_cost || s.cost || 0), 0) || 0;
+    const totalDiscount = record.services?.reduce((sum, s) => sum + (s.discount || 0), 0) || 0;
 
     let message = `✅ *Вы записаны!*\n\n`;
     message += `📅 ${dateStr} в ${timeStr}\n`;
     message += `💇 ${services}\n`;
     message += `👤 Мастер: ${staffName}\n`;
     
-    if (cost > 0) {
-      message += `💰 Стоимость: ${cost} руб\n`;
+    if (totalCost > 0) {
+      if (totalDiscount > 0) {
+        message += `💰 Стоимость: ${totalCost} руб`;
+        message += ` (скидка ${totalDiscount}%)\n`;
+        if (totalFirstCost !== totalCost) {
+          message += `   Без скидки: ${totalFirstCost} руб\n`;
+        }
+      } else {
+        message += `💰 Стоимость: ${totalCost} руб\n`;
+      }
     }
     
     if (companyInfo?.address) {
@@ -221,7 +237,7 @@ class YClientsWebhookProcessor {
     let message = `📝 *Ваша запись изменена*\n\n`;
 
     // Показываем что изменилось
-    if (changes.datetime) {
+    if (changes && changes.datetime) {
       const oldDate = new Date(changes.datetime.old);
       const oldDateStr = oldDate.toLocaleDateString('ru-RU', { 
         day: 'numeric', 
@@ -238,16 +254,37 @@ class YClientsWebhookProcessor {
       message += `📅 ${dateStr} в ${timeStr}\n`;
     }
 
-    if (changes.services) {
+    if (changes && changes.services) {
       message += `💇 Услуга изменена на: ${record.services?.map(s => s.title).join(', ')}\n`;
     } else {
       message += `💇 ${record.services?.map(s => s.title).join(', ')}\n`;
     }
 
-    if (changes.staff) {
+    if (changes && changes.staff) {
       message += `👤 Новый мастер: ${record.staff?.name}\n`;
     } else {
       message += `👤 Мастер: ${record.staff?.name}\n`;
+    }
+
+    // Добавляем информацию о стоимости и скидке
+    const totalCost = record.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0;
+    const totalFirstCost = record.services?.reduce((sum, s) => sum + (s.first_cost || s.cost || 0), 0) || 0;
+    const totalDiscount = record.services?.reduce((sum, s) => sum + (s.discount || 0), 0) || 0;
+
+    if (totalCost > 0) {
+      if (totalDiscount > 0) {
+        message += `💰 Стоимость: ${totalCost} руб`;
+        message += ` (скидка ${totalDiscount}%)\n`;
+        if (totalFirstCost !== totalCost) {
+          message += `   Без скидки: ${totalFirstCost} руб\n`;
+        }
+      } else {
+        message += `💰 Стоимость: ${totalCost} руб\n`;
+      }
+    }
+
+    if (companyInfo?.address) {
+      message += `📍 ${companyInfo.address}\n`;
     }
 
     message += `\nЕсли есть вопросы - пишите!`;
