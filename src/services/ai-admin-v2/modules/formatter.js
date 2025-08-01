@@ -39,7 +39,15 @@ class Formatter {
       return "Сегодня никто не работает";
     }
     
-    const workingStaffIds = todaySchedule.map(s => s.staff_id);
+    // Фильтруем только работающих мастеров с доступными слотами
+    const workingSchedules = todaySchedule.filter(s => s.is_working && s.has_booking_slots);
+    
+    if (workingSchedules.length === 0) {
+      logger.warn(`No staff with available slots today (${today})`);
+      return "Сегодня никто не работает";
+    }
+    
+    const workingStaffIds = workingSchedules.map(s => s.staff_id);
     
     logger.info(`Staff IDs from schedule:`, workingStaffIds);
     logger.info(`Staff list IDs:`, staffList.map(s => ({ id: s.yclients_id, name: s.name })));
@@ -95,8 +103,15 @@ class Formatter {
     const days = Object.keys(scheduleByDate).sort().slice(0, 30);
     return days.map(date => {
       const daySchedule = scheduleByDate[date];
+      // Фильтруем только работающих мастеров с доступными слотами
+      const workingStaff = daySchedule.filter(s => s.is_working && s.has_booking_slots);
+      
+      if (workingStaff.length === 0) {
+        return `${this.formatDateForDisplay(date)}: никто не работает`;
+      }
+      
       const staffNames = this.getStaffNames(
-        daySchedule.map(s => s.staff_id), 
+        workingStaff.map(s => s.staff_id), 
         staffList
       );
       return `${this.formatDateForDisplay(date)}: ${staffNames}`;
