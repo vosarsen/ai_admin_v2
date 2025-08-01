@@ -188,3 +188,6 @@ scripts/deployment/start-local.sh
 
 # Redis tunnel logs
 .redis-tunnel.log
+
+# Kultura analytics (local only)
+kultura-analytics/

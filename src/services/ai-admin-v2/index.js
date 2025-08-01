@@ -7,6 +7,7 @@ const formatter = require('./modules/formatter');
 const businessLogic = require('./modules/business-logic');
 const commandHandler = require('./modules/command-handler');
 const contextService = require('../context');
+const intermediateContext = require('../context/intermediate-context');
 
 /**
  * AI Admin v2 - единый сервис управления AI администратором
@@ -56,8 +57,21 @@ class AIAdminV2 {
         await contextService.setContext(phone.replace('@c.us', ''), redisContext);
       }
       
+      // Проверяем промежуточный контекст и ждем если нужно
+      const intermediate = await intermediateContext.getIntermediateContext(phone);
+      if (intermediate && intermediate.isRecent && intermediate.processingStatus === 'started') {
+        logger.info('Found recent processing, waiting for completion...');
+        const waitResult = await intermediateContext.waitForCompletion(phone, 3000);
+        if (!waitResult) {
+          logger.warn('Previous message still processing after 3s, continuing anyway');
+        }
+      }
+      
       // Загружаем полный контекст
       const context = await this.loadFullContext(phone, companyId);
+      
+      // Сохраняем промежуточный контекст СРАЗУ
+      await intermediateContext.saveProcessingStart(phone, message, context);
       
       // Добавляем текущее сообщение в контекст
       context.currentMessage = message;
@@ -76,8 +90,14 @@ class AIAdminV2 {
       // Обрабатываем ответ и выполняем команды
       const result = await this.processAIResponse(aiResponse, context);
       
+      // Обновляем промежуточный контекст после AI анализа
+      await intermediateContext.updateAfterAIAnalysis(phone, aiResponse, result.executedCommands || []);
+      
       // Сохраняем контекст диалога
       await dataLoader.saveContext(phone, companyId, context, result);
+      
+      // Помечаем обработку как завершенную
+      await intermediateContext.markAsCompleted(phone, result);
       
       logger.info(`✅ AI Admin v2 completed in ${Date.now() - context.startTime}ms`);
       
@@ -126,7 +146,8 @@ class AIAdminV2 {
       staffSchedules, 
       redisContext,
       preferences,
-      conversationSummary
+      conversationSummary,
+      intermediateCtx
     ] = await Promise.all([
       dataLoader.loadCompany(companyId),
       dataLoader.loadClient(phone, companyId),
@@ -137,7 +158,8 @@ class AIAdminV2 {
       dataLoader.loadStaffSchedules(companyId),
       contextService.getContext(phone.replace('@c.us', ''), companyId),
       contextService.getPreferences(phone.replace('@c.us', ''), companyId),
-      contextService.getConversationSummary(phone.replace('@c.us', ''), companyId)
+      contextService.getConversationSummary(phone.replace('@c.us', ''), companyId),
+      intermediateContext.getIntermediateContext(phone)
     ]);
     
     // Логируем что загрузилось из Redis
@@ -183,7 +205,8 @@ class AIAdminV2 {
       preferences: preferences || {},
       conversationSummary: conversationSummary || {},
       canContinueConversation: conversationSummary?.canContinue || false,
-      isReturningClient: conversationSummary?.hasHistory || false
+      isReturningClient: conversationSummary?.hasHistory || false,
+      intermediateContext: intermediateCtx  // Добавляем промежуточный контекст
     };
     
     // Сохраняем в Redis кеш на 12 часов
@@ -241,8 +264,24 @@ ${context.preferences.notes ? `- Заметки: ${context.preferences.notes}` :
 `;
     }
     
+    // Добавляем информацию из промежуточного контекста
+    let intermediateInfo = '';
+    if (context.intermediateContext && context.intermediateContext.isRecent) {
+      const ic = context.intermediateContext;
+      intermediateInfo = `
+🔴 КОНТЕКСТ ПРЕДЫДУЩЕГО СООБЩЕНИЯ (отправлено ${Math.round(ic.age / 1000)} секунд назад):
+Предыдущее сообщение: "${ic.currentMessage}"
+${ic.lastBotQuestion ? `Твой последний вопрос: "${ic.lastBotQuestion}"` : ''}
+${ic.expectedReplyType ? `Ожидаемый тип ответа: ${ic.expectedReplyType}` : ''}
+${ic.processingStatus === 'completed' ? 'Предыдущее сообщение было обработано' : ''}
+
+КРИТИЧЕСКИ ВАЖНО: Это продолжение разговора! Клиент отвечает на твой вопрос!
+`;
+    }
+    
     return `Ты - ${terminology.role} "${context.company.title}".
 ${continuationInfo}
+${intermediateInfo}
 ${redisContextInfo}
 ИНФОРМАЦИЯ О САЛОНЕ:
 Название: ${context.company.title}
