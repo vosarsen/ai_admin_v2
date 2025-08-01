@@ -4,6 +4,14 @@
 
 ## 🎯 Current Sprint - Phase 3: Edge Cases и надежность
 
+### ✅ Completed - Staff Schedule Display Fix (August 1, 2025)
+- [x] **Исправлено отображение расписания мастеров**
+  - [x] Бот говорил "Бари не работает завтра" хотя мастер был в расписании
+  - [x] Добавлена фильтрация по флагам is_working и has_booking_slots
+  - [x] Исправлены методы formatStaffSchedules и formatTodayStaff
+  - [x] Теперь показываются только мастера с доступными слотами
+  - [x] Создана документация: docs/development-diary/2025-08-01-staff-schedule-display-fix.md
+
 ### ✅ Completed - Critical Fixes After Testing (July 30, 2025)
 - [x] **Исправлен алгоритм ServiceMatcher**
   - [x] Точное совпадение теперь дает 1000 баллов (максимальный приоритет)
@@ -440,6 +448,7 @@
 
 ## 🔄 Update History
 
+- **2025-08-01**: Fixed staff schedule display - now properly filters by is_working and has_booking_slots flags
 - **2025-07-30**: Fixed ServiceMatcher exact match priority, database saving to appointments_cache, CHECK_STAFF_SCHEDULE logic
 - **2025-07-30**: Fixed context loss, name extraction, reminders for close bookings
 - **2025-07-29**: Fixed time context issue, improved UX for master unavailability, removed duplicate info
