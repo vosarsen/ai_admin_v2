@@ -65,10 +65,7 @@ class MessageWorkerV2 {
       this.workers.push(worker);
     }
     
-    // Очистка кеша каждые 5 минут
-    setInterval(() => {
-      aiAdminV2.cleanupCache();
-    }, 300000);
+    // Очистка кеша больше не нужна - используем Redis с TTL
   }
 
   async processMessage(job) {
