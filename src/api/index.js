@@ -154,7 +154,7 @@ app.post('/api/send-message', rateLimiter, validateApiKey, async (req, res) => {
 app.get('/api/metrics', rateLimiter, async (req, res) => {
   try {
     const companyId = req.query.companyId || config.yclients.companyId;
-    const queueName = `company:${companyId}:messages`;
+    const queueName = `company-${companyId}-messages`;
     
     const metrics = await messageQueue.getMetrics(queueName);
     
