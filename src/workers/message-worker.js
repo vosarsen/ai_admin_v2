@@ -1,6 +1,7 @@
 // src/workers/message-worker.js
 const { Worker } = require('bullmq');
 const config = require('../config');
+const { getBullMQRedisConfig } = require('../config/redis-config');
 const logger = require('../utils/logger');
 const aiService = require('../services/ai');
 const bookingService = require('../services/booking');
@@ -17,11 +18,13 @@ class MessageWorker {
     this.isRunning = false;
     this.processedCount = 0;
     this.workers = [];
-    this.connection = {
-      host: '127.0.0.1',
-      port: 6379,
-      password: config.redis.password
-    };
+    this.connection = getBullMQRedisConfig();
+    
+    logger.debug('MessageWorker Redis config:', {
+      host: this.connection.host,
+      port: this.connection.port,
+      hasPassword: !!this.connection.password
+    });
   }
 
   /**

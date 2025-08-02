@@ -419,7 +419,9 @@ class CriticalErrorLogger {
   async checkRedisConnection() {
     try {
       const Redis = require('ioredis');
-      const redis = new Redis(config.redis.url);
+      const { getRedisConfig } = require('../config/redis-config');
+      const redisConfig = getRedisConfig();
+      const redis = new Redis(redisConfig);
       await redis.ping();
       await redis.quit();
       return 'connected';

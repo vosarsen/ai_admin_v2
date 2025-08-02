@@ -1,6 +1,7 @@
 // src/workers/reminder-worker.js
 const { Worker } = require('bullmq');
 const config = require('../config');
+const { getBullMQRedisConfig } = require('../config/redis-config');
 const logger = require('../utils/logger');
 const messageQueue = require('../queue/message-queue');
 const aiService = require('../services/ai');
@@ -12,11 +13,13 @@ class ReminderWorker {
     this.isRunning = false;
     this.processedCount = 0;
     this.worker = null;
-    this.connection = {
-      host: '127.0.0.1',
-      port: 6379,
-      password: config.redis.password
-    };
+    this.connection = getBullMQRedisConfig();
+    
+    logger.debug('ReminderWorker Redis config:', {
+      host: this.connection.host,
+      port: this.connection.port,
+      hasPassword: !!this.connection.password
+    });
   }
 
   /**
