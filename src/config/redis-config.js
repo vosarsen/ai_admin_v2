@@ -7,10 +7,11 @@ const envConfig = require('./environments');
  * Использует environment-specific настройки
  */
 function getRedisConfig() {
+  const mainConfig = require('./index');
   const config = {
     host: envConfig.redis.host || 'localhost',
     port: envConfig.redis.port || 6379,
-    password: process.env.REDIS_PASSWORD,
+    password: mainConfig.redis.password || process.env.REDIS_PASSWORD,
     db: 0, // Явно указываем базу данных 0
     connectTimeout: 10000,
     lazyConnect: true,
