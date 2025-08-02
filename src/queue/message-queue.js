@@ -1,16 +1,19 @@
 // src/queue/message-queue.js
 const { Queue } = require('bullmq');
 const config = require('../config');
+const { getBullMQRedisConfig } = require('../config/redis-config');
 const logger = require('../utils/logger');
 
 class MessageQueue {
   constructor() {
     this.queues = new Map();
-    this.connection = {
-      host: '127.0.0.1',
-      port: 6379,
-      password: config.redis.password
-    };
+    this.connection = getBullMQRedisConfig();
+    
+    logger.debug('MessageQueue Redis config:', {
+      host: this.connection.host,
+      port: this.connection.port,
+      hasPassword: !!this.connection.password
+    });
   }
 
   /**

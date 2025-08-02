@@ -30,4 +30,18 @@ function getRedisConfig() {
   return config;
 }
 
-module.exports = { getRedisConfig };
+/**
+ * Получить конфигурацию для BullMQ
+ * BullMQ требует отдельные поля host/port/password
+ */
+function getBullMQRedisConfig() {
+  const config = getRedisConfig();
+  return {
+    host: config.host,
+    port: config.port,
+    password: config.password,
+    db: config.db
+  };
+}
+
+module.exports = { getRedisConfig, getBullMQRedisConfig };
