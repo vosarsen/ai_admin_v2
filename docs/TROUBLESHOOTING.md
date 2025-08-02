@@ -1,6 +1,6 @@
 # AI Admin v2 - Troubleshooting Guide
 
-## 📅 Last Updated: July 24, 2025, 18:45
+## 📅 Last Updated: August 2, 2025, 16:00
 
 ## Common Issues and Solutions
 
@@ -23,24 +23,31 @@ return await this.aiProvider._callAI(prompt);
 **Files affected**:
 - `src/services/ai-admin-v2/index.js`
 
-### 2. Redis Connection Issues (Port 6380 vs 6379)
+### 2. Redis Connection Issues (✅ FIXED August 2, 2025)
 
-**Problem**: Local development uses port 6380 (SSH tunnel), but production server uses port 6379.
+**Problem**: Local development uses port 6380 (SSH tunnel), but production server uses port 6379. Multiple files had hardcoded Redis configuration.
 
-**Temporary Solution**:
+**Solution**: Created centralized Redis configuration:
 ```javascript
-// In smart-cache.js and redis-factory.js
-let redisUrlString = config.redis.url;
-if (redisUrlString && redisUrlString.includes('6380')) {
-  redisUrlString = redisUrlString.replace('6380', '6379');
-}
+// src/config/redis-config.js
+const { getRedisConfig, getBullMQRedisConfig } = require('../config/redis-config');
+
+// For ioredis clients:
+const redisConfig = getRedisConfig();
+const redis = new Redis(redisConfig);
+
+// For BullMQ:
+const connection = getBullMQRedisConfig();
 ```
 
-**Permanent Solution**: Use separate `.env` files for local and production environments.
-
-**Files affected**:
-- `src/services/cache/smart-cache.js`
-- `src/utils/redis-factory.js`
+**Files updated**:
+- `src/config/redis-config.js` - Centralized configuration
+- `src/queue/message-queue.js` - Uses getBullMQRedisConfig()
+- `src/workers/message-worker-v2.js` - Uses getBullMQRedisConfig()
+- `src/workers/message-worker.js` - Uses getBullMQRedisConfig()
+- `src/workers/reminder-worker.js` - Uses getBullMQRedisConfig()
+- `src/database/optimized-supabase.js` - Uses getRedisConfig()
+- `src/utils/critical-error-logger.js` - Uses getRedisConfig()
 
 ### 3. Git Merge Conflicts on Server
 
@@ -157,7 +164,7 @@ const targetDate = new Date(dateStr); // Add this line
 **Files affected**:
 - `src/services/ai-admin-v2/modules/command-handler.js`
 
-### 9. YClients API Permission Errors
+### 9. YClients API Permission Errors (✅ FIXED July 28, 2025)
 
 **Problem**: Различные ошибки прав доступа при работе с YClients API.
 
@@ -166,9 +173,36 @@ const targetDate = new Date(dateStr); // Add this line
 - 403: "Нет прав на управление филиалом" (при создании клиента)
 - 422: "Нет доступных для записи сотрудников" (при создании записи)
 
-**Solution**: Необходимо запросить расширенные права у YClients для API токена.
+**Solution**: Добавить обязательный заголовок `X-Partner-Id: 8444`:
+```javascript
+headers: {
+  'Authorization': `Bearer ${token}, User ${userToken}`,
+  'X-Partner-Id': '8444',
+  'Content-Type': 'application/json',
+  'Accept': 'application/vnd.yclients.v2+json'
+}
+```
 
-**Workaround**: Использовать временные сообщения для информирования пользователей.
+**Files affected**:
+- `src/integrations/yclients/client.js`
+
+### 10. Redis NOAUTH Authentication Required (✅ FIXED August 2, 2025)
+
+**Problem**: Redis clients не могли подключиться из-за отсутствия пароля аутентификации.
+
+**Solution**: Централизованная конфигурация автоматически извлекает пароль из REDIS_URL или config.redis.password.
+
+### 11. Bot не приветствует клиента (✅ FIXED August 2, 2025)
+
+**Problem**: Бот не здоровался при первом контакте с клиентом.
+
+**Solution**: Добавлено правило #12 в AI промпт:
+```
+12. 🔴 ВСЕГДА НАЧИНАЙ С ПРИВЕТСТВИЯ: Если это первое сообщение в диалоге - обязательно поздоровайся!
+```
+
+**Files affected**:
+- `src/services/ai-admin-v2/index.js`
 
 ## Debugging Commands
 
