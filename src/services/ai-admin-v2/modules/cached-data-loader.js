@@ -21,7 +21,7 @@ class CachedDataLoader {
     
     return this.cache.getOrSet('company', cacheKey, async () => {
       logger.debug(`Loading company data from DB: ${companyId}`);
-      return this.dataLoader.loadCompanyData(companyId);
+      return this.dataLoader.loadCompany(companyId);
     });
   }
 
@@ -150,6 +150,50 @@ class CachedDataLoader {
     
     logger.info(`Full context loaded in ${context.loadTime}ms (cached for 5 min)`);
     return context;
+  }
+
+  /**
+   * Загрузить историю разговора с кэшем
+   */
+  async loadConversation(phone, companyId) {
+    const cacheKey = `conversation:${companyId}:${phone}`;
+    
+    return this.cache.getOrSet('context', cacheKey, async () => {
+      logger.debug(`Loading conversation from DB: ${phone}`);
+      return this.dataLoader.loadConversation(phone, companyId);
+    }, 300); // 5 минут
+  }
+
+  /**
+   * Загрузить статистику бизнеса с кэшем
+   */
+  async loadBusinessStats(companyId) {
+    const cacheKey = `stats:${companyId}`;
+    
+    return this.cache.getOrSet('services', cacheKey, async () => {
+      logger.debug(`Loading business stats from DB: ${companyId}`);
+      return this.dataLoader.loadBusinessStats(companyId);
+    }, 600); // 10 минут
+  }
+
+  /**
+   * Загрузить расписание персонала с кэшем
+   */
+  async loadStaffSchedules(companyId) {
+    const cacheKey = `schedules:${companyId}`;
+    
+    return this.cache.getOrSet('services', cacheKey, async () => {
+      logger.debug(`Loading staff schedules from DB: ${companyId}`);
+      return this.dataLoader.loadStaffSchedules(companyId);
+    }, 300); // 5 минут
+  }
+
+  /**
+   * Сохранить контекст диалога
+   */
+  async saveContext(phone, companyId, context, result) {
+    // Делегируем базовому загрузчику
+    return this.dataLoader.saveContext(phone, companyId, context, result);
   }
 
   /**
