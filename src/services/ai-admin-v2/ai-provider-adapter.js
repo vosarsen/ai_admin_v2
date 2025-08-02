@@ -163,6 +163,20 @@ class AIProviderAdapter {
       deepseekFallback: this.deepseekEnabled
     };
   }
+  
+  /**
+   * Получить статистику использования
+   */
+  getUsageStats() {
+    return this.provider.getUsageStats();
+  }
+  
+  /**
+   * Сбросить статистику
+   */
+  resetStats() {
+    return this.provider.resetStats();
+  }
 }
 
 module.exports = AIProviderAdapter;
