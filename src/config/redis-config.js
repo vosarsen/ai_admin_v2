@@ -1,18 +1,15 @@
 // src/config/redis-config.js
 const logger = require('../utils/logger');
+const envConfig = require('./environments');
 
 /**
  * Централизованная конфигурация Redis
- * Гарантирует, что все процессы используют одинаковые настройки
+ * Использует environment-specific настройки
  */
 function getRedisConfig() {
-  // Определяем порт в зависимости от окружения
-  const isLocal = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
-  const port = isLocal ? 6380 : 6379; // Локально используем SSH туннель на 6380
-  
   const config = {
-    host: 'localhost',
-    port: port,
+    host: envConfig.redis.host || 'localhost',
+    port: envConfig.redis.port || 6379,
     password: process.env.REDIS_PASSWORD,
     db: 0, // Явно указываем базу данных 0
     connectTimeout: 10000,
@@ -25,7 +22,8 @@ function getRedisConfig() {
     host: config.host,
     port: config.port,
     db: config.db,
-    hasPassword: !!config.password
+    hasPassword: !!config.password,
+    env: process.env.NODE_ENV || 'development'
   });
   
   return config;

@@ -1,27 +1,18 @@
 #!/usr/bin/env node
 
-import { createClient } from 'redis';
-
-const REDIS_URL = 'redis://localhost:6380';
-const REDIS_PASSWORD = '70GB32AhHvMisfK8LtluTbtkWTnTj5jSrOdQj7d1QMg=';
+const Redis = require('ioredis');
+const config = require('../src/config');
 
 async function clearContext(phone, companyId = 962302) {
   console.log(`🧹 Clearing context for ${phone} in company ${companyId}`);
   
   try {
-    // Create Redis client with password
-    const url = new URL(REDIS_URL);
-    url.password = REDIS_PASSWORD;
-    
-    const redis = createClient({ 
-      url: url.toString(),
-      socket: {
-        connectTimeout: 5000,
-        commandTimeout: 5000
-      }
+    // Create Redis client using environment config
+    const redis = new Redis(config.redis.url, {
+      password: config.redis.password,
+      ...config.redis.options
     });
     
-    await redis.connect();
     console.log('✅ Connected to Redis');
     
     const keys = [

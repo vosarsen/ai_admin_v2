@@ -3,6 +3,7 @@ const bookingService = require('../../booking');
 const formatter = require('./formatter');
 const serviceMatcher = require('./service-matcher');
 const contextService = require('../../context');
+const errorMessages = require('../../../utils/error-messages');
 // dateParser теперь используется из formatter
 
 class CommandHandler {
@@ -128,10 +129,19 @@ class CommandHandler {
         }
       } catch (error) {
         logger.error(`Command ${cmd.command} failed:`, error);
+        // Получаем user-friendly сообщение об ошибке
+        const errorContext = {
+          operation: 'command_execution',
+          command: cmd.command,
+          params: cmd.params
+        };
+        const errorResult = errorMessages.getUserMessage(error, errorContext);
+        
         results.push({ 
           type: 'error', 
           command: cmd.command,
-          error: error.message,
+          error: errorResult.message,
+          technicalError: error.message,
           params: cmd.params // Добавляем параметры для обработки ошибок
         });
       }
@@ -430,7 +440,9 @@ class CommandHandler {
           requestedTime, 
           availableSlots: context.lastSearch.slots.map(s => s.time) 
         });
-        throw new Error(`Время ${requestedTime} недоступно. Выберите другое время из предложенных.`);
+        const unavailableError = new Error(`Время ${requestedTime} недоступно`);
+        unavailableError.code = 'TIME_UNAVAILABLE';
+        throw unavailableError;
       }
     }
     
@@ -504,7 +516,9 @@ class CommandHandler {
     
     // Если имя все еще не найдено, это ошибка
     if (!clientName) {
-      throw new Error('Пожалуйста, сначала представьтесь. Как вас зовут?');
+      const nameError = new Error('Требуется имя клиента');
+      nameError.code = 'CLIENT_NAME_REQUIRED';
+      throw nameError;
     }
     
     // Проверяем, что staff_id определен
@@ -514,7 +528,9 @@ class CommandHandler {
         params,
         lastSearch: context.lastSearch
       });
-      throw new Error('Не удалось определить мастера для записи. Пожалуйста, укажите конкретного мастера.');
+      const staffError = new Error('Мастер не определен');
+      staffError.code = 'STAFF_NOT_SPECIFIED';
+      throw staffError;
     }
     
     // Проверяем, что время указано

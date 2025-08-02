@@ -2,12 +2,14 @@ const config = require('../../config');
 const logger = require('../../utils/logger').child({ module: 'ai-admin-v2' });
 
 // Импортируем модули
-const dataLoader = require('./modules/data-loader');
+const dataLoader = require('./modules/cached-data-loader'); // Используем версию с кэшем
 const formatter = require('./modules/formatter');
 const businessLogic = require('./modules/business-logic');
 const commandHandler = require('./modules/command-handler');
 const contextService = require('../context');
 const intermediateContext = require('../context/intermediate-context');
+const errorMessages = require('../../utils/error-messages');
+const criticalErrorLogger = require('../../utils/critical-error-logger');
 
 /**
  * AI Admin v2 - единый сервис управления AI администратором
@@ -111,10 +113,49 @@ class AIAdminV2 {
       
     } catch (error) {
       logger.error('Error in AI Admin v2:', error);
+      
+      // Получаем user-friendly сообщение об ошибке
+      const errorContext = {
+        operation: 'ai_processing',
+        companyId,
+        hasContext: !!context,
+        commandsExecuted: results?.length > 0,
+        userId: phone
+      };
+      
+      const errorResult = errorMessages.getUserMessage(error, errorContext);
+      const userErrorMessage = errorMessages.formatUserResponse(errorResult);
+      
+      // Логируем критичные ошибки AI сервиса
+      if (error.message?.includes('AI service') || 
+          error.message?.includes('DeepSeek') ||
+          error.code === 'ECONNREFUSED' ||
+          errorResult.severity === 'high' ||
+          errorResult.severity === 'critical') {
+        
+        await criticalErrorLogger.logCriticalError(error, {
+          ...errorContext,
+          messageContent: message,
+          contextData: context ? {
+            hasClient: !!context.client,
+            hasCompany: !!context.company,
+            hasServices: context.services?.length > 0,
+            hasStaff: context.staff?.length > 0
+          } : null,
+          executionTime: Date.now() - (context?.startTime || Date.now()),
+          results: results?.map(r => ({ type: r.type, success: !!r.data }))
+        });
+      }
+      
       return {
         success: false,
-        response: 'Извините, произошла ошибка. Пожалуйста, попробуйте еще раз.',
-        error: error.message
+        response: userErrorMessage,
+        error: error.message,
+        errorDetails: {
+          technical: errorResult.technical,
+          severity: errorResult.severity,
+          needsRetry: errorResult.needsRetry
+        }
       };
     }
   }

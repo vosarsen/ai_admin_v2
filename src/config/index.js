@@ -1,6 +1,7 @@
 // src/config/index.js
 require('dotenv').config();
 const secureConfig = require('./secure-config');
+const envConfig = require('./environments');
 
 // Helper to get config value with secure fallback
 const getConfig = (key) => secureConfig.get(key) || process.env[key];
@@ -11,14 +12,15 @@ module.exports = {
     return {
       env: process.env.NODE_ENV || 'development',
       port: parseInt(process.env.PORT) || 3000,
-      logLevel: process.env.LOG_LEVEL || 'info',
-      version: process.env.npm_package_version || '2.0.0'
+      logLevel: process.env.LOG_LEVEL || envConfig.logging?.level || 'info',
+      version: process.env.npm_package_version || '2.0.0',
+      timezone: 'Europe/Moscow'
     };
   },
 
   get redis() {
     return {
-      url: process.env.REDIS_URL || 'redis://localhost:6379',
+      url: process.env.REDIS_URL || envConfig.redis.url,
       password: getConfig('REDIS_PASSWORD'),
       options: {
         connectTimeout: parseInt(process.env.REDIS_CONNECT_TIMEOUT) || 10000,

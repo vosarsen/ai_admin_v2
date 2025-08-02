@@ -6,6 +6,8 @@ const logger = require('../../utils/logger');
 const DataTransformers = require('../../utils/data-transformers');
 const { format, addDays, subDays, parse, isAfter, isBefore } = require('date-fns');
 const { utcToZonedTime, zonedTimeToUtc } = require('date-fns-tz');
+const { RetryHandler } = require('../../utils/retry-handler');
+const criticalErrorLogger = require('../../utils/critical-error-logger');
 
 class BookingService {
   constructor() {
@@ -21,6 +23,15 @@ class BookingService {
       afternoon: { start: 12, end: 18 },    // 12:00-18:00
       evening: { start: 18, end: 23 }       // 18:00-23:00
     };
+    
+    // Retry handler для критичных операций
+    this.retryHandler = new RetryHandler({
+      maxRetries: 3,
+      initialDelay: 1000,
+      maxDelay: 5000,
+      retryableErrors: ['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNRESET'],
+      retryableStatusCodes: [408, 429, 500, 502, 503, 504]
+    });
   }
 
   getYclientsClient() {
@@ -238,11 +249,23 @@ class BookingService {
         };
       }
       
-      const slotsResult = await this.getAvailableSlots(
-        staffId,
-        targetDate,
-        { service_id: actualServiceId },
-        companyId
+      const slotsResult = await this.retryHandler.execute(
+        async () => {
+          const result = await this.getAvailableSlots(
+            staffId,
+            targetDate,
+            { service_id: actualServiceId },
+            companyId
+          );
+          
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to get available slots');
+          }
+          
+          return result;
+        },
+        'getAvailableSlots',
+        { companyId, date: targetDate, staffId, serviceId: actualServiceId }
       );
 
       if (!slotsResult.success || !slotsResult.data) {
@@ -304,11 +327,74 @@ class BookingService {
 
   async createBooking(bookingData, companyId = config.yclients.companyId) {
     try {
-      // Бронирование всегда создаем через YClients
-      return await this.getYclientsClient().createBooking(bookingData, companyId);
+      logger.info('🔄 Creating booking with retry mechanism', {
+        companyId,
+        hasServices: !!bookingData.appointments,
+        servicesCount: bookingData.appointments?.length
+      });
+      
+      // Используем retry handler для создания записи
+      const result = await this.retryHandler.execute(
+        async () => {
+          const response = await this.getYclientsClient().createBooking(bookingData, companyId);
+          
+          // Проверяем успешность ответа
+          if (!response.success) {
+            // Если ошибка временная (например, слот занят), не повторяем
+            if (response.error && (
+              response.error.includes('занят') ||
+              response.error.includes('недоступ') ||
+              response.error.includes('не работает')
+            )) {
+              throw Object.assign(new Error(response.error), { retryable: false });
+            }
+            
+            // Для других ошибок позволяем retry
+            throw new Error(response.error || 'Booking creation failed');
+          }
+          
+          return response;
+        },
+        'createBooking',
+        { companyId, clientPhone: bookingData.phone }
+      );
+      
+      logger.info('✅ Booking created successfully', {
+        recordId: result.data?.record_id,
+        companyId
+      });
+      
+      return result;
     } catch (error) {
-      logger.error('Error creating booking:', error);
-      return { success: false, error: error.message };
+      // Проверяем, была ли это не-повторяемая ошибка
+      if (error.retryable === false) {
+        logger.warn('Non-retryable booking error:', error.message);
+        return { success: false, error: error.message };
+      }
+      
+      logger.error('Error creating booking after retries:', error);
+      
+      // Логируем критичную ошибку создания записи
+      await criticalErrorLogger.logCriticalError(error, {
+        operation: 'createBooking',
+        service: 'booking',
+        companyId,
+        clientPhone: bookingData.phone,
+        clientName: bookingData.fullname,
+        bookingData: {
+          hasAppointments: !!bookingData.appointments,
+          appointmentsCount: bookingData.appointments?.length,
+          services: bookingData.appointments?.map(a => a.services),
+          datetime: bookingData.appointments?.[0]?.datetime
+        },
+        retryAttempts: this.retryHandler.maxRetries,
+        errorAfterRetries: true
+      });
+      
+      return { 
+        success: false, 
+        error: error.message || 'Не удалось создать запись. Попробуйте позже.' 
+      };
     }
   }
 
