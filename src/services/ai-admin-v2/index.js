@@ -24,6 +24,9 @@ class AIAdminV2 {
    * Основной метод обработки сообщений
    */
   async processMessage(message, phone, companyId) {
+    let context = null;
+    let results = null;
+    
     try {
       logger.info(`🤖 AI Admin v2 processing: "${message}" from ${phone}`);
       
@@ -70,7 +73,7 @@ class AIAdminV2 {
       }
       
       // Загружаем полный контекст
-      const context = await this.loadFullContext(phone, companyId);
+      context = await this.loadFullContext(phone, companyId);
       
       // Сохраняем промежуточный контекст СРАЗУ
       await intermediateContext.saveProcessingStart(phone, message, context);
@@ -91,6 +94,7 @@ class AIAdminV2 {
       
       // Обрабатываем ответ и выполняем команды
       const result = await this.processAIResponse(aiResponse, context);
+      results = result.results;
       
       // Обновляем промежуточный контекст после AI анализа
       await intermediateContext.updateAfterAIAnalysis(phone, aiResponse, result.executedCommands || []);
@@ -190,7 +194,7 @@ class AIAdminV2 {
       conversationSummary,
       intermediateCtx
     ] = await Promise.all([
-      dataLoader.loadCompany(companyId),
+      dataLoader.loadCompanyData(companyId),
       dataLoader.loadClient(phone, companyId),
       dataLoader.loadServices(companyId),
       dataLoader.loadStaff(companyId),
