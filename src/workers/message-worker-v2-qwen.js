@@ -7,7 +7,7 @@ const logger = require('../utils/logger');
 // Выбираем AI провайдер на основе переменной окружения
 const useQwen = process.env.USE_QWEN === 'true';
 const aiAdminV2 = useQwen 
-  ? require('../services/ai-admin-v2/index-with-qwen')
+  ? require('../services/ai-admin-v2/index-qwen-simple')
   : require('../services/ai-admin-v2');
 
 if (useQwen) {
