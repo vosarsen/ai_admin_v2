@@ -1,0 +1,204 @@
+// src/services/ai-admin-v2/modules/cached-data-loader.js
+const dataLoader = require('./data-loader');
+const localCache = require('../../../utils/local-cache');
+const logger = require('../../../utils/logger').child({ module: 'cached-data-loader' });
+
+/**
+ * Обертка над data-loader с локальным кэшированием
+ * Снижает нагрузку на БД и ускоряет обработку
+ */
+class CachedDataLoader {
+  constructor() {
+    this.dataLoader = dataLoader;
+    this.cache = localCache;
+  }
+
+  /**
+   * Загрузить данные компании с кэшем
+   */
+  async loadCompanyData(companyId) {
+    const cacheKey = `company:${companyId}`;
+    
+    return this.cache.getOrSet('company', cacheKey, async () => {
+      logger.debug(`Loading company data from DB: ${companyId}`);
+      return this.dataLoader.loadCompanyData(companyId);
+    });
+  }
+
+  /**
+   * Загрузить услуги с кэшем
+   */
+  async loadServices(companyId) {
+    const cacheKey = `services:${companyId}`;
+    
+    return this.cache.getOrSet('services', cacheKey, async () => {
+      logger.debug(`Loading services from DB: ${companyId}`);
+      return this.dataLoader.loadServices(companyId);
+    });
+  }
+
+  /**
+   * Загрузить персонал с кэшем
+   */
+  async loadStaff(companyId) {
+    const cacheKey = `staff:${companyId}`;
+    
+    return this.cache.getOrSet('services', cacheKey, async () => {
+      logger.debug(`Loading staff from DB: ${companyId}`);
+      return this.dataLoader.loadStaff(companyId);
+    });
+  }
+
+  /**
+   * Загрузить клиента с кэшем
+   */
+  async loadClient(phone, companyId) {
+    const cacheKey = `client:${companyId}:${phone}`;
+    
+    return this.cache.getOrSet('clients', cacheKey, async () => {
+      logger.debug(`Loading client from DB: ${phone}`);
+      return this.dataLoader.loadClient(phone, companyId);
+    });
+  }
+
+  /**
+   * Загрузить расписание (не кэшируем - часто меняется)
+   */
+  async loadSchedules(companyId, staffIds) {
+    // Расписание не кэшируем, так как оно критично для актуальности
+    return this.dataLoader.loadSchedules(companyId, staffIds);
+  }
+
+  /**
+   * Загрузить записи клиента с кэшем
+   */
+  async loadBookings(clientId, companyId) {
+    const cacheKey = `bookings:${companyId}:${clientId}`;
+    
+    // Кэшируем только на 2 минуты, так как записи могут меняться
+    return this.cache.getOrSet('slots', cacheKey, async () => {
+      logger.debug(`Loading bookings from DB: ${clientId}`);
+      return this.dataLoader.loadBookings(clientId, companyId);
+    }, 120); // 2 минуты
+  }
+
+  /**
+   * Загрузить последние сообщения с кэшем
+   */
+  async loadRecentMessages(phone, companyId) {
+    const cacheKey = `messages:${companyId}:${phone}`;
+    
+    // Кэшируем на 1 минуту для быстрого доступа
+    return this.cache.getOrSet('context', cacheKey, async () => {
+      logger.debug(`Loading messages from DB: ${phone}`);
+      return this.dataLoader.loadRecentMessages(phone, companyId);
+    }, 60); // 1 минута
+  }
+
+  /**
+   * Загрузить полный контекст с кэшированием
+   */
+  async loadFullContext(phone, companyId) {
+    const startTime = Date.now();
+    const contextKey = `full-context:${companyId}:${phone}`;
+    
+    // Пробуем получить весь контекст из кэша
+    const cachedContext = this.cache.get('context', contextKey);
+    if (cachedContext) {
+      logger.info(`Full context loaded from cache in ${Date.now() - startTime}ms`);
+      return cachedContext;
+    }
+
+    // Загружаем параллельно с использованием кэшей
+    const [company, services, staff, client] = await Promise.all([
+      this.loadCompanyData(companyId),
+      this.loadServices(companyId),
+      this.loadStaff(companyId),
+      this.loadClient(phone, companyId)
+    ]);
+
+    let bookings = [];
+    let schedules = [];
+    let recentMessages = [];
+
+    // Загружаем дополнительные данные если есть клиент
+    if (client) {
+      const staffIds = staff.map(s => s.id);
+      
+      [bookings, schedules, recentMessages] = await Promise.all([
+        this.loadBookings(client.id, companyId),
+        this.loadSchedules(companyId, staffIds),
+        this.loadRecentMessages(phone, companyId)
+      ]);
+    }
+
+    const context = {
+      company,
+      services,
+      staff,
+      client,
+      bookings,
+      schedules,
+      recentMessages,
+      companyId,
+      startTime,
+      loadTime: Date.now() - startTime
+    };
+
+    // Кэшируем полный контекст на 5 минут
+    this.cache.set('context', contextKey, context, 300);
+    
+    logger.info(`Full context loaded in ${context.loadTime}ms (cached for 5 min)`);
+    return context;
+  }
+
+  /**
+   * Инвалидировать кэш при изменениях
+   */
+  invalidateCache(entityType, entityId, companyId = null) {
+    this.cache.invalidateRelated(entityType, entityId);
+    
+    // Дополнительная инвалидация для полного контекста
+    if (companyId) {
+      const contextKeys = this.cache.caches.context.keys();
+      contextKeys.forEach(key => {
+        if (key.includes(`full-context:${companyId}:`)) {
+          this.cache.delete('context', key);
+        }
+      });
+    }
+  }
+
+  /**
+   * Получить статистику кэширования
+   */
+  getCacheStats() {
+    return this.cache.getStats();
+  }
+
+  /**
+   * Все остальные методы проксируем напрямую
+   */
+  async saveContext(...args) {
+    return this.dataLoader.saveContext(...args);
+  }
+
+  async updateClientPreferences(...args) {
+    // Инвалидируем кэш клиента
+    const [clientId, companyId] = args;
+    this.invalidateCache('client', clientId, companyId);
+    
+    return this.dataLoader.updateClientPreferences(...args);
+  }
+
+  sortServicesForClient(...args) {
+    return this.dataLoader.sortServicesForClient(...args);
+  }
+
+  formatScheduleInfo(...args) {
+    return this.dataLoader.formatScheduleInfo(...args);
+  }
+}
+
+// Экспортируем singleton
+module.exports = new CachedDataLoader();

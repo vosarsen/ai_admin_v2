@@ -5,6 +5,8 @@ const logger = require('../utils/logger');
 const aiAdminV2 = require('../services/ai-admin-v2');
 const whatsappClient = require('../integrations/whatsapp/client');
 const messageQueue = require('../queue/message-queue');
+const errorMessages = require('../utils/error-messages');
+const criticalErrorLogger = require('../utils/critical-error-logger');
 
 /**
  * Упрощенный Message Worker для AI Admin v2
@@ -151,18 +153,58 @@ class MessageWorkerV2 {
         } catch (error) {
           logger.error('Processing error:', error);
           
+          // Получаем user-friendly сообщение об ошибке
+          const errorContext = {
+            operation: 'message_processing',
+            companyId: job.data.companyId,
+            hasMessage: !!message,
+            userId: from,
+            jobId: job.id,
+            requestId: job.data.requestId
+          };
+          
+          const errorResult = errorMessages.getUserMessage(error, errorContext);
+          const userErrorMessage = errorMessages.formatUserResponse(errorResult);
+          
+          // Логируем критичные ошибки
+          if (errorResult.severity === 'high' || errorResult.severity === 'critical') {
+            await criticalErrorLogger.logCriticalError(error, {
+              ...errorContext,
+              messageContent: message,
+              attemptNumber: job.attemptsMade,
+              workerInfo: {
+                workerId: this.workerId,
+                processTime: Date.now() - startTime
+              }
+            });
+          }
+          
           // Отправляем сообщение об ошибке
           try {
-            const errorMessage = 'Извините, произошла ошибка. Попробуйте еще раз или позвоните нам.';
-            logger.info(`🤖 Bot response to ${from} (error): "${errorMessage}"`);
-            await whatsappClient.sendMessage(from, errorMessage);
+            logger.info(`🤖 Bot response to ${from} (error): "${userErrorMessage}"`);
+            await whatsappClient.sendMessage(from, userErrorMessage);
+            
+            // Если ошибка временная, добавляем job в retry очередь
+            if (errorResult.needsRetry && job.attemptsMade < 3) {
+              logger.info(`Scheduling retry for job ${job.id}, attempt ${job.attemptsMade + 1}/3`);
+            }
           } catch (sendError) {
             logger.error('Failed to send error message:', sendError);
+            
+            // Это критично - не можем отправить сообщение пользователю
+            await criticalErrorLogger.logCriticalError(sendError, {
+              operation: 'send_error_message',
+              originalError: error.message,
+              userId: from,
+              companyId: job.data.companyId
+            });
           }
           
         resolve({
           success: false,
           error: error.message,
+          userMessage: userErrorMessage,
+          technical: errorResult.technical,
           processingTime: Date.now() - startTime
         });
       }

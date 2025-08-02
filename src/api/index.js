@@ -13,6 +13,9 @@ const { syncManager } = require('../sync/sync-manager');
 const whatsappAiAdminWebhook = require('./webhooks/whatsapp-ai-admin');
 const whatsappBatchedWebhook = require('./webhooks/whatsapp-batched');
 
+// Import Swagger documentation
+const { setupSwagger } = require('./swagger');
+
 const app = express();
 
 // Middleware
@@ -31,6 +34,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Setup Swagger documentation
+setupSwagger(app);
+
 // Mount webhook routes
 app.use(whatsappAiAdminWebhook);
 app.use(whatsappBatchedWebhook);
@@ -42,6 +48,10 @@ app.use('/api/calendar', calendarRoutes);
 // YClients integration routes
 const yclientsRoutes = require('./routes/yclients-integration');
 app.use(yclientsRoutes);
+
+// Cache monitoring routes
+const cacheRoutes = require('./routes/cache-stats');
+app.use('/api/cache', cacheRoutes);
 
 // Health check (with relaxed rate limit)
 app.get('/health', rateLimiter, async (req, res) => {
