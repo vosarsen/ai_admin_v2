@@ -50,8 +50,9 @@ class MessageWorkerV2 {
     logger.info(`Starting AI Message Worker v2 ${this.workerId}...`);
 
     try {
-      // Создаем worker для обработки сообщений
-      const messageWorker = new Worker('messages', this.processMessage.bind(this), {
+      // Создаем worker для обработки сообщений с правильной очередью
+      const queueName = `company-${config.yclients.companyId || 962302}-messages`;
+      const messageWorker = new Worker(queueName, this.processMessage.bind(this), {
         connection: this.connection,
         concurrency: 1
       });
@@ -78,34 +79,74 @@ class MessageWorkerV2 {
   }
 
   async processMessage(job) {
-    const { message, isRapidFire } = job.data;
+    // Логируем полную структуру данных для отладки
+    logger.debug('Job data structure:', JSON.stringify(job.data, null, 2));
+    
     const startTime = Date.now();
     
-    logger.info(`🔄 Processing message from ${message.from}`, {
-      messageId: message.id,
-      text: message.body?.substring(0, 50) + '...',
+    // Поддерживаем два формата данных:
+    // 1. Старый формат: { message: {...}, isRapidFire: bool }
+    // 2. Новый формат: данные прямо в job.data
+    let messageData;
+    let isRapidFire = false;
+    
+    if (job.data.message && typeof job.data.message === 'object') {
+      // Старый формат
+      messageData = job.data.message;
+      isRapidFire = job.data.isRapidFire || false;
+    } else if (job.data.from && job.data.message) {
+      // Новый формат - данные прямо в job.data
+      messageData = {
+        from: job.data.from,
+        body: job.data.message,
+        companyId: job.data.companyId,
+        id: job.data.id || job.data.timestamp,
+        metadata: job.data.metadata || {}
+      };
+      isRapidFire = job.data.metadata?.isRapidFireBatch || false;
+    } else {
+      logger.error('Unknown message structure:', { jobData: job.data });
+      throw new Error('Unknown message structure in job data');
+    }
+    
+    logger.info(`🔄 Processing message from ${messageData.from || 'unknown'}`, {
+      messageId: messageData.id,
+      text: messageData.body ? messageData.body.substring(0, 50) + '...' : 'no body',
       isRapidFire
     });
 
     try {
+      // Извлекаем данные с проверкой на существование
+      const messageBody = messageData.body || messageData.text || '';
+      const messageFrom = messageData.from || messageData.phone || 'unknown';
+      const companyId = messageData.companyId || messageData.metadata?.companyId || config.yclients.companyId;
+      
+      if (!messageBody) {
+        logger.warn('Empty message body received');
+        throw new Error('Empty message body');
+      }
+      
       // AI Admin v2 - один вызов с полным контекстом
-      const response = await aiAdminV2.generateResponse(
-        message.body, 
-        message.from, 
-        message.companyId
+      const response = await aiAdminV2.processMessage(
+        messageBody, 
+        messageFrom, 
+        companyId
       );
       
-      logger.info(`🤖 Bot response to ${message.from}: ${response.substring(0, 200)}...`);
+      logger.info(`🤖 Bot response to ${messageFrom}: ${(response.response || response).substring(0, 200)}...`);
 
-      // Отправляем ответ
-      await whatsappClient.sendMessage(message.from, response, message.companyId);
+      // Отправляем ответ (извлекаем текст если response - объект)
+      const responseText = response.response || response;
+      await whatsappClient.sendMessage(messageFrom, responseText, companyId);
 
-      // Помечаем сообщение как обработанное
-      await messageQueue.markProcessed(message.id);
+      // Помечаем сообщение как обработанное (если метод существует)
+      if (messageQueue.markProcessed) {
+        await messageQueue.markProcessed(messageData.id);
+      }
 
       logger.info(`✅ Message processed in ${Date.now() - startTime}ms`, {
-        messageId: message.id,
-        responseLength: response.length
+        messageId: messageData.id,
+        responseLength: responseText.length
       });
 
     } catch (error) {
@@ -122,8 +163,13 @@ class MessageWorkerV2 {
 
       // Отправляем сообщение об ошибке пользователю
       try {
-        const errorMsg = errorMessages.getGenericError();
-        await whatsappClient.sendMessage(message.from, errorMsg, message.companyId);
+        const errorMsg = errorMessages.generic || "Произошла ошибка. Попробуйте еще раз.";
+        const messageFrom = messageData.from || messageData.phone || 'unknown';
+        const companyId = messageData.companyId || messageData.metadata?.companyId || config.yclients.companyId;
+        
+        if (messageFrom !== 'unknown') {
+          await whatsappClient.sendMessage(messageFrom, errorMsg, companyId);
+        }
       } catch (sendError) {
         logger.error('Failed to send error message:', sendError);
       }

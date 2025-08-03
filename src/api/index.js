@@ -80,50 +80,14 @@ app.get('/health', rateLimiter, async (req, res) => {
   }
 });
 
-// WhatsApp webhook (with signature validation and rate limiting)
+// WhatsApp webhook - DEPRECATED (redirecting to batched version)
+// All messages should now go through /webhook/whatsapp/batched for proper rapid-fire handling
 app.post('/webhook/whatsapp', rateLimiter, validateWebhookSignature, async (req, res) => {
-  const startTime = Date.now();
+  logger.warn('⚠️ Old webhook endpoint used, redirecting to batched version');
   
-  try {
-    // Extract message data
-    const { from, message, timestamp } = req.body;
-    
-    if (!from || !message) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields: from, message'
-      });
-    }
-
-    // Extract company ID from phone or use default
-    const companyId = config.yclients.companyId;
-    
-    // Add to queue for async processing
-    const result = await messageQueue.addMessage(companyId, {
-      from,
-      message,
-      timestamp: timestamp || new Date().toISOString()
-    });
-
-    logger.info(`📨 Webhook received message from ${from}, queued as ${result.jobId}`, {
-      message: message.substring(0, 50),
-      timestamp: timestamp || new Date().toISOString()
-    });
-    
-    // Return immediately
-    res.json({
-      success: true,
-      queued: result.success,
-      jobId: result.jobId,
-      processingTime: Date.now() - startTime
-    });
-  } catch (error) {
-    logger.error('Webhook error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
-  }
+  // Forward to batched endpoint
+  req.url = '/webhook/whatsapp/batched';
+  whatsAppBatchedWebhook(req, res);
 });
 
 // Manual message send (for testing, with API key auth and strict rate limit)
