@@ -15,12 +15,12 @@ const aiProvider = new AIProviderAdapter();
 const originalCallAI = aiAdminV2.callAI.bind(aiAdminV2);
 
 // Заменяем метод callAI
-aiAdminV2.callAI = async function(prompt) {
+aiAdminV2.callAI = async function(prompt, context) {
   logger.info('🚀 Using Qwen adaptive AI system');
   
   try {
     // Используем адаптер, который сам выберет подходящую модель
-    const response = await aiProvider.callAI(prompt, {});
+    const response = await aiProvider.callAI(prompt, context || {});
     
     // Логируем статистику после каждых 100 запросов
     const stats = aiProvider.getUsageStats();

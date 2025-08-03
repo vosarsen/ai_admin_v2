@@ -92,6 +92,11 @@ class AIProviderAdapter {
    * Получить статистику использования моделей
    */
   getUsageStats() {
+    // Проверяем наличие метода getStats у провайдера
+    if (!this.provider.getStats) {
+      return { total: 0, byModel: {} };
+    }
+    
     const stats = this.provider.getStats();
     
     const totalRequests = stats.fast.count + stats.smart.count;
@@ -164,18 +169,19 @@ class AIProviderAdapter {
     };
   }
   
-  /**
-   * Получить статистику использования
-   */
-  getUsageStats() {
-    return this.provider.getUsageStats();
-  }
   
   /**
    * Сбросить статистику
    */
   resetStats() {
-    return this.provider.resetStats();
+    // DashScope provider не имеет метода resetStats, сбрасываем вручную
+    if (this.provider.stats) {
+      this.provider.stats = {
+        fast: { count: 0, totalTime: 0, errors: 0 },
+        smart: { count: 0, totalTime: 0, errors: 0 }
+      };
+    }
+    return true;
   }
 }
 

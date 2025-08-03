@@ -10,6 +10,10 @@ const logger = require('../../utils/logger').child({ module: 'dashscope-provider
 class DashScopeProvider {
   constructor() {
     this.apiKey = process.env.DASHSCOPE_API_KEY || '';
+    if (!this.apiKey) {
+      logger.error('DASHSCOPE_API_KEY is not set in environment variables');
+      throw new Error('DASHSCOPE_API_KEY is required for DashScope provider');
+    }
     this.apiUrl = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions';
     
     // Две модели для разных задач
@@ -36,7 +40,6 @@ class DashScopeProvider {
    * Определяет сложность запроса
    */
   assessComplexity(message, context) {
-    const complexityScore = 0;
     
     // Факторы сложности
     const factors = {
