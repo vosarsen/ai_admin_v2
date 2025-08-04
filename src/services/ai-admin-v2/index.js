@@ -1026,6 +1026,9 @@ CHECK_STAFF_SCHEDULE показал, что Бари НЕ работает за�
     // Формируем финальный ответ
     let finalResponse = cleanResponse;
     
+    // Убираем символ | который иногда добавляет Qwen
+    finalResponse = finalResponse.replace(/\|/g, '. ');
+    
     // Обрабатываем слоты если они есть
     const slotResults = results.filter(r => r.type === 'slots');
     if (slotResults.length > 0) {
