@@ -40,7 +40,7 @@ class RedisBatchService {
       }
       
       // Проверяем, какая БД используется
-      const dbInfo = await this.redis.client('info', 'keyspace');
+      const dbInfo = await this.redis.info('keyspace');
       logger.info('Redis database info:', dbInfo);
       
       // Проверяем количество ключей
