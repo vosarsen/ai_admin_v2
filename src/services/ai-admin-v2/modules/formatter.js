@@ -693,6 +693,79 @@ class Formatter {
     return errorMessages[error.code] || errorMessages.default;
   }
   /**
+   * Применение форматирования в зависимости от типа бизнеса
+   */
+  applyBusinessTypeFormatting(text, businessType) {
+    if (!text || !businessType) return text;
+    
+    // Получаем терминологию для типа бизнеса
+    const businessLogic = require('./business-logic');
+    const terminology = businessLogic.getBusinessTerminology(businessType);
+    
+    // Применяем замены в тексте в зависимости от типа бизнеса
+    let formattedText = text;
+    
+    switch (businessType) {
+      case 'barbershop':
+        // Заменяем общие термины на барбершоп-специфичные
+        formattedText = formattedText
+          .replace(/мастер(?!а)/gi, 'барбер')
+          .replace(/мастера/gi, 'барбера')
+          .replace(/салон/gi, 'барбершоп')
+          .replace(/записаться/gi, 'забронировать время');
+        break;
+        
+      case 'nails':
+        // Специфика для ногтевого сервиса
+        formattedText = formattedText
+          .replace(/салон/gi, 'студия')
+          .replace(/парикмахер/gi, 'мастер маникюра');
+        break;
+        
+      case 'massage':
+        // Специфика для массажа
+        formattedText = formattedText
+          .replace(/салон/gi, 'кабинет')
+          .replace(/мастер/gi, 'массажист')
+          .replace(/стрижка/gi, 'массаж');
+        break;
+        
+      case 'epilation':
+        // Специфика для эпиляции
+        formattedText = formattedText
+          .replace(/салон/gi, 'студия эпиляции')
+          .replace(/парикмахер/gi, 'мастер эпиляции');
+        break;
+        
+      case 'brows':
+        // Специфика для бровей
+        formattedText = formattedText
+          .replace(/салон/gi, 'студия красоты')
+          .replace(/мастер/gi, 'бровист');
+        break;
+        
+      case 'beauty':
+        // Общий салон красоты - минимальные изменения
+        formattedText = formattedText
+          .replace(/барбершоп/gi, 'салон красоты');
+        break;
+    }
+    
+    // Применяем стиль общения из терминологии
+    if (terminology.communicationStyle === 'дружелюбным и неформальным') {
+      // Делаем текст более неформальным
+      formattedText = formattedText
+        .replace(/Здравствуйте/gi, 'Привет')
+        .replace(/До свидания/gi, 'Пока')
+        .replace(/Вы /g, 'ты ')
+        .replace(/Вас /g, 'тебя ')
+        .replace(/Ваш/gi, 'твой');
+    }
+    
+    return formattedText;
+  }
+
+  /**
    * Форматирование подтверждения переноса записи
    */
   formatRescheduleConfirmation(data) {

@@ -16,6 +16,7 @@ const ResponseProcessor = require('./modules/response-processor');
 const { ErrorHandler, BookingError, ContextError, ValidationError } = require('./modules/error-handler');
 const MessageProcessor = require('./modules/message-processor');
 const contextManager = require('./modules/context-manager');
+const performanceMetrics = require('./modules/performance-metrics');
 
 /**
  * AI Admin v2 - единый сервис управления AI администратором
@@ -71,6 +72,9 @@ class AIAdminV2 {
   async processMessage(message, phone, companyId) {
     let context = null;
     let results = null;
+    
+    // Начинаем отслеживание операции
+    const operation = performanceMetrics.startOperation('processMessage');
     
     try {
       // Валидация входных данных
@@ -140,7 +144,18 @@ class AIAdminV2 {
       // Помечаем обработку как завершенную
       await intermediateContext.markAsCompleted(phone, result);
       
-      logger.info(`✅ AI Admin v2 completed in ${Date.now() - context.startTime}ms`);
+      const processingTime = Date.now() - context.startTime;
+      logger.info(`✅ AI Admin v2 completed in ${processingTime}ms`);
+      
+      // Завершаем отслеживание операции
+      performanceMetrics.endOperation(operation, true);
+      
+      // Записываем метрики команд
+      if (result.executedCommands) {
+        result.executedCommands.forEach(cmd => {
+          performanceMetrics.recordCommand(cmd.command, true);
+        });
+      }
       
       return {
         success: true,
@@ -152,6 +167,9 @@ class AIAdminV2 {
       
     } catch (error) {
       logger.error('Error in AI Admin v2:', error);
+      
+      // Завершаем отслеживание операции с ошибкой
+      performanceMetrics.endOperation(operation, false);
       
       // Обрабатываем ошибку через ErrorHandler
       const errorInfo = await this.errorHandler.handleError(error, {
@@ -375,6 +393,9 @@ ${JSON.stringify(slotsData)}
       
       const responseTime = Date.now() - startTime;
       
+      // Записываем метрики AI провайдера
+      performanceMetrics.recordAICall(responseTime, true);
+      
       // Записываем статистику для промпта
       if (context.promptName) {
         promptManager.recordUsage(context.promptName, {
@@ -392,17 +413,29 @@ ${JSON.stringify(slotsData)}
       promptName: context.promptName,
       startTime
     }).catch(error => {
+      const responseTime = Date.now() - startTime;
+      
+      // Записываем метрики AI провайдера
+      performanceMetrics.recordAICall(responseTime, false);
+      
       // Записываем ошибку в статистику
       if (context.promptName) {
         promptManager.recordUsage(context.promptName, {
           success: false,
-          responseTime: Date.now() - startTime,
+          responseTime: responseTime,
           error: error.message
         });
       }
       
       throw error;
     });
+  }
+  
+  /**
+   * Получить метрики производительности
+   */
+  getPerformanceMetrics() {
+    return performanceMetrics.getSummary();
   }
 }
 
