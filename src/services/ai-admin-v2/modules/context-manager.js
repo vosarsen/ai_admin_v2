@@ -4,13 +4,99 @@ const dataLoader = require('../../data-loader');
 const intermediateContext = require('../../context/intermediate-context');
 
 /**
+ * Простая реализация LRU кэша
+ */
+class LRUCache {
+  constructor(maxSize = 100, ttl = 5 * 60 * 1000) {
+    this.maxSize = maxSize;
+    this.ttl = ttl; // время жизни в миллисекундах
+    this.cache = new Map();
+  }
+
+  get(key) {
+    const item = this.cache.get(key);
+    if (!item) return null;
+    
+    // Проверяем не истек ли TTL
+    if (Date.now() > item.expiry) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    // LRU: переместить в конец (самый свежий)
+    this.cache.delete(key);
+    this.cache.set(key, item);
+    
+    return item.value;
+  }
+
+  set(key, value) {
+    // Удаляем если уже существует (для LRU порядка)
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    }
+    
+    // Проверяем размер кэша
+    if (this.cache.size >= this.maxSize) {
+      // Удаляем самый старый элемент (первый в Map)
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+    
+    // Добавляем в конец
+    this.cache.set(key, {
+      value,
+      expiry: Date.now() + this.ttl
+    });
+  }
+
+  delete(key) {
+    return this.cache.delete(key);
+  }
+
+  clear() {
+    this.cache.clear();
+  }
+
+  // Периодическая очистка истекших элементов
+  cleanup() {
+    const now = Date.now();
+    for (const [key, item] of this.cache.entries()) {
+      if (now > item.expiry) {
+        this.cache.delete(key);
+      }
+    }
+  }
+
+  getStats() {
+    return {
+      size: this.cache.size,
+      maxSize: this.maxSize,
+      ttl: this.ttl
+    };
+  }
+}
+
+/**
  * Модуль для управления контекстом разговора
  */
 class ContextManager {
   constructor() {
-    // Кеш контекстов в памяти
-    this.memoryCache = new Map();
-    this.cacheTimeout = 5 * 60 * 1000; // 5 минут
+    // LRU кеш контекстов в памяти
+    this.memoryCache = new LRUCache(500, 5 * 60 * 1000); // 500 элементов, 5 минут TTL
+    
+    // Метрики кэша
+    this.cacheMetrics = {
+      hits: 0,
+      misses: 0,
+      evictions: 0
+    };
+    
+    // Запускаем периодическую очистку
+    this.cleanupInterval = setInterval(() => {
+      this.memoryCache.cleanup();
+      logger.debug('Memory cache cleanup completed', this.memoryCache.getStats());
+    }, 60 * 1000); // каждую минуту
   }
 
   /**
@@ -104,6 +190,29 @@ class ContextManager {
   }
 
   /**
+   * Получение статистики кэша
+   */
+  getCacheStats() {
+    return {
+      memory: {
+        ...this.memoryCache.getStats(),
+        metrics: this.cacheMetrics
+      }
+    };
+  }
+
+  /**
+   * Очистка ресурсов при завершении
+   */
+  destroy() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    this.memoryCache.clear();
+  }
+
+  /**
    * Обогащение данных клиента
    */
   enrichClientData(clientFromDb, redisContext) {
@@ -186,33 +295,17 @@ class ContextManager {
    */
   getFromMemoryCache(key) {
     const cached = this.memoryCache.get(key);
-    if (!cached) return null;
-    
-    // Проверяем срок жизни
-    if (Date.now() - cached.timestamp > this.cacheTimeout) {
-      this.memoryCache.delete(key);
-      return null;
+    if (cached) {
+      this.cacheMetrics.hits++;
+      return cached;
     }
     
-    return cached.data;
+    this.cacheMetrics.misses++;
+    return null;
   }
 
   saveToMemoryCache(key, data) {
-    this.memoryCache.set(key, {
-      data,
-      timestamp: Date.now()
-    });
-    
-    // Ограничиваем размер кеша
-    if (this.memoryCache.size > 100) {
-      // Удаляем самые старые записи
-      const sortedEntries = Array.from(this.memoryCache.entries())
-        .sort((a, b) => a[1].timestamp - b[1].timestamp);
-      
-      for (let i = 0; i < 20; i++) {
-        this.memoryCache.delete(sortedEntries[i][0]);
-      }
-    }
+    this.memoryCache.set(key, data);
   }
 
   async saveToCache(cacheKey, context, phone, companyId) {

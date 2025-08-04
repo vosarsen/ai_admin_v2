@@ -355,12 +355,11 @@ class Formatter {
   }
 
   /**
-   * Группировка слотов по времени дня
+   * Группировка слотов по времени дня (оптимизированная версия)
    */
   groupSlotsByTimeOfDay(slots) {
     logger.info('groupSlotsByTimeOfDay called with slots:', {
-      totalSlots: slots.length,
-      slots: slots.map(s => s.time || s.datetime?.split('T')[1]?.substring(0, 5))
+      totalSlots: slots.length
     });
     
     const groups = {
@@ -369,103 +368,108 @@ class Formatter {
       evening: []   // после 17:00
     };
     
-    // Сортируем слоты по времени
-    const sortedSlots = slots.sort((a, b) => {
-      const timeA = a.time || (a.datetime ? a.datetime.split(' ')[1].substring(0, 5) : '');
-      const timeB = b.time || (b.datetime ? b.datetime.split(' ')[1].substring(0, 5) : '');
-      return timeA.localeCompare(timeB);
-    });
+    // Оптимизированная обработка без создания лишних объектов
+    const processedSlots = [];
     
-    // Группируем слоты по периодам дня
+    for (const slot of slots) {
+      // Извлекаем время один раз
+      let timeStr = slot.time;
+      if (!timeStr && slot.datetime) {
+        // Оптимизированное извлечение времени
+        const tIndex = slot.datetime.indexOf('T');
+        if (tIndex !== -1) {
+          timeStr = slot.datetime.substring(tIndex + 1, tIndex + 6);
+        } else if (slot.datetime.indexOf(' ') !== -1) {
+          timeStr = slot.datetime.split(' ')[1]?.substring(0, 5);
+        }
+      }
+      
+      if (!timeStr) continue;
+      
+      // Быстрое извлечение часа без split
+      const colonIndex = timeStr.indexOf(':');
+      if (colonIndex === -1) continue;
+      
+      const hour = parseInt(timeStr.substring(0, colonIndex));
+      const minutes = parseInt(timeStr.substring(colonIndex + 1, colonIndex + 3));
+      
+      if (isNaN(hour) || isNaN(minutes)) continue;
+      
+      const hourDecimal = hour + (minutes / 60);
+      
+      // Добавляем в соответствующую группу
+      const slotInfo = { time: timeStr, hour, minutes, hourDecimal, slot };
+      
+      if (hour < 12) {
+        processedSlots.push({ ...slotInfo, period: 'morning' });
+      } else if (hour < 17) {
+        processedSlots.push({ ...slotInfo, period: 'day' });
+      } else {
+        processedSlots.push({ ...slotInfo, period: 'evening' });
+      }
+    }
+    
+    // Сортируем один раз все слоты
+    processedSlots.sort((a, b) => a.hourDecimal - b.hourDecimal);
+    
+    // Группируем отсортированные слоты
     const periodSlots = {
       morning: [],
       day: [],
       evening: []
     };
     
-    sortedSlots.forEach(slot => {
-      const time = slot.time || (slot.datetime ? slot.datetime.split('T')[1]?.substring(0, 5) : '');
-      if (!time) return;
-      
-      const hour = parseInt(time.split(':')[0]);
-      const minutes = parseInt(time.split(':')[1]);
-      const hourDecimal = hour + (minutes / 60);
-      
-      if (hour < 12) {
-        periodSlots.morning.push({ time, hour, minutes, hourDecimal, slot });
-      } else if (hour < 17) {
-        periodSlots.day.push({ time, hour, minutes, hourDecimal, slot });
-      } else {
-        periodSlots.evening.push({ time, hour, minutes, hourDecimal, slot });
-      }
-    });
+    for (const slot of processedSlots) {
+      periodSlots[slot.period].push(slot);
+    }
     
-    // Выбираем слоты с промежутками для вариативности (минимум 1 час между слотами)
+    // Оптимизированная функция выбора слотов с промежутками
     const selectSlotsWithGaps = (slots, maxCount) => {
       if (slots.length === 0) return [];
       if (slots.length === 1) return [slots[0].time];
-      
-      const selected = [];
-      let lastSelectedHourDecimal = -999; // Начальное значение для сравнения
-      
-      logger.info('selectSlotsWithGaps called:', { 
-        slotsCount: slots.length, 
-        maxCount,
-        slots: slots.map(s => ({ time: s.time, hourDecimal: s.hourDecimal }))
-      });
       
       // Если слотов меньше или равно maxCount, возвращаем все
       if (slots.length <= maxCount) {
         return slots.map(s => s.time);
       }
       
-      // Если слотов больше чем нужно, выбираем с промежутками
+      // Оптимизированный алгоритм выбора с промежутками
+      const selected = [];
       const minGap = 1.0; // Минимальный промежуток 1 час
+      let lastSelectedHourDecimal = -999;
       
-      for (let i = 0; i < slots.length; i++) {
+      // Берем первый слот
+      selected.push(slots[0].time);
+      lastSelectedHourDecimal = slots[0].hourDecimal;
+      
+      // Проходим по остальным слотам
+      for (let i = 1; i < slots.length && selected.length < maxCount; i++) {
         const slot = slots[i];
-        if (selected.length >= maxCount) {
-          logger.info('Reached maxCount, stopping selection');
-          break;
-        }
-        
         const gap = slot.hourDecimal - lastSelectedHourDecimal;
-        logger.info(`Checking slot ${i+1}/${slots.length}:`, { 
-          time: slot.time, 
-          hourDecimal: slot.hourDecimal,
-          lastSelectedHourDecimal,
-          gap,
-          willSelect: gap >= minGap,
-          currentSelectedCount: selected.length,
-          maxCount
-        });
         
-        // Проверяем что прошло минимум 1 час с последнего выбранного слота
         if (gap >= minGap) {
           selected.push(slot.time);
           lastSelectedHourDecimal = slot.hourDecimal;
-          logger.info(`Selected slot ${selected.length}/${maxCount}:`, slot.time);
         }
       }
       
       // Если выбрали меньше чем нужно, добавляем еще слоты
       if (selected.length < maxCount) {
-        // Берем слоты которые еще не выбраны
-        const remainingSlots = slots.filter(s => !selected.includes(s.time));
+        // Оптимизированный алгоритм: используем Set для быстрого поиска
+        const selectedSet = new Set(selected);
         const slotsToAdd = maxCount - selected.length;
         
-        // Добавляем оставшиеся слоты равномерно
-        if (remainingSlots.length > 0) {
-          const step = Math.max(1, Math.floor(remainingSlots.length / slotsToAdd));
-          for (let i = 0; i < remainingSlots.length && selected.length < maxCount; i += step) {
-            selected.push(remainingSlots[i].time);
-            logger.info(`Added additional slot ${selected.length}/${maxCount}:`, remainingSlots[i].time);
+        // Равномерно распределяем оставшиеся слоты
+        let addedCount = 0;
+        const step = Math.ceil(slots.length / slotsToAdd);
+        
+        for (let i = 0; i < slots.length && addedCount < slotsToAdd; i += step) {
+          if (!selectedSet.has(slots[i].time)) {
+            selected.push(slots[i].time);
+            addedCount++;
           }
         }
       }
-      
-      // Сортируем выбранные слоты по времени
-      selected.sort();
       
       return selected;
     };
