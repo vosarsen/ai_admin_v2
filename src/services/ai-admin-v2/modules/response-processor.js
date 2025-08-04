@@ -164,11 +164,12 @@ class ResponseProcessor {
     let finalResponse = baseResponse;
     
     // Обработка результатов команд
-    for (const result of commandResults) {
-      if (!result.success) {
+    for (const commandResult of commandResults) {
+      // commandResult имеет структуру: { command, params, result }
+      if (commandResult.result && !commandResult.result.success) {
         finalResponse = await this.handleCommandError(
           finalResponse,
-          result,
+          commandResult,
           context
         );
       }
@@ -186,8 +187,9 @@ class ResponseProcessor {
   /**
    * Обработка ошибок команд
    */
-  async handleCommandError(response, errorResult, context) {
-    const { command, error } = errorResult;
+  async handleCommandError(response, commandResult, context) {
+    const command = commandResult.command;
+    const error = commandResult.result?.error || 'Неизвестная ошибка';
     
     switch (command) {
       case 'CREATE_BOOKING':
