@@ -529,7 +529,9 @@ class ContextService {
    * Set cached full context in Redis with TTL
    */
   async setCachedFullContext(phone, companyId, context, ttl = 12 * 60 * 60) {
+    logger.debug(`setCachedFullContext called with phone: "${phone}", companyId: ${companyId}`);
     const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
+    logger.debug(`Normalized phone: "${normalizedPhone}" from "${phone}"`);
     const cacheKey = `full_context:${companyId}:${normalizedPhone}`;
     
     try {
