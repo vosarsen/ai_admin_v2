@@ -39,6 +39,14 @@ class RedisBatchService {
         throw new Error('Redis connection test failed');
       }
       
+      // Проверяем, какая БД используется
+      const dbInfo = await this.redis.client('info', 'keyspace');
+      logger.info('Redis database info:', dbInfo);
+      
+      // Проверяем количество ключей
+      const dbSize = await this.redis.dbsize();
+      logger.info(`Redis DB size: ${dbSize} keys`);
+      
       logger.info('RedisBatchService initialized successfully');
     } catch (error) {
       logger.error('Failed to initialize RedisBatchService:', error);
@@ -93,6 +101,14 @@ class RedisBatchService {
       const exists1 = await this.redis.exists(batchKey);
       const exists2 = await this.redis.exists(lastMsgKey);
       logger.info(`Keys exist check - batch: ${exists1}, lastMsg: ${exists2}`);
+      
+      // Дополнительная диагностика - проверяем что ключи видны через keys
+      const foundKeys = await this.redis.keys('rapid-fire:*');
+      logger.info(`Found rapid-fire keys: ${foundKeys.length}, keys: ${foundKeys.join(', ')}`);
+      
+      // Проверяем содержимое батча
+      const batchContent = await this.redis.lrange(batchKey, 0, -1);
+      logger.info(`Batch content length: ${batchContent.length}`);
 
       logger.debug(`Added message to batch for ${phone}`, {
         batchKey,
