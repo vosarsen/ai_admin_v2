@@ -284,8 +284,20 @@ class IntermediateContext {
           // Для completed и error просто обновляем статус
           const exists = await this.redis.exists(key);
           if (exists) {
-            await this.redis.hset(key, 'status', status);
-            await this.redis.hset(key, 'completedAt', Date.now());
+            // Проверяем тип ключа
+            const keyType = await this.redis.type(key);
+            if (keyType === 'string') {
+              // Если это строка, удаляем и создаем заново как hash
+              await this.redis.del(key);
+              await this.redis.hset(key, 'status', status);
+              await this.redis.hset(key, 'completedAt', Date.now());
+            } else if (keyType === 'hash') {
+              // Если это hash, просто обновляем
+              await this.redis.hset(key, 'status', status);
+              await this.redis.hset(key, 'completedAt', Date.now());
+            }
+            // Устанавливаем TTL
+            await this.redis.expire(key, this.ttl);
           }
           break;
           
