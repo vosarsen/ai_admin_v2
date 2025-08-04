@@ -1,6 +1,7 @@
 const logger = require('../../utils/logger').child({ module: 'prompt-manager' });
 const fs = require('fs').promises;
 const path = require('path');
+const config = require('../../config');
 
 /**
  * Менеджер промптов для A/B тестирования
@@ -8,7 +9,7 @@ const path = require('path');
 class PromptManager {
   constructor() {
     this.prompts = new Map();
-    this.activePrompt = process.env.AI_PROMPT_VERSION || 'optimized-prompt';
+    this.activePrompt = config.ai.promptVersion;
     this.stats = new Map();
     this.promptsDir = path.join(__dirname, 'prompts');
   }
