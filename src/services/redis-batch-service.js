@@ -63,20 +63,31 @@ class RedisBatchService {
         throw new Error('Redis client not initialized');
       }
       // Добавляем сообщение в список
-      await this.redis.rpush(batchKey, JSON.stringify({
+      const messageData = JSON.stringify({
         message,
         companyId,
         metadata,
         timestamp: Date.now()
-      }));
+      });
+      
+      await this.redis.rpush(batchKey, messageData);
+      logger.info(`RPUSH executed for key: ${batchKey}, data length: ${messageData.length}`);
 
       // Обновляем время последнего сообщения
-      await this.redis.set(lastMsgKey, Date.now());
+      const now = Date.now();
+      await this.redis.set(lastMsgKey, now);
+      logger.info(`SET executed for key: ${lastMsgKey}, value: ${now}`);
 
       // Обновляем TTL при каждом новом сообщении для автоматической очистки
       // TTL должен быть больше чем batchTimeout + запас на обработку
-      await this.redis.expire(batchKey, this.defaultTTL);
-      await this.redis.expire(lastMsgKey, this.defaultTTL);
+      const ttl1 = await this.redis.expire(batchKey, this.defaultTTL);
+      const ttl2 = await this.redis.expire(lastMsgKey, this.defaultTTL);
+      logger.info(`EXPIRE executed - batch: ${ttl1}, lastMsg: ${ttl2}, TTL: ${this.defaultTTL}`);
+      
+      // Проверяем что ключи действительно существуют
+      const exists1 = await this.redis.exists(batchKey);
+      const exists2 = await this.redis.exists(lastMsgKey);
+      logger.info(`Keys exist check - batch: ${exists1}, lastMsg: ${exists2}`);
 
       logger.debug(`Added message to batch for ${phone}`, {
         batchKey,
