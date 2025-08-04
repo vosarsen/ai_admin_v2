@@ -8,7 +8,7 @@ const path = require('path');
 class PromptManager {
   constructor() {
     this.prompts = new Map();
-    this.activePrompt = process.env.AI_PROMPT_VERSION || 'enhanced-prompt';
+    this.activePrompt = process.env.AI_PROMPT_VERSION || 'optimized-prompt';
     this.stats = new Map();
     this.promptsDir = path.join(__dirname, 'prompts');
   }
