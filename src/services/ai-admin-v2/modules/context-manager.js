@@ -244,7 +244,7 @@ class ContextManager {
     this.saveToMemoryCache(cacheKey, context);
     
     // Сохраняем в Redis
-    await contextService.cacheFullContext(phone, companyId, context);
+    await contextService.setCachedFullContext(phone, companyId, context);
   }
 
   /**
