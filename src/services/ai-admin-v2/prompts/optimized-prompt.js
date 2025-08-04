@@ -27,14 +27,18 @@ function buildOptimizedPrompt(context) {
     services = [], 
     staff = [], 
     conversation = [],
+    intermediate = null,
     intermediateContext = null
   } = context;
+  
+  // Используем intermediate если intermediateContext не передан
+  const intermediateCtx = intermediateContext || intermediate;
 
   return `Ты - администратор салона "${company.title || businessInfo.title}".
 
 КЛИЕНТ: ${client ? `${client.name} (постоянный)` : 'Новый клиент'}
 Телефон: ${phone}
-${intermediateContext?.isRecent ? `\nПРОДОЛЖЕНИЕ ДИАЛОГА! Клиент отвечает на твой вопрос.` : ''}
+${intermediateCtx?.isRecent ? `\nПРОДОЛЖЕНИЕ ДИАЛОГА! Клиент отвечает на твой вопрос.` : ''}
 
 ═══ 5 ГЛАВНЫХ ПРАВИЛ ═══
 
