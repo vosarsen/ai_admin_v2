@@ -1,6 +1,41 @@
 # AI Admin v2 - Рекомендации и улучшения
 
-## 📅 Last Updated: July 29, 2025, 15:40
+## 📅 Last Updated: August 4, 2025
+
+## 🆕 AI Provider System - Quick Reference
+
+### Переключение AI провайдеров
+```bash
+# Посмотреть доступные провайдеры
+node scripts/switch-ai-provider.js list
+
+# Переключиться на Qwen
+export AI_PROVIDER=qwen
+# или
+node scripts/switch-ai-provider.js switch qwen
+
+# Вернуться на DeepSeek
+export AI_PROVIDER=deepseek
+```
+
+### Управление промптами
+```bash
+# Посмотреть статистику
+node scripts/manage-prompts.js list
+
+# Переключить промпт (рекомендуется strict-prompt для Qwen)
+export AI_PROMPT_VERSION=strict-prompt
+# или
+node scripts/manage-prompts.js switch strict-prompt
+
+# Включить A/B тестирование
+export AI_PROMPT_AB_TEST=true
+```
+
+### Рекомендации по выбору
+- **Для Qwen**: используйте `strict-prompt` (специально оптимизирован)
+- **Для DeepSeek**: используйте `enhanced-prompt` (лучшие результаты)
+- **При проблемах с Qwen**: переключитесь на `qwen-72b` или вернитесь на DeepSeek
 
 ## 🎯 Приоритетные задачи
 
