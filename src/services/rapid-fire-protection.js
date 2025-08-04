@@ -179,7 +179,7 @@ class RapidFireProtection {
     }
 
     // Для длинных сообщений добавляем префикс
-    return `Несколько сообщений: ${uniqueMessages.join(' | ')}`;
+    return `Несколько сообщений: ${uniqueMessages.join('. ')}`;
   }
 
   /**
