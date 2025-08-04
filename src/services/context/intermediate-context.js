@@ -262,6 +262,41 @@ class IntermediateContext {
     
     return false; // Таймаут
   }
+
+  /**
+   * Установка статуса обработки
+   */
+  async setProcessingStatus(phone, status) {
+    const key = `intermediate:${phone}`;
+    
+    try {
+      logger.debug(`Setting processing status to ${status} for ${phone}`);
+      
+      switch (status) {
+        case 'started':
+          // Для started используем существующий функционал
+          const currentContext = await this.redis.get(`context:${phone}`);
+          await this.saveProcessingStart(phone, '', currentContext ? JSON.parse(currentContext) : {});
+          break;
+          
+        case 'completed':
+        case 'error':
+          // Для completed и error просто обновляем статус
+          const exists = await this.redis.exists(key);
+          if (exists) {
+            await this.redis.hset(key, 'status', status);
+            await this.redis.hset(key, 'completedAt', Date.now());
+          }
+          break;
+          
+        default:
+          logger.warn(`Unknown processing status: ${status}`);
+      }
+    } catch (error) {
+      logger.error('Error setting processing status:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new IntermediateContext();
