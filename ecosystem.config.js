@@ -17,12 +17,13 @@ module.exports = {
     },
     {
       name: 'ai-admin-worker-v2',
-      script: './src/workers/index-v2-qwen.js', // Используем v2 с поддержкой Qwen!
+      script: './src/workers/index-v2.js',
       instances: 1,
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
-        USE_QWEN: 'true' // Включаем Qwen по умолчанию
+        AI_PROVIDER: 'qwen', // Используем новую систему провайдеров
+        AI_PROMPT_VERSION: 'strict-prompt' // Оптимальный промпт для Qwen
       },
       error_file: './logs/worker-v2-error.log',
       out_file: './logs/worker-v2-out.log',
