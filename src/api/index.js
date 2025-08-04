@@ -53,6 +53,10 @@ app.use(yclientsRoutes);
 const cacheRoutes = require('./routes/cache-stats');
 app.use('/api/cache', cacheRoutes);
 
+// AI management routes
+const aiManagementRoutes = require('./routes/ai-management');
+app.use('/api/ai', aiManagementRoutes);
+
 // Health check (with relaxed rate limit)
 app.get('/health', rateLimiter, async (req, res) => {
   try {
