@@ -1,12 +1,12 @@
 const logger = require('../../../utils/logger').child({ module: 'response-processor' });
+const commandExecutor = require('./command-executor');
 
 /**
  * Модуль для обработки ответов AI
  * Выделен из index.js для улучшения читаемости и тестируемости
  */
 class ResponseProcessor {
-  constructor(commandHandler, formatter) {
-    this.commandHandler = commandHandler;
+  constructor(formatter) {
     this.formatter = formatter;
   }
 
@@ -108,36 +108,8 @@ class ResponseProcessor {
    * Выполнение команд
    */
   async executeCommands(commands, context) {
-    const results = [];
-    
-    for (const cmd of commands) {
-      try {
-        logger.info(`Executing command: ${cmd.command}`, { params: cmd.params });
-        
-        const result = await this.commandHandler.executeCommand(
-          cmd.command,
-          cmd.params,
-          context
-        );
-        
-        results.push({
-          command: cmd.command,
-          success: true,
-          result
-        });
-        
-      } catch (error) {
-        logger.error(`Command execution failed: ${cmd.command}`, error);
-        
-        results.push({
-          command: cmd.command,
-          success: false,
-          error: error.message
-        });
-      }
-    }
-    
-    return results;
+    // Делегируем выполнение команд в CommandExecutor
+    return await commandExecutor.executeMultiple(commands, context);
   }
 
   /**

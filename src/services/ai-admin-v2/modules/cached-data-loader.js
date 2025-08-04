@@ -43,7 +43,7 @@ class CachedDataLoader {
   async loadStaff(companyId) {
     const cacheKey = `staff:${companyId}`;
     
-    return this.cache.getOrSet('services', cacheKey, async () => {
+    return this.cache.getOrSet('staff', cacheKey, async () => {
       logger.debug(`Loading staff from DB: ${companyId}`);
       return this.dataLoader.loadStaff(companyId);
     });
@@ -188,13 +188,6 @@ class CachedDataLoader {
     }, 300); // 5 минут
   }
 
-  /**
-   * Сохранить контекст диалога
-   */
-  async saveContext(phone, companyId, context, result) {
-    // Делегируем базовому загрузчику
-    return this.dataLoader.saveContext(phone, companyId, context, result);
-  }
 
   /**
    * Инвалидировать кэш при изменениях
