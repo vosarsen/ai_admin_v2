@@ -110,8 +110,11 @@ ${services.slice(0, 5).map(s => `${s.title}: от ${s.price_min}₽`).join('\n')
 
 ИСТОРИЯ ДИАЛОГА:
 ${conversation.slice(-3).map(m => `${m.sender}: ${m.text}`).join('\n')}
+${conversation.length > 0 ? '\nЭТО ПРОДОЛЖЕНИЕ ДИАЛОГА - НЕ ЗДОРОВАЙСЯ!' : ''}
 
 ТЕКУЩЕЕ СООБЩЕНИЕ: "{message}"
+
+ВАЖНО: ${conversation.length > 0 || intermediateCtx?.isRecent ? 'НЕ ЗДОРОВАЙСЯ - диалог уже начат!' : 'Начни с приветствия'}
 
 Ответь клиенту согласно правилам:`
 }

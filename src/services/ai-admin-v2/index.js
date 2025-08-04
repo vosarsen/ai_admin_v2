@@ -138,6 +138,23 @@ class AIAdminV2 {
       // Обновляем промежуточный контекст после AI анализа
       await intermediateContext.updateAfterAIAnalysis(phone, aiResponse, result.executedCommands || []);
       
+      // Сохраняем сообщения в контекст
+      await contextService.updateContext(phone.replace('@c.us', ''), companyId, {
+        lastMessage: {
+          sender: 'user',
+          text: message,
+          timestamp: new Date().toISOString()
+        }
+      });
+      
+      await contextService.updateContext(phone.replace('@c.us', ''), companyId, {
+        lastMessage: {
+          sender: 'bot',
+          text: result.response,
+          timestamp: new Date().toISOString()
+        }
+      });
+      
       // Сохраняем контекст диалога
       await contextManager.saveContext(context);
       
