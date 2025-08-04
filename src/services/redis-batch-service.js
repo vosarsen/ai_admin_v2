@@ -2,6 +2,7 @@
 const { createRedisClient } = require('../utils/redis-factory');
 const logger = require('../utils/logger');
 const messageQueue = require('../queue/message-queue');
+const { normalizePhone } = require('../utils/phone-normalizer');
 
 class RedisBatchService {
   constructor() {
@@ -53,8 +54,12 @@ class RedisBatchService {
    * @param {object} metadata - дополнительные данные
    */
   async addMessage(phone, message, companyId, metadata = {}) {
-    const batchKey = `${this.batchPrefix}${phone}`;
-    const lastMsgKey = `${this.lastMessagePrefix}${phone}`;
+    // Нормализуем номер телефона к единому формату
+    const normalizedPhone = normalizePhone(phone);
+    logger.debug(`Phone normalization: ${phone} -> ${normalizedPhone}`);
+    
+    const batchKey = `${this.batchPrefix}${normalizedPhone}`;
+    const lastMsgKey = `${this.lastMessagePrefix}${normalizedPhone}`;
 
     try {
       // Диагностика подключения
@@ -157,8 +162,11 @@ class RedisBatchService {
    * Определяет, готов ли батч к обработке
    */
   async shouldProcessBatch(phone) {
-    const batchKey = `${this.batchPrefix}${phone}`;
-    const lastMsgKey = `${this.lastMessagePrefix}${phone}`;
+    // Нормализуем номер для консистентности
+    const normalizedPhone = normalizePhone(phone);
+    
+    const batchKey = `${this.batchPrefix}${normalizedPhone}`;
+    const lastMsgKey = `${this.lastMessagePrefix}${normalizedPhone}`;
 
     try {
       // Проверяем TTL батча для отладки
@@ -221,10 +229,13 @@ class RedisBatchService {
    * Обрабатывает батч сообщений
    */
   async processBatch(phone) {
-    const batchKey = `${this.batchPrefix}${phone}`;
-    const lastMsgKey = `${this.lastMessagePrefix}${phone}`;
+    // Нормализуем номер для консистентности
+    const normalizedPhone = normalizePhone(phone);
+    
+    const batchKey = `${this.batchPrefix}${normalizedPhone}`;
+    const lastMsgKey = `${this.lastMessagePrefix}${normalizedPhone}`;
 
-    logger.info(`Starting to process batch for ${phone}`);
+    logger.info(`Starting to process batch for ${phone} (normalized: ${normalizedPhone})`);
 
     try {
       // Получаем все сообщения из батча
@@ -270,9 +281,9 @@ class RedisBatchService {
         preview: combinedMessage.substring(0, 100) + '...'
       });
 
-      // Добавляем объединенное сообщение в очередь
+      // Добавляем объединенное сообщение в очередь с нормализованным номером
       await messageQueue.addMessage(companyId, {
-        from: phone,
+        from: normalizedPhone,
         message: combinedMessage,
         metadata: {
           ...metadata,
@@ -327,12 +338,15 @@ class RedisBatchService {
    * Очищает батч для конкретного телефона
    */
   async clearBatch(phone) {
-    const batchKey = `${this.batchPrefix}${phone}`;
-    const lastMsgKey = `${this.lastMessagePrefix}${phone}`;
+    // Нормализуем номер для консистентности
+    const normalizedPhone = normalizePhone(phone);
+    
+    const batchKey = `${this.batchPrefix}${normalizedPhone}`;
+    const lastMsgKey = `${this.lastMessagePrefix}${normalizedPhone}`;
 
     try {
       await this.redis.del(batchKey, lastMsgKey);
-      logger.info(`Cleared batch for ${phone}`);
+      logger.info(`Cleared batch for ${phone} (normalized: ${normalizedPhone})`);
       return true;
     } catch (error) {
       logger.error(`Failed to clear batch for ${phone}:`, error);
