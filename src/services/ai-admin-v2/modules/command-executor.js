@@ -465,8 +465,11 @@ class CommandExecutor {
         };
       }
       
+      // Нормализуем номер телефона перед сохранением
+      const phone = context.phone?.replace('@c.us', '') || context.phone;
+      
       // Обновляем имя клиента
-      await contextService.updateContext(context.phone, context.companyId, { clientInfo: {
+      await contextService.updateContext(phone, context.companyId, { clientInfo: {
         name,
         company_id: context.company.id
       }});
