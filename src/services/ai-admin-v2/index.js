@@ -10,6 +10,8 @@ const contextService = require('../context');
 const intermediateContext = require('../context/intermediate-context');
 const errorMessages = require('../../utils/error-messages');
 const criticalErrorLogger = require('../../utils/critical-error-logger');
+const providerFactory = require('../ai/provider-factory');
+const promptManager = require('./prompt-manager');
 
 /**
  * AI Admin v2 - единый сервис управления AI администратором
@@ -89,12 +91,26 @@ class AIAdminV2 {
       // Строим умный промпт с полным контекстом
       const prompt = this.buildSmartPrompt(message, context, phone);
       
+      // Определяем имя промпта для статистики
+      const promptName = process.env.AI_PROMPT_VERSION || 'enhanced-prompt';
+      
       // Один вызов AI со всей информацией
-      const aiResponse = await this.callAI(prompt);
+      const aiResponse = await this.callAI(prompt, {
+        message: message,
+        promptName: promptName
+      });
       
       // Обрабатываем ответ и выполняем команды
       const result = await this.processAIResponse(aiResponse, context);
       results = result.results;
+      
+      // Обновляем статистику с количеством выполненных команд
+      if (result.executedCommands?.length > 0) {
+        promptManager.recordUsage(promptName, {
+          success: true,
+          commandsExecuted: result.executedCommands.length
+        });
+      }
       
       // Обновляем промежуточный контекст после AI анализа
       await intermediateContext.updateAfterAIAnalysis(phone, aiResponse, result.executedCommands || []);
@@ -267,10 +283,48 @@ class AIAdminV2 {
   buildSmartPrompt(message, context, phone) {
     const terminology = businessLogic.getBusinessTerminology(context.company.type);
     
-    // Добавляем информацию о продолжении диалога
-    let continuationInfo = '';
+    // Подготавливаем контекст для промпта
+    const promptContext = {
+      businessInfo: {
+        title: context.company?.title || config.app.defaultCompanyName || 'Салон красоты',
+        type: terminology.businessName,
+        workHours: context.company?.work_hours || '9:00-21:00',
+        address: context.company?.address || '',
+        phone: context.company?.phone || ''
+      },
+      services: context.services || [],
+      staff: context.staff || [],
+      recentBookings: context.client?.bookings || [],
+      userInfo: {
+        name: context.client?.name || '',
+        phone: phone,
+        isReturning: context.isReturningClient || false
+      }
+    };
+    
+    // Получаем промпт из менеджера
+    let basePrompt;
+    const promptVersion = process.env.AI_PROMPT_VERSION || 'enhanced-prompt';
+    
+    if (process.env.AI_PROMPT_AB_TEST === 'true') {
+      // A/B тестирование
+      const abTestResult = promptManager.getPromptForABTest(promptContext);
+      basePrompt = abTestResult.text;
+      logger.info(`Using prompt ${abTestResult.name} v${abTestResult.version} for A/B test`);
+    } else {
+      // Используем указанную версию
+      basePrompt = promptManager.getActivePrompt(promptContext);
+    }
+    
+    // Заменяем плейсхолдер на реальное сообщение
+    basePrompt = basePrompt.replace('{message}', message);
+    
+    // Добавляем дополнительный контекст из Redis
+    let additionalContext = '';
+    
+    // Информация о продолжении диалога
     if (context.canContinueConversation && context.conversationSummary?.recentMessages?.length > 0) {
-      continuationInfo = `
+      additionalContext += `
 ВАЖНО: Это продолжение прерванного диалога. Последние сообщения:
 ${context.conversationSummary.recentMessages.map(m => `${m.role}: ${m.content}`).join('\n')}
 
@@ -1404,14 +1458,50 @@ ${JSON.stringify(slotsData)}
   }
 
   /**
-   * Вызов AI через AIService
+   * Вызов AI через новую систему провайдеров
    */
-  async callAI(prompt) {
-    if (!this.aiProvider) {
-      this.aiProvider = require('../ai');
-    }
+  async callAI(prompt, context = {}) {
+    const startTime = Date.now();
     
-    return await this.aiProvider._callAI(prompt);
+    try {
+      // Получаем провайдера через фабрику
+      const provider = await providerFactory.getProvider();
+      
+      // Вызываем AI
+      const result = await provider.call(prompt, {
+        message: context.message || '',
+        temperature: 0.7,
+        maxTokens: 1000
+      });
+      
+      const responseTime = Date.now() - startTime;
+      
+      // Записываем статистику для промпта
+      if (context.promptName) {
+        promptManager.recordUsage(context.promptName, {
+          success: true,
+          responseTime,
+          commandsExecuted: context.commandsExecuted || 0
+        });
+      }
+      
+      logger.info(`✅ AI responded in ${responseTime}ms using ${provider.name}`);
+      
+      return result.text;
+    } catch (error) {
+      logger.error('AI call failed:', error);
+      
+      // Записываем ошибку в статистику
+      if (context.promptName) {
+        promptManager.recordUsage(context.promptName, {
+          success: false,
+          responseTime: Date.now() - startTime,
+          error: error.message
+        });
+      }
+      
+      throw error;
+    }
   }
 
 }
