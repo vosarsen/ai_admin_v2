@@ -571,6 +571,87 @@ node src/workers/index.js
 # Both versions can run in parallel on different queues if needed
 ```
 
+## AI Provider System (July 2025)
+
+### Overview
+Унифицированная система управления AI провайдерами и промптами позволяет:
+- Легко переключаться между DeepSeek и Qwen без изменения кода
+- Тестировать разные версии промптов (A/B тестирование)
+- Собирать статистику эффективности каждого промпта
+- Использовать разные модели Qwen (Plus для скорости, 72B для сложных задач)
+
+### Architecture Files
+- `src/services/ai/provider-factory.js` - Фабрика AI провайдеров
+- `src/services/ai-admin-v2/prompt-manager.js` - Менеджер промптов
+- `src/services/ai-admin-v2/prompts/` - Директория с промптами
+- `src/api/routes/ai-management.js` - API для управления
+
+### Quick Commands
+
+#### Switching AI Providers
+```bash
+# List available providers
+node scripts/switch-ai-provider.js list
+
+# Switch to Qwen (fast model)
+node scripts/switch-ai-provider.js switch qwen
+# or set env: AI_PROVIDER=qwen
+
+# Switch to Qwen 72B (smart model)
+node scripts/switch-ai-provider.js switch qwen-72b
+
+# Switch back to DeepSeek
+node scripts/switch-ai-provider.js switch deepseek
+```
+
+#### Managing Prompts
+```bash
+# List prompts and statistics
+node scripts/manage-prompts.js list
+
+# Switch active prompt
+node scripts/manage-prompts.js switch strict-prompt
+# or set env: AI_PROMPT_VERSION=strict-prompt
+
+# Enable A/B testing
+node scripts/manage-prompts.js ab-test on
+# or set env: AI_PROMPT_AB_TEST=true
+
+# Test prompt
+node scripts/manage-prompts.js test "Хочу записаться на стрижку"
+```
+
+### Available Prompts
+1. **base-prompt** - Минимальный промпт
+2. **enhanced-prompt** - С примерами (рекомендуется для DeepSeek)
+3. **strict-prompt** - Строгий формат (рекомендуется для Qwen)
+
+### API Endpoints
+```bash
+# Provider management
+GET  /api/ai/providers
+POST /api/ai/providers/switch
+
+# Prompt management
+GET  /api/ai/prompts
+POST /api/ai/prompts/switch
+POST /api/ai/prompts/ab-test
+GET  /api/ai/prompts/stats
+POST /api/ai/prompts/test
+```
+
+### Important Notes
+- **Qwen Integration**: Теперь Qwen интегрирован как полноценный провайдер, не через обёртки
+- **Old Qwen Files**: Файлы `index-qwen-simple.js`, `index-with-qwen.js` больше не используются
+- **Statistics**: Система автоматически собирает статистику по каждому промпту
+- **Prompt Selection**: При USE_QWEN=true рекомендуется использовать `strict-prompt`
+
+### Troubleshooting Qwen
+Если Qwen не выполняет команды:
+1. Переключитесь на `strict-prompt`: `AI_PROMPT_VERSION=strict-prompt`
+2. Попробуйте Qwen 72B модель: `AI_PROVIDER=qwen-72b`
+3. Если не помогает, вернитесь на DeepSeek: `AI_PROVIDER=deepseek`
+
 ## Debugging
 
 - Enable debug logs: `DEBUG=ai-admin:* npm run dev`
