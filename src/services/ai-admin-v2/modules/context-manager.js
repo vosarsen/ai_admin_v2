@@ -196,14 +196,22 @@ class ContextManager {
   async saveContext(context) {
     const { phone, redisContext } = context;
     
+    if (!phone) {
+      logger.error('Cannot save context: phone is missing', { context: Object.keys(context) });
+      return;
+    }
+    
+    // Нормализуем номер телефона для сохранения
+    const normalizedPhone = phone.replace('@c.us', '');
+    
     // Сохраняем в Redis
     if (redisContext) {
-      await contextService.setContext(phone.replace('@c.us', ''), redisContext);
+      await contextService.setContext(normalizedPhone, redisContext);
     }
     
     // Обновляем кеши
     const cacheKey = `${phone}@${context.companyId}`;
-    await this.saveToCache(cacheKey, context, phone, context.companyId);
+    await this.saveToCache(cacheKey, context, normalizedPhone, context.companyId);
   }
 
   /**
