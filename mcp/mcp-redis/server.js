@@ -89,22 +89,22 @@ server.registerTool("get_context",
   },
   async ({ phone, company_id }) => {
     const redis = await getRedisClient();
-    const contextKey = `context:${phone}:${company_id}`;
-    const conversationKey = `conversation:${phone}:${company_id}`;
-    const preferencesKey = `preferences:${phone}:${company_id}`;
+    const contextKey = `context:${company_id}:${phone}`;
+    const conversationKey = `conversation:${company_id}:${phone}`;
+    const preferencesKey = `preferences:${company_id}:${phone}`;
     
     // Get all data in parallel
     const [context, conversation, preferences] = await Promise.all([
-      redis.get(contextKey),
+      redis.hGetAll(contextKey),
       redis.lRange(conversationKey, 0, -1),
       redis.hGetAll(preferencesKey)
     ]);
 
     const result = {
-      context: context ? JSON.parse(context) : null,
+      context: Object.keys(context).length > 0 ? context : null,
       conversation: conversation.map(msg => JSON.parse(msg)),
       preferences: preferences || {},
-      exists: !!context
+      exists: Object.keys(context).length > 0
     };
 
     return {
@@ -134,10 +134,10 @@ server.registerTool("clear_context",
     try {
       const redis = await getRedisClient();
       const keys = [
-        `context:${phone}:${company_id}`,
-        `conversation:${phone}:${company_id}`,
-        `preferences:${phone}:${company_id}`,
-        `booking:${phone}:${company_id}`
+        `context:${company_id}:${phone}`,
+        `conversation:${company_id}:${phone}`,
+        `preferences:${company_id}:${phone}`,
+        `booking:${company_id}:${phone}`
       ];
 
       console.error(`Deleting keys: ${keys.join(', ')}`);
@@ -194,7 +194,7 @@ server.registerTool("set_booking_stage",
   },
   async ({ phone, stage, data = {}, company_id }) => {
     const redis = await getRedisClient();
-    const bookingKey = `booking:${phone}:${company_id}`;
+    const bookingKey = `booking:${company_id}:${phone}`;
     
     const bookingData = {
       stage,
@@ -233,12 +233,12 @@ server.registerTool("list_active_contexts",
   async ({ company_id, limit }) => {
     const redis = await getRedisClient();
     // Get all context keys for the company
-    const pattern = `context:*:${company_id}`;
+    const pattern = `context:${company_id}:*`;
     const keys = await redis.keys(pattern);
     
     const contexts = [];
     for (const key of keys.slice(0, limit)) {
-      const phone = key.split(':')[1];
+      const phone = key.split(':')[2];
       const context = await redis.get(key);
       const ttl = await redis.ttl(key);
       
@@ -287,7 +287,7 @@ server.registerTool("set_client_preferences",
   },
   async ({ phone, preferences, company_id }) => {
     const redis = await getRedisClient();
-    const preferencesKey = `preferences:${phone}:${company_id}`;
+    const preferencesKey = `preferences:${company_id}:${phone}`;
     
     // Save preferences
     for (const [key, value] of Object.entries(preferences)) {
@@ -297,7 +297,7 @@ server.registerTool("set_client_preferences",
     }
 
     // Update context
-    const contextKey = `context:${phone}:${company_id}`;
+    const contextKey = `context:${company_id}:${phone}`;
     const context = await redis.get(contextKey);
     
     if (context) {
@@ -338,8 +338,8 @@ server.registerTool("simulate_returning_client",
   },
   async ({ phone, visits, last_services, company_id }) => {
     const redis = await getRedisClient();
-    const contextKey = `context:${phone}:${company_id}`;
-    const preferencesKey = `preferences:${phone}:${company_id}`;
+    const contextKey = `context:${company_id}:${phone}`;
+    const preferencesKey = `preferences:${company_id}:${phone}`;
     
     // Create returning client context
     const clientContext = {

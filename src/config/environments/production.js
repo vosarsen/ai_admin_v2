@@ -3,7 +3,7 @@ module.exports = {
   redis: {
     // На продакшене Redis на том же сервере
     host: 'localhost',
-    port: 6379,
+    port: 6379, // Всегда используем порт 6379 на production
     url: process.env.REDIS_URL || 'redis://localhost:6379'
   },
   

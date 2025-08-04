@@ -1158,8 +1158,8 @@ ${JSON.stringify(slotsData)}
         }
         
         // Добавляем подтверждение записи как отдельное сообщение
-        if (finalResponse && !finalResponse.endsWith('|')) {
-          finalResponse += '|';
+        if (finalResponse && !finalResponse.endsWith('\n')) {
+          finalResponse += '\n\n';
         }
         finalResponse += '✅ ' + formatter.formatBookingConfirmation(result.data, context.company.type);
       } else if (result.type === 'prices' && !slotResults.length) {
@@ -1215,8 +1215,8 @@ ${JSON.stringify(slotsData)}
           const formatter = this.responseFormatter;
           const formattedResult = formatter.formatRescheduleConfirmation(result.data);
           // Добавляем подтверждение переноса как отдельное сообщение
-          if (finalResponse && !finalResponse.endsWith('|')) {
-            finalResponse += '|';
+          if (finalResponse && !finalResponse.endsWith('\n')) {
+            finalResponse += '\n\n';
           }
           if (formattedResult && formattedResult !== '') {
             finalResponse += formattedResult;
