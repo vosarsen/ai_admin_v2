@@ -4,14 +4,56 @@ const companyInfoSync = require('../../../sync/company-info-sync');
 
 class DataLoader {
   /**
+   * Санитизация входных данных для защиты от SQL инъекций
+   */
+  sanitizeInput(input) {
+    if (input === null || input === undefined) return input;
+    
+    // Для чисел
+    if (typeof input === 'number') {
+      return isNaN(input) ? 0 : input;
+    }
+    
+    // Для строк
+    if (typeof input === 'string') {
+      // Удаляем потенциально опасные символы для SQL
+      return input
+        .replace(/['";\\]/g, '') // Удаляем кавычки и обратный слеш
+        .replace(/--/g, '') // Удаляем SQL комментарии
+        .replace(/\/\*/g, '') // Удаляем начало блочных комментариев
+        .replace(/\*\//g, '') // Удаляем конец блочных комментариев
+        .substring(0, 1000); // Ограничиваем длину
+    }
+    
+    // Для массивов
+    if (Array.isArray(input)) {
+      return input.map(item => this.sanitizeInput(item));
+    }
+    
+    // Для объектов
+    if (typeof input === 'object') {
+      const sanitized = {};
+      for (const [key, value] of Object.entries(input)) {
+        sanitized[this.sanitizeInput(key)] = this.sanitizeInput(value);
+      }
+      return sanitized;
+    }
+    
+    return input;
+  }
+
+  /**
    * Загрузка информации о компании
    */
   async loadCompany(companyId) {
     try {
+      // Санитизация входных данных
+      const safeCompanyId = this.sanitizeInput(companyId);
+      
       const { data, error } = await supabase
         .from('companies')
         .select('*')
-        .eq('company_id', companyId)
+        .eq('company_id', safeCompanyId)
         .single();
       
       if (error && error.code === 'PGRST116') {
@@ -118,15 +160,19 @@ class DataLoader {
    */
   async loadClient(phone, companyId) {
     try {
+      // Санитизация входных данных
+      const safePhone = this.sanitizeInput(phone);
+      const safeCompanyId = this.sanitizeInput(companyId);
+      
       // Убираем @c.us если есть
-      const cleanPhone = phone.replace('@c.us', '');
+      const cleanPhone = safePhone.replace('@c.us', '');
       
       // Ищем по phone (без +)
       const { data, error } = await supabase
         .from('clients')
         .select('*')
         .eq('phone', cleanPhone)
-        .eq('company_id', companyId)
+        .eq('company_id', safeCompanyId)
         .maybeSingle();
       
       if (error) {
@@ -296,18 +342,21 @@ class DataLoader {
    */
   async saveContext(phone, companyId, context, result) {
     try {
-      const cleanPhone = phone.replace('@c.us', '');
+      // Санитизация входных данных
+      const safePhone = this.sanitizeInput(phone);
+      const safeCompanyId = this.sanitizeInput(companyId);
+      const cleanPhone = safePhone.replace('@c.us', '');
       
       // Добавляем новое сообщение в историю
       const messages = context.conversation || [];
       messages.push({
         role: 'user',
-        content: context.currentMessage,
+        content: this.sanitizeInput(context.currentMessage),
         timestamp: new Date().toISOString()
       });
       messages.push({
         role: 'assistant',
-        content: result.response,
+        content: this.sanitizeInput(result.response),
         timestamp: new Date().toISOString()
       });
       
