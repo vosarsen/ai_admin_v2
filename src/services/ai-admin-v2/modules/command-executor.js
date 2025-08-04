@@ -1,6 +1,6 @@
 const logger = require('../../../utils/logger').child({ module: 'command-executor' });
-const { bookingService } = require('../../booking');
-const { clientService } = require('../../client');
+const bookingService = require('../../booking');
+const contextService = require('../../context');
 
 /**
  * Модуль для выполнения команд AI
@@ -466,10 +466,10 @@ class CommandExecutor {
       }
       
       // Обновляем имя клиента
-      await clientService.updateClient(context.phone, {
+      await contextService.updateContext(context.phone, context.companyId, { clientInfo: {
         name,
         company_id: context.company.id
-      });
+      }});
       
       return {
         success: true,
@@ -512,11 +512,9 @@ class CommandExecutor {
       }
       
       // Сохраняем предпочтения
-      await clientService.updatePreferences(
-        context.phone,
-        context.company.id,
-        preferences
-      );
+      await contextService.updateContext(context.phone, context.companyId, { 
+        preferences: preferences
+      });
       
       return {
         success: true,
