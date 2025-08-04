@@ -31,8 +31,12 @@ class AIProviderFactory {
         this.providers[providerName] = await this.createQwenProvider('qwen-plus');
         break;
       
-      case 'qwen-72b':
-        this.providers[providerName] = await this.createQwenProvider('qwen2.5-72b-instruct');
+      case 'qwen-max':
+        this.providers[providerName] = await this.createQwenProvider('qwen-max');
+        break;
+      
+      case 'qwen-turbo':
+        this.providers[providerName] = await this.createQwenProvider('qwen-turbo');
         break;
       
       default:
@@ -149,7 +153,7 @@ class AIProviderFactory {
    * Получить список доступных провайдеров
    */
   getAvailableProviders() {
-    return ['deepseek', 'qwen', 'qwen-plus', 'qwen-72b'];
+    return ['deepseek', 'qwen-plus', 'qwen-max', 'qwen-turbo'];
   }
 }
 
