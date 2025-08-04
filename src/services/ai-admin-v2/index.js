@@ -12,6 +12,10 @@ const errorMessages = require('../../utils/error-messages');
 const criticalErrorLogger = require('../../utils/critical-error-logger');
 const providerFactory = require('../ai/provider-factory');
 const promptManager = require('./prompt-manager');
+const ResponseProcessor = require('./modules/response-processor');
+const { ErrorHandler, BookingError, ContextError, ValidationError } = require('./modules/error-handler');
+const MessageProcessor = require('./modules/message-processor');
+const contextManager = require('./modules/context-manager');
 
 /**
  * AI Admin v2 - единый сервис управления AI администратором
@@ -20,64 +24,79 @@ const promptManager = require('./prompt-manager');
 class AIAdminV2 {
   constructor() {
     this.responseFormatter = formatter; // Добавляем форматтер
+    this.responseProcessor = new ResponseProcessor(formatter);
+    this.errorHandler = ErrorHandler;
+    this.messageProcessor = new MessageProcessor(dataLoader, contextService, intermediateContext);
+  }
+
+  /**
+   * Валидация входных данных
+   */
+  validateInput(message, phone, companyId) {
+    // Валидация сообщения
+    if (!message || typeof message !== 'string') {
+      throw new ValidationError('Message is required and must be a string', 'message', message);
+    }
+    
+    if (message.length > 5000) {
+      throw new ValidationError('Message is too long (max 5000 characters)', 'message', message.length);
+    }
+    
+    // Валидация телефона
+    if (!phone || typeof phone !== 'string') {
+      throw new ValidationError('Phone is required and must be a string', 'phone', phone);
+    }
+    
+    // Поддерживаем формат с @c.us и без
+    const phoneRegex = /^(\+?\d{10,15}|[\d\-\(\)\s]{10,20}(@c\.us)?)$/;
+    if (!phoneRegex.test(phone)) {
+      throw new ValidationError('Invalid phone format', 'phone', phone);
+    }
+    
+    // Валидация ID компании
+    if (!companyId || (typeof companyId !== 'number' && typeof companyId !== 'string')) {
+      throw new ValidationError('CompanyId is required', 'companyId', companyId);
+    }
+    
+    const companyIdNum = parseInt(companyId);
+    if (isNaN(companyIdNum) || companyIdNum <= 0) {
+      throw new ValidationError('CompanyId must be a positive number', 'companyId', companyId);
+    }
   }
 
   /**
    * Основной метод обработки сообщений
+   * Упрощен с использованием MessageProcessor
    */
   async processMessage(message, phone, companyId) {
     let context = null;
     let results = null;
     
     try {
+      // Валидация входных данных
+      this.validateInput(message, phone, companyId);
+      
       logger.info(`🤖 AI Admin v2 processing: "${message}" from ${phone}`);
       
-      // Проверяем, есть ли ожидающая отмена
-      const contextService = require('../context');
+      // 1. Проверяем ожидающую отмену записи
       const redisContext = await contextService.getContext(phone.replace('@c.us', ''));
-      
       if (redisContext?.pendingCancellation) {
-        // Пробуем интерпретировать сообщение как номер записи
-        const selectedNumber = parseInt(message.trim());
+        const cancellationResult = await this.messageProcessor.handlePendingCancellation(
+          message, phone, companyId, redisContext
+        );
         
-        if (!isNaN(selectedNumber) && selectedNumber > 0 && selectedNumber <= redisContext.pendingCancellation.length) {
-          // Получаем выбранную запись
-          const selectedBooking = redisContext.pendingCancellation[selectedNumber - 1];
-          
-          // Отменяем запись
-          const cancelResult = await bookingService.cancelBooking(selectedBooking.id, companyId);
-          
-          // Очищаем состояние ожидания
-          delete redisContext.pendingCancellation;
-          await contextService.setContext(phone.replace('@c.us', ''), redisContext);
-          
-          if (cancelResult.success) {
-            return `✅ Запись успешно отменена!\n\n${selectedBooking.date} в ${selectedBooking.time}\n${selectedBooking.services}\nМастер: ${selectedBooking.staff}\n\nЕсли захотите записаться снова - обращайтесь! 😊`;
-          } else {
-            return `❌ Не удалось отменить запись: ${cancelResult.error}\n\nПопробуйте позже или свяжитесь с администратором.`;
-          }
-        }
-        
-        // Если ввели не номер или неправильный номер - продолжаем обычную обработку
-        // но очищаем состояние ожидания
-        delete redisContext.pendingCancellation;
-        await contextService.setContext(phone.replace('@c.us', ''), redisContext);
-      }
-      
-      // Проверяем промежуточный контекст и ждем если нужно
-      const intermediate = await intermediateContext.getIntermediateContext(phone);
-      if (intermediate && intermediate.isRecent && intermediate.processingStatus === 'started') {
-        logger.info('Found recent processing, waiting for completion...');
-        const waitResult = await intermediateContext.waitForCompletion(phone, 3000);
-        if (!waitResult) {
-          logger.warn('Previous message still processing after 3s, continuing anyway');
+        if (cancellationResult.handled) {
+          return cancellationResult.response;
         }
       }
       
-      // Загружаем полный контекст
-      context = await this.loadFullContext(phone, companyId);
+      // 2. Проверяем и ждем завершения предыдущей обработки
+      await this.messageProcessor.checkAndWaitForPreviousProcessing(phone);
       
-      // Сохраняем промежуточный контекст СРАЗУ
+      // 3. Загружаем полный контекст
+      context = await this.messageProcessor.loadContext(phone, companyId);
+      
+      // 4. Сохраняем промежуточный контекст
       await intermediateContext.saveProcessingStart(phone, message, context);
       
       // Добавляем текущее сообщение в контекст
@@ -116,7 +135,7 @@ class AIAdminV2 {
       await intermediateContext.updateAfterAIAnalysis(phone, aiResponse, result.executedCommands || []);
       
       // Сохраняем контекст диалога
-      await dataLoader.saveContext(phone, companyId, context, result);
+      await contextManager.saveContext(context);
       
       // Помечаем обработку как завершенную
       await intermediateContext.markAsCompleted(phone, result);
@@ -134,147 +153,39 @@ class AIAdminV2 {
     } catch (error) {
       logger.error('Error in AI Admin v2:', error);
       
-      // Получаем user-friendly сообщение об ошибке
-      const errorContext = {
-        operation: 'ai_processing',
+      // Обрабатываем ошибку через ErrorHandler
+      const errorInfo = await this.errorHandler.handleError(error, {
+        operation: 'processMessage',
         companyId,
+        phone,
         hasContext: !!context,
-        commandsExecuted: results?.length > 0,
-        userId: phone
-      };
+        message
+      });
       
-      const errorResult = errorMessages.getUserMessage(error, errorContext);
-      const userErrorMessage = errorMessages.formatUserResponse(errorResult);
+      // Отмечаем ошибку в промежуточном контексте
+      if (phone) {
+        await intermediateContext.setProcessingStatus(phone, 'error');
+      }
       
-      // Логируем критичные ошибки AI сервиса
-      if (error.message?.includes('AI service') || 
-          error.message?.includes('DeepSeek') ||
-          error.code === 'ECONNREFUSED' ||
-          errorResult.severity === 'high' ||
-          errorResult.severity === 'critical') {
-        
-        await criticalErrorLogger.logCriticalError(error, {
-          ...errorContext,
-          messageContent: message,
-          contextData: context ? {
-            hasClient: !!context.client,
-            hasCompany: !!context.company,
-            hasServices: context.services?.length > 0,
-            hasStaff: context.staff?.length > 0
-          } : null,
-          executionTime: Date.now() - (context?.startTime || Date.now()),
-          results: results?.map(r => ({ type: r.type, success: !!r.data }))
-        });
+      // Логируем критичные ошибки
+      if (errorInfo.severity === 'high') {
+        logger.error('Critical error in message processing', errorInfo);
       }
       
       return {
         success: false,
-        response: userErrorMessage,
-        error: error.message,
-        errorDetails: {
-          technical: errorResult.technical,
-          severity: errorResult.severity,
-          needsRetry: errorResult.needsRetry
-        }
+        response: errorInfo.userMessage || 'Извините, произошла ошибка. Попробуйте еще раз или позвоните нам напрямую.',
+        error: errorInfo.message,
+        needsRetry: errorInfo.needsRetry
       };
     }
   }
 
   /**
-   * Загрузка полного контекста (с Redis кешированием)
+   * Загрузка полного контекста (делегируем в ContextManager)
    */
   async loadFullContext(phone, companyId) {
-    const startTime = Date.now();
-    
-    // 1. Проверяем Redis кеш
-    logger.info(`Checking Redis cache for ${phone}@${companyId}`);
-    const cachedContext = await contextService.getCachedFullContext(phone, companyId);
-    if (cachedContext) {
-      logger.info(`✅ Context loaded from Redis cache in ${Date.now() - startTime}ms`);
-      return { ...cachedContext, startTime: Date.now() };
-    }
-    
-    logger.info('❌ No cached context found, loading from database...');
-    
-    // Параллельная загрузка всех данных
-    const [
-      company, 
-      clientFromDb, 
-      services, 
-      staff, 
-      conversation, 
-      businessStats, 
-      staffSchedules, 
-      redisContext,
-      preferences,
-      conversationSummary,
-      intermediateCtx
-    ] = await Promise.all([
-      dataLoader.loadCompanyData(companyId),
-      dataLoader.loadClient(phone, companyId),
-      dataLoader.loadServices(companyId),
-      dataLoader.loadStaff(companyId),
-      dataLoader.loadConversation(phone, companyId),
-      dataLoader.loadBusinessStats(companyId),
-      dataLoader.loadStaffSchedules(companyId),
-      contextService.getContext(phone.replace('@c.us', ''), companyId),
-      contextService.getPreferences(phone.replace('@c.us', ''), companyId),
-      contextService.getConversationSummary(phone.replace('@c.us', ''), companyId),
-      intermediateContext.getIntermediateContext(phone)
-    ]);
-    
-    // Логируем что загрузилось из Redis
-    logger.info('Redis context loaded:', {
-      hasRedisContext: !!redisContext,
-      hasClient: !!redisContext?.client,
-      clientName: redisContext?.clientName,
-      clientFromContext: redisContext?.client
-    });
-    
-    // Если клиента нет в базе, но есть имя в Redis - используем его
-    let client = clientFromDb;
-    const clientNameFromRedis = redisContext?.client?.name || redisContext?.clientName;
-    if (!client && clientNameFromRedis) {
-      client = {
-        phone: phone.replace('@c.us', ''),
-        name: clientNameFromRedis,
-        company_id: companyId
-      };
-      logger.info('Using client name from Redis:', { name: clientNameFromRedis });
-    } else if (client && !client.name && clientNameFromRedis) {
-      // Если клиент есть, но имя не заполнено - берем из Redis
-      client = { ...client, name: clientNameFromRedis };
-      logger.info('Updated client name from Redis:', { name: clientNameFromRedis });
-    }
-    
-    // Сортируем услуги с учетом предпочтений клиента
-    const sortedServices = businessLogic.sortServicesForClient(services, client);
-    
-    const context = {
-      company,
-      client,
-      services: sortedServices,
-      staff,
-      conversation,
-      businessStats,
-      staffSchedules,
-      currentTime: new Date().toLocaleString('ru-RU', { timeZone: config.app.timezone }),
-      timezone: config.app.timezone,
-      phone,
-      startTime,
-      currentMessage: null,  // будет установлено в processMessage
-      preferences: preferences || {},
-      conversationSummary: conversationSummary || {},
-      canContinueConversation: conversationSummary?.canContinue || false,
-      isReturningClient: conversationSummary?.hasHistory || false,
-      intermediateContext: intermediateCtx  // Добавляем промежуточный контекст
-    };
-    
-    // Сохраняем в Redis кеш на 12 часов
-    await contextService.setCachedFullContext(phone, companyId, context);
-    
-    logger.info(`Context loaded from DB in ${Date.now() - startTime}ms`);
-    return context;
+    return await contextManager.loadFullContext(phone, companyId);
   }
 
   /**
@@ -386,7 +297,7 @@ ${ic.lastBotQuestion && ic.lastBotQuestion.includes('мастер') ? `
     }
     
     return `Ты - ${terminology.role} "${context.company.title}".
-${continuationInfo}
+${additionalContext}
 ${intermediateInfo}
 ${redisContextInfo}
 ИНФОРМАЦИЯ О САЛОНЕ:
@@ -1067,25 +978,40 @@ CHECK_STAFF_SCHEDULE показал, что Бари НЕ работает за�
 
   /**
    * Обработка ответа AI и выполнение команд
+   * Делегирует работу в ResponseProcessor для лучшей модульности
    */
   async processAIResponse(aiResponse, context) {
-    logger.info('Processing AI response...');
-    logger.debug('AI response text:', aiResponse);
-    
-    // Извлекаем команды из ответа
-    const commands = commandHandler.extractCommands(aiResponse);
-    logger.debug('Extracted commands:', commands);
-    const cleanResponse = commandHandler.removeCommands(aiResponse);
-    
-    // Выполняем команды
-    const results = await commandHandler.executeCommands(commands, context);
-    
-    // Формируем финальный ответ
-    let finalResponse = cleanResponse;
-    
-    // Убираем символ | который иногда добавляет Qwen
-    finalResponse = finalResponse.replace(/\|/g, '. ');
-    
+    try {
+      // Используем новый модульный процессор
+      const result = await this.responseProcessor.processAIResponse(aiResponse, context);
+      
+      // Обрабатываем специфичные результаты команд
+      await this.handleCommandResults(result.results, result.response, context);
+      
+      return result;
+      
+    } catch (error) {
+      logger.error('Error processing AI response:', error);
+      
+      // Обрабатываем ошибку через ErrorHandler
+      const errorInfo = await this.errorHandler.handleError(error, {
+        operation: 'processAIResponse',
+        context
+      });
+      
+      return {
+        success: false,
+        response: errorInfo.userMessage,
+        error: errorInfo
+      };
+    }
+  }
+
+  /**
+   * Обработка результатов выполнения команд
+   * Выделено из processAIResponse для упрощения
+   */
+  async handleCommandResults(results, finalResponse, context) {
     // Обрабатываем слоты если они есть
     const slotResults = results.filter(r => r.type === 'slots');
     if (slotResults.length > 0) {
@@ -1111,350 +1037,57 @@ ${JSON.stringify(slotsData)}
       }
     }
     
-    // Обрабатываем результаты CHECK_STAFF_SCHEDULE
-    const staffScheduleResults = results.filter(r => r.type === 'staff_schedule');
-    if (staffScheduleResults.length > 0) {
-      const scheduleResult = staffScheduleResults[0].data;
-      if (scheduleResult.success) {
-        // Проверяем конкретного мастера, если искали его
-        if (scheduleResult.targetStaff) {
-          if (!scheduleResult.targetStaff.isWorking) {
-            // Мастер не работает - AI должен предложить альтернативы
-            logger.info('Target staff is not working:', scheduleResult.targetStaff);
-          }
-        } else if (scheduleResult.working?.length > 0) {
-          // Показываем только тех, кто работает
-          const workingNames = scheduleResult.working.join(', ');
-          
-          // Добавляем информацию только если она еще не в ответе
-          if (!finalResponse.includes(workingNames)) {
-            finalResponse += `\n\n${scheduleResult.formattedDate} работают: ${workingNames}.`;
-          }
-        }
-      }
-    }
-    
-    // Добавляем остальные результаты
+    // Обрабатываем специфичные результаты команд
     for (const result of results) {
       if (result.type === 'booking_created') {
-        logger.info('Formatting booking confirmation:', {
-          resultData: result.data,
-          resultDataType: typeof result.data,
-          hasRecordId: !!result.data?.record_id,
-          hasId: !!result.data?.id
-        });
-        
-        // Сохраняем информацию о записи в базу данных
-        if (result.data?.record_id) {
-          try {
-            const { supabase } = require('../../database/supabase');
-            // Находим клиента по телефону
-            const phone = context.phone.replace('@c.us', '');
-            const { data: clientData } = await supabase
-              .from('clients')
-              .select('id')
-              .eq('phone', phone)
-              .eq('company_id', context.company.company_id)
-              .maybeSingle();
-            
-            // Найдем service_id и staff_id по названиям
-            let service_id = null;
-            let staff_id = null;
-            
-            if (result.data.service_name) {
-              const { data: serviceData } = await supabase
-                .from('services')
-                .select('yclients_id')
-                .eq('title', result.data.service_name)
-                .eq('company_id', context.company.company_id)
-                .maybeSingle();
-              service_id = serviceData?.yclients_id || null;
-            }
-            
-            if (result.data.staff_name) {
-              const { data: staffData } = await supabase
-                .from('staff')
-                .select('yclients_id')
-                .eq('name', result.data.staff_name)
-                .eq('company_id', context.company.company_id)
-                .maybeSingle();
-              staff_id = staffData?.yclients_id || null;
-            }
-            
-            const appointmentData = {
-              yclients_record_id: parseInt(result.data.record_id),
-              company_id: context.company.company_id,
-              client_id: clientData?.id || null,
-              service_id: service_id,
-              staff_id: staff_id,
-              appointment_datetime: result.data.datetime || null,
-              status: 'confirmed',
-              comment: 'Запись через AI администратора WhatsApp',
-              synced_at: new Date().toISOString()
-            };
-            
-            const { error } = await supabase
-              .from('appointments_cache')
-              .insert([appointmentData]);
-              
-            if (error) {
-              logger.error('Failed to save appointment to appointments_cache:', {
-                error: error.message,
-                details: error.details,
-                hint: error.hint,
-                code: error.code
-              });
-            } else {
-              logger.info('Appointment saved to appointments_cache:', {
-                yclients_record_id: appointmentData.yclients_record_id,
-                client_id: appointmentData.client_id,
-                service_id: appointmentData.service_id,
-                staff_id: appointmentData.staff_id
-              });
-            }
-          } catch (error) {
-            logger.error('Error saving appointment to appointments_cache:', error);
-          }
-        }
-        
-        // Добавляем подтверждение записи как отдельное сообщение
-        if (finalResponse && !finalResponse.endsWith('\n')) {
-          finalResponse += '\n\n';
-        }
-        finalResponse += '✅ ' + formatter.formatBookingConfirmation(result.data, context.company.type);
-      } else if (result.type === 'prices' && !slotResults.length) {
-        finalResponse += '\n\n' + formatter.formatPrices(result.data, context.company.type);
-      } else if (result.type === 'booking_list') {
-        // Проверяем, была ли это прямая отмена
-        if (result.data && result.data.directCancellation) {
-          if (result.data.success) {
-            finalResponse += '\n\n✅ ' + result.data.message;
-          } else {
-            finalResponse += '\n\n❌ ' + result.data.message;
-          }
-        } else if (result.data && result.data.bookings && result.data.bookings.length > 0) {
-          // Форматируем список записей для отмены
-          finalResponse += '\n\n📅 Ваши активные записи:\n';
-          result.data.bookings.forEach(booking => {
-            finalResponse += `\n${booking.index}. ${booking.date} в ${booking.time}`;
-            finalResponse += `\n   Услуга: ${booking.services}`;
-            finalResponse += `\n   Мастер: ${booking.staff}`;
-            if (booking.price > 0) {
-              finalResponse += `\n   Стоимость: ${booking.price} руб.`;
-            }
-          });
-          finalResponse += '\n\nНапишите номер записи, которую хотите отменить.';
-          
-          // Сохраняем список записей в контекст для последующей обработки
-          const contextService = require('../context');
-          const redisContext = await contextService.getContext(context.phone.replace('@c.us', ''));
-          redisContext.pendingCancellation = result.data.bookings;
-          await contextService.setContext(context.phone.replace('@c.us', ''), redisContext);
-        } else if (result.data && result.data.message) {
-          finalResponse += '\n\n' + result.data.message;
-        } else {
-          finalResponse += '\n\nНе удалось получить список записей. Попробуйте позже.';
-        }
-      } else if (result.type === 'booking_rescheduled') {
-        // Обработка результата переноса записи
-        if (result.data && result.data.permissionError) {
-          // Ошибка прав доступа - запись создана через другой канал
-          finalResponse += '\n\n' + result.data.error;
-          // Убираем лишний текст с инструкциями
-        } else if (result.data && result.data.temporaryLimitation) {
-          // Временное ограничение API
-          finalResponse += '\n\n' + result.data.message;
-          if (result.data.instructions && result.data.instructions.length > 0) {
-            finalResponse += '\n\nВы можете:';
-            result.data.instructions.forEach(instruction => {
-              finalResponse += '\n' + instruction;
-            });
-          }
-        } else if (result.data && result.data.success) {
-          // Успешный перенос
-          const formatter = this.responseFormatter;
-          const formattedResult = formatter.formatRescheduleConfirmation(result.data);
-          // Добавляем подтверждение переноса как отдельное сообщение
-          if (finalResponse && !finalResponse.endsWith('\n')) {
-            finalResponse += '\n\n';
-          }
-          if (formattedResult && formattedResult !== '') {
-            finalResponse += formattedResult;
-          } else {
-            finalResponse += '✅ Запись успешно перенесена!';
-          }
-        } else if (result.data && result.data.needsDateTime) {
-          // Запрашиваем дату и время
-          finalResponse += '\n\n' + result.data.message;
-        } else if (result.data && result.data.slotNotAvailable) {
-          // Время занято, предлагаем альтернативы
-          finalResponse += '\n\n' + result.data.message;
-          if (result.data.suggestions) {
-            finalResponse += '\n\n' + result.data.suggestions;
-          }
-        } else if (result.data && result.data.bookings && result.data.needsSelection) {
-          // Показываем список записей для выбора
-          finalResponse += '\n\n📅 Ваши активные записи:\n';
-          result.data.bookings.forEach((booking, index) => {
-            finalResponse += `\n${index + 1}. ${booking.date} в ${booking.time}`;
-            finalResponse += `\n   Услуга: ${booking.services}`;
-            finalResponse += `\n   Мастер: ${booking.staff}`;
-          });
-          finalResponse += '\n\nНапишите номер записи, которую хотите перенести.';
-          
-          // Сохраняем в контекст для следующего шага
-          const contextService = require('../context');
-          const redisContext = await contextService.getContext(context.phone.replace('@c.us', '')) || {};
-          redisContext.rescheduleStep = 'selectBooking';
-          redisContext.activeBookings = result.data.bookings;
-          await contextService.setContext(context.phone.replace('@c.us', ''), redisContext);
-        } else {
-          finalResponse += '\n\n❌ Не удалось перенести запись.';
-          if (result.data && result.data.error) {
-            finalResponse += ' ' + result.data.error;
-          }
-        }
-      } else if (result.type === 'staff_schedule') {
-        // Обработка результата проверки расписания мастеров
-        if (result.data && result.data.targetStaff) {
-          // Ответ про конкретного мастера
-          const staff = result.data.targetStaff;
-          if (staff.isWorking) {
-            // Мастер работает - не добавляем ничего, AI сам ответит
-            // ВАЖНО: НЕ дублируем информацию - AI уже знает что мастер работает
-          } else if (staff.found && !staff.isWorking) {
-            // Мастер НЕ работает - добавляем это в ответ
-            finalResponse += `\n\n${staff.name} не работает ${staff.formattedDate || result.data.formattedDate}.`;
-          } else {
-            // Мастер не найден
-            finalResponse += `\n\n${staff.name} не найден в расписании на ${staff.formattedDate || result.data.formattedDate}.`;
-          }
-        } else if (result.data && result.data.working.length > 0) {
-          // Общее расписание - показываем только если не было конкретного запроса о мастере
-          // и только если эта информация еще не в ответе AI
-          const workingList = result.data.working.join(', ');
-          if (!finalResponse.includes(workingList) && !finalResponse.includes('работает') && !finalResponse.includes('работают')) {
-            finalResponse += `\n\n${result.data.formattedDate} работают: ${workingList}.`;
-            if (result.data.notWorking.length > 0) {
-              finalResponse += `\nНе работают: ${result.data.notWorking.join(', ')}.`;
-            }
-          }
-        } else if (result.data) {
-          finalResponse += `\n\n${result.data.formattedDate} никто не работает.`;
-        }
-      } else if (result.type === 'error') {
-        // Обрабатываем ошибки команд
-        logger.info('Processing error result:', {
-          command: result.command,
-          error: result.error,
-          errorType: typeof result.error,
-          params: result.params
-        });
-        
-        if (result.command === 'CREATE_BOOKING') {
-          // Проверяем, это ошибка доступности времени или другая ошибка
-          const isAvailabilityError = result.error && (
-            result.error.includes('недоступн') || // недоступно, недоступна, недоступны
-            result.error.includes('Услуга недоступна') ||
-            result.error.includes('Нет доступных') ||
-            result.error.includes('выбранное время') ||
-            result.error.includes('занято') ||
-            result.error.includes('Данная услуга недоступна для записи на сеанс') ||
-            result.error.includes('На выбранное время нет ни одного свободного сотрудника')
-          );
-          
-          logger.info('Availability error check:', {
-            isAvailabilityError,
-            error: result.error
-          });
-          
-          if (isAvailabilityError) {
-            // Время/мастер недоступны - нужно показать альтернативы
-            let errorMessage = '';
-            
-            // Определяем более точное сообщение об ошибке
-            if (result.error.includes('Данная услуга недоступна для записи на сеанс')) {
-              errorMessage = 'К сожалению, это время занято.';
-            } else if (result.error.includes('На выбранное время нет ни одного свободного сотрудника')) {
-              errorMessage = 'К сожалению, на это время все мастера заняты.';
-            } else {
-              errorMessage = 'К сожалению, выбранное время недоступно.';
-            }
-            
-            finalResponse = errorMessage;
-            
-            // Пытаемся найти альтернативные слоты
-            if (result.params) {
-              try {
-                // Извлекаем параметры из неудачной попытки бронирования
-                const { service_name, service_id, date, time } = result.params;
-                
-                // Ищем доступные слоты для этой услуги и даты
-                const searchParams = {
-                  service_name: service_name || (service_id ? null : 'стрижка'),
-                  service_id: service_id,
-                  date: date || 'сегодня',
-                  time_preference: time // Передаем желаемое время для поиска ближайших слотов
-                };
-                
-                logger.info('Searching for alternative slots after booking error:', searchParams);
-                const searchResult = await commandHandler.searchSlots(searchParams, context);
-                
-                if (searchResult && searchResult.slots && searchResult.slots.length > 0) {
-                  // Фильтруем слоты, чтобы показать только 3 ближайших к запрошенному времени
-                  const requestedHour = parseInt(time.split(':')[0]);
-                  const sortedSlots = searchResult.slots.sort((a, b) => {
-                    const aHour = parseInt(a.time.split(':')[0]);
-                    const bHour = parseInt(b.time.split(':')[0]);
-                    return Math.abs(aHour - requestedHour) - Math.abs(bHour - requestedHour);
-                  }).slice(0, 3);
-                  
-                  // Форматируем только ближайшие слоты
-                  const alternativeTimes = sortedSlots.map(slot => slot.time).join(', ');
-                  finalResponse += `|Могу предложить: ${alternativeTimes}`;
-                  
-                  // Сохраняем результат поиска для последующего использования
-                  context.lastSearch = searchResult;
-                } else {
-                  finalResponse += ' К сожалению, на сегодня все занято. Попробуйте выбрать другой день.';
-                }
-              } catch (searchError) {
-                logger.error('Error searching for alternative slots:', searchError);
-                finalResponse += ' Давайте подберем другое удобное для вас время.';
-              }
-            } else if (context.lastSearch?.slots && context.lastSearch.slots.length > 0) {
-              // Если нет параметров, но есть предыдущий поиск
-              const slotsData = formatter.formatSlots(context.lastSearch.slots, context.company.type);
-              if (slotsData) {
-                const prevPrompt = `Покажи ранее найденное время на основе данных:
-${JSON.stringify(slotsData)}
-
-Начни с "Вот доступное время:". Используй правильные падежи.`;
-                
-                const formattedPrevSlots = await this.callAI(prevPrompt);
-                finalResponse += '\n\n' + formattedPrevSlots;
-              }
-            } else {
-              finalResponse += ' Давайте подберем другое удобное для вас время.';
-            }
-          } else {
-            // Другая ошибка (не связанная с доступностью)
-            finalResponse = finalResponse.replace(
-              /записываю вас|запись создана|вы записаны/gi, 
-              'не удалось создать запись'
-            );
-            finalResponse += '\n\nК сожалению, не удалось создать запись. Попробуйте выбрать другое время или позвоните нам.';
-          }
-        }
+        // Сохраняем информацию о записи
+        await this.saveBookingToDatabase(result.data, context);
       }
     }
     
-    return {
-      success: true,
-      response: finalResponse,
-      executedCommands: commands,
-      results
-    };
+    return finalResponse;
+  }
+
+  /**
+   * Сохранение информации о записи в базу данных
+   */
+  async saveBookingToDatabase(bookingData, context) {
+    if (!bookingData?.record_id) return;
+    
+    try {
+      const { supabase } = require('../../database/supabase');
+      const phone = context.phone.replace('@c.us', '');
+      
+      // Находим клиента
+      const { data: clientData } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('phone', phone)
+        .eq('company_id', context.company.company_id)
+        .maybeSingle();
+      
+      // Сохраняем запись
+      const appointmentData = {
+        yclients_record_id: parseInt(bookingData.record_id),
+        company_id: context.company.company_id,
+        client_id: clientData?.id || null,
+        appointment_datetime: bookingData.datetime || null,
+        status: 'confirmed',
+        comment: 'Запись через AI администратора WhatsApp',
+        synced_at: new Date().toISOString()
+      };
+      
+      await supabase
+        .from('appointments_cache')
+        .insert([appointmentData]);
+        
+      // Инвалидируем кэш
+      await dataLoader.invalidateCache('fullContext', `${phone}_${context.company.company_id}`);
+      
+      logger.info('Booking saved to database:', appointmentData);
+    } catch (error) {
+      logger.error('Failed to save booking to database:', error);
+    }
   }
 
   /**
@@ -1463,7 +1096,8 @@ ${JSON.stringify(slotsData)}
   async callAI(prompt, context = {}) {
     const startTime = Date.now();
     
-    try {
+    // Используем retry логику из ErrorHandler
+    return await this.errorHandler.executeWithRetry(async () => {
       // Получаем провайдера через фабрику
       const provider = await providerFactory.getProvider();
       
@@ -1488,9 +1122,11 @@ ${JSON.stringify(slotsData)}
       logger.info(`✅ AI responded in ${responseTime}ms using ${provider.name}`);
       
       return result.text;
-    } catch (error) {
-      logger.error('AI call failed:', error);
-      
+    }, {
+      operationName: 'callAI',
+      promptName: context.promptName,
+      startTime
+    }).catch(error => {
       // Записываем ошибку в статистику
       if (context.promptName) {
         promptManager.recordUsage(context.promptName, {
@@ -1501,9 +1137,8 @@ ${JSON.stringify(slotsData)}
       }
       
       throw error;
-    }
+    });
   }
-
 }
 
 module.exports = new AIAdminV2();
