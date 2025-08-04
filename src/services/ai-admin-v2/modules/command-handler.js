@@ -8,53 +8,157 @@ const errorMessages = require('../../../utils/error-messages');
 
 class CommandHandler {
   /**
-   * Извлечение команд из ответа AI
+   * Извлечение команд из ответа AI с защитой от DoS
    */
   extractCommands(response) {
+    // Защита от слишком больших ответов
+    const MAX_RESPONSE_LENGTH = 10000;
+    const MAX_COMMANDS = 10;
+    const MAX_PARAM_LENGTH = 500;
+    
+    if (!response || typeof response !== 'string') {
+      logger.warn('Invalid response type for command extraction');
+      return [];
+    }
+    
+    if (response.length > MAX_RESPONSE_LENGTH) {
+      logger.warn(`Response too long (${response.length} chars), truncating to ${MAX_RESPONSE_LENGTH}`);
+      response = response.substring(0, MAX_RESPONSE_LENGTH);
+    }
+    
     const commands = [];
-    const commandRegex = /\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|CANCEL_BOOKING|SAVE_CLIENT_NAME|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING|CHECK_STAFF_SCHEDULE)([^\]]*)\]/g;
+    // Безопасный regex с ограничением длины параметров
+    const commandRegex = /\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|CANCEL_BOOKING|SAVE_CLIENT_NAME|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING|CHECK_STAFF_SCHEDULE)([^\]]{0,500})\]/g;
     
     let match;
-    while ((match = commandRegex.exec(response)) !== null) {
-      const [fullMatch, command, paramsString] = match;
-      const params = this.parseCommandParams(paramsString);
+    let matchCount = 0;
+    
+    while ((match = commandRegex.exec(response)) !== null && matchCount < MAX_COMMANDS) {
+      matchCount++;
       
-      commands.push({
-        command,
-        params,
-        originalText: fullMatch
-      });
+      const [fullMatch, command, paramsString] = match;
+      
+      // Дополнительная проверка длины параметров
+      if (paramsString && paramsString.length > MAX_PARAM_LENGTH) {
+        logger.warn(`Command params too long for ${command}, skipping`);
+        continue;
+      }
+      
+      try {
+        const params = this.parseCommandParams(paramsString);
+        
+        commands.push({
+          command,
+          params,
+          originalText: fullMatch
+        });
+      } catch (error) {
+        logger.error(`Failed to parse command params for ${command}:`, error);
+        continue;
+      }
+    }
+    
+    if (matchCount >= MAX_COMMANDS) {
+      logger.warn(`Too many commands found (${matchCount}), limiting to ${MAX_COMMANDS}`);
     }
     
     return commands;
   }
 
   /**
-   * Парсинг параметров команды
+   * Парсинг параметров команды с защитой от атак
    */
   parseCommandParams(paramsString) {
     const params = {};
     if (!paramsString) return params;
     
+    // Ограничения для защиты
+    const MAX_PARAMS = 10;
+    const MAX_KEY_LENGTH = 50;
+    const MAX_VALUE_LENGTH = 200;
+    
+    // Санитизация входной строки
+    paramsString = paramsString.substring(0, 500);
+    
     // Разбираем параметры вида key: value или key=value
     const paramRegex = /(\w+)[:=]\s*([^,]+)/g;
     let match;
-    while ((match = paramRegex.exec(paramsString)) !== null) {
+    let paramCount = 0;
+    
+    while ((match = paramRegex.exec(paramsString)) !== null && paramCount < MAX_PARAMS) {
+      paramCount++;
+      
       const [, key, value] = match;
-      params[key.trim()] = value.trim();
+      const cleanKey = key.trim().substring(0, MAX_KEY_LENGTH);
+      const cleanValue = value.trim().substring(0, MAX_VALUE_LENGTH);
+      
+      // Базовая санитизация значений
+      params[cleanKey] = this.sanitizeValue(cleanValue);
+    }
+    
+    if (paramCount >= MAX_PARAMS) {
+      logger.warn(`Too many params found (${paramCount}), limiting to ${MAX_PARAMS}`);
     }
     
     return params;
   }
+  
+  /**
+   * Санитизация значения параметра
+   */
+  sanitizeValue(value) {
+    if (!value) return '';
+    
+    // Удаляем потенциально опасные символы
+    return value
+      .replace(/[<>'"]/g, '') // Удаляем HTML/SQL символы
+      .replace(/[\x00-\x1F\x7F]/g, '') // Удаляем управляющие символы
+      .trim();
+  }
 
   /**
-   * Выполнение команд
+   * Санитизация параметров для логирования
+   */
+  sanitizeParamsForLogging(params) {
+    const safe = {};
+    const sensitiveKeys = ['phone', 'name', 'client_name', 'email', 'comment'];
+    
+    for (const [key, value] of Object.entries(params)) {
+      if (sensitiveKeys.includes(key.toLowerCase())) {
+        // Маскируем чувствительные данные
+        safe[key] = value ? '***' : '';
+      } else {
+        safe[key] = String(value).substring(0, 50);
+      }
+    }
+    
+    return safe;
+  }
+
+  /**
+   * Выполнение команд с защитой от перегрузки
    */
   async executeCommands(commands, context) {
     const results = [];
+    const MAX_EXECUTION_TIME = 30000; // 30 секунд максимум
+    const startTime = Date.now();
+    
+    // Ограничиваем количество команд
+    if (commands.length > 10) {
+      logger.warn(`Too many commands to execute (${commands.length}), limiting to 10`);
+      commands = commands.slice(0, 10);
+    }
     
     for (const cmd of commands) {
-      logger.info(`Executing command: ${cmd.command}`, cmd.params);
+      // Проверяем таймаут
+      if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+        logger.error('Command execution timeout reached, stopping');
+        break;
+      }
+      
+      // Не логируем чувствительные данные
+      const safeParams = this.sanitizeParamsForLogging(cmd.params);
+      logger.info(`Executing command: ${cmd.command}`, safeParams);
       
       try {
         switch (cmd.command) {
