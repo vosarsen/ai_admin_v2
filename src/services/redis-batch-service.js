@@ -15,8 +15,29 @@ class RedisBatchService {
 
   async initialize() {
     try {
+      logger.info('Initializing RedisBatchService...');
+      
+      // Получаем конфигурацию Redis для диагностики
+      const { getRedisConfig } = require('../config/redis-config');
+      const redisConfig = getRedisConfig();
+      logger.info('RedisBatchService Redis config:', {
+        host: redisConfig.host,
+        port: redisConfig.port,
+        db: redisConfig.db,
+        hasPassword: !!redisConfig.password
+      });
+      
       this.redis = createRedisClient('batch-service');
       await this.redis.ping();
+      
+      // Проверяем подключение записав тестовый ключ
+      await this.redis.set('test:batch-service', 'ok', 'EX', 10);
+      const testResult = await this.redis.get('test:batch-service');
+      
+      if (testResult !== 'ok') {
+        throw new Error('Redis connection test failed');
+      }
+      
       logger.info('RedisBatchService initialized successfully');
     } catch (error) {
       logger.error('Failed to initialize RedisBatchService:', error);
@@ -74,6 +95,23 @@ class RedisBatchService {
    */
   async processPendingBatches() {
     try {
+      // Диагностируем подключение к Redis
+      if (!this.redis) {
+        logger.error('Redis client is not initialized in processPendingBatches');
+        throw new Error('Redis client not initialized');
+      }
+      
+      // Проверяем все ключи для диагностики (первый запуск)
+      if (!this._debuggedKeys) {
+        const allKeys = await this.redis.keys('*');
+        logger.info(`Total keys in Redis: ${allKeys.length}`);
+        const rapidFireKeys = allKeys.filter(k => k.includes('rapid-fire'));
+        if (rapidFireKeys.length > 0) {
+          logger.info(`Found rapid-fire keys: ${rapidFireKeys.join(', ')}`);
+        }
+        this._debuggedKeys = true;
+      }
+      
       // Получаем все ключи батчей
       logger.debug(`Searching for batch keys with pattern: ${this.batchPrefix}*`);
       const keys = await this.redis.keys(`${this.batchPrefix}*`);
