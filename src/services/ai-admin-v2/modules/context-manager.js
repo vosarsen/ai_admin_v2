@@ -1,6 +1,6 @@
 const logger = require('../../../utils/logger').child({ module: 'context-manager' });
 const contextService = require('../../context');
-const dataLoader = require('../../data-loader');
+const dataLoader = require('./data-loader');
 const intermediateContext = require('../../context/intermediate-context');
 const performanceMetrics = require('./performance-metrics');
 const LRUCache = require('./lru-cache');
