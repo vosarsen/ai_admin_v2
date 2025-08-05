@@ -111,6 +111,18 @@ class AIAdminV2 {
       context.company.type = businessType;
       logger.info(`Business type detected: ${businessType}`);
       
+      // Логируем промежуточный контекст для отладки
+      if (context.intermediateContext) {
+        logger.info('Intermediate context found:', {
+          isRecent: context.intermediateContext.isRecent,
+          mentionedServices: context.intermediateContext.mentionedServices,
+          mentionedStaff: context.intermediateContext.mentionedStaff,
+          lastBotQuestion: context.intermediateContext.lastBotQuestion
+        });
+      } else {
+        logger.info('No intermediate context found');
+      }
+      
       // Строим умный промпт с полным контекстом
       const prompt = this.buildSmartPrompt(message, context, phone);
       
@@ -253,7 +265,9 @@ class AIAdminV2 {
       phone,
       terminology,
       currentTime: context.currentTime || new Date().toISOString(),
-      timezone: context.timezone || 'Europe/Moscow'
+      timezone: context.timezone || 'Europe/Moscow',
+      // ВАЖНО: передаем промежуточный контекст для промптов
+      intermediateContext: context.intermediateContext || null
     };
     
     // Получаем промпт из менеджера
