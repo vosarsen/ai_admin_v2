@@ -136,19 +136,24 @@ Example of INCORRECT testing:
 We use a strict workflow for all changes:
 
 1. **Local** - analyze and modify files locally
-2. **Commit & Push** - git add, commit with descriptive message, push to GitHub
-3. **Server** - git pull from server, test changes, check logs
-4. **Development Diary** - create entry in `docs/development-diary/` after implementing features
-5. **Iterate** - if issues found, repeat from step 1
+2. **Test First** - ALWAYS test changes before committing or documenting
+   - Send test messages via @whatsapp or test scripts
+   - Check logs for errors and expected behavior
+   - Verify the fix actually works
+3. **Commit & Push** - git add, commit with descriptive message, push to GitHub (ONLY after successful testing)
+4. **Server** - git pull from server, test changes again in production
+5. **Development Diary** - create entry in `docs/development-diary/` ONLY after confirming the fix works
+6. **Iterate** - if issues found, repeat from step 1
 
 **Important**: 
 - Files in local directory and server are synchronized through Git
 - We use `TodoWrite` for task tracking throughout the conversation
 - NEVER modify files directly on server
+- ALWAYS test locally before committing changes
 - ALWAYS test on server after pushing changes
-- **ALWAYS create development diary entry** after implementing new features or fixing significant bugs
+- **ALWAYS create development diary entry** ONLY after confirming the fix works in testing
   - Format: `docs/development-diary/YYYY-MM-DD-feature-name.md`
-  - Include: context, what was done, technical details, problems & solutions, lessons learned
+  - Include: context, what was done, technical details, problems & solutions, test results, lessons learned
 
 ## Project Overview
 
