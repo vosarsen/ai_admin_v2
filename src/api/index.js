@@ -6,11 +6,11 @@ const messageQueue = require('../queue/message-queue');
 const whatsappClient = require('../integrations/whatsapp/client');
 const { validateWebhookSignature, validateApiKey } = require('../middlewares/webhook-auth');
 const rateLimiter = require('../middlewares/rate-limiter');
+const criticalErrorMiddleware = require('../middlewares/critical-error');
 const circuitBreakerFactory = require('../utils/circuit-breaker');
 const { syncManager } = require('../sync/sync-manager');
 
 // Import webhook routes
-const whatsappAiAdminWebhook = require('./webhooks/whatsapp-ai-admin');
 const whatsappBatchedWebhook = require('./webhooks/whatsapp-batched');
 
 // Import Swagger documentation
@@ -38,7 +38,6 @@ app.use((req, res, next) => {
 setupSwagger(app);
 
 // Mount webhook routes
-app.use(whatsappAiAdminWebhook);
 app.use(whatsappBatchedWebhook);
 
 // Mount API routes
@@ -217,13 +216,7 @@ app.use((req, res) => {
   });
 });
 
-// Error handler
-app.use((err, req, res, next) => {
-  logger.error('Unhandled error:', err);
-  res.status(500).json({
-    success: false,
-    error: 'Internal server error'
-  });
-});
+// Error handler - use critical error middleware
+app.use(criticalErrorMiddleware);
 
 module.exports = app;

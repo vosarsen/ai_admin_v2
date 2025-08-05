@@ -1,10 +1,10 @@
 // src/workers/index-reminder.js
 const logger = require('../utils/logger');
-const ReminderWorker = require('./reminder-worker');
+const ReminderWorkerV2 = require('./reminder-worker-v2');
 
-// Start reminder worker
-const workerId = `reminder-${process.pid}`;
-const worker = new ReminderWorker(workerId);
+// Start reminder worker v2
+const workerId = `reminder-v2-${process.pid}`;
+const worker = new ReminderWorkerV2(workerId);
 
 logger.info('🚀 Starting reminder worker...');
 
