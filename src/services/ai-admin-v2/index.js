@@ -12,7 +12,7 @@ const errorMessages = require('../../utils/error-messages');
 const criticalErrorLogger = require('../../utils/critical-error-logger');
 const providerFactory = require('../ai/provider-factory');
 const promptManager = require('./prompt-manager');
-const ResponseProcessor = require('./modules/response-processor');
+// ResponseProcessor удален - используем commandHandler напрямую
 const { ErrorHandler, BookingError, ContextError, ValidationError } = require('./modules/error-handler');
 const MessageProcessor = require('./modules/message-processor');
 const contextManager = require('./modules/context-manager');
@@ -27,7 +27,7 @@ const ClientPersonalizationService = require('../personalization/client-personal
 class AIAdminV2 {
   constructor() {
     this.responseFormatter = formatter; // Добавляем форматтер
-    this.responseProcessor = new ResponseProcessor(formatter);
+    // ResponseProcessor удален - используем commandHandler напрямую
     this.errorHandler = ErrorHandler;
     this.messageProcessor = new MessageProcessor(dataLoader, contextService, intermediateContext);
     this.personalizationService = new ClientPersonalizationService();
@@ -359,40 +359,22 @@ class AIAdminV2 {
 
   /**
    * Обработка ответа AI и выполнение команд
-   * Делегирует работу в ResponseProcessor для лучшей модульности
    */
   async processAIResponse(aiResponse, context) {
-    try {
-      // Используем новый модульный процессор
-      const result = await this.responseProcessor.processAIResponse(aiResponse, context);
-      
-      // Обрабатываем специфичные результаты команд
-      await this.handleCommandResults(result.results, result.response, context);
-      
-      return result;
-      
-    } catch (error) {
-      logger.error('Error processing AI response:', error);
-      
-      // Обрабатываем ошибку через ErrorHandler
-      const errorInfo = await this.errorHandler.handleError(error, {
-        operation: 'processAIResponse',
-        context
-      });
-      
-      return {
-        success: false,
-        response: errorInfo.userMessage,
-        error: errorInfo
-      };
-    }
-  }
-
-  /**
-   * Обработка результатов выполнения команд
-   * Выделено из processAIResponse для упрощения
-   */
-  async handleCommandResults(results, finalResponse, context) {
+    logger.info('Processing AI response...');
+    logger.debug('AI response text:', aiResponse);
+    
+    // Извлекаем команды из ответа
+    const commands = commandHandler.extractCommands(aiResponse);
+    logger.debug('Extracted commands:', commands);
+    const cleanResponse = commandHandler.removeCommands(aiResponse);
+    
+    // Выполняем команды
+    const results = await commandHandler.executeCommands(commands, context);
+    
+    // Формируем финальный ответ
+    let finalResponse = cleanResponse;
+    
     // Обрабатываем слоты если они есть
     const slotResults = results.filter(r => r.type === 'slots');
     if (slotResults.length > 0) {
@@ -418,6 +400,29 @@ ${JSON.stringify(slotsData)}
       }
     }
     
+    // Обрабатываем результаты CHECK_STAFF_SCHEDULE
+    const staffScheduleResults = results.filter(r => r.type === 'staff_schedule');
+    if (staffScheduleResults.length > 0) {
+      const scheduleResult = staffScheduleResults[0].data;
+      if (scheduleResult.success) {
+        // Проверяем конкретного мастера, если искали его
+        if (scheduleResult.targetStaff) {
+          if (!scheduleResult.targetStaff.isWorking) {
+            // Мастер не работает - AI должен предложить альтернативы
+            logger.info('Target staff is not working:', scheduleResult.targetStaff);
+          }
+        } else if (scheduleResult.working?.length > 0) {
+          // Показываем только тех, кто работает
+          const workingNames = scheduleResult.working.join(', ');
+          
+          // Добавляем информацию только если она еще не в ответе
+          if (!finalResponse.includes(workingNames)) {
+            finalResponse += `\n\n${scheduleResult.formattedDate} работают: ${workingNames}.`;
+          }
+        }
+      }
+    }
+    
     // Обрабатываем специфичные результаты команд
     for (const result of results) {
       if (result.type === 'booking_created') {
@@ -428,6 +433,7 @@ ${JSON.stringify(slotsData)}
     
     return finalResponse;
   }
+
 
   /**
    * Сохранение информации о записи в базу данных
