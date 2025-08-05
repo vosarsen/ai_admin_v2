@@ -103,6 +103,11 @@ class ContextManager {
     // Сортируем услуги для клиента
     const sortedServices = await this.sortServicesForClient(services, client, businessStats);
     
+    // Отладочная информация
+    console.log(`[DEBUG CONTEXT] staffSchedules type:`, typeof staffSchedules);
+    console.log(`[DEBUG CONTEXT] staffSchedules keys:`, Object.keys(staffSchedules || {}));
+    console.log(`[DEBUG CONTEXT] staff count:`, staff?.length);
+    
     return {
       phone,
       company,
