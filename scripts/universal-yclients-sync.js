@@ -3,10 +3,11 @@ require('dotenv').config();
 const { supabase } = require('../src/database/supabase');
 const axios = require('axios');
 const cron = require('node-cron');
+const syncConfig = require('../src/config/sync-config');
 
 // Конфигурация
 const CONFIG = {
-  COMPANY_ID: 962302,
+  COMPANY_ID: syncConfig.COMPANY_ID,
   BASE_URL: 'https://api.yclients.com/api/v1',
   BEARER_TOKEN: process.env.YCLIENTS_BEARER_TOKEN,
   USER_TOKEN: process.env.YCLIENTS_USER_TOKEN,
@@ -16,24 +17,14 @@ const CONFIG = {
   USER_LOGIN: process.env.YCLIENTS_USER_LOGIN || process.env.YCLIENTS_USER_PHONE,
   USER_PASSWORD: process.env.YCLIENTS_USER_PASSWORD,
   
-  // YClients API лимиты: 200 запросов/минуту или 5 запросов/секунду
-  API_LIMITS: {
-    REQUESTS_PER_MINUTE: 200,
-    REQUESTS_PER_SECOND: 5,
-    MIN_DELAY_MS: 250,        // Минимум 250мс между запросами (4 req/sec)
-    BATCH_SIZE: 200,          // Максимум записей за раз согласно документации
-    MAX_RETRIES: 3
-  },
+  // YClients API лимиты
+  API_LIMITS: syncConfig.API_LIMITS,
   
-  // Расписание синхронизации (время московское UTC+3)
-  SCHEDULE: {
-    SERVICES: '0 1 * * *',       // 01:00 - Услуги (редко меняются)
-    STAFF: '0 2 * * *',          // 02:00 - Мастера (редко меняются) 
-    CLIENTS: '0 3 * * *',        // 03:00 - Клиенты (часто меняются)
-    APPOINTMENTS: '0 4 * * *',   // 04:00 - Записи (очень часто меняются)
-    SCHEDULES: '0 5 * * *',      // 05:00 - Расписания мастеров
-    CLEANUP: '0 6 * * *'         // 06:00 - Очистка старых данных
-  }
+  // Расписание синхронизации
+  SCHEDULE: syncConfig.SCHEDULE,
+  
+  // Настройки клиентов
+  CLIENTS: syncConfig.CLIENTS
 };
 
 class UniversalYclientsSync {
@@ -502,9 +493,34 @@ class UniversalYclientsSync {
       }
 
       console.log(`✅ Fetched ${allClients.length} clients from API`);
+      
+      // Добавляем опцию синхронизации истории визитов
+      const SYNC_VISIT_HISTORY = CONFIG.CLIENTS.SYNC_VISIT_HISTORY || process.env.SYNC_CLIENT_VISITS === 'true';
+      const MAX_VISITS_SYNC = CONFIG.CLIENTS.MAX_VISITS_SYNC_PER_RUN;
+      const SYNC_RECENT_DAYS = CONFIG.CLIENTS.SYNC_RECENT_DAYS;
+      const MIN_VISITS = CONFIG.CLIENTS.MIN_VISITS_TO_SYNC;
+      
+      if (SYNC_VISIT_HISTORY) {
+        console.log('📅 Visit history sync is ENABLED');
+        console.log(`   Max clients per run: ${MAX_VISITS_SYNC}`);
+        if (SYNC_RECENT_DAYS > 0) {
+          console.log(`   Only clients with visits in last ${SYNC_RECENT_DAYS} days`);
+        }
+        console.log(`   Min visits required: ${MIN_VISITS}`);
+      } else {
+        console.log('⏭️ Visit history sync is DISABLED (set SYNC_CLIENT_VISITS=true to enable)');
+      }
 
       let processed = 0;
       let errors = 0;
+      let visitsProcessed = 0;
+
+      // Создаем экземпляр синхронизатора записей если нужно
+      let recordsSync = null;
+      if (SYNC_VISIT_HISTORY) {
+        const { ClientRecordsSync } = require('../src/sync/client-records-sync');
+        recordsSync = new ClientRecordsSync();
+      }
 
       for (const client of allClients) {
         try {
@@ -550,6 +566,54 @@ class UniversalYclientsSync {
             if (processed % 100 === 0) {
               console.log(`   📊 Processed ${processed}/${allClients.length} clients`);
             }
+            
+            // Синхронизация истории визитов если включена
+            if (SYNC_VISIT_HISTORY && recordsSync && client.visits_count >= MIN_VISITS && client.phone) {
+              // Проверяем лимиты
+              if (visitsProcessed >= MAX_VISITS_SYNC) {
+                if (visitsProcessed === MAX_VISITS_SYNC) {
+                  console.log(`   ⚠️ Reached max visits sync limit (${MAX_VISITS_SYNC}). Skipping remaining...`);
+                }
+              } else {
+                // Проверяем дату последнего визита если настроено
+                let shouldSync = true;
+                if (SYNC_RECENT_DAYS > 0 && client.last_visit_date) {
+                  const lastVisit = new Date(client.last_visit_date);
+                  const daysSince = (Date.now() - lastVisit.getTime()) / (1000 * 60 * 60 * 24);
+                  shouldSync = daysSince <= SYNC_RECENT_DAYS;
+                }
+                
+                if (shouldSync) {
+                  try {
+                    const records = await recordsSync.getClientRecords(client.id, client.phone);
+                    if (records && records.length > 0) {
+                      // Получаем ID клиента из базы
+                      const { data: dbClient } = await supabase
+                        .from('clients')
+                        .select('id')
+                        .eq('yclients_id', client.id)
+                        .eq('company_id', CONFIG.COMPANY_ID)
+                        .single();
+                      
+                      if (dbClient) {
+                        await recordsSync.saveClientVisits(dbClient.id, client.id, records);
+                        visitsProcessed++;
+                        
+                        if (visitsProcessed % 10 === 0) {
+                          console.log(`   📅 Synced visits for ${visitsProcessed} clients`);
+                        }
+                      }
+                    }
+                    
+                    // Задержка для соблюдения rate limits
+                    await this._delay(CONFIG.API_LIMITS.VISIT_SYNC_DELAY_MS);
+                    
+                  } catch (visitError) {
+                    console.log(`   ⚠️ Failed to sync visits for ${client.name}: ${visitError.message}`);
+                  }
+                }
+              }
+            }
           }
 
         } catch (error) {
@@ -563,8 +627,15 @@ class UniversalYclientsSync {
       const duration = Date.now() - startTime;
       await this._updateSyncStatus(tableName, 'completed', processed, null, duration);
 
-      console.log(`✅ Clients sync completed: ${processed} processed, ${errors} errors`);
-      return { processed, errors, total: allClients.length };
+      console.log(`\n✅ Clients sync completed:`);
+      console.log(`   Processed: ${processed}/${allClients.length} clients`);
+      if (SYNC_VISIT_HISTORY) {
+        console.log(`   Visit history synced: ${visitsProcessed} clients`);
+      }
+      console.log(`   Errors: ${errors}`);
+      console.log(`   Duration: ${Math.round(duration / 1000)}s`);
+      
+      return { processed, errors, total: allClients.length, visitsProcessed };
 
     } catch (error) {
       await this._updateSyncStatus(tableName, 'failed', 0, error.message);

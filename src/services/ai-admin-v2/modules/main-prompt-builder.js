@@ -1,4 +1,5 @@
 const logger = require('../../../utils/logger').child({ module: 'main-prompt-builder' });
+const config = require('../config/modules-config');
 
 /**
  * Построитель основного промпта для AI Admin v2
@@ -194,8 +195,8 @@ ${context.preferences.notes ? `- Заметки: ${context.preferences.notes}` :
   buildServices(context) {
     const formatter = require('./formatter');
     return `
-ДОСТУПНЫЕ УСЛУГИ (топ-10):
-${formatter.formatServices(context.services.slice(0, 10), context.company.type)}`;
+ДОСТУПНЫЕ УСЛУГИ (топ-${config.contextManager.topServicesLimit}):
+${formatter.formatServices(context.services.slice(0, config.contextManager.topServicesLimit), context.company.type)}`;
   }
   
   buildStaffInfo(context) {
@@ -308,15 +309,15 @@ ${context.canContinueConversation ? '- Учти контекст предыду�
 
 ПОНИМАНИЕ ДНЕЙ:
 - "сегодня" = ${new Date().toISOString().split('T')[0]}
-- "завтра" = ${new Date(Date.now() + 86400000).toISOString().split('T')[0]}
-- "послезавтра" = ${new Date(Date.now() + 172800000).toISOString().split('T')[0]}
+- "завтра" = ${new Date(Date.now() + config.dateTime.dayInMs).toISOString().split('T')[0]}
+- "послезавтра" = ${new Date(Date.now() + config.dateTime.dayInMs * 2).toISOString().split('T')[0]}
 
 🔴 КРИТИЧЕСКИ ВАЖНО - РАЗБОР ВРЕМЕНИ И ДАТ:
 Когда клиент использует число с временным контекстом, ВСЕГДА интерпретируй как ВРЕМЯ, а НЕ дату:
-- "утро 10" = время 10:00 (НЕ 10 число месяца!)
-- "на утро 10" = время 10:00 утра
-- "вечер 8" = время 20:00 (НЕ 8 число!)
-- "день 3" = время 15:00 (НЕ 3 число!)
+- "утро 10" = время ${config.dateTime.timeMapping['утро 10']} (НЕ 10 число месяца!)
+- "на утро 10" = время ${config.dateTime.timeMapping['на утро 10']} утра
+- "вечер 8" = время ${config.dateTime.timeMapping['вечер 8']} (НЕ 8 число!)
+- "день 3" = время ${config.dateTime.timeMapping['день 3']} (НЕ 3 число!)
 
 ФОРМАТ ОТВЕТА:
 1. Сначала напиши короткий естественный ответ клиенту (1-2 предложения)

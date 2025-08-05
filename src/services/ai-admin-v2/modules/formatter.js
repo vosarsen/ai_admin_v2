@@ -1,4 +1,5 @@
 const logger = require('../../../utils/logger').child({ module: 'ai-admin-v2:formatter' });
+const scheduleAnalyzer = require('./schedule-analyzer');
 
 class Formatter {
   /**
@@ -90,9 +91,18 @@ class Formatter {
     
     return workingStaff.map(staff => {
       const schedule = todaySchedule.find(s => s.staff_id === staff.yclients_id);
-      // Временно убираем время, так как в БД нет start_time и end_time
-      // const timeRange = schedule ? `${schedule.start_time}-${schedule.end_time}` : '';
-      return `- ${staff.name}`;
+      
+      // Получаем слоты мастера из working_hours
+      const staffSlots = schedule?.working_hours?.seances || [];
+      
+      // Анализируем рабочие часы мастера
+      const workingHours = scheduleAnalyzer.analyzeStaffWorkingHours(staffSlots, staff.name);
+      
+      if (workingHours.isWorking) {
+        return `- ${staff.name} (работает с ${workingHours.startTime} до ${workingHours.endTime})`;
+      } else {
+        return `- ${staff.name} (не работает)`;
+      }
     }).join('\n');
   }
 

@@ -1,4 +1,5 @@
 const logger = require('../../../utils/logger').child({ module: 'message-processor' });
+const config = require('../config/modules-config');
 
 /**
  * Модуль для разделения processMessage на более мелкие методы
@@ -62,7 +63,7 @@ class MessageProcessor {
     if (intermediate && intermediate.isRecent && intermediate.processingStatus === 'started') {
       logger.info('Found recent processing, waiting for completion...');
       
-      const waitResult = await this.intermediateContext.waitForCompletion(phone, 3000);
+      const waitResult = await this.intermediateContext.waitForCompletion(phone, config.messageProcessor.intermediateContextTimeout);
       
       if (!waitResult) {
         logger.warn('Previous message still processing after 3s, continuing anyway');
@@ -132,12 +133,7 @@ class MessageProcessor {
    * Определение нужно ли инвалидировать кэш
    */
   shouldInvalidateCache(executedCommands) {
-    const cacheInvalidatingCommands = [
-      'CREATE_BOOKING',
-      'CANCEL_BOOKING',
-      'RESCHEDULE_BOOKING',
-      'SAVE_CLIENT_NAME'
-    ];
+    const cacheInvalidatingCommands = config.messageProcessor.criticalCommands;
     
     return executedCommands.some(cmd => 
       cacheInvalidatingCommands.includes(cmd.command)
