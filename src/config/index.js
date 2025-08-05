@@ -66,7 +66,7 @@ module.exports = {
       maxTokens: parseInt(process.env.DEEPSEEK_MAX_TOKENS) || 1500,
       timeout: 30000,
       provider: process.env.AI_PROVIDER || 'deepseek',
-      promptVersion: process.env.AI_PROMPT_VERSION || 'optimized-prompt',
+      promptVersion: process.env.AI_PROMPT_VERSION || 'personalized-prompt',
       promptABTest: process.env.AI_PROMPT_AB_TEST === 'true'
     };
   },

@@ -339,7 +339,7 @@ class AIAdminV2 {
     
     // Получаем промпт из менеджера
     let basePrompt;
-    const promptVersion = process.env.AI_PROMPT_VERSION || 'detailed-prompt'; // По умолчанию используем detailed
+    const promptVersion = process.env.AI_PROMPT_VERSION || 'personalized-prompt'; // По умолчанию используем personalized
     
     if (process.env.AI_PROMPT_AB_TEST === 'true') {
       // A/B тестирование
