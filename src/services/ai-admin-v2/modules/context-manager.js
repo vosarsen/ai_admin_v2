@@ -90,8 +90,14 @@ class ContextManager {
       dataLoader.loadStaff(companyId).catch(e => { console.log('[DEBUG] loadStaff failed:', e.message); throw e; }),
       // ВАЖНО: Загружаем историю из Redis, а не из Supabase!
       contextService.getContext(phone.replace('@c.us', ''), companyId).then(ctx => {
-        console.log('[DEBUG] Redis context loaded, messages:', ctx?.messages?.length || 0);
-        return ctx?.messages || [];
+        const messages = ctx?.lastMessages || ctx?.messages || [];
+        console.log('[DEBUG] Redis context loaded, messages:', messages.length);
+        // Преобразуем формат сообщений
+        return messages.map(msg => ({
+          sender: msg.sender || (msg.role === 'user' ? 'user' : 'bot'),
+          text: msg.text || msg.content || '',
+          timestamp: msg.timestamp
+        }));
       }).catch(e => { 
         console.log('[DEBUG] loadConversation from Redis failed:', e.message); 
         return [];

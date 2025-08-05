@@ -175,10 +175,11 @@ class CachedDataLoader {
       
       try {
         const redisContext = await contextService.getContext(cleanPhone, companyId);
-        logger.debug(`Loaded ${redisContext?.messages?.length || 0} messages from Redis for ${cleanPhone}`);
+        // ВАЖНО: сообщения возвращаются в поле lastMessages, а не messages!
+        const messages = redisContext?.lastMessages || redisContext?.messages || [];
+        logger.debug(`Loaded ${messages.length} messages from Redis for ${cleanPhone}`);
         
         // Преобразуем формат сообщений из Redis в формат для промпта
-        const messages = redisContext?.messages || [];
         return messages.map(msg => ({
           // Поддерживаем оба формата: role/content и sender/text
           sender: msg.sender || (msg.role === 'user' ? 'user' : 'bot'),
