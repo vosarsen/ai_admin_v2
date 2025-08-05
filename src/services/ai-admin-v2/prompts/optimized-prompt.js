@@ -43,6 +43,8 @@ function buildOptimizedPrompt(context) {
   
   // Отладочная информация
   console.log(`[DEBUG] Today: ${today}`);
+  console.log(`[DEBUG] staffSchedules type:`, typeof staffSchedules);
+  console.log(`[DEBUG] staffSchedules:`, JSON.stringify(staffSchedules, null, 2));
   console.log(`[DEBUG] staffSchedules keys:`, Object.keys(staffSchedules));
   console.log(`[DEBUG] todaySchedules length:`, todaySchedules.length);
   console.log(`[DEBUG] todaySchedules:`, JSON.stringify(todaySchedules, null, 2));
