@@ -97,6 +97,20 @@ class ContextManager {
       intermediateContext.getIntermediateContext(phone).catch(e => { console.log('[DEBUG] getIntermediateContext failed:', e.message); throw e; })
     ]);
     
+    // Отладочная информация по всем результатам Promise.all
+    console.log('[DEBUG] Promise.all results:');
+    console.log('[DEBUG] - company type:', typeof company);
+    console.log('[DEBUG] - clientFromDb type:', typeof clientFromDb);
+    console.log('[DEBUG] - services length:', services?.length);
+    console.log('[DEBUG] - staff length:', staff?.length);
+    console.log('[DEBUG] - conversation length:', conversation?.length);
+    console.log('[DEBUG] - businessStats type:', typeof businessStats);
+    console.log('[DEBUG] - staffSchedules type:', typeof staffSchedules, 'keys:', Object.keys(staffSchedules || {}));
+    console.log('[DEBUG] - redisContext type:', typeof redisContext);
+    console.log('[DEBUG] - preferences type:', typeof preferences);
+    console.log('[DEBUG] - conversationSummary type:', typeof conversationSummary);
+    console.log('[DEBUG] - intermediateCtx type:', typeof intermediateCtx);
+    
     // Обогащаем клиента информацией из Redis
     const client = this.enrichClientData(clientFromDb, redisContext);
     
