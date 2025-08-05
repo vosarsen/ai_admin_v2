@@ -28,6 +28,7 @@ function buildOptimizedPrompt(context) {
     staff = [], 
     staffSchedules = {},
     conversation = [],
+    redisContext = null,
     intermediate = null,
     intermediateContext = null
   } = context;
