@@ -26,7 +26,7 @@ function buildOptimizedPrompt(context) {
     phone = '',
     services = [], 
     staff = [], 
-    schedules = [],
+    staffSchedules = {},
     conversation = [],
     intermediate = null,
     intermediateContext = null
@@ -37,15 +37,18 @@ function buildOptimizedPrompt(context) {
   
   // Определяем работающих сегодня мастеров
   const today = new Date().toISOString().split('T')[0];
-  const workingToday = schedules.length > 0 ? 
+  
+  // Преобразуем объект расписания по датам в плоский массив
+  const todaySchedules = staffSchedules[today] || [];
+  
+  const workingToday = todaySchedules.length > 0 ? 
     staff.filter(s => {
-      const todaySchedule = schedules.find(sch => 
+      const todaySchedule = todaySchedules.find(sch => 
         sch.staff_id === s.yclients_id && 
-        sch.date === today && 
-        sch.is_working
+        sch.is_working === true
       );
       return todaySchedule && todaySchedule.has_booking_slots;
-    }) : staff; // Если расписание не загружено, показываем всех
+    }) : []; // Если расписание не загружено, не показываем никого
 
   return `Ты - администратор салона "${company.title || businessInfo.title}".
 

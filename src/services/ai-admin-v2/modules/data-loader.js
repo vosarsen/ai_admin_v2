@@ -307,7 +307,6 @@ class DataLoader {
       .in('staff_id', staffIds)
       .gte('date', today.toISOString().split('T')[0])
       .lte('date', weekLater.toISOString().split('T')[0])
-      .eq('is_working', true)
       .order('date', { ascending: true });
     
     if (error) {
