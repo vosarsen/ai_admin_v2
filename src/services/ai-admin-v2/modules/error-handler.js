@@ -1,10 +1,54 @@
 const logger = require('../../../utils/logger').child({ module: 'error-handler' });
+const config = require('../config/modules-config');
+
+/**
+ * @typedef {Object} ErrorDetails
+ * @property {string} [field] - Field name for validation errors
+ * @property {*} [value] - Invalid value
+ * @property {string} [service] - Service name for API errors
+ * @property {number} [statusCode] - HTTP status code
+ * @property {*} [response] - API response
+ * @property {string} [operation] - Operation name
+ * @property {string} [type] - Error type
+ */
+
+/**
+ * @typedef {Object} ClassifiedError
+ * @property {string} code - Error code
+ * @property {string} type - Error type
+ * @property {string} message - Error message
+ * @property {ErrorDetails} [details] - Error details
+ * @property {'critical' | 'high' | 'medium' | 'low'} severity - Error severity
+ * @property {boolean} [needsRetry] - Whether error is retryable
+ * @property {number} [retryAfter] - Retry delay in ms
+ * @property {string} [userMessage] - User-friendly message
+ */
+
+/**
+ * @typedef {Object} RetryConfig
+ * @property {number} maxAttempts - Maximum retry attempts
+ * @property {number} initialDelay - Initial delay in ms
+ * @property {number} maxDelay - Maximum delay in ms
+ * @property {number} backoffFactor - Exponential backoff factor
+ */
+
+/**
+ * @typedef {Object} ErrorContext
+ * @property {number} [attemptNumber] - Current attempt number
+ * @property {string} [operation] - Operation being performed
+ * @property {*} [data] - Additional context data
+ */
 
 /**
  * Классы ошибок для AI Admin v2
  */
 
 class AIAdminError extends Error {
+  /**
+   * @param {string} code - Error code
+   * @param {string} message - Error message
+   * @param {ErrorDetails} [details={}] - Error details
+   */
   constructor(code, message, details = {}) {
     super(message);
     this.name = 'AIAdminError';
@@ -13,6 +57,10 @@ class AIAdminError extends Error {
     this.timestamp = new Date();
   }
 
+  /**
+   * Convert error to JSON
+   * @returns {Object} JSON representation
+   */
   toJSON() {
     return {
       name: this.name,
@@ -26,6 +74,11 @@ class AIAdminError extends Error {
 
 // Специфичные типы ошибок
 class ValidationError extends AIAdminError {
+  /**
+   * @param {string} message - Error message
+   * @param {string} field - Field name
+   * @param {*} value - Invalid value
+   */
   constructor(message, field, value) {
     super('VALIDATION_ERROR', message, { field, value });
     this.name = 'ValidationError';
@@ -33,6 +86,12 @@ class ValidationError extends AIAdminError {
 }
 
 class APIError extends AIAdminError {
+  /**
+   * @param {string} service - Service name
+   * @param {string} message - Error message
+   * @param {number} statusCode - HTTP status code
+   * @param {*} response - API response
+   */
   constructor(service, message, statusCode, response) {
     super('API_ERROR', message, { service, statusCode, response });
     this.name = 'APIError';
@@ -40,6 +99,11 @@ class APIError extends AIAdminError {
 }
 
 class BookingError extends AIAdminError {
+  /**
+   * @param {string} message - Error message
+   * @param {string} type - Booking error type
+   * @param {Object} details - Additional details
+   */
   constructor(message, type, details) {
     super('BOOKING_ERROR', message, { type, ...details });
     this.name = 'BookingError';
@@ -47,6 +111,11 @@ class BookingError extends AIAdminError {
 }
 
 class ContextError extends AIAdminError {
+  /**
+   * @param {string} message - Error message
+   * @param {string} operation - Operation name
+   * @param {Object} details - Additional details
+   */
   constructor(message, operation, details) {
     super('CONTEXT_ERROR', message, { operation, ...details });
     this.name = 'ContextError';
@@ -58,25 +127,20 @@ class ContextError extends AIAdminError {
  */
 class ErrorHandler {
   constructor() {
+    /** @type {RetryConfig} */
     // Конфигурация retry
-    this.retryConfig = {
-      maxAttempts: 3,
-      initialDelay: 1000, // 1 секунда
-      maxDelay: 10000,    // 10 секунд
-      backoffFactor: 2
-    };
+    this.retryConfig = config.errorHandler.retry;
 
     // Коды ошибок, которые можно повторить
-    this.retryableCodes = [
-      'NETWORK_ERROR',
-      'TIMEOUT_ERROR',
-      'RATE_LIMIT_ERROR',
-      'TEMPORARY_ERROR'
-    ];
+    /** @type {string[]} */
+    this.retryableCodes = config.errorHandler.retryableCodes;
   }
 
   /**
    * Обработка ошибки с определением типа
+   * @param {Error} error - Error to handle
+   * @param {ErrorContext} [context={}] - Error context
+   * @returns {Promise<ClassifiedError>} Classified error
    */
   async handleError(error, context = {}) {
     logger.error('Handling error:', {
@@ -102,6 +166,8 @@ class ErrorHandler {
 
   /**
    * Классификация ошибки
+   * @param {Error} error - Error to classify
+   * @returns {ClassifiedError} Classified error
    */
   classifyError(error) {
     // Если это уже наша ошибка
@@ -165,6 +231,8 @@ class ErrorHandler {
 
   /**
    * Определение серьезности ошибки
+   * @param {string} code - Error code
+   * @returns {'critical' | 'high' | 'medium' | 'low'} Severity level
    */
   getSeverity(code) {
     const severityMap = {
@@ -182,6 +250,8 @@ class ErrorHandler {
 
   /**
    * Проверка, можно ли повторить операцию
+   * @param {ClassifiedError} classifiedError - Classified error
+   * @returns {boolean} Whether error is retryable
    */
   isRetryable(classifiedError) {
     return this.retryableCodes.includes(classifiedError.code);
@@ -189,6 +259,8 @@ class ErrorHandler {
 
   /**
    * Расчет задержки для retry (exponential backoff)
+   * @param {number} attemptNumber - Current attempt number
+   * @returns {number} Delay in milliseconds
    */
   calculateRetryDelay(attemptNumber) {
     const delay = Math.min(
@@ -196,14 +268,16 @@ class ErrorHandler {
       this.retryConfig.maxDelay
     );
 
-    // Добавляем случайный jitter (±10%)
-    const jitter = delay * 0.1 * (Math.random() * 2 - 1);
+    // Добавляем случайный jitter
+    const jitter = delay * config.errorHandler.retry.jitterPercent * (Math.random() * 2 - 1);
     
     return Math.round(delay + jitter);
   }
 
   /**
    * Получение user-friendly сообщения
+   * @param {ClassifiedError} classifiedError - Classified error
+   * @returns {string} User-friendly message
    */
   getUserMessage(classifiedError) {
     const messages = {
@@ -221,6 +295,11 @@ class ErrorHandler {
 
   /**
    * Выполнение операции с retry
+   * @template T
+   * @param {() => Promise<T>} operation - Operation to execute
+   * @param {ErrorContext} [context={}] - Operation context
+   * @returns {Promise<T>} Operation result
+   * @throws {Error} When all retries are exhausted
    */
   async executeWithRetry(operation, context = {}) {
     let lastError;
@@ -274,6 +353,9 @@ class ErrorHandler {
 
   /**
    * Задержка выполнения
+   * @private
+   * @param {number} ms - Delay in milliseconds
+   * @returns {Promise<void>} Promise that resolves after delay
    */
   delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -281,6 +363,9 @@ class ErrorHandler {
 
   /**
    * Форматирование ошибки для логов
+   * @param {Error} error - Error to format
+   * @param {ErrorContext} [context={}] - Error context
+   * @returns {Object} Formatted error object
    */
   formatErrorForLogging(error, context = {}) {
     return {

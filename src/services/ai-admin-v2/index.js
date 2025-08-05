@@ -17,6 +17,8 @@ const { ErrorHandler, BookingError, ContextError, ValidationError } = require('.
 const MessageProcessor = require('./modules/message-processor');
 const contextManager = require('./modules/context-manager');
 const performanceMetrics = require('./modules/performance-metrics');
+const prometheusMetrics = require('./modules/prometheus-metrics');
+const ClientPersonalizationService = require('../personalization/client-personalization');
 
 /**
  * AI Admin v2 - единый сервис управления AI администратором
@@ -28,6 +30,7 @@ class AIAdminV2 {
     this.responseProcessor = new ResponseProcessor(formatter);
     this.errorHandler = ErrorHandler;
     this.messageProcessor = new MessageProcessor(dataLoader, contextService, intermediateContext);
+    this.personalizationService = new ClientPersonalizationService();
   }
 
   /**
@@ -211,10 +214,26 @@ class AIAdminV2 {
       // Завершаем отслеживание операции
       performanceMetrics.endOperation(operation, true);
       
+      // Отправляем метрики в Prometheus
+      prometheusMetrics.recordMessageProcessing(
+        'text',
+        processingTime / 1000,
+        true,
+        context.company?.type || 'unknown'
+      );
+      
       // Записываем метрики команд
       if (result.executedCommands) {
         result.executedCommands.forEach(cmd => {
           performanceMetrics.recordCommand(cmd.command, true);
+          
+          // Отдельно отслеживаем создание и отмену записей
+          if (cmd.command === 'CREATE_BOOKING' && cmd.success) {
+            const serviceType = cmd.params?.service_name || 'unknown';
+            prometheusMetrics.recordBookingCreated(serviceType, true);
+          } else if (cmd.command === 'CANCEL_BOOKING' && cmd.success) {
+            prometheusMetrics.recordBookingCancelled('user_request');
+          }
         });
       }
       
@@ -231,6 +250,15 @@ class AIAdminV2 {
       
       // Завершаем отслеживание операции с ошибкой
       performanceMetrics.endOperation(operation, false);
+      
+      // Отправляем метрики ошибки в Prometheus
+      const processingTime = Date.now() - (context?.startTime || Date.now());
+      prometheusMetrics.recordMessageProcessing(
+        'text',
+        processingTime / 1000,
+        false,
+        context?.company?.type || 'unknown'
+      );
       
       // Обрабатываем ошибку через ErrorHandler
       const errorInfo = await this.errorHandler.handleError(error, {
@@ -273,6 +301,9 @@ class AIAdminV2 {
   buildSmartPrompt(message, context, phone) {
     const terminology = businessLogic.getBusinessTerminology(context.company.type);
     
+    // Анализируем клиента для персонализации
+    const clientAnalysis = this.personalizationService.analyzeClient(context.client);
+    
     // Подготавливаем ПОЛНЫЙ контекст для промпта (включая все данные)
     const promptContext = {
       // Базовая информация для совместимости со старыми промптами
@@ -291,6 +322,10 @@ class AIAdminV2 {
         phone: phone,
         isReturning: context.isReturningClient || false
       },
+      
+      // Данные для персонализации
+      clientData: context.client || null,
+      clientAnalysis: clientAnalysis,
       
       // Полный контекст для detailed-prompt
       ...context,
@@ -479,7 +514,7 @@ ${JSON.stringify(slotsData)}
       const responseTime = Date.now() - startTime;
       
       // Записываем метрики AI провайдера
-      performanceMetrics.recordAICall(responseTime, false);
+      performanceMetrics.recordAICall(responseTime, false, 'unknown', 'unknown');
       
       // Записываем ошибку в статистику
       if (context.promptName) {

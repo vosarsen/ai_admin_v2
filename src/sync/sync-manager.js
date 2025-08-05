@@ -128,7 +128,8 @@ class SyncManager {
           // Company (компания) - 1 запрос
           await this.syncCompany();
           
-          // Clients (клиенты) - 7 запросов
+          // Clients (клиенты) - 7 запросов + история визитов если включена
+          process.env.SYNC_CLIENT_VISITS = 'true'; // Включаем синхронизацию истории
           await this.syncClients();
           
           // Services (услуги) - 1 запрос

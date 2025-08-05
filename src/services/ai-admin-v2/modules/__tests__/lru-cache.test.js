@@ -8,6 +8,13 @@ describe('LRU Cache', () => {
     cache = new LRUCache(3, 1000); // maxSize: 3, ttl: 1 секунда
   });
 
+  afterEach(() => {
+    // Очищаем интервал после каждого теста
+    if (cache) {
+      cache.destroy();
+    }
+  });
+
   describe('Basic operations', () => {
     test('should set and get value', () => {
       cache.set('key1', 'value1');
@@ -146,11 +153,10 @@ describe('LRU Cache', () => {
       
       const stats = cache.getStats();
       
-      expect(stats).toEqual({
-        size: 2,
-        maxSize: 3,
-        ttl: 1000
-      });
+      expect(stats.size).toBe(2);
+      expect(stats.maxSize).toBe(3);
+      expect(stats.ttl).toBe(1000);
+      expect(stats.stats).toBeDefined();
     });
 
     test('should update size in stats', () => {
@@ -168,26 +174,58 @@ describe('LRU Cache', () => {
       cache.clear();
       expect(cache.getStats().size).toBe(0);
     });
+
+    test('should track hit rate correctly', () => {
+      cache.set('key1', 'value1');
+      cache.set('key2', 'value2');
+      
+      cache.get('key1'); // hit
+      cache.get('key2'); // hit
+      cache.get('key3'); // miss
+      
+      const stats = cache.getStats();
+      expect(stats.stats.hits).toBe(2);
+      expect(stats.stats.misses).toBe(1);
+      expect(stats.stats.hitRate).toBe('66.67%');
+    });
+
+    test('should track evictions', () => {
+      cache.set('key1', 'value1');
+      cache.set('key2', 'value2');
+      cache.set('key3', 'value3');
+      cache.set('key4', 'value4'); // evicts key1
+      
+      const stats = cache.getStats();
+      expect(stats.stats.evictions).toBe(1);
+    });
   });
 
   describe('Edge cases', () => {
     test('should handle zero maxSize', () => {
       const zeroCache = new LRUCache(0, 1000);
       
-      // Не должен сохранять элементы
-      zeroCache.set('key1', 'value1');
-      expect(zeroCache.get('key1')).toBeNull();
+      try {
+        // Не должен сохранять элементы
+        zeroCache.set('key1', 'value1');
+        expect(zeroCache.get('key1')).toBeNull();
+      } finally {
+        zeroCache.destroy();
+      }
     });
 
     test('should handle very short TTL', async () => {
       const shortTTLCache = new LRUCache(10, 1); // 1ms TTL
       
-      shortTTLCache.set('key1', 'value1');
-      
-      // Ждем 10ms
-      await new Promise(resolve => setTimeout(resolve, 10));
-      
-      expect(shortTTLCache.get('key1')).toBeNull();
+      try {
+        shortTTLCache.set('key1', 'value1');
+        
+        // Ждем 10ms
+        await new Promise(resolve => setTimeout(resolve, 10));
+        
+        expect(shortTTLCache.get('key1')).toBeNull();
+      } finally {
+        shortTTLCache.destroy();
+      }
     });
 
     test('should handle null and undefined values', () => {
@@ -211,28 +249,33 @@ describe('LRU Cache', () => {
   describe('Performance', () => {
     test('should handle many items efficiently', () => {
       const largeCache = new LRUCache(1000, 60000);
-      const startTime = Date.now();
       
-      // Добавляем 10000 элементов
-      for (let i = 0; i < 10000; i++) {
-        largeCache.set(`key${i}`, `value${i}`);
+      try {
+        const startTime = Date.now();
+        
+        // Добавляем 10000 элементов
+        for (let i = 0; i < 10000; i++) {
+          largeCache.set(`key${i}`, `value${i}`);
+        }
+        
+        const setTime = Date.now() - startTime;
+        
+        // Проверяем, что в кэше только последние 1000
+        expect(largeCache.cache.size).toBe(1000);
+        
+        // Проверяем, что первые элементы вытеснены
+        expect(largeCache.get('key0')).toBeNull();
+        expect(largeCache.get('key8999')).toBeNull();
+        
+        // Проверяем, что последние элементы остались
+        expect(largeCache.get('key9999')).toBe('value9999');
+        expect(largeCache.get('key9000')).toBe('value9000');
+        
+        // Проверяем производительность (должно быть быстро)
+        expect(setTime).toBeLessThan(1000); // меньше 1 секунды
+      } finally {
+        largeCache.destroy();
       }
-      
-      const setTime = Date.now() - startTime;
-      
-      // Проверяем, что в кэше только последние 1000
-      expect(largeCache.cache.size).toBe(1000);
-      
-      // Проверяем, что первые элементы вытеснены
-      expect(largeCache.get('key0')).toBeNull();
-      expect(largeCache.get('key8999')).toBeNull();
-      
-      // Проверяем, что последние элементы остались
-      expect(largeCache.get('key9999')).toBe('value9999');
-      expect(largeCache.get('key9000')).toBe('value9000');
-      
-      // Проверяем производительность (должно быть быстро)
-      expect(setTime).toBeLessThan(1000); // меньше 1 секунды
     });
 
     test('should handle frequent get operations efficiently', () => {

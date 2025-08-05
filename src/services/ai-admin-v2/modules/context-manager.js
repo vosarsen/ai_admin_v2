@@ -4,6 +4,7 @@ const dataLoader = require('./data-loader');
 const intermediateContext = require('../../context/intermediate-context');
 const performanceMetrics = require('./performance-metrics');
 const LRUCache = require('./lru-cache');
+const config = require('../config/modules-config');
 
 /**
  * Модуль для управления контекстом разговора
@@ -11,7 +12,7 @@ const LRUCache = require('./lru-cache');
 class ContextManager {
   constructor() {
     // LRU кеш контекстов в памяти
-    this.memoryCache = new LRUCache(500, 5 * 60 * 1000); // 500 элементов, 5 минут TTL
+    this.memoryCache = new LRUCache(config.cache.contextCacheSize, config.cache.contextCacheTTL);
     
     // Метрики кэша
     this.cacheMetrics = {
@@ -24,7 +25,7 @@ class ContextManager {
     this.cleanupInterval = setInterval(() => {
       this.memoryCache.cleanup();
       logger.debug('Memory cache cleanup completed', this.memoryCache.getStats());
-    }, 60 * 1000); // каждую минуту
+    }, config.contextManager.memoryCheckInterval);
   }
 
   /**
@@ -210,12 +211,12 @@ class ContextManager {
       
       // Предпочтения клиента
       if (client?.favorite_service_id === service.id) {
-        score += 1000;
+        score += config.contextManager.scoring.frequentService;
       }
       
       // Категория для новых клиентов
       if (!client && service.category?.toLowerCase().includes('стрижк')) {
-        score += 100;
+        score += config.contextManager.scoring.hasBooking;
       }
       
       return { ...service, score };
@@ -309,7 +310,7 @@ class ContextManager {
   /**
    * Проверка и ожидание предыдущей обработки
    */
-  async waitForPreviousProcessing(phone, timeout = 3000) {
+  async waitForPreviousProcessing(phone, timeout = config.contextManager.processingTimeout) {
     const intermediate = await intermediateContext.getIntermediateContext(phone);
     
     if (intermediate?.isRecent && intermediate.processingStatus === 'started') {

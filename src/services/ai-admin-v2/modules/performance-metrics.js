@@ -1,4 +1,65 @@
 const logger = require('../../../utils/logger').child({ module: 'performance-metrics' });
+const config = require('../config/modules-config');
+const prometheusMetrics = require('./prometheus-metrics');
+
+/**
+ * @typedef {Object} ResponseTimeMetrics
+ * @property {number} min - Minimum response time
+ * @property {number} max - Maximum response time
+ * @property {number} avg - Average response time
+ * @property {number} total - Total response time
+ * @property {number} p95 - 95th percentile
+ * @property {number} p99 - 99th percentile
+ * @property {number[]} samples - Response time samples
+ */
+
+/**
+ * @typedef {Object} CacheMetrics
+ * @property {number} hits - Cache hits
+ * @property {number} misses - Cache misses
+ * @property {number} evictions - Cache evictions
+ * @property {number} hitRate - Cache hit rate percentage
+ */
+
+/**
+ * @typedef {Object} ProviderMetrics
+ * @property {number} calls - Total calls
+ * @property {number} errors - Total errors
+ * @property {number} avgResponseTime - Average response time
+ * @property {number} totalTime - Total time spent
+ */
+
+/**
+ * @typedef {Object} Operation
+ * @property {string} name - Operation name
+ * @property {number} startTime - Start timestamp
+ * @property {number|null} endTime - End timestamp
+ * @property {number|null} duration - Duration in ms
+ * @property {boolean|null} success - Whether operation succeeded
+ */
+
+/**
+ * @typedef {Object} OperationMetrics
+ * @property {number} count - Total count
+ * @property {number} successful - Successful count
+ * @property {number} failed - Failed count
+ * @property {number} avgDuration - Average duration
+ * @property {number} minDuration - Minimum duration
+ * @property {number} maxDuration - Maximum duration
+ */
+
+/**
+ * @typedef {Object} Metrics
+ * @property {number} totalRequests - Total requests
+ * @property {number} successfulRequests - Successful requests
+ * @property {number} failedRequests - Failed requests
+ * @property {ResponseTimeMetrics} responseTime - Response time metrics
+ * @property {Map<string, OperationMetrics>} operations - Operations metrics
+ * @property {Map<string, OperationMetrics>} commands - Commands metrics
+ * @property {CacheMetrics} cache - Cache metrics
+ * @property {ProviderMetrics} aiProvider - AI provider metrics
+ * @property {ProviderMetrics} database - Database metrics
+ */
 
 /**
  * Модуль для сбора метрик производительности AI Admin v2
@@ -57,14 +118,16 @@ class PerformanceMetrics {
     // Интервал для расчета процентилей
     this.percentileInterval = setInterval(() => {
       this.calculatePercentiles();
-    }, 60000); // Каждую минуту
+    }, config.performanceMetrics.percentileCalculationInterval);
     
     // Максимальное количество сэмплов для процентилей
-    this.maxSamples = 1000;
+    this.maxSamples = config.performanceMetrics.maxSamples;
   }
 
   /**
    * Записать начало операции
+   * @param {string} operationName - Operation name
+   * @returns {Operation} Operation object
    */
   startOperation(operationName) {
     const operation = {
@@ -80,6 +143,9 @@ class PerformanceMetrics {
 
   /**
    * Записать завершение операции
+   * @param {Operation} operation - Operation object
+   * @param {boolean} [success=true] - Whether operation succeeded
+   * @returns {void}
    */
   endOperation(operation, success = true) {
     operation.endTime = Date.now();
@@ -105,6 +171,9 @@ class PerformanceMetrics {
 
   /**
    * Обновить метрики времени ответа
+   * @private
+   * @param {number} duration - Response duration in ms
+   * @returns {void}
    */
   updateResponseTime(duration) {
     const rt = this.metrics.responseTime;
@@ -120,14 +189,21 @@ class PerformanceMetrics {
     // Добавляем сэмпл для процентилей
     rt.samples.push(duration);
     
-    // Ограничиваем количество сэмплов
-    if (rt.samples.length > this.maxSamples) {
-      rt.samples = rt.samples.slice(-this.maxSamples);
+    // Более эффективное управление памятью
+    if (rt.samples.length >= this.maxSamples) {
+      // Удаляем старые записи за раз, чтобы избежать частых операций slice
+      const removeCount = Math.floor(this.maxSamples * config.performanceMetrics.sampleBatchRemovePercent);
+      rt.samples.splice(0, removeCount);
     }
   }
 
   /**
    * Обновить метрики по операциям
+   * @private
+   * @param {string} operationName - Operation name
+   * @param {number} duration - Operation duration
+   * @param {boolean} success - Whether operation succeeded
+   * @returns {void}
    */
   updateOperationMetrics(operationName, duration, success) {
     if (!this.metrics.operations.has(operationName)) {
@@ -155,6 +231,10 @@ class PerformanceMetrics {
 
   /**
    * Записать выполнение команды
+   * @param {string} commandName - Command name
+   * @param {boolean} [success=true] - Whether command succeeded
+   * @param {number} [duration=0] - Command duration
+   * @returns {void}
    */
   recordCommand(commandName, success = true, duration = 0) {
     if (!this.metrics.commands.has(commandName)) {
@@ -179,13 +259,24 @@ class PerformanceMetrics {
     if (duration > 0) {
       cmdMetrics.totalDuration += duration;
       cmdMetrics.avgDuration = cmdMetrics.totalDuration / cmdMetrics.executed;
+      
+      // Отправляем в Prometheus
+      prometheusMetrics.recordCommandExecution(
+        commandName,
+        duration / 1000, // Конвертируем в секунды
+        success
+      );
     }
   }
 
   /**
    * Обновить метрики кэша
+   * @param {boolean} [hit=false] - Whether cache hit occurred
+   * @param {boolean} [evicted=false] - Whether item was evicted
+   * @param {string} [cacheType='default'] - Cache type
+   * @returns {void}
    */
-  updateCacheMetrics(hit = false, evicted = false) {
+  updateCacheMetrics(hit = false, evicted = false, cacheType = 'default') {
     if (hit) {
       this.metrics.cache.hits++;
     } else {
@@ -201,12 +292,21 @@ class PerformanceMetrics {
     if (total > 0) {
       this.metrics.cache.hitRate = (this.metrics.cache.hits / total * 100).toFixed(2);
     }
+    
+    // Отправляем в Prometheus
+    prometheusMetrics.recordCacheOperation(cacheType, hit);
+    prometheusMetrics.updateCacheHitRate(cacheType, parseFloat(this.metrics.cache.hitRate));
   }
 
   /**
    * Записать вызов AI провайдера
+   * @param {number} duration - Call duration in ms
+   * @param {boolean} [success=true] - Whether call succeeded
+   * @param {string} [provider='default'] - Provider name
+   * @param {string} [model='default'] - Model name
+   * @returns {void}
    */
-  recordAICall(duration, success = true) {
+  recordAICall(duration, success = true, provider = 'default', model = 'default') {
     this.metrics.aiProvider.calls++;
     
     if (!success) {
@@ -216,12 +316,26 @@ class PerformanceMetrics {
     this.metrics.aiProvider.totalTime += duration;
     this.metrics.aiProvider.avgResponseTime = 
       this.metrics.aiProvider.totalTime / this.metrics.aiProvider.calls;
+      
+    // Отправляем в Prometheus
+    prometheusMetrics.recordAIProviderCall(
+      provider, 
+      model, 
+      duration / 1000, // Конвертируем в секунды
+      success,
+      success ? null : 'unknown'
+    );
   }
 
   /**
    * Записать запрос к базе данных
+   * @param {number} duration - Query duration in ms
+   * @param {boolean} [success=true] - Whether query succeeded
+   * @param {string} [operation='query'] - Operation type
+   * @param {string} [table='unknown'] - Table name
+   * @returns {void}
    */
-  recordDatabaseQuery(duration, success = true) {
+  recordDatabaseQuery(duration, success = true, operation = 'query', table = 'unknown') {
     this.metrics.database.queries++;
     
     if (!success) {
@@ -231,10 +345,21 @@ class PerformanceMetrics {
     this.metrics.database.totalTime += duration;
     this.metrics.database.avgQueryTime = 
       this.metrics.database.totalTime / this.metrics.database.queries;
+      
+    // Отправляем в Prometheus
+    prometheusMetrics.recordDatabaseOperation(
+      operation,
+      table,
+      duration / 1000, // Конвертируем в секунды
+      success,
+      success ? null : 'unknown'
+    );
   }
 
   /**
    * Рассчитать процентили
+   * @private
+   * @returns {void}
    */
   calculatePercentiles() {
     const samples = this.metrics.responseTime.samples;
@@ -254,6 +379,7 @@ class PerformanceMetrics {
 
   /**
    * Получить сводку метрик
+   * @returns {Object} Metrics summary
    */
   getSummary() {
     // Конвертируем Map в объекты для JSON
@@ -322,6 +448,7 @@ class PerformanceMetrics {
 
   /**
    * Сбросить метрики
+   * @returns {Object} Snapshot before reset
    */
   reset() {
     // Сохраняем текущие метрики перед сбросом (для истории)
@@ -372,12 +499,36 @@ class PerformanceMetrics {
 
   /**
    * Остановить сбор метрик
+   * @returns {void}
    */
   stop() {
     if (this.percentileInterval) {
       clearInterval(this.percentileInterval);
       this.percentileInterval = null;
     }
+  }
+
+  /**
+   * Получить использование памяти метриками
+   * @returns {Object} Memory usage details
+   */
+  getMemoryUsage() {
+    const { bytesPerSample, bytesPerOperation } = config.performanceMetrics.memoryEstimates;
+    const sampleMemory = this.metrics.responseTime.samples.length * bytesPerSample;
+    const operationsMemory = this.metrics.operations.size * bytesPerOperation;
+    const commandsMemory = this.metrics.commands.size * bytesPerOperation;
+    
+    return {
+      samples: this.metrics.responseTime.samples.length,
+      operations: this.metrics.operations.size,
+      commands: this.metrics.commands.size,
+      estimatedMemory: {
+        samples: `~${(sampleMemory / 1024).toFixed(2)} KB`,
+        operations: `~${(operationsMemory / 1024).toFixed(2)} KB`,
+        commands: `~${(commandsMemory / 1024).toFixed(2)} KB`,
+        total: `~${((sampleMemory + operationsMemory + commandsMemory) / 1024).toFixed(2)} KB`
+      }
+    };
   }
 }
 

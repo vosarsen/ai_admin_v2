@@ -20,6 +20,7 @@ module.exports = {
 function buildDetailedPrompt(context) {
   const formatter = require('../modules/formatter');
   const config = require('../../../config');
+  const workingHoursInstructions = require('../modules/working-hours-instructions');
   
   // Извлекаем данные из контекста
   const { 
@@ -160,6 +161,9 @@ ${formatter.formatConversation(conversation)}`);
   
   // Критические правила
   sections.push(getCriticalRules());
+  
+  // Инструкции по рабочим часам
+  sections.push(workingHoursInstructions.getWorkingHoursInstructions());
   
   // Команды
   sections.push(getCommands());
