@@ -43,7 +43,7 @@ class CachedDataLoader {
   async loadStaff(companyId) {
     const cacheKey = `staff:${companyId}`;
     
-    return this.cache.getOrSet('staff', cacheKey, async () => {
+    return this.cache.getOrSet('services', cacheKey, async () => {
       logger.debug(`Loading staff from DB: ${companyId}`);
       return this.dataLoader.loadStaff(companyId);
     });
