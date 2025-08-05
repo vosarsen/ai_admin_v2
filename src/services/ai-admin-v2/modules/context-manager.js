@@ -88,10 +88,17 @@ class ContextManager {
       dataLoader.loadClient(phone, companyId).catch(e => { console.log('[DEBUG] loadClient failed:', e.message); throw e; }),
       dataLoader.loadServices(companyId).catch(e => { console.log('[DEBUG] loadServices failed:', e.message); throw e; }),
       dataLoader.loadStaff(companyId).catch(e => { console.log('[DEBUG] loadStaff failed:', e.message); throw e; }),
-      dataLoader.loadConversation(phone, companyId).catch(e => { console.log('[DEBUG] loadConversation failed:', e.message); throw e; }),
+      // ВАЖНО: Загружаем историю из Redis, а не из Supabase!
+      contextService.getContext(phone.replace('@c.us', ''), companyId).then(ctx => {
+        console.log('[DEBUG] Redis context loaded, messages:', ctx?.messages?.length || 0);
+        return ctx?.messages || [];
+      }).catch(e => { 
+        console.log('[DEBUG] loadConversation from Redis failed:', e.message); 
+        return [];
+      }),
       dataLoader.loadBusinessStats(companyId).catch(e => { console.log('[DEBUG] loadBusinessStats failed:', e.message); throw e; }),
       dataLoader.loadStaffSchedules(companyId).then(result => { console.log('[DEBUG] loadStaffSchedules success, keys:', Object.keys(result || {})); return result; }).catch(e => { console.log('[DEBUG] loadStaffSchedules failed:', e.message); return {}; }),
-      contextService.getContext(phone.replace('@c.us', '')).catch(e => { console.log('[DEBUG] getContext failed:', e.message); throw e; }),
+      contextService.getContext(phone.replace('@c.us', ''), companyId).catch(e => { console.log('[DEBUG] getContext failed:', e.message); throw e; }),
       dataLoader.loadClientPreferences(phone, companyId).catch(e => { console.log('[DEBUG] loadClientPreferences failed:', e.message); throw e; }),
       dataLoader.generateConversationSummary(phone, companyId).catch(e => { console.log('[DEBUG] generateConversationSummary failed:', e.message); throw e; }),
       intermediateContext.getIntermediateContext(phone).catch(e => { console.log('[DEBUG] getIntermediateContext failed:', e.message); throw e; })
@@ -213,7 +220,7 @@ class ContextManager {
    * Сохранение контекста
    */
   async saveContext(context) {
-    const { phone, redisContext } = context;
+    const { phone, redisContext, companyId } = context;
     
     if (!phone) {
       logger.error('Cannot save context: phone is missing', { context: Object.keys(context) });
@@ -223,9 +230,9 @@ class ContextManager {
     // Нормализуем номер телефона для сохранения
     const normalizedPhone = phone.replace('@c.us', '');
     
-    // Сохраняем в Redis
+    // Сохраняем остальной контекст в Redis
     if (redisContext) {
-      await contextService.setContext(normalizedPhone, redisContext);
+      await contextService.setContext(normalizedPhone, companyId, redisContext);
     }
     
     // Обновляем кеши

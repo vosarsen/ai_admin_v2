@@ -133,6 +133,9 @@ class CachedDataLoader {
         this.loadRecentMessages(phone, companyId),
         this.loadConversation(phone, companyId)
       ]);
+    } else {
+      // Даже если клиента нет в БД, загружаем историю из Redis
+      conversation = await this.loadConversation(phone, companyId);
     }
 
     const context = {
@@ -164,8 +167,28 @@ class CachedDataLoader {
     const cacheKey = `conversation:${companyId}:${phone}`;
     
     return this.cache.getOrSet('context', cacheKey, async () => {
-      logger.debug(`Loading conversation from DB: ${phone}`);
-      return this.dataLoader.loadConversation(phone, companyId);
+      logger.debug(`Loading conversation from Redis: ${phone}`);
+      
+      // Загружаем из Redis через contextService
+      const contextService = require('../../context');
+      const cleanPhone = phone.replace('@c.us', '');
+      
+      try {
+        const redisContext = await contextService.getContext(cleanPhone, companyId);
+        logger.debug(`Loaded ${redisContext?.messages?.length || 0} messages from Redis for ${cleanPhone}`);
+        
+        // Преобразуем формат сообщений из Redis в формат для промпта
+        const messages = redisContext?.messages || [];
+        return messages.map(msg => ({
+          // Поддерживаем оба формата: role/content и sender/text
+          sender: msg.sender || (msg.role === 'user' ? 'user' : 'bot'),
+          text: msg.text || msg.content || '',
+          timestamp: msg.timestamp
+        }));
+      } catch (error) {
+        logger.error('Failed to load conversation from Redis:', error);
+        return [];
+      }
     }, 300); // 5 минут
   }
 
