@@ -38,8 +38,8 @@ function buildOptimizedPrompt(context) {
   // Определяем работающих сегодня мастеров
   const today = new Date().toISOString().split('T')[0];
   
-  // В context-manager используется staffSchedules, не schedules!
-  const schedulesData = staffSchedules || schedules || {};
+  // Используем staffSchedules из контекста
+  const schedulesData = staffSchedules || {};
   
   // schedulesData может быть объектом по датам или массивом
   let todaySchedules = [];
