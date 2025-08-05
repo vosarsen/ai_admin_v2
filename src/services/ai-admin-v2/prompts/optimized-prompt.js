@@ -72,6 +72,19 @@ function buildOptimizedPrompt(context) {
 ${intermediateCtx?.isRecent ? `\nПРОДОЛЖЕНИЕ ДИАЛОГА! Клиент отвечает на твой вопрос.` : ''}
 ${intermediateCtx?.lastBotQuestion ? `\nТвой последний вопрос: "${intermediateCtx.lastBotQuestion}"` : ''}
 ${intermediateCtx?.mentionedServices?.length > 0 ? `\nКлиент уже упоминал: ${intermediateCtx.mentionedServices.join(', ')}` : ''}
+${redisContext?.data ? (() => {
+  try {
+    const data = JSON.parse(redisContext.data);
+    const parts = [];
+    if (data.lastService) parts.push(`Услуга: ${data.lastService}`);
+    if (data.lastTime) parts.push(`Время: ${data.lastTime}`);
+    if (data.lastStaff) parts.push(`Мастер: ${data.lastStaff}`);
+    if (data.lastDate) parts.push(`Дата: ${data.lastDate}`);
+    return parts.length > 0 ? `\n🔴 КЛИЕНТ УЖЕ ВЫБРАЛ: ${parts.join(', ')}` : '';
+  } catch (e) {
+    return '';
+  }
+})() : ''}
 
 ═══ 5 ГЛАВНЫХ ПРАВИЛ ═══
 
@@ -103,6 +116,15 @@ ${intermediateCtx?.mentionedServices?.length > 0 ? `\nКлиент уже упо
    Если клиент уже сказал услугу - НЕ СПРАШИВАЙ СНОВА!
    Прочитай ИСТОРИЮ ДИАЛОГА перед ответом!
    ${intermediateCtx?.mentionedServices?.length > 0 ? `Клиент УЖЕ выбрал: ${intermediateCtx.mentionedServices.join(', ')}` : ''}
+   ИСПОЛЬЗУЙ сохранённые данные из предыдущих сообщений!
+   Если клиент выбрал услугу/время/мастера - ПОМНИ это!
+
+8️⃣ ПОНИМАНИЕ ВРЕМЕНИ
+   "на 2" = 14:00 (на два часа)
+   "на 3" = 15:00 (на три часа)
+   "на час" = 13:00
+   "на 11" = 11:00
+   ВСЕГДА интерпретируй числа как время в 24-часовом формате!
 
 ═══ КОМАНДЫ ═══
 [SEARCH_SLOTS service_name: услуга, date: дата, staff_name: мастер] - поиск времени
