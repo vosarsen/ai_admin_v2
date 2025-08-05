@@ -38,16 +38,20 @@ function buildOptimizedPrompt(context) {
   // Определяем работающих сегодня мастеров
   const today = new Date().toISOString().split('T')[0];
   
-  // Преобразуем объект расписания по датам в плоский массив
-  const todaySchedules = staffSchedules[today] || [];
+  // В context-manager используется staffSchedules, не schedules!
+  const schedulesData = staffSchedules || schedules || {};
   
-  // Отладочная информация
-  console.log(`[DEBUG] Today: ${today}`);
-  console.log(`[DEBUG] staffSchedules type:`, typeof staffSchedules);
-  console.log(`[DEBUG] staffSchedules:`, JSON.stringify(staffSchedules, null, 2));
-  console.log(`[DEBUG] staffSchedules keys:`, Object.keys(staffSchedules));
-  console.log(`[DEBUG] todaySchedules length:`, todaySchedules.length);
-  console.log(`[DEBUG] todaySchedules:`, JSON.stringify(todaySchedules, null, 2));
+  // schedulesData может быть объектом по датам или массивом
+  let todaySchedules = [];
+  if (schedulesData) {
+    if (Array.isArray(schedulesData)) {
+      // Если это массив, фильтруем по сегодняшней дате
+      todaySchedules = schedulesData.filter(s => s.date === today);
+    } else if (typeof schedulesData === 'object') {
+      // Если это объект по датам, берем сегодняшние
+      todaySchedules = schedulesData[today] || [];
+    }
+  }
   
   const workingToday = todaySchedules.length > 0 ? 
     staff.filter(s => {
