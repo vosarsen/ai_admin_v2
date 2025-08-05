@@ -90,7 +90,7 @@ class ContextManager {
       dataLoader.loadStaff(companyId).catch(e => { console.log('[DEBUG] loadStaff failed:', e.message); throw e; }),
       dataLoader.loadConversation(phone, companyId).catch(e => { console.log('[DEBUG] loadConversation failed:', e.message); throw e; }),
       dataLoader.loadBusinessStats(companyId).catch(e => { console.log('[DEBUG] loadBusinessStats failed:', e.message); throw e; }),
-      dataLoader.loadStaffSchedules(companyId).then(result => { console.log('[DEBUG] loadStaffSchedules success, keys:', Object.keys(result || {})); return result; }).catch(e => { console.log('[DEBUG] loadStaffSchedules failed:', e.message); throw e; }),
+      dataLoader.loadStaffSchedules(companyId).then(result => { console.log('[DEBUG] loadStaffSchedules success, keys:', Object.keys(result || {})); return result; }).catch(e => { console.log('[DEBUG] loadStaffSchedules failed:', e.message); return {}; }),
       contextService.getContext(phone.replace('@c.us', '')).catch(e => { console.log('[DEBUG] getContext failed:', e.message); throw e; }),
       dataLoader.loadClientPreferences(phone, companyId).catch(e => { console.log('[DEBUG] loadClientPreferences failed:', e.message); throw e; }),
       dataLoader.generateConversationSummary(phone, companyId).catch(e => { console.log('[DEBUG] generateConversationSummary failed:', e.message); throw e; }),
