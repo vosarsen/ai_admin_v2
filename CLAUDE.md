@@ -136,24 +136,43 @@ Example of INCORRECT testing:
 We use a strict workflow for all changes:
 
 1. **Local** - analyze and modify files locally
-2. **Test First** - ALWAYS test changes before committing or documenting
+2. **Commit** - IMMEDIATELY after each change, commit with descriptive message
+   ```bash
+   git add -A && git commit -m "fix: description of change"
+   ```
+3. **Push** - push changes to GitHub
+   ```bash
+   git push origin branch-name
+   ```
+4. **Deploy** - pull changes on server and restart services
+   ```bash
+   ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "cd /opt/ai-admin && git pull && pm2 restart all"
+   ```
+5. **Test** - test changes in production environment
    - Send test messages via @whatsapp or test scripts
-   - Check logs for errors and expected behavior
+   - Check logs via @logs for errors and expected behavior
    - Verify the fix actually works
-3. **Commit & Push** - git add, commit with descriptive message, push to GitHub (ONLY after successful testing)
-4. **Server** - git pull from server, test changes again in production
-5. **Development Diary** - create entry in `docs/development-diary/` ONLY after confirming the fix works
-6. **Iterate** - if issues found, repeat from step 1
+6. **Iterate** - if issues found:
+   - Fix locally
+   - Commit again
+   - Push and deploy
+   - Test again
+   - Repeat until desired result achieved
+7. **Document** - ONLY after achieving desired result:
+   - Create development diary entry in `docs/development-diary/YYYY-MM-DD-feature-name.md`
+   - Document what worked, final solution, test results
 
-**Important**: 
+**Important Principles**: 
+- **Commit after EVERY change** - don't accumulate multiple changes
+- **Test in production** - local testing is not enough
+- **Document ONLY success** - no point documenting failed attempts
 - Files in local directory and server are synchronized through Git
 - We use `TodoWrite` for task tracking throughout the conversation
 - NEVER modify files directly on server
-- ALWAYS test locally before committing changes
-- ALWAYS test on server after pushing changes
-- **ALWAYS create development diary entry** ONLY after confirming the fix works in testing
+- NEVER skip the commit-push-deploy-test cycle
+- **Development diary** documents the FINAL WORKING solution, not the process
   - Format: `docs/development-diary/YYYY-MM-DD-feature-name.md`
-  - Include: context, what was done, technical details, problems & solutions, test results, lessons learned
+  - Include: context, final solution, technical details, test results, lessons learned
 
 ## Project Overview
 
