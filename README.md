@@ -14,15 +14,17 @@ AI Admin v2 is a next-generation WhatsApp booking assistant designed for beauty 
 ### ✨ Key Features
 
 - 🤖 **AI-First Processing**: Dynamic service/staff resolution without hardcoding
+- 🎭 **Client Personalization**: Personalized greetings based on visit history (1096 clients synced)
 - ⚡ **Automatic Booking**: Creates bookings instantly when time & service specified
 - 🚀 **Smart Caching**: Redis-based context caching with 12-hour TTL
 - 🔥 **Rapid-Fire Protection**: Redis-based message batching (10s window)
-- 💡 **Proactive Suggestions**: Never says "unavailable" without alternatives
-- 📊 **Performance Monitoring**: Real-time metrics and health checks
+- 💡 **Smart Recommendations**: Suggests favorite services and masters based on history
+- 📊 **Performance Monitoring**: Real-time metrics with Prometheus integration
 - 🌐 **Multi-Tenant Ready**: Scalable to 10,000+ companies
 - 🔒 **Production Security**: Rate limiting, authentication, data validation
 - ⏰ **Automatic Reminders**: Two-tier reminder system (day before + 2 hours before)
 - 🔔 **Booking Monitor**: Auto-notifies clients when admin creates bookings
+- 🏆 **Loyalty Program**: VIP status recognition with priority booking
 
 ### 🎯 AI Commands (v2)
 
@@ -81,6 +83,32 @@ ai_admin_v2/
 - PostgreSQL (via Supabase)
 - YClients API access
 - WhatsApp Business API or Venom Bot
+
+## 🎭 Personalization System
+
+AI Admin v2 includes a sophisticated personalization system that tailors conversations based on client history:
+
+### Features:
+- **Smart Greetings**: Different messages for new, regular, VIP, and returning clients
+- **Service Recommendations**: Suggests favorite services based on history (>70% preference)
+- **Master Preferences**: Remembers and suggests preferred staff members
+- **Visit Analytics**: Tracks visit patterns, average bills, and loyalty levels
+- **Special Offers**: Automatic milestone rewards and reactivation discounts
+
+### Loyalty Levels:
+- 🆕 **New**: 0-1 visits
+- 🥉 **Bronze**: 2-4 visits
+- 🥈 **Silver**: 5-9 visits
+- 🥇 **Gold**: 10-19 visits
+- 💎 **VIP**: 20+ visits
+
+### Data Synchronization:
+- Automatic sync with YClients twice daily (4:00 & 14:00 MSK)
+- 1096 clients with complete visit history
+- Safe incremental sync with API rate limiting
+- 5-minute context caching for performance
+
+[Learn more about personalization →](docs/PERSONALIZATION_IMPLEMENTATION.md)
 
 ### Installation
 
