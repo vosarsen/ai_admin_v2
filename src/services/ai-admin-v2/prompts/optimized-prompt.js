@@ -44,7 +44,7 @@ function buildOptimizedPrompt(context) {
         sch.date === today && 
         sch.is_working
       );
-      return todaySchedule && todaySchedule.has_slots;
+      return todaySchedule && todaySchedule.has_booking_slots;
     }) : staff; // Если расписание не загружено, показываем всех
 
   return `Ты - администратор салона "${company.title || businessInfo.title}".
