@@ -118,13 +118,13 @@ class CachedDataLoader {
     ]);
 
     let bookings = [];
-    let schedules = [];
+    let staffSchedules = [];
     let recentMessages = [];
     let conversation = [];
 
     // Загружаем расписание для всех (нужно знать кто работает)
     const staffIds = staff.map(s => s.id);
-    schedules = await this.loadStaffSchedules(companyId, staffIds);
+    staffSchedules = await this.loadStaffSchedules(companyId, staffIds);
 
     // Загружаем дополнительные данные если есть клиент
     if (client) {
@@ -142,7 +142,7 @@ class CachedDataLoader {
       staff,
       client,
       bookings,
-      schedules,
+      staffSchedules,
       recentMessages,
       conversation,
       companyId,
