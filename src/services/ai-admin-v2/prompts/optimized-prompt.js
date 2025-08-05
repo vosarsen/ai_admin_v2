@@ -41,14 +41,23 @@ function buildOptimizedPrompt(context) {
   // Преобразуем объект расписания по датам в плоский массив
   const todaySchedules = staffSchedules[today] || [];
   
+  // Отладочная информация
+  console.log(`[DEBUG] Today: ${today}`);
+  console.log(`[DEBUG] staffSchedules keys:`, Object.keys(staffSchedules));
+  console.log(`[DEBUG] todaySchedules length:`, todaySchedules.length);
+  console.log(`[DEBUG] todaySchedules:`, JSON.stringify(todaySchedules, null, 2));
+  
   const workingToday = todaySchedules.length > 0 ? 
     staff.filter(s => {
       const todaySchedule = todaySchedules.find(sch => 
         sch.staff_id === s.yclients_id && 
         sch.is_working === true
       );
+      console.log(`[DEBUG] Staff ${s.name} (${s.yclients_id}): schedule=${JSON.stringify(todaySchedule)}, working=${!!todaySchedule && todaySchedule.has_booking_slots}`);
       return todaySchedule && todaySchedule.has_booking_slots;
     }) : []; // Если расписание не загружено, не показываем никого
+  
+  console.log(`[DEBUG] workingToday:`, workingToday.map(s => s.name));
 
   return `Ты - администратор салона "${company.title || businessInfo.title}".
 
