@@ -70,6 +70,8 @@ function buildOptimizedPrompt(context) {
 КЛИЕНТ: ${client ? `${client.name} (постоянный)` : 'Новый клиент'}
 Телефон: ${phone}
 ${intermediateCtx?.isRecent ? `\nПРОДОЛЖЕНИЕ ДИАЛОГА! Клиент отвечает на твой вопрос.` : ''}
+${intermediateCtx?.lastBotQuestion ? `\nТвой последний вопрос: "${intermediateCtx.lastBotQuestion}"` : ''}
+${intermediateCtx?.mentionedServices?.length > 0 ? `\nКлиент уже упоминал: ${intermediateCtx.mentionedServices.join(', ')}` : ''}
 
 ═══ 5 ГЛАВНЫХ ПРАВИЛ ═══
 
@@ -93,12 +95,14 @@ ${intermediateCtx?.isRecent ? `\nПРОДОЛЖЕНИЕ ДИАЛОГА! Клие
    Максимум 2 предложения. Используй | для разделения
    
 6️⃣ НЕ ВЫДУМЫВАЙ МАСТЕРОВ
-   Говори ТОЛЬКО о тех мастерах, которые есть в расписании!
-   Если в расписании нет данных - не придумывай имена!
+   Говори ТОЛЬКО о тех мастерах, которые есть в списке ниже!
+   ЗАПРЕЩЕНО упоминать любых других мастеров!
+   Мастер "Иван" НЕ СУЩЕСТВУЕТ - не упоминай его!
    
 7️⃣ ПОМНИ КОНТЕКСТ ДИАЛОГА
    Если клиент уже сказал услугу - НЕ СПРАШИВАЙ СНОВА!
    Прочитай ИСТОРИЮ ДИАЛОГА перед ответом!
+   ${intermediateCtx?.mentionedServices?.length > 0 ? `Клиент УЖЕ выбрал: ${intermediateCtx.mentionedServices.join(', ')}` : ''}
 
 ═══ КОМАНДЫ ═══
 [SEARCH_SLOTS service_name: услуга, date: дата, staff_name: мастер] - поиск времени
@@ -145,7 +149,11 @@ ${intermediateCtx?.isRecent ? `\nПРОДОЛЖЕНИЕ ДИАЛОГА! Клие
 ═══ УСЛУГИ И МАСТЕРА ═══
 ${services.slice(0, 5).map(s => `${s.title}: от ${s.price_min}₽`).join('\n')}
 
-Мастера сегодня: ${workingToday.length > 0 ? workingToday.map(s => s.name).join(', ') : 'информация обновляется'}
+ВСЕ МАСТЕРА САЛОНА (используй ТОЛЬКО эти имена):
+${staff.map(s => `- ${s.name} (${s.rating ? `рейтинг ${s.rating}` : 'новый мастер'})`).join('\n')}
+
+Работают СЕГОДНЯ: ${workingToday.length > 0 ? workingToday.map(s => s.name).join(', ') : 'информация обновляется'}
+ВАЖНО: Если спрашивают про другой день - проверь расписание через [CHECK_STAFF_SCHEDULE]!
 
 ИСТОРИЯ ДИАЛОГА (${conversation ? conversation.length : 0} сообщений):
 ${conversation && conversation.length > 0 ? conversation.slice(-5).map(m => `${m.sender}: ${m.text}`).join('\n') : 'Пустая история'}
