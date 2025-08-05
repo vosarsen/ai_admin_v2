@@ -26,6 +26,7 @@ function buildOptimizedPrompt(context) {
     phone = '',
     services = [], 
     staff = [], 
+    schedules = [],
     conversation = [],
     intermediate = null,
     intermediateContext = null
@@ -33,6 +34,18 @@ function buildOptimizedPrompt(context) {
   
   // Используем intermediate если intermediateContext не передан
   const intermediateCtx = intermediateContext || intermediate;
+  
+  // Определяем работающих сегодня мастеров
+  const today = new Date().toISOString().split('T')[0];
+  const workingToday = schedules.length > 0 ? 
+    staff.filter(s => {
+      const todaySchedule = schedules.find(sch => 
+        sch.staff_id === s.yclients_id && 
+        sch.date === today && 
+        sch.is_working
+      );
+      return todaySchedule && todaySchedule.has_slots;
+    }) : staff; // Если расписание не загружено, показываем всех
 
   return `Ты - администратор салона "${company.title || businessInfo.title}".
 
@@ -106,7 +119,7 @@ ${intermediateCtx?.isRecent ? `\nПРОДОЛЖЕНИЕ ДИАЛОГА! Клие
 ═══ УСЛУГИ И МАСТЕРА ═══
 ${services.slice(0, 5).map(s => `${s.title}: от ${s.price_min}₽`).join('\n')}
 
-Мастера: ${staff.map(s => s.name).join(', ')}
+Мастера сегодня: ${workingToday.length > 0 ? workingToday.map(s => s.name).join(', ') : 'информация обновляется'}
 
 ИСТОРИЯ ДИАЛОГА:
 ${conversation.slice(-3).map(m => `${m.sender}: ${m.text}`).join('\n')}

@@ -122,13 +122,14 @@ class CachedDataLoader {
     let recentMessages = [];
     let conversation = [];
 
+    // Загружаем расписание для всех (нужно знать кто работает)
+    const staffIds = staff.map(s => s.id);
+    schedules = await this.loadStaffSchedules(companyId, staffIds);
+
     // Загружаем дополнительные данные если есть клиент
     if (client) {
-      const staffIds = staff.map(s => s.id);
-      
-      [bookings, schedules, recentMessages, conversation] = await Promise.all([
+      [bookings, recentMessages, conversation] = await Promise.all([
         this.loadBookings(client.id, companyId),
-        this.loadStaffSchedules(companyId, staffIds),
         this.loadRecentMessages(phone, companyId),
         this.loadConversation(phone, companyId)
       ]);
