@@ -84,17 +84,17 @@ class ContextManager {
       conversationSummary,
       intermediateCtx
     ] = await Promise.all([
-      dataLoader.loadCompanyData(companyId),
-      dataLoader.loadClient(phone, companyId),
-      dataLoader.loadServices(companyId),
-      dataLoader.loadStaff(companyId),
-      dataLoader.loadConversation(phone, companyId),
-      dataLoader.loadBusinessStats(companyId),
-      dataLoader.loadStaffSchedules(companyId),
-      contextService.getContext(phone.replace('@c.us', '')),
-      dataLoader.loadClientPreferences(phone, companyId),
-      dataLoader.generateConversationSummary(phone, companyId),
-      intermediateContext.getIntermediateContext(phone)
+      dataLoader.loadCompanyData(companyId).catch(e => { console.log('[DEBUG] loadCompanyData failed:', e.message); throw e; }),
+      dataLoader.loadClient(phone, companyId).catch(e => { console.log('[DEBUG] loadClient failed:', e.message); throw e; }),
+      dataLoader.loadServices(companyId).catch(e => { console.log('[DEBUG] loadServices failed:', e.message); throw e; }),
+      dataLoader.loadStaff(companyId).catch(e => { console.log('[DEBUG] loadStaff failed:', e.message); throw e; }),
+      dataLoader.loadConversation(phone, companyId).catch(e => { console.log('[DEBUG] loadConversation failed:', e.message); throw e; }),
+      dataLoader.loadBusinessStats(companyId).catch(e => { console.log('[DEBUG] loadBusinessStats failed:', e.message); throw e; }),
+      dataLoader.loadStaffSchedules(companyId).then(result => { console.log('[DEBUG] loadStaffSchedules success, keys:', Object.keys(result || {})); return result; }).catch(e => { console.log('[DEBUG] loadStaffSchedules failed:', e.message); throw e; }),
+      contextService.getContext(phone.replace('@c.us', '')).catch(e => { console.log('[DEBUG] getContext failed:', e.message); throw e; }),
+      dataLoader.loadClientPreferences(phone, companyId).catch(e => { console.log('[DEBUG] loadClientPreferences failed:', e.message); throw e; }),
+      dataLoader.generateConversationSummary(phone, companyId).catch(e => { console.log('[DEBUG] generateConversationSummary failed:', e.message); throw e; }),
+      intermediateContext.getIntermediateContext(phone).catch(e => { console.log('[DEBUG] getIntermediateContext failed:', e.message); throw e; })
     ]);
     
     // Обогащаем клиента информацией из Redis
