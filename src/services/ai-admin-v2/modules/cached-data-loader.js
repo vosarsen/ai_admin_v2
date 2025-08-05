@@ -138,6 +138,10 @@ class CachedDataLoader {
       conversation = await this.loadConversation(phone, companyId);
     }
 
+    // Загружаем промежуточный контекст
+    const intermediateContext = require('../../context/intermediate-context');
+    const intermediate = await intermediateContext.getIntermediateContext(phone);
+    
     const context = {
       phone,
       company,
@@ -149,6 +153,7 @@ class CachedDataLoader {
       recentMessages,
       conversation,
       companyId,
+      intermediateContext: intermediate,
       startTime,
       loadTime: Date.now() - startTime
     };

@@ -167,6 +167,38 @@ class AIAdminV2 {
         }
       });
       
+      // Сохраняем информацию о выбранных услуге и времени из выполненных команд
+      if (result.executedCommands && result.executedCommands.length > 0) {
+        const normalizedPhone = phone.replace('@c.us', '');
+        const contextData = {};
+        
+        // Извлекаем информацию из выполненных команд
+        result.executedCommands.forEach(cmd => {
+          if (cmd.params?.service_name) {
+            contextData.lastService = cmd.params.service_name;
+          }
+          if (cmd.params?.time) {
+            contextData.lastTime = cmd.params.time;
+          }
+          if (cmd.params?.staff_name) {
+            contextData.lastStaff = cmd.params.staff_name;
+          }
+          if (cmd.params?.date) {
+            contextData.lastDate = cmd.params.date;
+          }
+          contextData.lastCommand = cmd.command;
+        });
+        
+        // Сохраняем в Redis контекст
+        if (Object.keys(contextData).length > 0) {
+          await contextService.setContext(normalizedPhone, companyId, {
+            data: contextData,
+            state: 'active'
+          });
+          logger.info('Context data saved:', contextData);
+        }
+      }
+      
       // Сохраняем контекст диалога
       await contextManager.saveContext(context);
       
