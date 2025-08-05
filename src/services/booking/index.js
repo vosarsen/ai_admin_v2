@@ -115,7 +115,7 @@ class BookingService {
   async getAvailableSlots(staffId, date, serviceId, companyId = config.yclients.companyId) {
     try {
       // Слоты всегда получаем из YClients (они динамические)
-      return await this.getYclientsClient().getAvailableSlots(staffId, date, serviceId, companyId);
+      return await this.getYclientsClient().getAvailableSlots(staffId, date, { service_id: serviceId }, companyId);
     } catch (error) {
       logger.error('Error getting available slots:', error);
       return { success: false, error: error.message };

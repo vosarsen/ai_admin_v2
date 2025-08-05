@@ -7,9 +7,11 @@ class BusinessLogic {
    */
   detectBusinessType(company) {
     const title = company.title.toLowerCase();
+    const shortDescr = company.raw_data?.short_descr?.toLowerCase() || '';
     const services = company.raw_data?.services || [];
     
-    if (title.includes('барбер') || title.includes('barber')) {
+    if (title.includes('барбер') || title.includes('barber') || 
+        shortDescr.includes('барбер') || shortDescr.includes('barber')) {
       return 'barbershop';
     } else if (title.includes('ногт') || title.includes('маникюр') || title.includes('nail')) {
       return 'nails';

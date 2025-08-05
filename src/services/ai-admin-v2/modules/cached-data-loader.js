@@ -120,15 +120,17 @@ class CachedDataLoader {
     let bookings = [];
     let schedules = [];
     let recentMessages = [];
+    let conversation = [];
 
     // Загружаем дополнительные данные если есть клиент
     if (client) {
       const staffIds = staff.map(s => s.id);
       
-      [bookings, schedules, recentMessages] = await Promise.all([
+      [bookings, schedules, recentMessages, conversation] = await Promise.all([
         this.loadBookings(client.id, companyId),
-        this.loadSchedules(companyId, staffIds),
-        this.loadRecentMessages(phone, companyId)
+        this.loadStaffSchedules(companyId, staffIds),
+        this.loadRecentMessages(phone, companyId),
+        this.loadConversation(phone, companyId)
       ]);
     }
 
@@ -141,6 +143,7 @@ class CachedDataLoader {
       bookings,
       schedules,
       recentMessages,
+      conversation,
       companyId,
       startTime,
       loadTime: Date.now() - startTime

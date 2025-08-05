@@ -92,14 +92,19 @@ class ResponseProcessor {
    * Обработка специальных символов
    */
   processSpecialCharacters(text) {
-    // Убираем символ |, который иногда добавляет AI
-    text = text.replace(/\|/g, '. ');
+    // Обрабатываем символ | - заменяем на точку только если перед ним нет знака препинания
+    text = text.replace(/([^.!?])\|/g, '$1. ');
+    text = text.replace(/([.!?])\|/g, '$1 ');
     
     // Убираем двойные пробелы
     text = text.replace(/\s+/g, ' ');
     
     // Убираем пробелы перед знаками препинания
     text = text.replace(/\s+([.,!?])/g, '$1');
+    
+    // Исправляем двойную пунктуацию (например, "!.")
+    text = text.replace(/([!?])\.+/g, '$1');
+    text = text.replace(/\.{2,}/g, '.');
     
     // Удаляем проблемные фразы
     text = this.removeProblematicPhrases(text);
