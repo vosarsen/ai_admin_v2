@@ -462,7 +462,7 @@ class UniversalYclientsSync {
           fields: [
             "id", "name", "phone", "email", "discount",
             "first_visit_date", "last_visit_date", 
-            "sold_amount", "visits_count"
+            "spent", "visits_count", "sold_amount"
           ],
           order_by: "name",
           order_by_direction: "ASC"
