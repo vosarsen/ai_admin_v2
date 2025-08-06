@@ -125,6 +125,18 @@ class ClientsSync {
         const clients = response.data?.data || [];
         allClients.push(...clients);
         
+        // Логируем пример данных для отладки
+        if (page === 1 && clients.length > 0) {
+          const sampleClient = clients.find(c => c.sold_amount > 100000) || clients[0];
+          logger.info('Sample client data from API:', {
+            name: sampleClient.name,
+            phone: sampleClient.phone,
+            sold_amount: sampleClient.sold_amount,
+            spent: sampleClient.spent,
+            visits_count: sampleClient.visits_count
+          });
+        }
+        
         logger.debug(`Page ${page}: ${clients.length} clients`);
         
         // Проверяем есть ли еще страницы
@@ -207,6 +219,21 @@ class ClientsSync {
         errorCount: errors,
         firstErrors: errorDetails.slice(0, 5)
       });
+    }
+    
+    // Добавляем статистику по total_spent
+    const statsClients = clients.filter(c => (c.sold_amount || c.spent || 0) > 0);
+    logger.info(`💰 Financial stats: ${statsClients.length}/${clients.length} clients have total_spent > 0`);
+    
+    if (statsClients.length > 0) {
+      const topClients = statsClients
+        .sort((a, b) => (b.sold_amount || b.spent || 0) - (a.sold_amount || a.spent || 0))
+        .slice(0, 3);
+      logger.info('Top 3 clients by spending:', topClients.map(c => ({
+        name: c.name,
+        phone: c.phone,
+        amount: c.sold_amount || c.spent || 0
+      })));
     }
 
     return { processed, errors, errorDetails };
