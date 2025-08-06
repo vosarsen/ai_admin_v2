@@ -8,7 +8,7 @@ const { validateWebhookSignature, validateApiKey } = require('../middlewares/web
 const rateLimiter = require('../middlewares/rate-limiter');
 const criticalErrorMiddleware = require('../middlewares/critical-error');
 const circuitBreakerFactory = require('../utils/circuit-breaker');
-const { syncManager } = require('../sync/sync-manager');
+const { getSyncManager } = require('../sync/sync-manager');
 
 // Import webhook routes
 const whatsappBatchedWebhook = require('./webhooks/whatsapp-batched');
@@ -159,7 +159,8 @@ app.get('/api/circuit-breakers', rateLimiter, (req, res) => {
 // Sync endpoints
 app.get('/api/sync/status', rateLimiter, async (req, res) => {
   try {
-    const status = await syncManager.getSyncStatus();
+    const syncManager = getSyncManager();
+    const status = await syncManager.getStatus();
     res.json(status);
   } catch (error) {
     logger.error('Sync status error:', error);
@@ -174,6 +175,7 @@ app.get('/api/sync/status', rateLimiter, async (req, res) => {
 app.post('/api/sync/schedules', rateLimiter, validateApiKey, async (req, res) => {
   try {
     logger.info('Manual schedule sync requested');
+    const syncManager = getSyncManager();
     const result = await syncManager.syncSchedules();
     res.json({
       success: true,
@@ -193,6 +195,7 @@ app.post('/api/sync/schedules', rateLimiter, validateApiKey, async (req, res) =>
 app.post('/api/sync/full', rateLimiter, validateApiKey, async (req, res) => {
   try {
     logger.info('Manual full sync requested');
+    const syncManager = getSyncManager();
     const result = await syncManager.runFullSync();
     res.json({
       success: true,
