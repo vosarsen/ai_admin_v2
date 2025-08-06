@@ -1,6 +1,12 @@
 const axios = require('axios');
 const { supabase } = require('../database/supabase');
 const logger = require('../utils/logger').child({ module: 'client-records-sync' });
+const { 
+  normalizePhone, 
+  calculateLoyaltyLevel, 
+  YCLIENTS_CONFIG, 
+  createYclientsHeaders 
+} = require('./sync-utils');
 
 /**
  * Альтернативный подход к синхронизации записей клиентов
@@ -9,19 +15,11 @@ const logger = require('../utils/logger').child({ module: 'client-records-sync' 
 class ClientRecordsSync {
   constructor(config) {
     this.config = {
-      COMPANY_ID: 962302,
-      BASE_URL: 'https://api.yclients.com/api/v1',
-      BEARER_TOKEN: process.env.YCLIENTS_BEARER_TOKEN,
-      USER_TOKEN: process.env.YCLIENTS_USER_TOKEN,
-      API_DELAY_MS: 250,
+      ...YCLIENTS_CONFIG,
       ...config
     };
     
-    this.headers = {
-      'Authorization': `Bearer ${this.config.BEARER_TOKEN}, User ${this.config.USER_TOKEN}`,
-      'Accept': 'application/vnd.api.v2+json',
-      'Content-Type': 'application/json'
-    };
+    this.headers = createYclientsHeaders(true);
   }
 
   /**
@@ -60,7 +58,7 @@ class ClientRecordsSync {
       // Фильтруем записи по клиенту
       const clientRecords = records.filter(record => {
         return record.client?.id === parseInt(clientId) || 
-               this.normalizePhone(record.client?.phone) === this.normalizePhone(clientPhone);
+               normalizePhone(record.client?.phone) === normalizePhone(clientPhone);
       });
       
       logger.info(`Found ${clientRecords.length} records for client`);
@@ -179,7 +177,7 @@ class ClientRecordsSync {
     
     try {
       // Находим клиента в базе
-      const normalizedPhone = this.normalizePhone(phone);
+      const normalizedPhone = normalizePhone(phone);
       
       const { data: client, error } = await supabase
         .from('clients')
@@ -290,7 +288,7 @@ class ClientRecordsSync {
           visit_history: visitHistory,
           total_spent: totalSpent,
           average_bill: visits.length > 0 ? Math.round(totalSpent / visits.length) : 0,
-          loyalty_level: this.calculateLoyaltyLevel(visits.length, totalSpent),
+          loyalty_level: calculateLoyaltyLevel(visits.length, totalSpent),
           last_sync_at: new Date().toISOString()
         })
         .eq('id', clientId);
@@ -307,22 +305,7 @@ class ClientRecordsSync {
     }
   }
 
-  /**
-   * Вспомогательные методы
-   */
-  
-  normalizePhone(phone) {
-    if (!phone) return null;
-    return phone.replace(/\D/g, '').replace(/^8/, '7');
-  }
-  
-  calculateLoyaltyLevel(visitsCount, totalSpent) {
-    if (visitsCount >= 20 && totalSpent >= 50000) return 'VIP';
-    if (visitsCount >= 10 && totalSpent >= 20000) return 'Gold';
-    if (visitsCount >= 5 && totalSpent >= 8000) return 'Silver';
-    if (visitsCount >= 2) return 'Bronze';
-    return 'New';
-  }
+  // Вспомогательные методы перенесены в sync-utils.js
 }
 
 module.exports = { ClientRecordsSync };
