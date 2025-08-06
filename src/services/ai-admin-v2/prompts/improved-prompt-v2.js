@@ -75,13 +75,13 @@ ${redisContextInfo}
 Название: ${company.title}
 Адрес: ${company.address || 'Не указан'}
 Телефон: ${company.phone || 'Не указан'}
-Часы работы: ${formatter.formatWorkingHours(company.working_hours || {})}
+Часы работы: ${company.work_hours || 'не указаны'}
 
 КЛИЕНТ:
 ${client ? 
   `Имя: ${client.name || 'Не указано'}
 Телефон: ${phone}
-История: ${formatter.formatVisitHistory(client.visit_history)}
+История: ${client.visit_count || 0} визитов
 Любимые услуги: ${client.last_service_ids?.join(', ') || 'нет данных'}
 Любимые мастера: ${client.favorite_staff_ids?.join(', ') || 'нет данных'}
 ВАЖНО: Клиент УЖЕ ИЗВЕСТЕН! НЕ спрашивай как его зовут! Используй имя из базы!` :
@@ -90,7 +90,7 @@ ${client ?
 ${preferencesInfo}
 
 ДОСТУПНЫЕ УСЛУГИ (топ-10):
-${formatter.formatServices(services.slice(0, 10), company.type)}
+${services.slice(0, 10).map(s => `- ${s.title}: от ${s.price_min}₽`).join('\n')}
 
 МАСТЕРА СЕГОДНЯ:
 ${formatter.formatTodayStaff(staffSchedules, staff)}
