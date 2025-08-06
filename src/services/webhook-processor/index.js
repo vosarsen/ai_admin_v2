@@ -3,12 +3,14 @@ const { supabase } = require('../../database/supabase');
 const whatsappClient = require('../../integrations/whatsapp/client');
 const { YclientsClient } = require('../../integrations/yclients/client');
 const config = require('../../config');
+const { getInstance: getDebouncer } = require('./webhook-debouncer');
 
 class YClientsWebhookProcessor {
   constructor() {
     this.whatsappClient = whatsappClient;
     this.yclientsClient = new YclientsClient();
     this.companyId = config.yclients?.companyId || 962302;
+    this.debouncer = getDebouncer();
   }
 
   /**
@@ -25,6 +27,19 @@ class YClientsWebhookProcessor {
     });
 
     try {
+      // Проверяем через debouncer, нужно ли обрабатывать событие
+      if (!this.debouncer.shouldProcessEvent(type, data)) {
+        logger.info('🚫 Skipping duplicate event', {
+          eventId,
+          type,
+          recordId: data?.id
+        });
+        
+        // Все равно помечаем как обработанное, чтобы не застревало в очереди
+        await this.markEventProcessed(eventId);
+        return;
+      }
+
       // Маркируем событие как обработанное
       await this.markEventProcessed(eventId);
 
@@ -534,6 +549,13 @@ class YClientsWebhookProcessor {
     }
     
     return changes;
+  }
+
+  /**
+   * Получить статистику обработки webhook событий
+   */
+  getStats() {
+    return this.debouncer.getStats();
   }
 }
 
