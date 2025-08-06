@@ -16,7 +16,7 @@ const cron = require('node-cron');
 const { CompanyInfoSync } = require('./company-info-sync');
 const { ServicesSync } = require('./services-sync');
 const { StaffSync } = require('./staff-sync');
-const { ClientsSync } = require('./clients-sync');
+const { ClientsSyncOptimized } = require('./clients-sync-optimized');
 const { SchedulesSync } = require('./schedules-sync');
 const { ClientRecordsSync } = require('./client-records-sync');
 
@@ -34,7 +34,7 @@ class SyncManager {
       company: new CompanyInfoSync(),
       services: new ServicesSync(),
       staff: new StaffSync(),
-      clients: new ClientsSync(),
+      clients: new ClientsSyncOptimized(), // Используем оптимизированную версию
       schedules: new SchedulesSync(),
       clientRecords: new ClientRecordsSync()
     };
