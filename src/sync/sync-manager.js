@@ -19,6 +19,7 @@ const { StaffSync } = require('./staff-sync');
 const { ClientsSyncOptimized } = require('./clients-sync-optimized');
 const { SchedulesSync } = require('./schedules-sync');
 const { ClientRecordsSync } = require('./client-records-sync');
+const { BookingsSync } = require('./bookings-sync');
 
 /**
  * Менеджер синхронизации данных
@@ -36,7 +37,8 @@ class SyncManager {
       staff: new StaffSync(),
       clients: new ClientsSyncOptimized(), // Используем оптимизированную версию
       schedules: new SchedulesSync(),
-      clientRecords: new ClientRecordsSync()
+      clientRecords: new ClientRecordsSync(),
+      bookings: new BookingsSync() // Новый модуль для активных записей
     };
     
     // Расписание синхронизации (Moscow time UTC+3)
@@ -45,7 +47,8 @@ class SyncManager {
       staff: '0 2 * * *',        // 02:00 - Мастера (раз в день)
       clients: '0 3 * * *',      // 03:00 - Клиенты (раз в день)
       schedules: '0 */4 * * *',  // Каждые 4 часа - Расписания
-      company: '0 0 * * 0'       // 00:00 воскресенье - Компания (раз в неделю)
+      company: '0 0 * * 0',      // 00:00 воскресенье - Компания (раз в неделю)
+      bookings: '*/15 * * * *'   // Каждые 15 минут - Активные записи
     };
   }
 
@@ -134,8 +137,12 @@ class SyncManager {
       });
       
       // 5. Расписания
-      logger.info('5/5 ⏰ Syncing schedules...');
+      logger.info('5/6 ⏰ Syncing schedules...');
       results.schedules = await this.syncSchedules();
+      
+      // 6. Активные записи
+      logger.info('6/6 🎫 Syncing active bookings...');
+      results.bookings = await this.syncBookings();
       
       const duration = Math.round((Date.now() - startTime) / 1000);
       
@@ -216,6 +223,14 @@ class SyncManager {
       cron.schedule(this.schedule.company, async () => {
         logger.info('🏢 Running scheduled company sync...');
         await this.syncCompany();
+      }, { timezone: 'Europe/Moscow' })
+    );
+    
+    // Активные записи - каждые 15 минут
+    this.cronJobs.push(
+      cron.schedule(this.schedule.bookings, async () => {
+        logger.info('🎫 Running scheduled bookings sync...');
+        await this.syncBookings();
       }, { timezone: 'Europe/Moscow' })
     );
     
@@ -321,6 +336,20 @@ class SyncManager {
       return { success: true, ...result };
     } catch (error) {
       logger.error('Client records sync failed:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Синхронизация активных записей
+   */
+  async syncBookings(options = {}) {
+    try {
+      logger.info('🎫 Syncing active bookings...');
+      const result = await this.modules.bookings.sync(options);
+      return { success: true, ...result };
+    } catch (error) {
+      logger.error('Bookings sync failed:', error);
       return { success: false, error: error.message };
     }
   }
