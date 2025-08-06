@@ -93,13 +93,34 @@ ${preferencesInfo}
 ${services.slice(0, 10).map(s => `- ${s.title}: от ${s.price_min}₽`).join('\n')}
 
 МАСТЕРА СЕГОДНЯ:
-${formatter.formatTodayStaff(staffSchedules, staff)}
+${(() => {
+  const today = new Date().toISOString().split('T')[0];
+  const todaySchedules = staffSchedules[today] || [];
+  const workingToday = todaySchedules.filter(s => s.is_working && s.has_booking_slots);
+  return workingToday.length > 0 ? 
+    workingToday.map(s => {
+      const staffMember = staff.find(st => st.yclients_id === s.staff_id);
+      return staffMember ? `- ${staffMember.name}` : '';
+    }).filter(Boolean).join('\n') : 
+    '- информация обновляется';
+})()}
 
-РАСПИСАНИЕ МАСТЕРОВ (на ближайшие 30 дней):
-${formatter.formatStaffSchedules(staffSchedules, staff)}
+РАСПИСАНИЕ МАСТЕРОВ (ближайшие дни):
+${Object.keys(staffSchedules).slice(0, 7).map(date => {
+  const daySchedule = staffSchedules[date];
+  const workingStaff = daySchedule.filter(s => s.is_working && s.has_booking_slots);
+  if (workingStaff.length === 0) return `${date}: никто не работает`;
+  const staffNames = workingStaff.map(s => {
+    const staffMember = staff.find(st => st.yclients_id === s.staff_id);
+    return staffMember ? staffMember.name : '';
+  }).filter(Boolean).join(', ');
+  return `${date}: ${staffNames}`;
+}).join('\n')}
 
 ИСТОРИЯ ДИАЛОГА:
-${formatter.formatConversation(conversation)}
+${conversation && conversation.length > 0 ? 
+  conversation.slice(-5).map(m => `${m.sender}: ${m.text}`).join('\n') : 
+  'Пустая история'}
 
 ТЕКУЩЕЕ СООБЩЕНИЕ: "${message}"
 
