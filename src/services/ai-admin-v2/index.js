@@ -139,8 +139,15 @@ class AIAdminV2 {
       });
       
       // Обрабатываем ответ и выполняем команды
-      const result = await this.processAIResponse(aiResponse, context);
-      results = result.results;
+      const finalResponse = await this.processAIResponse(aiResponse, context);
+      
+      // Создаем объект результата для совместимости
+      const result = {
+        success: true,
+        response: finalResponse,
+        executedCommands: commandHandler.extractCommands(aiResponse),
+        results: []
+      };
       
       // Обновляем статистику с количеством выполненных команд
       if (result.executedCommands?.length > 0) {
