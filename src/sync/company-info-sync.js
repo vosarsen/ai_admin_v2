@@ -226,4 +226,4 @@ class CompanyInfoSync {
   }
 }
 
-module.exports = new CompanyInfoSync();
+module.exports = { CompanyInfoSync };

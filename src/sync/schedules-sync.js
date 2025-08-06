@@ -205,22 +205,17 @@ class SchedulesSync {
         const scheduleData = {
           staff_id: staffMember.id,
           staff_name: staffMember.name,
-          company_id: this.config.COMPANY_ID,
           date: schedule.date,
           is_working: schedule.is_working || false,
           has_booking_slots: schedule.has_free_slots || false,
           working_hours: schedule.working_hours || null,
-          seances: schedule.seances || [],
-          free_seances_count: schedule.free_seances_count || 0,
-          busy_seances_count: schedule.busy_seances_count || 0,
-          total_seances_count: schedule.total_seances_count || 0,
-          last_sync_at: new Date().toISOString()
+          last_updated: new Date().toISOString()
         };
         
         const { error } = await supabase
           .from(this.tableName)
           .upsert(scheduleData, { 
-            onConflict: 'staff_id,date,company_id',
+            onConflict: 'staff_id,date',
             ignoreDuplicates: false 
           });
 
@@ -262,8 +257,7 @@ class SchedulesSync {
       const { error } = await supabase
         .from(this.tableName)
         .delete()
-        .lt('date', formatDateForAPI(sevenDaysAgo))
-        .eq('company_id', this.config.COMPANY_ID);
+        .lt('date', formatDateForAPI(sevenDaysAgo));
       
       if (error) {
         logger.warn('Failed to cleanup old schedules', { error: error.message });
