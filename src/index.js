@@ -5,7 +5,7 @@ const app = require('./api');
 const messageQueue = require('./queue/message-queue');
 const { validateRedisConfig } = require('./utils/redis-factory');
 const secureConfig = require('./config/secure-config');
-const { syncManager } = require('./sync/sync-manager');
+const { getSyncManager } = require('./sync/sync-manager');
 
 // Handle uncaught errors
 process.on('uncaughtException', (error) => {
@@ -35,6 +35,7 @@ async function shutdown() {
   }
   
   // Stop sync manager
+  const syncManager = getSyncManager();
   await syncManager.shutdown();
   
   // Close queue connections
@@ -68,6 +69,7 @@ async function startServer() {
     
     // Initialize sync manager
     logger.info('🔄 Initializing sync manager...');
+    const syncManager = getSyncManager();
     await syncManager.initialize();
     logger.info('✅ Sync manager started successfully');
     

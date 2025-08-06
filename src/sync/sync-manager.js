@@ -4,6 +4,11 @@
  * Координирует работу всех модулей синхронизации и управляет расписанием
  */
 
+// Загружаем переменные окружения если еще не загружены
+if (!process.env.YCLIENTS_BEARER_TOKEN) {
+  require('dotenv').config();
+}
+
 const logger = require('../utils/logger').child({ module: 'sync-manager' });
 const cron = require('node-cron');
 
@@ -124,7 +129,9 @@ class SyncManager {
       
       // 4. Клиенты
       logger.info('4/5 👤 Syncing clients...');
-      results.clients = await this.syncClients();
+      results.clients = await this.syncClients({ 
+        syncVisitHistory: process.env.SYNC_CLIENT_VISITS === 'true' 
+      });
       
       // 5. Расписания
       logger.info('5/5 ⏰ Syncing schedules...');
@@ -190,7 +197,9 @@ class SyncManager {
     this.cronJobs.push(
       cron.schedule(this.schedule.clients, async () => {
         logger.info('👤 Running scheduled clients sync...');
-        await this.syncClients();
+        await this.syncClients({ 
+          syncVisitHistory: process.env.SYNC_CLIENT_VISITS === 'true' 
+        });
       }, { timezone: 'Europe/Moscow' })
     );
     
