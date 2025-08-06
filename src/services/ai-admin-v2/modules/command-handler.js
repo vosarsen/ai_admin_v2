@@ -574,11 +574,16 @@ class CommandHandler {
     // Если имени нет в контексте клиента, проверяем Redis
     if (!clientName) {
       const contextService = require('../../context');
-      const redisContext = await contextService.getContext(cleanPhone);
-      if (redisContext && redisContext.clientName) {
-        clientName = redisContext.clientName;
+      const companyId = context.company?.yclients_id || context.company?.company_id;
+      try {
+        const redisContext = await contextService.getContext(cleanPhone, companyId);
+        if (redisContext && redisContext.clientName) {
+          clientName = redisContext.clientName;
+        }
+        logger.info('Redis context check:', { clientName, redisContext });
+      } catch (error) {
+        logger.error('Failed to get Redis context:', error);
       }
-      logger.info('Redis context check:', { clientName, redisContext });
     }
     
     // ВСЕГДА проверяем, не представился ли клиент в текущем сообщении

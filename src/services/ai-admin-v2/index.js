@@ -86,7 +86,7 @@ class AIAdminV2 {
       logger.info(`🤖 AI Admin v2 processing: "${message}" from ${phone}`);
       
       // 1. Проверяем ожидающую отмену записи
-      const redisContext = await contextService.getContext(phone.replace('@c.us', ''));
+      const redisContext = await contextService.getContext(phone.replace('@c.us', ''), companyId);
       if (redisContext?.pendingCancellation) {
         const cancellationResult = await this.messageProcessor.handlePendingCancellation(
           message, phone, companyId, redisContext

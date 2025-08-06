@@ -44,6 +44,11 @@ class ContextService {
    * Get full context for conversation
    */
   async getContext(phone, companyId) {
+    if (!companyId) {
+      logger.error('getContext called without companyId for phone:', phone);
+      throw new Error('CompanyId is required for context');
+    }
+    
     const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
     const contextKey = `${companyId}:${normalizedPhone}`;
     
