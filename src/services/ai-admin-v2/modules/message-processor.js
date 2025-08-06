@@ -32,7 +32,7 @@ class MessageProcessor {
       
       // Очищаем состояние ожидания
       delete redisContext.pendingCancellation;
-      await this.contextService.setContext(phone.replace('@c.us', ''), redisContext);
+      await this.contextService.setContext(phone.replace('@c.us', ''), companyId, redisContext);
       
       if (cancelResult.success) {
         return {
@@ -49,7 +49,7 @@ class MessageProcessor {
     
     // Если ввели не номер - очищаем состояние и продолжаем
     delete redisContext.pendingCancellation;
-    await this.contextService.setContext(phone.replace('@c.us', ''), redisContext);
+    await this.contextService.setContext(phone.replace('@c.us', ''), companyId, redisContext);
     
     return { handled: false };
   }
