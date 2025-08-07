@@ -484,13 +484,14 @@ class Formatter {
       return selected;
     };
     
-    // Формируем финальные группы с вариативностью (2-3 слота в каждом периоде)
-    groups.morning = selectSlotsWithGaps(periodSlots.morning, 3);
-    groups.day = selectSlotsWithGaps(periodSlots.day, 3);
-    groups.evening = selectSlotsWithGaps(periodSlots.evening, 3);
+    // Передаем AI полный список слотов без фильтрации
+    // AI сам решит какие слоты показать пользователю
+    groups.morning = periodSlots.morning.map(s => s.time);
+    groups.day = periodSlots.day.map(s => s.time);
+    groups.evening = periodSlots.evening.map(s => s.time);
     
     // Подробный дебаг для отладки
-    logger.info('Slot gap selection detailed debug:', {
+    logger.info('Full slots without filtering:', {
       morning: {
         input: periodSlots.morning.map(s => ({ 
           time: s.time, 
