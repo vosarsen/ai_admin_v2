@@ -164,20 +164,31 @@ class DataLoader {
       const safePhone = this.sanitizeInput(phone);
       const safeCompanyId = this.sanitizeInput(companyId);
       
-      // Убираем @c.us если есть
+      // Убираем @c.us если есть, но оставляем + для raw_phone
       const cleanPhone = safePhone.replace('@c.us', '');
       
-      // Ищем по phone (без +)
+      // Добавляем + если его нет (для поиска по raw_phone)
+      const phoneWithPlus = cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`;
+      
+      logger.debug(`Searching for client with raw_phone: ${phoneWithPlus} in company: ${safeCompanyId}`);
+      
+      // Ищем по raw_phone (с +)
       const { data, error } = await supabase
         .from('clients')
         .select('*')
-        .eq('phone', cleanPhone)
+        .eq('raw_phone', phoneWithPlus)
         .eq('company_id', safeCompanyId)
         .maybeSingle();
       
       if (error) {
         logger.error('Error loading client:', error);
         return null;
+      }
+      
+      if (data) {
+        logger.info(`✅ Client found: ${data.name} (${data.phone})`);
+      } else {
+        logger.debug(`No client found for raw_phone: ${phoneWithPlus}`);
       }
       
       return data;
