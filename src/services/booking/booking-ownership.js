@@ -5,7 +5,7 @@
  */
 
 const logger = require('../../utils/logger').child({ module: 'booking-ownership' });
-const { getRedisClient } = require('../../config/redis-factory');
+const { createRedisClient } = require('../../utils/redis-factory');
 const config = require('../../config');
 
 class BookingOwnershipService {
@@ -21,7 +21,7 @@ class BookingOwnershipService {
     if (this.initialized) return;
     
     try {
-      this.redis = await getRedisClient();
+      this.redis = createRedisClient("booking-ownership");
       this.initialized = true;
       logger.info('✅ BookingOwnershipService initialized');
     } catch (error) {
