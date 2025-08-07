@@ -369,11 +369,28 @@ class AIAdminV2 {
    */
   async processAIResponse(aiResponse, context) {
     logger.info('Processing AI response...');
-    logger.debug('AI response text:', aiResponse);
+    
+    // Полное логирование ответа AI для отладки
+    if (aiResponse) {
+      const preview = aiResponse.substring(0, 500);
+      logger.info('🤖 AI full response preview:', preview);
+      if (aiResponse.length > 500) {
+        logger.info(`... (total ${aiResponse.length} chars)`);
+      }
+    } else {
+      logger.warn('⚠️ AI response is empty or null');
+    }
     
     // Извлекаем команды из ответа
     const commands = commandHandler.extractCommands(aiResponse);
-    logger.debug('Extracted commands:', commands);
+    
+    // Логируем извлеченные команды
+    if (commands && commands.length > 0) {
+      logger.info(`📋 Extracted ${commands.length} commands:`, commands.map(c => c.command));
+    } else {
+      logger.warn('⚠️ No commands extracted from AI response');
+    }
+    
     const cleanResponse = commandHandler.removeCommands(aiResponse);
     
     // Выполняем команды
