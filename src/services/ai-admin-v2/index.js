@@ -372,11 +372,14 @@ class AIAdminV2 {
     
     // Полное логирование ответа AI для отладки
     if (aiResponse) {
-      const preview = aiResponse.substring(0, 500);
-      logger.info('🤖 AI full response preview:', preview);
-      if (aiResponse.length > 500) {
-        logger.info(`... (total ${aiResponse.length} chars)`);
-      }
+      const preview = aiResponse.substring(0, 1000);
+      logger.info('🤖 AI full response:', { 
+        preview,
+        totalLength: aiResponse.length,
+        hasCommands: aiResponse.includes('['),
+        firstBracket: aiResponse.indexOf('['),
+        sample: aiResponse.substring(0, 200)
+      });
     } else {
       logger.warn('⚠️ AI response is empty or null');
     }
