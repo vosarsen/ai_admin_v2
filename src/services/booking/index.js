@@ -449,14 +449,31 @@ class BookingService {
       const bookingsList = Array.isArray(bookings.data) ? bookings.data : 
                           (bookings.data.data ? bookings.data.data : []);
       
+      // ВАЖНО: Дополнительно проверяем, что запись действительно принадлежит этому клиенту
+      // YClients API иногда возвращает записи других клиентов
+      const normalizedPhone = phone.replace(/[\s\-\(\)\+]/g, '').replace(/^7/, '');
+      
       // Фильтруем только активные записи (не отмененные и не прошедшие)
       const activeBookings = bookingsList.filter(booking => {
+        // Проверяем телефон клиента в записи
+        if (booking.client && booking.client.phone) {
+          const bookingPhone = booking.client.phone.replace(/[\s\-\(\)\+]/g, '').replace(/^7/, '');
+          if (bookingPhone !== normalizedPhone) {
+            logger.warn(`⚠️ Skipping booking ${booking.id} - belongs to different client`, {
+              requestedPhone: phone,
+              bookingPhone: booking.client.phone,
+              clientName: booking.client.name
+            });
+            return false;
+          }
+        }
+        
         const bookingDate = new Date(booking.datetime);
         const now = new Date();
         return bookingDate > now && booking.deleted === false;
       });
 
-      logger.info(`✅ Found ${activeBookings.length} active bookings for ${phone}`);
+      logger.info(`✅ Found ${activeBookings.length} active bookings for ${phone} (filtered ${bookingsList.length - activeBookings.length} invalid/past bookings)`);
       
       return { 
         success: true, 
