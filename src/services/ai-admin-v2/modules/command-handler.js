@@ -402,6 +402,56 @@ class CommandHandler {
    * Создание записи
    */
   async createBooking(params, context) {
+    // 🔴 КРИТИЧЕСКАЯ ПРОВЕРКА: Проверяем доступность слота перед созданием записи
+    if (params.time && context.lastSearch?.slots) {
+      const requestedTime = params.time;
+      const availableSlots = context.lastSearch.slots;
+      
+      // Извлекаем времена из слотов
+      const availableTimes = availableSlots.map(slot => {
+        if (typeof slot === 'string') return slot;
+        if (slot.time) return slot.time;
+        if (slot.datetime) {
+          const timePart = slot.datetime.split('T')[1];
+          if (timePart) return timePart.substring(0, 5);
+        }
+        return null;
+      }).filter(Boolean);
+      
+      logger.info('Checking slot availability before CREATE_BOOKING:', {
+        requestedTime,
+        availableTimes,
+        isAvailable: availableTimes.includes(requestedTime)
+      });
+      
+      // Если время недоступно - НЕ создаём запись
+      if (!availableTimes.includes(requestedTime)) {
+        logger.warn(`❌ Attempted to book unavailable time: ${requestedTime}`);
+        
+        // Находим ближайшие альтернативы
+        const alternatives = availableTimes
+          .filter(time => time !== requestedTime)
+          .slice(0, 3);
+        
+        return {
+          success: false,
+          error: `Время ${requestedTime} недоступно`,
+          alternatives: alternatives,
+          message: `К сожалению, время ${requestedTime} уже занято. Доступные слоты: ${alternatives.join(', ')}`
+        };
+      }
+      
+      logger.info(`✅ Time ${requestedTime} is available, proceeding with booking`);
+    } else if (params.time && !context.lastSearch?.slots) {
+      logger.warn('No previous slot search found, cannot verify availability');
+      // Возможно стоит сначала выполнить SEARCH_SLOTS
+      return {
+        success: false,
+        error: 'Необходимо сначала проверить доступность времени',
+        message: 'Не могу создать запись без проверки доступности. Сначала нужно узнать свободные слоты.'
+      };
+    }
+    
     // Проверяем, если указан конкретный мастер
     if (params.staff_name && context.lastStaffCheck) {
       // Проверяем, что это тот же мастер и дата
