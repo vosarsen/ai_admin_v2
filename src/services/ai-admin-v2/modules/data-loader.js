@@ -228,6 +228,52 @@ class DataLoader {
   }
 
   /**
+   * Загрузка записей клиента
+   */
+  async loadBookings(clientId, companyId) {
+    try {
+      if (!clientId) {
+        logger.debug('No clientId provided for loadBookings');
+        return [];
+      }
+      
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('company_id', companyId)
+        .gte('appointment_datetime', new Date().toISOString())
+        .order('appointment_datetime', { ascending: true })
+        .limit(10);
+      
+      if (error) {
+        logger.error('Error loading bookings:', error);
+        return [];
+      }
+      
+      return data || [];
+    } catch (error) {
+      logger.error('Error in loadBookings:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Загрузка последних сообщений
+   */
+  async loadRecentMessages(phone, companyId) {
+    try {
+      // В текущей версии сообщения хранятся в Redis контексте
+      // Этот метод возвращает пустой массив для совместимости
+      logger.debug('loadRecentMessages called - messages are in Redis context');
+      return [];
+    } catch (error) {
+      logger.error('Error in loadRecentMessages:', error);
+      return [];
+    }
+  }
+
+  /**
    * Загрузка истории диалога
    */
   async loadConversation(phone, companyId) {
