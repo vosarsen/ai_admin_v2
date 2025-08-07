@@ -12,6 +12,7 @@ const errorMessages = require('../../utils/error-messages');
 const criticalErrorLogger = require('../../utils/critical-error-logger');
 const providerFactory = require('../ai/provider-factory');
 const promptManager = require('./prompt-manager');
+const reactProcessor = require('./modules/react-processor');
 // ResponseProcessor удален - используем commandHandler напрямую
 const { ErrorHandler, BookingError, ContextError, ValidationError } = require('./modules/error-handler');
 const MessageProcessor = require('./modules/message-processor');
@@ -132,20 +133,42 @@ class AIAdminV2 {
       // Определяем имя промпта для статистики
       const promptName = process.env.AI_PROMPT_VERSION || 'enhanced-prompt';
       
+      // Проверяем используем ли ReAct промпт
+      const useReAct = promptName === 'react-prompt' || process.env.USE_REACT === 'true';
+      
       // Один вызов AI со всей информацией
       const aiResponse = await this.callAI(prompt, {
         message: message,
         promptName: promptName
       });
       
-      // Обрабатываем ответ и выполняем команды
-      const finalResponse = await this.processAIResponse(aiResponse, context);
+      let finalResponse;
+      let executedCommands = [];
+      
+      if (useReAct) {
+        // Используем ReAct процессор для циклической обработки
+        logger.info('Using ReAct processor for response handling');
+        const reactResult = await reactProcessor.processReActCycle(
+          aiResponse, 
+          context,
+          this // передаем ссылку на AIAdminV2 для вызова callAI
+        );
+        
+        finalResponse = reactResult.response;
+        executedCommands = reactResult.commands;
+        
+        logger.info(`ReAct completed in ${reactResult.iterations} iterations`);
+      } else {
+        // Старая логика обработки
+        finalResponse = await this.processAIResponse(aiResponse, context);
+        executedCommands = commandHandler.extractCommands(aiResponse);
+      }
       
       // Создаем объект результата для совместимости
       const result = {
         success: true,
         response: finalResponse,
-        executedCommands: commandHandler.extractCommands(aiResponse),
+        executedCommands: executedCommands,
         results: []
       };
       
@@ -346,7 +369,8 @@ class AIAdminV2 {
     
     // Получаем промпт из менеджера
     let basePrompt;
-    const promptVersion = process.env.AI_PROMPT_VERSION || 'personalized-prompt'; // По умолчанию используем personalized
+    const promptVersion = process.env.AI_PROMPT_VERSION || 
+                         (process.env.USE_REACT === 'true' ? 'react-prompt' : 'personalized-prompt');
     
     if (process.env.AI_PROMPT_AB_TEST === 'true') {
       // A/B тестирование
