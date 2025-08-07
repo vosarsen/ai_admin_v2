@@ -23,6 +23,7 @@ class ReActProcessor {
     let finalResponse = '';
     let allExecutedCommands = [];
     let continueProcessing = true;
+    let isFirstIteration = true;
     
     // Кэш для хранения результатов команд между итерациями
     const commandResults = new Map();
@@ -34,12 +35,14 @@ class ReActProcessor {
       // Парсим текущий ответ
       const parsed = this.parseReActResponse(currentResponse);
       
-      // Если есть финальный ответ - завершаем
-      if (parsed.respond) {
+      // На первой итерации игнорируем RESPOND блок, так как AI мог сгенерировать его по ошибке
+      if (parsed.respond && !isFirstIteration && !parsed.act) {
         finalResponse = parsed.respond;
         continueProcessing = false;
-        logger.info('Found RESPOND block, completing cycle');
+        logger.info('Found RESPOND block after command execution, completing cycle');
         break;
+      } else if (parsed.respond && isFirstIteration) {
+        logger.warn('Found RESPOND block in first iteration - ignoring it, AI should wait for command results');
       }
       
       // Если есть команда для выполнения
@@ -86,6 +89,9 @@ class ReActProcessor {
             message: context.currentMessage,
             promptName: 'react-continuation'
           });
+          
+          // Сбрасываем флаг первой итерации
+          isFirstIteration = false;
           
         } else {
           logger.warn('No valid command found in ACT block');
@@ -206,15 +212,33 @@ class ReActProcessor {
     switch (result.type) {
       case 'slots':
         if (result.data && result.data.length > 0) {
-          const times = result.data.map(slot => slot.time || slot.datetime?.split('T')[1]?.substring(0, 5));
-          context = `Найдены доступные слоты: ${times.join(', ')}`;
+          const times = result.data.map(slot => {
+            const time = slot.time || slot.datetime?.split('T')[1]?.substring(0, 5);
+            return time;
+          });
+          
+          // Передаём полную информацию, а не только времена
+          context = `Найдены доступные слоты: ${times.join(', ')}
+Полный список доступного времени: [${times.join(', ')}]
+Всего доступно слотов: ${times.length}`;
+          
+          // Если искали конкретное время, явно укажем его наличие
+          if (command.params?.time) {
+            const requestedTime = command.params.time;
+            const isAvailable = times.includes(requestedTime);
+            context += `\nЗапрошенное время ${requestedTime}: ${isAvailable ? 'ДОСТУПНО' : 'ЗАНЯТО'}`;
+          }
         } else {
-          context = 'Не найдено доступных слотов';
+          context = 'Не найдено доступных слотов на указанную дату';
         }
         break;
         
       case 'booking_created':
-        context = `Запись успешно создана! ID: ${result.data?.record_id}`;
+        context = `Запись успешно создана!
+ID записи: ${result.data?.record_id}
+Услуга: ${result.data?.service}
+Дата и время: ${result.data?.datetime}
+Мастер: ${result.data?.staff}`;
         break;
         
       case 'booking_cancelled':
@@ -222,11 +246,11 @@ class ReActProcessor {
         break;
         
       case 'error':
-        context = `Ошибка: ${result.error || 'Неизвестная ошибка'}`;
+        context = `Ошибка при выполнении команды: ${result.error || 'Неизвестная ошибка'}`;
         break;
         
       default:
-        context = JSON.stringify(result.data || result);
+        context = JSON.stringify(result.data || result, null, 2);
     }
     
     return context;
@@ -236,29 +260,35 @@ class ReActProcessor {
    * Построение промпта для продолжения после выполнения команды
    */
   buildContinuationPrompt(parsed, observeContext, context, previousResults) {
-    let prompt = 'Продолжай обработку запроса.\n\n';
+    let prompt = 'Ты выполнил команду и получил результаты. Продолжай обработку.\n\n';
     
     // Добавляем предыдущие блоки
     if (parsed.think) {
-      prompt += `[THINK]\n${parsed.think}\n[/THINK]\n\n`;
+      prompt += `Твой предыдущий анализ:\n[THINK]\n${parsed.think}\n[/THINK]\n\n`;
     }
     
     if (parsed.act) {
-      prompt += `[ACT: ${parsed.act}]\n\n`;
+      prompt += `Ты выполнил команду:\n[ACT: ${parsed.act}]\n\n`;
     }
     
     // Добавляем результат наблюдения
-    prompt += `[OBSERVE]\n${observeContext}\n[/OBSERVE]\n\n`;
+    prompt += `Результаты выполнения команды:\n[OBSERVE]\n${observeContext}\n[/OBSERVE]\n\n`;
     
     // Добавляем инструкцию продолжить
-    prompt += `Теперь:
-1. Добавь блок [THINK] с анализом полученных результатов
-2. Если нужны дополнительные действия - добавь [ACT: команда]
-3. Если все данные получены - добавь [RESPOND] с финальным ответом клиенту
+    prompt += `ВАЖНО: Теперь проанализируй РЕАЛЬНЫЕ результаты!
+
+Правила продолжения:
+1. Начни с [THINK] - проанализируй полученные данные
+2. Если клиент просил конкретное время - проверь его в списке слотов
+3. Если время есть - можешь создать запись командой [ACT: CREATE_BOOKING ...]
+4. Если времени нет - предложи альтернативы в [RESPOND]
+5. Если все готово - заверши блоком [RESPOND]
+
+НЕ выдумывай! Используй только те слоты, которые есть в [OBSERVE].
 
 Клиент спросил: "${context.currentMessage}"
 
-Продолжай с блока [THINK]:`;
+Продолжай с анализа результатов:`;
     
     return prompt;
   }
