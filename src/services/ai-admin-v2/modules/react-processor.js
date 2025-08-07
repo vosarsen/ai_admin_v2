@@ -97,19 +97,28 @@ class ReActProcessor {
           logger.warn('No valid command found in ACT block');
           continueProcessing = false;
         }
-      } else if (parsed.think && !parsed.act) {
-        // Если есть только THINK без ACT - возможно AI завершил анализ
-        logger.info('Found THINK without ACT, checking if processing complete');
+      } else if (parsed.think && !parsed.act && !parsed.respond) {
+        // Если есть только THINK без ACT и без RESPOND - нужно продолжить
+        logger.info('Found THINK without ACT or RESPOND, asking AI to complete');
         
-        // Проверяем, нужно ли продолжать
-        if (this.shouldContinueAfterThink(parsed.think)) {
-          // Генерируем запрос на продолжение
-          const continuePrompt = this.buildThinkContinuationPrompt(parsed, context);
+        // После выполнения команды ВСЕГДА должен быть финальный ответ
+        // Если AI дал только анализ - просим его завершить ответом
+        const needsResponse = !isFirstIteration; // После команд всегда нужен RESPOND
+        
+        if (needsResponse || this.shouldContinueAfterThink(parsed.think)) {
+          // Генерируем запрос на продолжение с акцентом на RESPOND
+          const continuePrompt = this.buildThinkContinuationPrompt(parsed, context, needsResponse);
           currentResponse = await aiService.callAI(continuePrompt, {
             message: context.currentMessage,
             promptName: 'react-think-continuation'
           });
+          
+          // Сбрасываем флаг первой итерации
+          isFirstIteration = false;
         } else {
+          // На первой итерации без команд - возможно AI решил, что не нужны действия
+          logger.warn('AI completed without actions, extracting response');
+          finalResponse = this.extractFinalResponse(currentResponse);
           continueProcessing = false;
         }
       } else {
@@ -315,18 +324,30 @@ ID записи: ${result.data?.record_id}
   /**
    * Построение промпта для продолжения после THINK
    */
-  buildThinkContinuationPrompt(parsed, context) {
-    return `Ты проанализировал запрос:
+  buildThinkContinuationPrompt(parsed, context, needsResponse = false) {
+    let prompt = `Ты проанализировал запрос:\n\n[THINK]\n${parsed.think}\n[/THINK]\n\n`;
+    
+    if (needsResponse) {
+      // После выполнения команды ОБЯЗАТЕЛЬНО нужен финальный ответ
+      prompt += `ВАЖНО: Ты уже выполнил команду и получил результаты!
+Теперь ОБЯЗАТЕЛЬНО дай финальный ответ клиенту.
 
-[THINK]
-${parsed.think}
-[/THINK]
+Основываясь на твоём анализе, добавь блок [RESPOND] с ответом.
+Если нужна ещё команда - сначала [ACT: команда], потом [RESPOND].
+НО ОБЯЗАТЕЛЬНО заверши блоком [RESPOND]!
 
-Теперь выполни необходимое действие.
+Клиент ждёт ответ на: "${context.currentMessage}"
+
+Продолжай:`;
+    } else {
+      prompt += `Теперь выполни необходимое действие.
 Добавь блок [ACT: команда] для выполнения команды
 ИЛИ блок [RESPOND] если можешь сразу ответить клиенту.
 
 Продолжай:`;
+    }
+    
+    return prompt;
   }
 
   /**
