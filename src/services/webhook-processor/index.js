@@ -4,6 +4,7 @@ const whatsappClient = require('../../integrations/whatsapp/client');
 const { YclientsClient } = require('../../integrations/yclients/client');
 const config = require('../../config');
 const { getInstance: getDebouncer } = require('./webhook-debouncer');
+const bookingOwnership = require('../booking/booking-ownership');
 
 class YClientsWebhookProcessor {
   constructor() {
@@ -109,6 +110,26 @@ class YClientsWebhookProcessor {
 
     // Сохраняем запись в нашу БД для синхронизации
     await this.saveBookingToCache(recordData, companyId);
+    
+    // Сохраняем владение записью
+    if (recordData.id && clientPhone) {
+      try {
+        await bookingOwnership.saveBookingOwnership(
+          recordData.id,
+          clientPhone,
+          {
+            client_id: recordData.client?.id,
+            client_name: recordData.client?.name,
+            datetime: recordData.datetime,
+            service: recordData.services?.[0]?.title,
+            staff: recordData.staff?.name,
+            company_id: companyId
+          }
+        );
+      } catch (error) {
+        logger.warn('Failed to save booking ownership from webhook:', error.message);
+      }
+    }
   }
 
   /**
@@ -146,6 +167,22 @@ class YClientsWebhookProcessor {
 
     // Формируем сообщение в зависимости от изменений
     const message = this.formatUpdateMessage(recordData, changes, companyInfo);
+    
+    // Обновляем владение записью (на случай если изменился телефон или другие данные)
+    if (recordData.id && clientPhone) {
+      try {
+        await bookingOwnership.updateBooking(recordData.id, {
+          phone: this.normalizePhone(clientPhone),
+          client_id: recordData.client?.id,
+          client_name: recordData.client?.name,
+          datetime: recordData.datetime,
+          service: recordData.services?.[0]?.title,
+          staff: recordData.staff?.name
+        });
+      } catch (error) {
+        logger.warn('Failed to update booking ownership from webhook:', error.message);
+      }
+    }
 
     // Отправляем уведомление
     await this.sendWhatsAppNotification(formattedPhone, message, 'booking_updated');
@@ -179,6 +216,15 @@ class YClientsWebhookProcessor {
 
     // Формируем сообщение об отмене
     const message = this.formatCancellationMessage(recordData, companyInfo);
+    
+    // Удаляем из сервиса владения
+    if (recordData.id) {
+      try {
+        await bookingOwnership.removeBooking(recordData.id, clientPhone);
+      } catch (error) {
+        logger.warn('Failed to remove booking ownership from webhook:', error.message);
+      }
+    }
 
     // Отправляем уведомление
     await this.sendWhatsAppNotification(formattedPhone, message, 'booking_cancelled');
@@ -361,6 +407,13 @@ class YClientsWebhookProcessor {
     }
     
     return false;
+  }
+
+  normalizePhone(phone) {
+    if (!phone) return null;
+    return phone.replace(/[\s\-\(\)\+]/g, '')
+                .replace(/^8/, '7')
+                .replace(/^([^7])/, '7$1');
   }
 
   formatPhoneForWhatsApp(phone) {

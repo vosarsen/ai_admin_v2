@@ -8,6 +8,7 @@ const { format, addDays, subDays, parse, isAfter, isBefore } = require('date-fns
 const { utcToZonedTime, zonedTimeToUtc } = require('date-fns-tz');
 const { RetryHandler } = require('../../utils/retry-handler');
 const criticalErrorLogger = require('../../utils/critical-error-logger');
+const bookingOwnership = require('./booking-ownership');
 
 class BookingService {
   constructor() {
@@ -364,6 +365,27 @@ class BookingService {
         companyId
       });
       
+      // Сохраняем владение записью
+      if (result.data?.record_id && bookingData.phone) {
+        try {
+          await bookingOwnership.saveBookingOwnership(
+            result.data.record_id,
+            bookingData.phone,
+            {
+              client_id: bookingData.client_id,
+              client_name: bookingData.full_name,
+              datetime: bookingData.datetime,
+              service: bookingData.appointments?.[0]?.services?.[0]?.title,
+              staff: bookingData.appointments?.[0]?.staff?.name,
+              company_id: companyId
+            }
+          );
+        } catch (error) {
+          logger.warn('Failed to save booking ownership:', error.message);
+          // Не прерываем процесс, так как запись уже создана
+        }
+      }
+      
       return result;
     } catch (error) {
       // Проверяем, была ли это не-повторяемая ошибка
@@ -425,8 +447,35 @@ class BookingService {
     try {
       logger.info(`📋 Getting bookings for client ${phone} at company ${companyId}`);
       
-      // Получаем записи через YClients API
-      // Ищем записи только в будущем - нет смысла искать прошедшие записи для переноса
+      // Сначала проверяем в нашем кэше владения записями
+      const cachedBookings = await bookingOwnership.getClientBookings(phone);
+      if (cachedBookings && cachedBookings.length > 0) {
+        logger.info(`✅ Found ${cachedBookings.length} bookings in ownership cache`);
+        
+        // Получаем детали записей из YClients для актуальной информации
+        const detailedBookings = [];
+        for (const cached of cachedBookings) {
+          try {
+            const details = await this.getYclientsClient().getRecord(companyId, cached.id);
+            if (details.success && details.data) {
+              detailedBookings.push(details.data);
+            }
+          } catch (error) {
+            logger.warn(`Failed to get details for booking ${cached.id}:`, error.message);
+          }
+        }
+        
+        if (detailedBookings.length > 0) {
+          return { 
+            success: true, 
+            bookings: detailedBookings,
+            source: 'ownership_cache'
+          };
+        }
+      }
+      
+      // Fallback: получаем записи через YClients API
+      logger.info('Falling back to YClients API search');
       const bookings = await this.getYclientsClient().getRecords(companyId, {
         client_phone: phone,
         start_date: format(new Date(), 'yyyy-MM-dd'), // Начинаем с сегодня
@@ -497,6 +546,14 @@ class BookingService {
       
       if (softCancelResult.success) {
         logger.info(`✅ Successfully soft-canceled booking ${recordId} (status: не пришел)`);
+        
+        // Удаляем из сервиса владения
+        try {
+          await bookingOwnership.removeBooking(recordId);
+        } catch (error) {
+          logger.warn('Failed to remove booking ownership:', error.message);
+        }
+        
         return softCancelResult;
       }
       
@@ -506,6 +563,13 @@ class BookingService {
 
       if (deleteResult.success) {
         logger.info(`✅ Successfully deleted booking ${recordId}`);
+        
+        // Удаляем из сервиса владения
+        try {
+          await bookingOwnership.removeBooking(recordId);
+        } catch (error) {
+          logger.warn('Failed to remove booking ownership:', error.message);
+        }
       } else {
         logger.error(`❌ Failed to cancel booking ${recordId}: ${deleteResult.error}`);
       }
