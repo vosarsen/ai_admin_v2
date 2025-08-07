@@ -138,8 +138,26 @@ class YClientsWebhookProcessor {
   async handleRecordUpdated(recordData, companyId) {
     logger.info('✏️ Handling record.updated event', {
       recordId: recordData.id,
-      clientPhone: recordData.client?.phone
+      clientPhone: recordData.client?.phone,
+      visitAttendance: recordData.visit_attendance,
+      attendance: recordData.attendance
     });
+
+    // ВАЖНО: Игнорируем изменения статуса "пришел" (attendance = 1 или visit_attendance = 1)
+    if (recordData.attendance === 1 || recordData.visit_attendance === 1 || 
+        recordData.attendance === '1' || recordData.visit_attendance === '1') {
+      logger.info('✅ Client marked as arrived, skipping notification');
+      return;
+    }
+
+    // Проверяем, не является ли это отменой записи (attendance = -1)
+    if (recordData.attendance === -1 || recordData.visit_attendance === -1 ||
+        recordData.attendance === '-1' || recordData.visit_attendance === '-1' ||
+        recordData.deleted === true || recordData.is_deleted === true) {
+      logger.info('❌ Record marked as cancelled, handling as deletion');
+      // Обрабатываем как отмену
+      return await this.handleRecordDeleted(recordData, companyId);
+    }
 
     const clientPhone = recordData.client?.phone;
     if (!clientPhone) {
@@ -152,6 +170,12 @@ class YClientsWebhookProcessor {
     
     // Определяем что именно изменилось
     const changes = this.detectChanges(previousRecord, recordData);
+    
+    // Если изменилось только посещаемость или статус визита - не отправляем уведомление
+    if (this.isOnlyAttendanceChange(changes, previousRecord, recordData)) {
+      logger.info('✅ Only attendance/visit status changed, skipping notification');
+      return;
+    }
     
     // Если нет предыдущей записи в кеше, всё равно отправляем уведомление
     // так как запись была изменена (YClients отправил webhook)
@@ -362,9 +386,17 @@ class YClientsWebhookProcessor {
     const services = record.services?.map(s => s.title).join(', ') || 'Услуга';
 
     let message = `❌ *Ваша запись отменена*\n\n`;
-    message += `Была на: ${dateStr} в ${timeStr}\n`;
-    message += `Услуга: ${services}\n\n`;
-    message += `Хотите записаться на другое время? Напишите мне!`;
+    message += `Была: ${dateStr} в ${timeStr}\n`;
+    
+    if (services && services !== 'Услуга') {
+      message += `Услуга: ${services}\n`;
+    }
+    
+    if (record.staff?.name) {
+      message += `Мастер: ${record.staff.name}\n`;
+    }
+    
+    message += `\nХотите записаться на другое время? Напишите мне!`;
     
     return message;
   }
@@ -602,6 +634,29 @@ class YClientsWebhookProcessor {
     }
     
     return changes;
+  }
+
+  /**
+   * Проверяет, изменилась ли только посещаемость
+   */
+  isOnlyAttendanceChange(changes, oldRecord, newRecord) {
+    // Если есть другие изменения кроме attendance/visit - это не только attendance
+    if (Object.keys(changes).length > 0) {
+      return false;
+    }
+    
+    // Проверяем изменилась ли посещаемость
+    if (oldRecord) {
+      const oldAttendance = oldRecord.attendance || oldRecord.visit_attendance;
+      const newAttendance = newRecord.attendance || newRecord.visit_attendance;
+      
+      // Если изменилась посещаемость но нет других изменений - возвращаем true
+      if (oldAttendance !== newAttendance) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 
   /**
