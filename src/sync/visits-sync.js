@@ -147,7 +147,13 @@ class VisitsSync {
       logger.debug(`Syncing visits for client ${client.name} (${client.phone})`);
       
       // Получаем историю визитов через API
-      const visits = await this.fetchClientVisits(client.yclients_id, client.phone);
+      let visits = await this.fetchClientVisits(client.yclients_id, client.phone);
+      
+      // Если не нашли через visits/search, пробуем через records
+      if (!visits || visits.length === 0) {
+        logger.debug(`No visits found via visits/search, trying /records endpoint`);
+        visits = await this.fetchClientRecords(client.yclients_id, client.phone);
+      }
       
       if (!visits || visits.length === 0) {
         logger.debug(`No visits found for client ${client.name}`);
@@ -185,9 +191,13 @@ class VisitsSync {
         attendance: 1 // Только визиты где клиент пришел
       };
       
+      // Создаем правильные headers с USER token (не API key!)
+      const userToken = process.env.YCLIENTS_USER_TOKEN;
+      const bearerToken = process.env.YCLIENTS_BEARER_TOKEN;
+      
       const response = await axios.post(url, requestData, { 
         headers: {
-          ...this.headers,
+          'Authorization': `Bearer ${bearerToken}, User ${userToken}`,
           'Accept': 'application/vnd.yclients.v2+json',
           'Content-Type': 'application/json'
         }
@@ -233,6 +243,130 @@ class VisitsSync {
       });
       throw error;
     }
+  }
+
+  /**
+   * Альтернативный метод - получить записи через /records endpoint
+   */
+  async fetchClientRecords(clientYclientsId, clientPhone) {
+    try {
+      const userToken = process.env.YCLIENTS_USER_TOKEN;
+      const bearerToken = process.env.YCLIENTS_BEARER_TOKEN;
+      
+      // Получаем записи за последние 2 года
+      const startDate = new Date();
+      startDate.setFullYear(startDate.getFullYear() - 2);
+      const endDate = new Date();
+      
+      const url = `${this.config.BASE_URL}/records/${this.config.COMPANY_ID}`;
+      
+      logger.debug(`Fetching records from ${url}`);
+      
+      const response = await axios.get(url, {
+        params: {
+          start_date: startDate.toISOString().split('T')[0],
+          end_date: endDate.toISOString().split('T')[0],
+          client_id: clientYclientsId,
+          include_finance_transactions: 1
+        },
+        headers: {
+          'Authorization': `Bearer ${bearerToken}, User ${userToken}`,
+          'Accept': 'application/vnd.api.v2+json',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.data?.success) {
+        logger.error('Records API returned error:', response.data);
+        return [];
+      }
+      
+      const records = response.data?.data || [];
+      logger.debug(`Found ${records.length} total records`);
+      
+      // Фильтруем записи по клиенту
+      const clientRecords = records.filter(record => {
+        const recordClientId = record.client?.id;
+        const recordPhone = this.normalizePhone(record.client?.phone);
+        const targetPhone = this.normalizePhone(clientPhone);
+        
+        return recordClientId === parseInt(clientYclientsId) || 
+               (recordPhone && targetPhone && recordPhone === targetPhone);
+      });
+      
+      logger.debug(`Found ${clientRecords.length} records for client ${clientYclientsId}`);
+      
+      // Форматируем записи в формат визитов
+      return clientRecords.map(record => this.formatRecordToVisit(record));
+      
+    } catch (error) {
+      logger.error('Error fetching client records', {
+        error: error.message,
+        response: error.response?.data
+      });
+      return [];
+    }
+  }
+  
+  /**
+   * Форматировать запись из /records в формат визита
+   */
+  formatRecordToVisit(record) {
+    const services = record.services || [];
+    const staff = record.staff || {};
+    
+    return {
+      yclients_visit_id: record.visit_id || null,
+      yclients_record_id: record.id,
+      company_id: this.config.COMPANY_ID,
+      
+      client_yclients_id: record.client?.id || null,
+      client_phone: this.normalizePhone(record.client?.phone || ''),
+      client_name: record.client?.name || '',
+      
+      staff_id: staff.id || null,
+      staff_name: staff.name || '',
+      staff_yclients_id: staff.id || null,
+      
+      services: services.map(s => ({
+        id: s.id,
+        name: s.title || s.name,
+        cost: s.cost || s.price_min || 0,
+        duration: s.duration || 0
+      })),
+      service_names: services.map(s => s.title || s.name),
+      service_ids: services.map(s => s.id),
+      services_cost: services.reduce((sum, s) => sum + (s.cost || s.price_min || 0), 0),
+      
+      visit_date: record.date,
+      visit_time: record.datetime ? record.datetime.split('T')[1]?.substring(0, 5) : null,
+      datetime: record.datetime || record.date + 'T12:00:00',
+      duration: services.reduce((sum, s) => sum + (s.duration || 0), 0),
+      
+      total_cost: record.cost || 0,
+      paid_amount: record.paid_full || record.paid || 0,
+      discount_amount: record.discount || 0,
+      tips_amount: record.tips || 0,
+      payment_status: this.getPaymentStatus(record),
+      payment_method: record.payment_method || 'unknown',
+      
+      attendance: record.attendance || 1,
+      status: record.deleted ? 'cancelled' : (record.attendance === -1 ? 'no_show' : 'completed'),
+      is_online: record.online || false,
+      
+      comment: record.comment || null,
+      rating: record.rate || null,
+      review: record.review || null,
+      source: record.from_url ? 'online' : 'unknown'
+    };
+  }
+  
+  /**
+   * Нормализация телефонного номера
+   */
+  normalizePhone(phone) {
+    if (!phone) return null;
+    return phone.toString().replace(/\D/g, '').replace(/^8/, '7');
   }
 
   /**

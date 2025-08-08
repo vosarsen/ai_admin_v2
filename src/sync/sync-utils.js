@@ -131,8 +131,11 @@ function createYclientsHeaders(requireUserToken = true) {
     'Content-Type': 'application/json'
   };
 
-  if (requireUserToken && YCLIENTS_CONFIG.USER_TOKEN) {
-    headers['Authorization'] = `Bearer ${YCLIENTS_CONFIG.BEARER_TOKEN}, User ${YCLIENTS_CONFIG.USER_TOKEN}`;
+  // Используем USER_TOKEN для авторизации (не API_KEY!)
+  const userToken = process.env.YCLIENTS_USER_TOKEN;
+  
+  if (requireUserToken && userToken) {
+    headers['Authorization'] = `Bearer ${YCLIENTS_CONFIG.BEARER_TOKEN}, User ${userToken}`;
   } else {
     headers['Authorization'] = `Bearer ${YCLIENTS_CONFIG.BEARER_TOKEN}`;
   }
