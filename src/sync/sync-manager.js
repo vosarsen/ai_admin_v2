@@ -20,6 +20,7 @@ const { ClientsSyncOptimized } = require('./clients-sync-optimized');
 const { SchedulesSync } = require('./schedules-sync');
 const { ClientRecordsSync } = require('./client-records-sync');
 const { BookingsSync } = require('./bookings-sync');
+const VisitsSync = require('./visits-sync');
 
 /**
  * Менеджер синхронизации данных
@@ -38,7 +39,8 @@ class SyncManager {
       clients: new ClientsSyncOptimized(), // Используем оптимизированную версию
       schedules: new SchedulesSync(),
       clientRecords: new ClientRecordsSync(),
-      bookings: new BookingsSync() // Новый модуль для активных записей
+      bookings: new BookingsSync(), // Новый модуль для активных записей
+      visits: new VisitsSync() // Синхронизация истории визитов
     };
     
     // Расписание синхронизации (Moscow time UTC+3)
@@ -46,6 +48,7 @@ class SyncManager {
       services: '0 1 * * *',     // 01:00 - Услуги (раз в день)
       staff: '0 2 * * *',        // 02:00 - Мастера (раз в день)
       clients: '0 3 * * *',      // 03:00 - Клиенты (раз в день)
+      visits: '0 4 * * *',       // 04:00 - История визитов (раз в день)
       schedules: '0 */4 * * *',  // Каждые 4 часа - Расписания
       company: '0 0 * * 0',      // 00:00 воскресенье - Компания (раз в неделю)
       bookings: '*/15 * * * *'   // Каждые 15 минут - Активные записи
