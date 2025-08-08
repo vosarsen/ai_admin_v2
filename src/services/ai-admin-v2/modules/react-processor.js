@@ -8,8 +8,9 @@ const commandHandler = require('./command-handler');
 
 class ReActProcessor {
   constructor() {
-    this.MAX_ITERATIONS = 5; // Максимум циклов для предотвращения зацикливания
+    this.MAX_ITERATIONS = 3; // Снижаем максимум итераций для ускорения
     this.commandCache = new Map(); // Кэш результатов команд
+    this.FAST_MODE = process.env.REACT_FAST_MODE === 'true'; // Режим ускорения
   }
 
   /**
@@ -49,6 +50,24 @@ class ReActProcessor {
       if (parsed.act) {
         logger.info(`Executing ACT: ${parsed.act}`);
         
+        // В быстром режиме - если это SEARCH_SLOTS, сразу готовим ответ
+        if (this.FAST_MODE && parsed.act.includes('SEARCH_SLOTS')) {
+          // Оптимизация: для простых запросов слотов можем сразу подготовить ответ
+          const command = this.extractCommand(parsed.act);
+          if (command) {
+            const results = await commandHandler.executeCommands([command], context);
+            const result = results[0];
+            
+            // Если это просто запрос слотов - формируем ответ сразу
+            if (result.type === 'slots' && !context.currentMessage.includes('запиши')) {
+              finalResponse = this.formatQuickSlotsResponse(result, command);
+              continueProcessing = false;
+              logger.info('Fast mode: Quick slots response generated');
+              break;
+            }
+          }
+        }
+        
         // Извлекаем и выполняем команду
         const command = this.extractCommand(parsed.act);
         if (command) {
@@ -82,6 +101,14 @@ class ReActProcessor {
             context,
             commandResults
           );
+          
+          // Оптимизация: для CREATE_BOOKING с успехом - сразу формируем ответ
+          if (this.FAST_MODE && command.command === 'CREATE_BOOKING' && result.success) {
+            finalResponse = this.formatQuickBookingResponse(result);
+            continueProcessing = false;
+            logger.info('Fast mode: Quick booking response generated');
+            break;
+          }
           
           // Вызываем AI для продолжения обработки
           logger.info('Calling AI for continuation after command execution');
