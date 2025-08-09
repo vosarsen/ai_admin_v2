@@ -29,7 +29,7 @@ class ClientsSyncOptimized {
    */
   async sync(options = {}) {
     const startTime = Date.now();
-    const { syncVisitHistory = false, maxVisitsSync = 50 } = options;
+    const { syncVisitHistory = false, maxVisitsSync = 10000 } = options;  // Увеличено с 50 до 10000
     
     try {
       logger.info('👤 Starting OPTIMIZED clients synchronization...');
@@ -291,7 +291,7 @@ class ClientsSyncOptimized {
     
     let processed = 0;
     const eligibleClients = clients
-      .filter(c => c.visits_count >= 2 && c.phone)
+      .filter(c => c.visits_count >= 1 && c.phone)  // Изменено с >= 2 на >= 1
       .sort((a, b) => b.visits_count - a.visits_count)
       .slice(0, maxClients);
     
