@@ -29,7 +29,7 @@ class ClientsSyncOptimized {
    */
   async sync(options = {}) {
     const startTime = Date.now();
-    const { syncVisitHistory = false, maxVisitsSync = 10000 } = options;  // Увеличено с 50 до 10000
+    const { syncVisitHistory = true, maxVisitsSync = 10000 } = options;  // По умолчанию включена синхронизация визитов!
     
     try {
       logger.info('👤 Starting OPTIMIZED clients synchronization...');
@@ -247,13 +247,14 @@ class ClientsSyncOptimized {
   }
 
   /**
-   * Подготовить данные клиента для сохранения (без изменений)
+   * Подготовить данные клиента для сохранения
+   * ВАЖНО: НЕ перезаписываем visit_history и last_services - они загружаются отдельно!
    */
   prepareClientData(client) {
     const totalSpent = client.sold_amount || client.spent || 0;
     const visitsCount = client.visits_count || 0;
     
-    return {
+    const data = {
       yclients_id: client.id,
       company_id: this.config.COMPANY_ID,
       name: client.name || 'Unnamed Client',
@@ -280,6 +281,15 @@ class ClientsSyncOptimized {
       last_sync_at: new Date().toISOString(),
       created_by_ai: false
     };
+    
+    // Добавляем пустые массивы ТОЛЬКО для новых клиентов
+    // Для существующих клиентов эти поля не трогаем
+    if (client.is_new_client) {
+      data.last_services = [];
+      data.visit_history = [];
+    }
+    
+    return data;
   }
 
   /**
