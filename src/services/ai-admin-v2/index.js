@@ -204,7 +204,9 @@ class AIAdminV2 {
       }
       
       // Обновляем промежуточный контекст после AI анализа
-      await intermediateContext.updateAfterAIAnalysis(phone, aiResponse, result.executedCommands || []);
+      // Для Two-Stage используем finalResponse, для остальных - aiResponse
+      const responseForContext = useTwoStage ? finalResponse : (typeof aiResponse !== 'undefined' ? aiResponse : finalResponse);
+      await intermediateContext.updateAfterAIAnalysis(phone, responseForContext, result.executedCommands || []);
       
       // Сохраняем сообщения в контекст
       await contextService.updateContext(phone.replace('@c.us', ''), companyId, {
