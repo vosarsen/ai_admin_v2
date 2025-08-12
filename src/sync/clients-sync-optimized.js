@@ -60,6 +60,14 @@ class ClientsSyncOptimized {
         result.visitsProcessed = visitsResult.processed;
       }
       
+      // Синхронизация товарных транзакций
+      logger.info('🛍️ Starting goods transactions sync...');
+      const { GoodsTransactionsSync } = require('./goods-transactions-sync');
+      const goodsSync = new GoodsTransactionsSync();
+      const goodsResult = await goodsSync.sync();
+      result.goodsProcessed = goodsResult.processed;
+      result.goodsTotalAmount = goodsResult.totalAmount;
+      
       const duration = Date.now() - startTime;
       
       logger.info(`✅ Clients sync completed in ${duration}ms (${Math.round(duration/1000)} seconds)`, {
@@ -282,12 +290,11 @@ class ClientsSyncOptimized {
       created_by_ai: false
     };
     
-    // Добавляем пустые массивы ТОЛЬКО для новых клиентов
-    // Для существующих клиентов эти поля не трогаем
-    if (client.is_new_client) {
-      data.last_services = [];
-      data.visit_history = [];
-    }
+    // НЕ перезаписываем last_services и visit_history пустыми массивами!
+    // Эти поля заполняются отдельно при синхронизации визитов
+    // Удаляем эти поля из update, чтобы не затереть существующие данные
+    delete data.last_services;
+    delete data.visit_history;
     
     return data;
   }
