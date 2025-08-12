@@ -76,14 +76,7 @@ class BookingMonitorService {
     try {
       logger.debug('🔍 Checking for new bookings...');
 
-      // Получаем последнюю проверенную дату из БД
-      const { data: lastCheck } = await supabase
-        .from('booking_monitor_state')
-        .select('last_checked_at, company_id')
-        .single();
-
-      const lastCheckedAt = lastCheck?.last_checked_at || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const companyId = lastCheck?.company_id || config.yclients.companyId;
+      const companyId = config.yclients.companyId;
 
       // Получаем записи на сегодня и завтра
       const today = new Date();
@@ -108,21 +101,26 @@ class BookingMonitorService {
 
       if (!records.data || records.data.length === 0) {
         logger.debug('✅ No bookings found');
-        await this.updateLastCheckedTime();
         return;
       }
 
       logger.info(`📋 Found ${records.data.length} bookings to check`);
 
-      // Фильтруем записи, созданные после последней проверки
+      // Получаем все уже обработанные записи из БД
+      const { data: processedRecords } = await supabase
+        .from('booking_notifications')
+        .select('yclients_record_id')
+        .not('yclients_record_id', 'is', null);
+
+      const processedIds = new Set(processedRecords?.map(r => r.yclients_record_id) || []);
+      
+      // Фильтруем только необработанные записи
       const newRecords = records.data.filter(record => {
-        const createdAt = new Date(record.created || record.datetime);
-        return createdAt > new Date(lastCheckedAt);
+        return !processedIds.has(record.id.toString());
       });
 
       if (newRecords.length === 0) {
-        logger.debug('✅ No new bookings found');
-        await this.updateLastCheckedTime();
+        logger.debug('✅ No new bookings found (all already processed)');
         return;
       }
 
@@ -132,9 +130,6 @@ class BookingMonitorService {
       for (const record of newRecords) {
         await this.processNewBooking(record);
       }
-
-      // Обновляем время последней проверки
-      await this.updateLastCheckedTime();
 
     } catch (error) {
       logger.error('❌ Error checking new bookings:', error);
@@ -150,7 +145,7 @@ class BookingMonitorService {
       const { data: existingNotification } = await supabase
         .from('booking_notifications')
         .select('id')
-        .eq('yclients_record_id', record.id)
+        .eq('yclients_record_id', record.id.toString())
         .single();
 
       if (existingNotification) {
@@ -192,18 +187,24 @@ class BookingMonitorService {
       // Форматируем номер телефона
       const formattedPhone = this.formatPhoneNumber(phone);
 
-      // Отправляем уведомление
-      await this.sendBookingNotification(record, formattedPhone);
+      // Отправляем уведомление и получаем текст сообщения
+      const message = await this.sendBookingNotification(record, formattedPhone);
 
       // Сохраняем информацию об отправленном уведомлении
-      await supabase
+      const { error: insertError } = await supabase
         .from('booking_notifications')
         .insert({
-          yclients_record_id: record.id,
+          yclients_record_id: record.id.toString(), // Обязательно как строка
           phone: formattedPhone,
+          notification_type: 'booking_confirmed',
+          message: message, // Сохраняем отправленное сообщение
           sent_at: new Date().toISOString(),
-          booking_data: record
+          company_id: record.company_id || config.yclients.companyId
         });
+      
+      if (insertError) {
+        logger.error('❌ Failed to save notification record:', insertError);
+      }
 
       logger.info(`✅ Notification sent for booking ${record.id} to ${formattedPhone}`);
 
@@ -250,6 +251,7 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}${address ? `�
 
     // Отправляем сообщение через WhatsApp
     await this.whatsappClient.sendMessage(phone, message);
+    return message; // Возвращаем сообщение для сохранения в БД
   }
 
   /**
@@ -272,20 +274,6 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}${address ? `�
     return cleaned;
   }
 
-  /**
-   * Обновить время последней проверки
-   */
-  async updateLastCheckedTime() {
-    const now = new Date().toISOString();
-    
-    await supabase
-      .from('booking_monitor_state')
-      .upsert({
-        id: 1,
-        last_checked_at: now,
-        company_id: config.yclients.companyId
-      });
-  }
 }
 
 // Создаем singleton экземпляр
