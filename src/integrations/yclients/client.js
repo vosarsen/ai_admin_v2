@@ -737,11 +737,14 @@ class YclientsClient {
         queryParams
       );
 
-      if (result.success && result.data) {
-        logger.info(`✅ Found ${result.data.length} records`);
+      // YClients API возвращает вложенную структуру: { success: true, data: { success: true, data: [...] } }
+      const records = result.data?.data || result.data || [];
+      
+      if (result.success && records) {
+        logger.info(`✅ Found ${Array.isArray(records) ? records.length : 'undefined'} records`);
         return {
           success: true,
-          data: result.data
+          data: Array.isArray(records) ? records : []
         };
       }
 
