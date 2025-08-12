@@ -203,12 +203,13 @@ class SyncManager {
       }, { timezone: 'Europe/Moscow' })
     );
     
-    // Клиенты - ежедневно в 03:00
+    // Клиенты - ежедневно в 03:00 (с визитами и товарами)
     this.cronJobs.push(
       cron.schedule(this.schedule.clients, async () => {
-        logger.info('👤 Running scheduled clients sync...');
+        logger.info('👤 Running scheduled clients sync with visits and goods...');
         await this.syncClients({ 
-          syncVisitHistory: process.env.SYNC_CLIENT_VISITS === 'true' 
+          syncVisitHistory: true, // Всегда синхронизируем визиты
+          maxVisitsSync: 10000    // Синхронизируем всех клиентов с визитами
         });
       }, { timezone: 'Europe/Moscow' })
     );

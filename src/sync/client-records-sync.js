@@ -277,20 +277,37 @@ class ClientRecordsSync {
         attendance: visit.attendance
       }));
       
-      // Обновляем клиента
+      // Получаем текущий total_spent для расчета loyalty_level
+      const { data: currentClient } = await supabase
+        .from('clients')
+        .select('total_spent')
+        .eq('id', clientId)
+        .single();
+      
+      const originalTotalSpent = currentClient?.total_spent || 0;
+      
+      // Вычисляем предполагаемую сумму товаров
+      // total_spent (из YClients sold_amount) - сумма услуг из визитов = товары
+      const estimatedGoodsAmount = originalTotalSpent - totalSpent;
+      
+      // Обновляем клиента (НЕ трогаем total_spent - он приходит из YClients API!)
+      const updateData = {
+        visit_count: visits.length,
+        first_visit_date: firstVisit.date,
+        last_visit_date: lastVisit.date,
+        last_services: lastServices,
+        visit_history: visitHistory,
+        // НЕ обновляем total_spent! Он должен оставаться из YClients sold_amount
+        services_amount: totalSpent, // Сумма только услуг
+        goods_amount: estimatedGoodsAmount > 0 ? estimatedGoodsAmount : 0, // Предполагаемая сумма товаров
+        average_bill: visits.length > 0 ? Math.round(totalSpent / visits.length) : 0,
+        loyalty_level: calculateLoyaltyLevel(visits.length, originalTotalSpent),
+        last_sync_at: new Date().toISOString()
+      };
+      
       const { error } = await supabase
         .from('clients')
-        .update({
-          visit_count: visits.length,
-          first_visit_date: firstVisit.date,
-          last_visit_date: lastVisit.date,
-          last_services: lastServices,
-          visit_history: visitHistory,
-          total_spent: totalSpent,
-          average_bill: visits.length > 0 ? Math.round(totalSpent / visits.length) : 0,
-          loyalty_level: calculateLoyaltyLevel(visits.length, totalSpent),
-          last_sync_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', clientId);
       
       if (error) {
