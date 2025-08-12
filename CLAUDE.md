@@ -218,13 +218,29 @@ AI Admin v2 is a production-ready WhatsApp AI Assistant for beauty salons. It us
 Message → AI Service → NLU Service → EntityExtractor → ActionResolver → ResponseGenerator → Action
 ```
 
-### New Architecture (v2):
+### Current Architecture (v2 with Two-Stage - August 2025):
 ```
-Message → AI Admin v2 (full context) → Actions → Response
+Message → Two-Stage Processor → Response
+         ├── Stage 1: Command Extraction (JSON) - 8 sec
+         ├── Parallel Command Execution - 0.01 sec
+         └── Stage 2: Response Generation - 5 sec
+```
+**Performance**: 13.2 sec (Two-Stage) vs 32.6 sec (ReAct) - **2.5x faster!**
+
+To activate Two-Stage:
+```bash
+export USE_TWO_STAGE=true
+export AI_PROMPT_VERSION=two-stage
+```
+
+### Alternative Architecture (ReAct pattern):
+```
+Message → AI Admin v2 (full context) → ReAct Cycles (3-4 iterations) → Response
 ```
 
 Key features:
-- **Single AI Call**: One comprehensive AI request with full context
+- **Two-Stage**: 2 AI calls, JSON commands, parallel execution, 13 sec average
+- **ReAct**: 3-4 AI calls, text blocks, sequential, 33 sec average
 - **Command-Based**: AI embeds commands like [SEARCH_SLOTS], [CREATE_BOOKING] in responses
 - **Business Type Adaptation**: Automatic detection and terminology adjustment
 - **Parallel Context Loading**: All data loaded upfront in parallel
