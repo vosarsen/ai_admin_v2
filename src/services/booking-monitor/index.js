@@ -112,7 +112,7 @@ class BookingMonitorService {
         .select('yclients_record_id')
         .not('yclients_record_id', 'is', null);
 
-      const processedIds = new Set(processedRecords?.map(r => r.yclients_record_id) || []);
+      const processedIds = new Set(processedRecords?.map(r => r.yclients_record_id.toString()) || []);
       
       // Фильтруем только необработанные записи
       const newRecords = records.data.filter(record => {
