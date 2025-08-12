@@ -5,6 +5,66 @@
  * Цель: Создать дружелюбный, понятный ответ для клиента
  */
 
+/**
+ * Форматирование результатов команд для включения в промпт
+ */
+function formatCommandResults(commandResults) {
+  if (!commandResults || commandResults.length === 0) {
+    return 'Команды не выполнялись (простое сообщение)';
+  }
+  
+  return commandResults.map(result => {
+    const { command, success, data, error } = result;
+    
+    if (!success) {
+      return `❌ ${command}: ОШИБКА - ${error || 'неизвестная ошибка'}`;
+    }
+    
+    switch (command) {
+      case 'SEARCH_SLOTS':
+        if (data.slots && data.slots.length > 0) {
+          return `✅ SEARCH_SLOTS: Найдено ${data.slots.length} слотов
+Слоты: ${data.slots.join(', ')}
+Услуга: ${data.service || 'не указана'}
+Мастер: ${data.staff || 'любой'}`;
+        } else {
+          return `⚠️ SEARCH_SLOTS: Свободных слотов не найдено`;
+        }
+        
+      case 'CREATE_BOOKING':
+        return `✅ CREATE_BOOKING: Запись создана
+ID записи: ${data.booking_id}
+Услуга: ${data.service}
+Дата и время: ${data.datetime}
+Мастер: ${data.staff}`;
+        
+      case 'CANCEL_BOOKING':
+        return `✅ CANCEL_BOOKING: Запись отменена`;
+        
+      case 'SHOW_PRICES':
+        if (data.prices && data.prices.length > 0) {
+          const priceList = data.prices.slice(0, 10).map(p => 
+            `- ${p.title}: от ${p.price_min}₽`
+          ).join('\n');
+          return `✅ SHOW_PRICES: Цены получены\n${priceList}`;
+        }
+        return `✅ SHOW_PRICES: Цены получены`;
+        
+      case 'CHECK_STAFF_SCHEDULE':
+        if (data.isWorking) {
+          return `✅ CHECK_STAFF_SCHEDULE: ${data.staff} работает ${data.date}
+Время работы: ${data.workHours || 'не указано'}`;
+        } else {
+          return `⚠️ CHECK_STAFF_SCHEDULE: ${data.staff} НЕ работает ${data.date}
+Рабочие дни: ${data.workDays || 'не указаны'}`;
+        }
+        
+      default:
+        return `✅ ${command}: Выполнено`;
+    }
+  }).join('\n\n');
+}
+
 module.exports = {
   version: '1.0',
   name: 'two-stage-response-prompt',
@@ -20,7 +80,7 @@ module.exports = {
     } = context;
     
     // Форматируем результаты команд для промпта
-    const formattedResults = this.formatCommandResults(commandResults);
+    const formattedResults = formatCommandResults(commandResults);
     
     // Определяем, это продолжение диалога или новый
     const isConversationContinuation = intermediateContext?.isRecent;
@@ -125,65 +185,5 @@ ${formattedResults}
 - Помни контекст диалога
 
 Теперь сформируй ответ для клиента:`;
-  },
-  
-  /**
-   * Форматирование результатов команд для включения в промпт
-   */
-  formatCommandResults(commandResults) {
-    if (!commandResults || commandResults.length === 0) {
-      return 'Команды не выполнялись (простое сообщение)';
-    }
-    
-    return commandResults.map(result => {
-      const { command, success, data, error } = result;
-      
-      if (!success) {
-        return `❌ ${command}: ОШИБКА - ${error || 'неизвестная ошибка'}`;
-      }
-      
-      switch (command) {
-        case 'SEARCH_SLOTS':
-          if (data.slots && data.slots.length > 0) {
-            return `✅ SEARCH_SLOTS: Найдено ${data.slots.length} слотов
-Слоты: ${data.slots.join(', ')}
-Услуга: ${data.service || 'не указана'}
-Мастер: ${data.staff || 'любой'}`;
-          } else {
-            return `⚠️ SEARCH_SLOTS: Свободных слотов не найдено`;
-          }
-          
-        case 'CREATE_BOOKING':
-          return `✅ CREATE_BOOKING: Запись создана
-ID записи: ${data.booking_id}
-Услуга: ${data.service}
-Дата и время: ${data.datetime}
-Мастер: ${data.staff}`;
-          
-        case 'CANCEL_BOOKING':
-          return `✅ CANCEL_BOOKING: Запись отменена`;
-          
-        case 'SHOW_PRICES':
-          if (data.prices && data.prices.length > 0) {
-            const priceList = data.prices.slice(0, 10).map(p => 
-              `- ${p.title}: от ${p.price_min}₽`
-            ).join('\n');
-            return `✅ SHOW_PRICES: Цены получены\n${priceList}`;
-          }
-          return `✅ SHOW_PRICES: Цены получены`;
-          
-        case 'CHECK_STAFF_SCHEDULE':
-          if (data.isWorking) {
-            return `✅ CHECK_STAFF_SCHEDULE: ${data.staff} работает ${data.date}
-Время работы: ${data.workHours || 'не указано'}`;
-          } else {
-            return `⚠️ CHECK_STAFF_SCHEDULE: ${data.staff} НЕ работает ${data.date}
-Рабочие дни: ${data.workDays || 'не указаны'}`;
-          }
-          
-        default:
-          return `✅ ${command}: Выполнено`;
-      }
-    }).join('\n\n');
   }
 };
