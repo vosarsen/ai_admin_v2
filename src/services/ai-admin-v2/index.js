@@ -13,6 +13,7 @@ const criticalErrorLogger = require('../../utils/critical-error-logger');
 const providerFactory = require('../ai/provider-factory');
 const promptManager = require('./prompt-manager');
 const reactProcessor = require('./modules/react-processor');
+const twoStageProcessor = require('./modules/two-stage-processor');
 // ResponseProcessor удален - используем commandHandler напрямую
 const { ErrorHandler, BookingError, ContextError, ValidationError } = require('./modules/error-handler');
 const MessageProcessor = require('./modules/message-processor');
@@ -133,21 +134,36 @@ class AIAdminV2 {
       // Определяем имя промпта для статистики
       const promptName = process.env.AI_PROMPT_VERSION || 'enhanced-prompt';
       
-      // Проверяем используем ли ReAct промпт
+      // Проверяем какой процессор использовать
       const useReAct = promptName === 'react-prompt' || process.env.USE_REACT === 'true';
-      
-      // Один вызов AI со всей информацией
-      const aiResponse = await this.callAI(prompt, {
-        message: message,
-        promptName: promptName
-      });
+      const useTwoStage = promptName === 'two-stage' || process.env.USE_TWO_STAGE === 'true';
       
       let finalResponse;
       let executedCommands = [];
       
-      if (useReAct) {
+      if (useTwoStage) {
+        // Используем новый двухэтапный процессор
+        logger.info('🎯 Using Two-Stage processor for fast response');
+        const twoStageResult = await twoStageProcessor.processTwoStage(
+          message,
+          context,
+          this // передаем ссылку на AIAdminV2 для вызова callAI
+        );
+        
+        finalResponse = twoStageResult.response;
+        executedCommands = twoStageResult.commands;
+        
+        logger.info(`✅ Two-Stage completed in 2 iterations with ${twoStageResult.metrics.totalTime}ms`);
+      } else if (useReAct) {
         // Используем ReAct процессор для циклической обработки
         logger.info('Using ReAct processor for response handling');
+        
+        // Один вызов AI со всей информацией для ReAct
+        const aiResponse = await this.callAI(prompt, {
+          message: message,
+          promptName: promptName
+        });
+        
         const reactResult = await reactProcessor.processReActCycle(
           aiResponse, 
           context,
@@ -160,6 +176,13 @@ class AIAdminV2 {
         logger.info(`ReAct completed in ${reactResult.iterations} iterations`);
       } else {
         // Старая логика обработки
+        
+        // Один вызов AI со всей информацией
+        const aiResponse = await this.callAI(prompt, {
+          message: message,
+          promptName: promptName
+        });
+        
         finalResponse = await this.processAIResponse(aiResponse, context);
         executedCommands = commandHandler.extractCommands(aiResponse);
       }
