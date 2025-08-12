@@ -114,9 +114,31 @@ class BookingMonitorService {
 
       const processedIds = new Set(processedRecords?.map(r => r.yclients_record_id.toString()) || []);
       
-      // Фильтруем только необработанные записи
+      // Фильтруем только необработанные записи и записи в будущем
+      const now = new Date();
       const newRecords = records.data.filter(record => {
-        return !processedIds.has(record.id.toString());
+        // Пропускаем уже обработанные
+        if (processedIds.has(record.id.toString())) {
+          return false;
+        }
+        
+        // Пропускаем записи на прошедшее время
+        const recordDate = new Date(record.datetime);
+        if (recordDate < now) {
+          logger.debug(`⏭️ Skipping past booking ${record.id} at ${record.datetime}`);
+          return false;
+        }
+        
+        // Пропускаем записи созданные более 30 минут назад
+        const createdAt = new Date(record.created || record.datetime);
+        const timeSinceCreation = now - createdAt;
+        const maxAge = 30 * 60 * 1000; // 30 минут
+        if (timeSinceCreation > maxAge) {
+          logger.debug(`⏭️ Skipping old booking ${record.id} created ${Math.round(timeSinceCreation / 1000 / 60)} minutes ago`);
+          return false;
+        }
+        
+        return true;
       });
 
       if (newRecords.length === 0) {
@@ -172,17 +194,6 @@ class BookingMonitorService {
         return;
       }
 
-      // Проверяем, прошло ли достаточно времени с момента создания записи
-      const createdAt = new Date(record.created || record.datetime);
-      const now = new Date();
-      const timeSinceCreation = now - createdAt;
-      const notificationDelay = config.bookingMonitor?.notificationDelay || 30000; // 30 секунд по умолчанию
-
-      if (timeSinceCreation < notificationDelay) {
-        logger.debug(`⏱️ Booking ${record.id} is too fresh, waiting ${notificationDelay - timeSinceCreation}ms more`);
-        // Запись слишком свежая, будет обработана в следующем цикле
-        return;
-      }
 
       // Форматируем номер телефона
       const formattedPhone = this.formatPhoneNumber(phone);
