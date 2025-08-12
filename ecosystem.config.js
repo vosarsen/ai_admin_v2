@@ -75,21 +75,22 @@ module.exports = {
       max_memory_restart: '500M',
       autorestart: true,
       watch: false
-    },
-    {
-      name: 'ai-admin-booking-monitor',
-      script: './src/workers/booking-monitor-worker.js',
-      instances: 1,
-      exec_mode: 'fork',
-      env: {
-        NODE_ENV: 'production'
-      },
-      error_file: './logs/booking-monitor-error.log',
-      out_file: './logs/booking-monitor-out.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss',
-      max_memory_restart: '200M',
-      kill_timeout: 5000,
-      autorestart: true
     }
+    // ВРЕМЕННО ОТКЛЮЧЕНО - booking-monitor отправляет дублирующие уведомления
+    // {
+    //   name: 'ai-admin-booking-monitor',
+    //   script: './src/workers/booking-monitor-worker.js',
+    //   instances: 1,
+    //   exec_mode: 'fork',
+    //   env: {
+    //     NODE_ENV: 'production'
+    //   },
+    //   error_file: './logs/booking-monitor-error.log',
+    //   out_file: './logs/booking-monitor-out.log',
+    //   log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    //   max_memory_restart: '200M',
+    //   kill_timeout: 5000,
+    //   autorestart: true
+    // }
   ]
 };
