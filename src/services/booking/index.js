@@ -517,6 +517,15 @@ class BookingService {
           }
         }
         
+        // Проверяем статус attendance (пропускаем записи со статусом "не пришел" = -1)
+        if (booking.attendance === -1 || booking.visit_attendance === -1) {
+          logger.info(`⚠️ Skipping booking ${booking.id} - already cancelled (no-show status)`, {
+            attendance: booking.attendance,
+            visit_attendance: booking.visit_attendance
+          });
+          return false;
+        }
+        
         const bookingDate = new Date(booking.datetime);
         const now = new Date();
         return bookingDate > now && booking.deleted === false;
