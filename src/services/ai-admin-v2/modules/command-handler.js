@@ -492,35 +492,42 @@ class CommandHandler {
           date: parsedDate
         });
         
-        const searchResult = await this.executeSearchSlots(
+        const slots = await this.searchSlots(
           {
+            service_name: params.service_name,
             service_id: searchServiceId,
+            staff_name: params.staff_name,
             staff_id: searchStaffId,
             date: params.date
           },
           context
         );
         
-        if (!searchResult.success || !searchResult.data?.slots) {
+        if (!slots || slots.length === 0) {
           return {
             success: false,
             error: 'Не удалось проверить доступность времени',
-            message: searchResult.message || 'К сожалению, не могу найти свободные слоты для записи.'
+            message: 'К сожалению, не могу найти свободные слоты для записи.'
           };
         }
         
         // Обновляем контекст с результатами поиска
-        context.lastSearch = searchResult.data;
+        context.lastSearch = {
+          slots: slots,
+          service_id: searchServiceId,
+          staff_id: searchStaffId,
+          date: parsedDate
+        };
         
         // Проверяем доступность запрашиваемого времени
         const requestedTime = params.time;
-        const isAvailable = searchResult.data.slots.some(slot => 
+        const isAvailable = slots.some(slot => 
           slot.time === requestedTime || 
           slot.time.startsWith(requestedTime)
         );
         
         if (!isAvailable) {
-          const alternatives = searchResult.data.slots
+          const alternatives = slots
             .slice(0, 3)
             .map(slot => slot.time);
           
