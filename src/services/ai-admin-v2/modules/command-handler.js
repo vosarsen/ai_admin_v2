@@ -443,13 +443,104 @@ class CommandHandler {
       
       logger.info(`✅ Time ${requestedTime} is available, proceeding with booking`);
     } else if (params.time && !context.lastSearch?.slots) {
-      logger.warn('No previous slot search found, cannot verify availability');
-      // Возможно стоит сначала выполнить SEARCH_SLOTS
-      return {
-        success: false,
-        error: 'Необходимо сначала проверить доступность времени',
-        message: 'Не могу создать запись без проверки доступности. Сначала нужно узнать свободные слоты.'
-      };
+      logger.warn('No previous slot search found, will search for availability');
+      
+      // Если нет предыдущего поиска, выполняем поиск слотов
+      try {
+        // Определяем услугу и мастера для поиска
+        let searchServiceId = params.service_id;
+        let searchStaffId = params.staff_id;
+        
+        // Если передан service_name, находим услугу
+        if (params.service_name && !searchServiceId) {
+          const service = serviceMatcher.findBestMatch(
+            params.service_name, 
+            context.services
+          );
+          if (service) {
+            searchServiceId = service.yclients_id;
+            logger.info('Found service for search:', {
+              query: params.service_name,
+              found: service.title,
+              serviceId: service.yclients_id
+            });
+          }
+        }
+        
+        // Если указано имя мастера, находим его
+        if (params.staff_name && !searchStaffId) {
+          const staffMember = context.staff.find(s => 
+            s.name.toLowerCase().includes(params.staff_name.toLowerCase())
+          );
+          if (staffMember) {
+            searchStaffId = staffMember.yclients_id;
+            logger.info('Found staff for search:', {
+              query: params.staff_name,
+              found: staffMember.name,
+              staffId: staffMember.yclients_id
+            });
+          }
+        }
+        
+        // Парсим дату
+        const parsedDate = formatter.parseRelativeDate(params.date);
+        
+        // Выполняем поиск слотов
+        logger.info('Performing slot search before booking:', {
+          serviceId: searchServiceId,
+          staffId: searchStaffId,
+          date: parsedDate
+        });
+        
+        const searchResult = await this.executeSearchSlots(
+          {
+            service_id: searchServiceId,
+            staff_id: searchStaffId,
+            date: params.date
+          },
+          context
+        );
+        
+        if (!searchResult.success || !searchResult.data?.slots) {
+          return {
+            success: false,
+            error: 'Не удалось проверить доступность времени',
+            message: searchResult.message || 'К сожалению, не могу найти свободные слоты для записи.'
+          };
+        }
+        
+        // Обновляем контекст с результатами поиска
+        context.lastSearch = searchResult.data;
+        
+        // Проверяем доступность запрашиваемого времени
+        const requestedTime = params.time;
+        const isAvailable = searchResult.data.slots.some(slot => 
+          slot.time === requestedTime || 
+          slot.time.startsWith(requestedTime)
+        );
+        
+        if (!isAvailable) {
+          const alternatives = searchResult.data.slots
+            .slice(0, 3)
+            .map(slot => slot.time);
+          
+          return {
+            success: false,
+            error: 'Время недоступно',
+            message: `К сожалению, время ${requestedTime} уже занято. Доступные слоты: ${alternatives.join(', ')}`
+          };
+        }
+        
+        logger.info(`✅ Time ${requestedTime} is available after search, proceeding with booking`);
+        
+      } catch (error) {
+        logger.error('Failed to search slots before booking:', error);
+        return {
+          success: false,
+          error: 'Ошибка при проверке доступности',
+          message: 'Не удалось проверить доступность времени. Попробуйте еще раз.'
+        };
+      }
     }
     
     // Проверяем, если указан конкретный мастер
