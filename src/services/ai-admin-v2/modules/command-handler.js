@@ -230,6 +230,12 @@ class CommandHandler {
               };
             }
             break;
+            
+          case 'SHOWBOOKINGS':
+          case 'SHOW_BOOKINGS':
+            const bookingsListResult = await this.showBookings(cmd.params, context);
+            results.push({ type: 'bookings_list', data: bookingsListResult });
+            break;
         }
       } catch (error) {
         logger.error(`Command ${cmd.command} failed:`, error);
@@ -1178,6 +1184,62 @@ class CommandHandler {
   }
 
   /**
+   * Показать список активных записей клиента
+   */
+  async showBookings(params, context) {
+    const phone = context.phone.replace('@c.us', '');
+    
+    // Получаем список всех записей клиента
+    const bookingsResult = await bookingService.getClientBookings(phone, context.company.company_id);
+    
+    if (!bookingsResult.success) {
+      return {
+        success: false,
+        error: bookingsResult.error,
+        message: 'Не удалось получить список записей'
+      };
+    }
+    
+    if (!bookingsResult.bookings || bookingsResult.bookings.length === 0) {
+      return {
+        success: true,
+        bookings: [],
+        message: 'У вас нет активных записей'
+      };
+    }
+    
+    // Форматируем список записей для отображения
+    const formattedBookings = bookingsResult.bookings.map(booking => {
+      const date = new Date(booking.datetime);
+      const dateStr = date.toLocaleDateString('ru-RU', { 
+        day: 'numeric', 
+        month: 'long',
+        weekday: 'short'
+      });
+      const timeStr = date.toLocaleTimeString('ru-RU', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      
+      return {
+        id: booking.id,
+        date: dateStr,
+        time: timeStr,
+        services: booking.services?.map(s => s.title).join(', ') || 'Услуга не указана',
+        staff: booking.staff?.name || 'Мастер не указан',
+        status: booking.attendance === 2 ? 'Подтверждена' : 'Ожидает подтверждения'
+      };
+    });
+    
+    return {
+      success: true,
+      bookings: formattedBookings,
+      total: formattedBookings.length,
+      message: `У вас ${formattedBookings.length} активных записей`
+    };
+  }
+
+  /**
    * Обработка отмены записи
    */
   async cancelBooking(params, context) {
@@ -1202,30 +1264,81 @@ class CommandHandler {
       };
     }
     
-    // Сортируем записи по дате создания (последние созданные первыми)
-    const sortedBookings = bookingsResult.bookings.sort((a, b) => {
-      // Если есть поле created_at, используем его
-      if (a.created && b.created) {
-        return new Date(b.created) - new Date(a.created);
+    let targetBooking = null;
+    
+    // Если есть параметры для фильтрации, пытаемся найти конкретную запись
+    if (params.date || params.time || params.service || params.staff_name) {
+      logger.info('Searching for specific booking with params:', params);
+      
+      targetBooking = bookingsResult.bookings.find(booking => {
+        const bookingDate = new Date(booking.datetime);
+        
+        // Проверяем дату
+        if (params.date) {
+          const targetDate = new Date(params.date);
+          if (bookingDate.toDateString() !== targetDate.toDateString()) {
+            return false;
+          }
+        }
+        
+        // Проверяем время
+        if (params.time) {
+          const bookingTime = bookingDate.toLocaleTimeString('ru-RU', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          });
+          if (!bookingTime.includes(params.time)) {
+            return false;
+          }
+        }
+        
+        // Проверяем мастера
+        if (params.staff_name && booking.staff?.name) {
+          if (!booking.staff.name.toLowerCase().includes(params.staff_name.toLowerCase())) {
+            return false;
+          }
+        }
+        
+        // Проверяем услугу
+        if (params.service && booking.services?.length > 0) {
+          const hasService = booking.services.some(s => 
+            s.title.toLowerCase().includes(params.service.toLowerCase())
+          );
+          if (!hasService) {
+            return false;
+          }
+        }
+        
+        return true;
+      });
+      
+      if (!targetBooking) {
+        logger.warn('Could not find booking matching params, falling back to latest booking');
       }
-      // Иначе используем ID (больший ID = более новая запись)
-      return b.id - a.id;
+    }
+    
+    // Если конкретная запись не найдена, берём последнюю созданную
+    if (!targetBooking) {
+      // Сортируем записи по дате/времени записи (ближайшие первыми)
+      const sortedBookings = bookingsResult.bookings.sort((a, b) => {
+        return new Date(a.datetime) - new Date(b.datetime);
+      });
+      
+      // Берём первую (ближайшую) запись
+      targetBooking = sortedBookings[0];
+    }
+    
+    logger.info(`Attempting to cancel booking with ID: ${targetBooking.id}`, {
+      datetime: targetBooking.datetime,
+      services: targetBooking.services?.map(s => s.title).join(', '),
+      staff: targetBooking.staff?.name
     });
     
-    // Берём последнюю созданную запись
-    const lastBooking = sortedBookings[0];
-    
-    logger.info(`Attempting to cancel last booking with ID: ${lastBooking.id}`, {
-      datetime: lastBooking.datetime,
-      services: lastBooking.services?.map(s => s.title).join(', '),
-      staff: lastBooking.staff?.name
-    });
-    
-    // Отменяем последнюю запись
-    const cancelResult = await bookingService.cancelBooking(lastBooking.id, context.company.company_id);
+    // Отменяем выбранную запись
+    const cancelResult = await bookingService.cancelBooking(targetBooking.id, context.company.company_id);
     
     if (cancelResult.success) {
-      const date = new Date(lastBooking.datetime);
+      const date = new Date(targetBooking.datetime);
       const dateStr = date.toLocaleDateString('ru-RU', { 
         day: 'numeric', 
         month: 'long',
@@ -1254,8 +1367,8 @@ class CommandHandler {
         cancelledBooking: {
           date: dateStr,
           time: timeStr,
-          services: lastBooking.services?.map(s => s.title).join(', '),
-          staff: lastBooking.staff?.name
+          services: targetBooking.services?.map(s => s.title).join(', '),
+          staff: targetBooking.staff?.name
         },
         message: `✅ Запись на ${dateStr} в ${timeStr} успешно отменена!`
       };
