@@ -492,7 +492,7 @@ class CommandHandler {
           date: parsedDate
         });
         
-        const slots = await this.searchSlots(
+        const slotsResult = await this.searchSlots(
           {
             service_name: params.service_name,
             service_id: searchServiceId,
@@ -502,6 +502,9 @@ class CommandHandler {
           },
           context
         );
+        
+        // Extract actual slots array from the result
+        const slots = slotsResult.slots || [];
         
         if (!slots || slots.length === 0) {
           return {
