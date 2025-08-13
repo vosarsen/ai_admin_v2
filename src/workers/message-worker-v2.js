@@ -77,6 +77,13 @@ class MessageWorkerV2 {
     const startTime = Date.now();
     const { from, message, companyId, metadata = {} } = job.data;
     
+    // Добавляем валидацию номера телефона
+    if (!from || from === '+' || from.length < 5) {
+      logger.error(`❌ Invalid phone number in job ${job.id}: "${from}"`);
+      logger.error('Full job data:', job.data);
+      throw new Error(`Invalid phone number: ${from}`);
+    }
+    
     logger.info(`💬 Processing message from ${from}: "${message}"`);
     
     // Проверяем, применялась ли уже rapid-fire protection в webhook
