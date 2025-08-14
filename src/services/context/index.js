@@ -383,13 +383,43 @@ class ContextService {
     const contextKey = `${companyId}:${normalizedPhone}`;
     
     try {
+      // Получаем текущий контекст для проверки времени последней активности
+      const existingContext = await this.redis.hgetall(contextKey);
+      const lastActivity = existingContext?.lastActivity;
+      
+      // Проверяем, прошло ли больше суток с последней активности
+      const dayInMs = 24 * 60 * 60 * 1000;
+      const shouldClearOldData = !lastActivity || 
+        (Date.now() - new Date(lastActivity).getTime()) > dayInMs;
+      
+      // Подготавливаем данные для сохранения
+      let dataToSave = contextData.data || {};
+      
+      // Если прошло больше суток, очищаем старые данные
+      if (shouldClearOldData) {
+        // Сохраняем только важные данные (имя клиента)
+        const oldData = existingContext?.data ? JSON.parse(existingContext.data) : {};
+        dataToSave = {
+          clientName: oldData.clientName || dataToSave.clientName,
+          ...dataToSave
+        };
+        // Удаляем старые команды и состояния
+        delete dataToSave.lastCommand;
+        delete dataToSave.lastService;
+        delete dataToSave.pendingCancellation;
+        delete dataToSave.rescheduleStep;
+        delete dataToSave.activeBookings;
+        
+        logger.info(`Clearing old context data for ${normalizedPhone} (last activity: ${lastActivity})`);
+      }
+      
       // Save main context data - использовать правильный формат для hset
       await this.redis.hset(contextKey, 
         'phone', normalizedPhone,
         'companyId', companyId,
         'lastActivity', new Date().toISOString(),
         'state', contextData.state || 'active',
-        'data', JSON.stringify(contextData.data || {})
+        'data', JSON.stringify(dataToSave)
       );
       
       // Set TTL
