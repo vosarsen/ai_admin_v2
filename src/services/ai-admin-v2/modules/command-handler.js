@@ -231,6 +231,15 @@ class CommandHandler {
                 date: scheduleResult.date,
                 timestamp: new Date().toISOString()
               };
+              
+              // Сохраняем информацию о последнем упомянутом мастере в контекст для будущих вопросов
+              if (!context.conversationContext) {
+                context.conversationContext = {};
+              }
+              context.conversationContext.lastMentionedStaff = {
+                name: scheduleResult.targetStaff.name,
+                timestamp: new Date().toISOString()
+              };
             }
             break;
             
@@ -990,33 +999,53 @@ class CommandHandler {
     let detectedCategory = params.category;
     
     if (message) {
-      // Извлекаем ключевые слова из сообщения
-      const keywords = FuzzyMatcher.extractKeywords(message);
-      const searchQuery = keywords.join(' ') || message;
+      const messageLower = message.toLowerCase();
       
-      logger.info(`Searching for services with query: "${searchQuery}"`);
-      
-      // Используем fuzzy matching для поиска услуг (только по title, так как category_title пустой)
-      filteredServices = FuzzyMatcher.findBestMatches(searchQuery, services, {
-        keys: ['title'],  // Ищем только по названию услуги
-        threshold: 0.15,  // Понижаем порог для большего охвата
-        limit: 30
-      });
-      
-      // Если нашли услуги - определяем псевдо-категорию по ключевым словам
-      if (filteredServices.length > 0) {
-        // Анализируем найденные услуги для определения типа
-        const titleLower = filteredServices[0].title?.toLowerCase() || '';
-        if (titleLower.includes('стриж')) {
-          detectedCategory = 'стрижки';
-        } else if (titleLower.includes('бород')) {
-          detectedCategory = 'борода и усы';
-        } else if (titleLower.includes('окраш') || titleLower.includes('тонир')) {
-          detectedCategory = 'окрашивание';
-        } else if (titleLower.includes('уход')) {
-          detectedCategory = 'уход';
-        } else {
-          detectedCategory = 'услуги';
+      // Сначала проверяем специальные ключевые слова для конкретных типов услуг
+      if (messageLower.includes('детск')) {
+        // Ищем детские услуги
+        filteredServices = services.filter(s => 
+          s.title?.toLowerCase().includes('детск') || 
+          s.title?.toLowerCase().includes('ребен') ||
+          s.title?.toLowerCase().includes('сын')
+        );
+        detectedCategory = 'детские услуги';
+        logger.info(`Found ${filteredServices.length} children's services`);
+      } else if (messageLower.includes('стриж')) {
+        // Ищем все стрижки
+        filteredServices = services.filter(s => 
+          s.title?.toLowerCase().includes('стриж')
+        );
+        detectedCategory = 'стрижки';
+        logger.info(`Found ${filteredServices.length} haircut services`);
+      } else {
+        // Используем fuzzy matching для остальных случаев
+        const keywords = FuzzyMatcher.extractKeywords(message);
+        const searchQuery = keywords.join(' ') || message;
+        
+        logger.info(`Searching for services with query: "${searchQuery}"`);
+        
+        filteredServices = FuzzyMatcher.findBestMatches(searchQuery, services, {
+          keys: ['title'],  // Ищем только по названию услуги
+          threshold: 0.10,  // Снижаем порог для лучшего охвата
+          limit: 30
+        });
+        
+        // Если нашли услуги - определяем псевдо-категорию по ключевым словам
+        if (filteredServices.length > 0) {
+          // Анализируем найденные услуги для определения типа
+          const titleLower = filteredServices[0].title?.toLowerCase() || '';
+          if (titleLower.includes('стриж')) {
+            detectedCategory = 'стрижки';
+          } else if (titleLower.includes('бород')) {
+            detectedCategory = 'борода и усы';
+          } else if (titleLower.includes('окраш') || titleLower.includes('тонир')) {
+            detectedCategory = 'окрашивание';
+          } else if (titleLower.includes('уход')) {
+            detectedCategory = 'уход';
+          } else {
+            detectedCategory = 'услуги';
+          }
         }
         
         logger.info(`Found ${filteredServices.length} services using fuzzy matching`);
@@ -1714,7 +1743,17 @@ class CommandHandler {
    * Проверить расписание мастера
    */
   async checkStaffSchedule(params, context) {
-    const { staff_name, date } = params;
+    let { staff_name, date } = params;
+    
+    // Если не указан мастер, но есть в контексте последний упомянутый - используем его
+    if (!staff_name && context.conversationContext?.lastMentionedStaff?.name) {
+      const timeSinceLastMention = Date.now() - new Date(context.conversationContext.lastMentionedStaff.timestamp).getTime();
+      // Используем контекст, если прошло менее 10 минут
+      if (timeSinceLastMention < 10 * 60 * 1000) {
+        staff_name = context.conversationContext.lastMentionedStaff.name;
+        logger.info(`Using last mentioned staff from context: ${staff_name}`);
+      }
+    }
     
     // Парсим дату
     const dateStr = formatter.parseRelativeDate(date || 'сегодня');
@@ -1727,6 +1766,17 @@ class CommandHandler {
         s.name.toLowerCase().includes(staff_name.toLowerCase()) ||
         staff_name.toLowerCase().includes(s.name.toLowerCase())
       );
+      
+      // Обновляем контекст последнего упомянутого мастера
+      if (staff && (!context.conversationContext)) {
+        context.conversationContext = {};
+      }
+      if (staff) {
+        context.conversationContext.lastMentionedStaff = {
+          name: staff.name,
+          timestamp: new Date().toISOString()
+        };
+      }
     }
     
     // Получаем расписание из базы данных

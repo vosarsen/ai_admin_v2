@@ -222,7 +222,9 @@ class AIAdminV2 {
           sender: 'bot',
           text: result.response,
           timestamp: new Date().toISOString()
-        }
+        },
+        // Сохраняем контекст диалога, включая последнего упомянутого мастера
+        ...(fullContext.conversationContext && { conversationContext: fullContext.conversationContext })
       });
       
       // Сохраняем информацию о выбранных услуге и времени из выполненных команд

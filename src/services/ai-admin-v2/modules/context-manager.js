@@ -149,6 +149,8 @@ class ContextManager {
       preferences,
       conversationSummary,
       intermediate: intermediateCtx,
+      // Включаем conversationContext из Redis для сохранения контекста диалога
+      conversationContext: redisContext?.conversationContext || {},
       companyId
     };
   }
