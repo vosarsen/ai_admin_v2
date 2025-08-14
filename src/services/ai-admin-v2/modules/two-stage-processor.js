@@ -66,7 +66,9 @@ class TwoStageProcessor {
         logger.info(`⚙️ Executing ${commands.length} commands`);
         
         // Выполняем команды параллельно где возможно
-        commandResults = await this.executeCommandsOptimized(commands, context);
+        // Добавляем message в контекст для лучшей фильтрации
+        const commandContext = { ...context, message };
+        commandResults = await this.executeCommandsOptimized(commands, commandContext);
         
         // Форматируем для совместимости
         executedCommands = commands.map((cmd, index) => ({
