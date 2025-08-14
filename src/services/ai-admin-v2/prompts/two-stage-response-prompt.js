@@ -56,12 +56,33 @@ ID записи: ${data.booking_id}
         return `⚠️ SHOW_PRICES: Услуги не найдены`;
         
       case 'CHECK_STAFF_SCHEDULE':
-        if (data.isWorking) {
-          return `✅ CHECK_STAFF_SCHEDULE: ${data.staff} работает ${data.date}
-Время работы: ${data.workHours || 'не указано'}`;
+        // Обрабатываем результат проверки расписания мастера
+        if (data.targetStaff) {
+          const staff = data.targetStaff;
+          if (staff.isWorking) {
+            return `✅ CHECK_STAFF_SCHEDULE: ${staff.name} работает ${staff.formattedDate || staff.date}
+Время работы: ${staff.workHours || 'весь день'}`;
+          } else {
+            // Форматируем список рабочих дней
+            let workDaysStr = 'не указаны';
+            if (staff.workingDays && staff.workingDays.length > 0) {
+              // Берем первые 5 дней для отображения
+              const daysToShow = staff.workingDays.slice(0, 5);
+              workDaysStr = daysToShow.join(', ');
+              if (staff.workingDays.length > 5) {
+                workDaysStr += ` и еще ${staff.workingDays.length - 5} дней`;
+              }
+            }
+            return `⚠️ CHECK_STAFF_SCHEDULE: ${staff.name} НЕ работает ${staff.formattedDate || staff.date}
+Рабочие дни: ${workDaysStr}`;
+          }
         } else {
-          return `⚠️ CHECK_STAFF_SCHEDULE: ${data.staff} НЕ работает ${data.date}
-Рабочие дни: ${data.workDays || 'не указаны'}`;
+          // Общее расписание всех мастеров
+          if (data.working && data.working.length > 0) {
+            return `✅ CHECK_STAFF_SCHEDULE: ${data.formattedDate || data.date} работают: ${data.working.join(', ')}`;
+          } else {
+            return `⚠️ CHECK_STAFF_SCHEDULE: ${data.formattedDate || data.date} никто не работает`;
+          }
         }
         
       default:
@@ -166,8 +187,10 @@ ${formattedResults}
 Какую стрижку вас интересует?"
 
 👤 РАСПИСАНИЕ МАСТЕРА (CHECK_STAFF_SCHEDULE):
-- Работает: "[Мастер] работает [дата] с [время] до [время]"
-- Не работает: "[Мастер] не работает [дата]. Рабочие дни: [дни]"
+- Работает: "[Мастер] работает [дата]. Свободное время есть с [время] до [время]"
+- Не работает: "[Мастер] не работает [дата]. 
+  Ближайшие рабочие дни: [список дней из результата команды]
+  Хотите записаться на другой день?"
 
 ❌ ОТМЕНА (CANCEL_BOOKING):
 "Ваша запись отменена. Будем рады видеть вас снова!"

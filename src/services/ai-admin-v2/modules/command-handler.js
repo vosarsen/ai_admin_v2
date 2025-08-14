@@ -1750,6 +1750,31 @@ class CommandHandler {
       };
     }
     
+    // Если проверяем конкретного мастера - получим его рабочие дни на ближайшие 14 дней
+    let workingDays = [];
+    if (staff) {
+      const futureDate = new Date(dateStr);
+      futureDate.setDate(futureDate.getDate() + 14);
+      const futureDateStr = futureDate.toISOString().split('T')[0];
+      
+      const { data: futureSchedules } = await supabase
+        .from('staff_schedules')
+        .select('date, is_working, has_booking_slots')
+        .eq('staff_id', staff.yclients_id)
+        .gte('date', dateStr)
+        .lte('date', futureDateStr)
+        .eq('is_working', true)
+        .eq('has_booking_slots', true)
+        .order('date', { ascending: true });
+      
+      if (futureSchedules && futureSchedules.length > 0) {
+        workingDays = futureSchedules.map(s => {
+          const date = new Date(s.date);
+          return formatter.formatDate(date);
+        });
+      }
+    }
+    
     // Формируем результат
     const result = {
       date: dateStr,
@@ -1803,8 +1828,28 @@ class CommandHandler {
         found: !!staffSchedule,
         isWorking: staffSchedule?.is_working && staffSchedule?.has_booking_slots,
         date: result.originalDate,
-        formattedDate: result.formattedDate
+        formattedDate: result.formattedDate,
+        workingDays: workingDays.length > 0 ? workingDays : null,
+        workHours: null
       };
+      
+      // Если мастер работает сегодня - определим часы работы
+      if (staffSchedule?.is_working && staffSchedule?.working_hours) {
+        try {
+          let hours = staffSchedule.working_hours;
+          // Если working_hours это массив
+          if (Array.isArray(hours) && hours.length > 0) {
+            const freeSlots = hours.filter(slot => slot.is_free);
+            if (freeSlots.length > 0) {
+              const firstTime = freeSlots[0].time;
+              const lastTime = freeSlots[freeSlots.length - 1].time;
+              result.targetStaff.workHours = `${firstTime}-${lastTime}`;
+            }
+          }
+        } catch (e) {
+          logger.debug('Could not parse work hours:', e);
+        }
+      }
     }
     
     return result;
