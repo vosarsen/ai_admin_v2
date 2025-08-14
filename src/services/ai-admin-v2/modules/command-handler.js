@@ -7,6 +7,7 @@ const errorMessages = require('../../../utils/error-messages');
 const FuzzyMatcher = require('../../../utils/fuzzy-matcher');
 const businessLogic = require('./business-logic');
 const { formatHumanDate, formatWorkingDays } = require('../../../utils/date-formatter');
+const serviceSearchConfig = require('../../../config/service-search');
 // dateParser теперь используется из formatter
 
 class CommandHandler {
@@ -1001,49 +1002,57 @@ class CommandHandler {
     if (message) {
       const messageLower = message.toLowerCase();
       
-      // Сначала проверяем специальные ключевые слова для конкретных типов услуг
-      if (messageLower.includes('детск')) {
-        // Ищем детские услуги
-        filteredServices = services.filter(s => 
-          s.title?.toLowerCase().includes('детск') || 
-          s.title?.toLowerCase().includes('ребен') ||
-          s.title?.toLowerCase().includes('сын')
+      // Проверяем паттерны категорий из конфигурации
+      let categoryFound = false;
+      for (const [categoryKey, categoryConfig] of Object.entries(serviceSearchConfig.categoryPatterns)) {
+        // Проверяем, содержит ли сообщение ключевые слова категории
+        const hasKeyword = categoryConfig.keywords.some(keyword => 
+          messageLower.includes(keyword)
         );
-        detectedCategory = 'детские услуги';
-        logger.info(`Found ${filteredServices.length} children's services`);
-      } else if (messageLower.includes('стриж')) {
-        // Ищем все стрижки
-        filteredServices = services.filter(s => 
-          s.title?.toLowerCase().includes('стриж')
-        );
-        detectedCategory = 'стрижки';
-        logger.info(`Found ${filteredServices.length} haircut services`);
-      } else {
-        // Используем fuzzy matching для остальных случаев
+        
+        if (hasKeyword) {
+          // Фильтруем услуги по ключевым словам категории
+          filteredServices = services.filter(s => {
+            const titleLower = s.title?.toLowerCase() || '';
+            return categoryConfig.keywords.some(keyword => 
+              titleLower.includes(keyword)
+            );
+          });
+          
+          if (filteredServices.length > 0) {
+            detectedCategory = categoryConfig.categoryName;
+            logger.info(`Found ${filteredServices.length} services in category: ${detectedCategory}`);
+            categoryFound = true;
+            break; // Используем первую найденную категорию
+          }
+        }
+      }
+      
+      // Если категория не найдена, используем fuzzy matching
+      if (!categoryFound) {
         const keywords = FuzzyMatcher.extractKeywords(message);
         const searchQuery = keywords.join(' ') || message;
         
         logger.info(`Searching for services with query: "${searchQuery}"`);
         
-        filteredServices = FuzzyMatcher.findBestMatches(searchQuery, services, {
-          keys: ['title'],  // Ищем только по названию услуги
-          threshold: 0.10,  // Снижаем порог для лучшего охвата
-          limit: 30
-        });
+        filteredServices = FuzzyMatcher.findBestMatches(searchQuery, services, serviceSearchConfig.fuzzyMatchConfig);
         
-        // Если нашли услуги - определяем псевдо-категорию по ключевым словам
+        // Если нашли услуги - определяем категорию по первой найденной услуге
         if (filteredServices.length > 0) {
-          // Анализируем найденные услуги для определения типа
           const titleLower = filteredServices[0].title?.toLowerCase() || '';
-          if (titleLower.includes('стриж')) {
-            detectedCategory = 'стрижки';
-          } else if (titleLower.includes('бород')) {
-            detectedCategory = 'борода и усы';
-          } else if (titleLower.includes('окраш') || titleLower.includes('тонир')) {
-            detectedCategory = 'окрашивание';
-          } else if (titleLower.includes('уход')) {
-            detectedCategory = 'уход';
-          } else {
+          
+          // Определяем категорию по паттернам
+          for (const [categoryKey, categoryConfig] of Object.entries(serviceSearchConfig.categoryPatterns)) {
+            const hasKeyword = categoryConfig.keywords.some(keyword => 
+              titleLower.includes(keyword)
+            );
+            if (hasKeyword) {
+              detectedCategory = categoryConfig.categoryName;
+              break;
+            }
+          }
+          
+          if (!detectedCategory) {
             detectedCategory = 'услуги';
           }
         }
