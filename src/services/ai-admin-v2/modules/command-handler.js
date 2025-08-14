@@ -4,6 +4,8 @@ const formatter = require('./formatter');
 const serviceMatcher = require('./service-matcher');
 const contextService = require('../../context');
 const errorMessages = require('../../../utils/error-messages');
+const FuzzyMatcher = require('../../../utils/fuzzy-matcher');
+const businessLogic = require('./business-logic');
 // dateParser теперь используется из formatter
 
 class CommandHandler {
@@ -982,101 +984,68 @@ class CommandHandler {
   async getPrices(params, context) {
     const { services, message } = context;
     
-    // Анализируем сообщение клиента для более точной фильтрации
-    let searchCategory = params.category;
-    if (!searchCategory && message) {
-      // Пытаемся извлечь из сообщения что запрашивает клиент
-      const messageLower = message.toLowerCase();
-      if (messageLower.includes('стриж')) searchCategory = 'стрижка';
-      else if (messageLower.includes('маникюр')) searchCategory = 'маникюр';
-      else if (messageLower.includes('окраш')) searchCategory = 'окрашивание';
-      else if (messageLower.includes('бород')) searchCategory = 'борода';
-      else if (messageLower.includes('бров')) searchCategory = 'брови';
-      else if (messageLower.includes('ресниц')) searchCategory = 'ресницы';
-    }
+    // Пытаемся найти категорию или услуги по запросу
+    let filteredServices = [];
+    let detectedCategory = params.category;
     
-    if (searchCategory) {
-      const searchTerm = searchCategory.toLowerCase().trim();
-      logger.info(`Searching prices for category: "${searchCategory}" (from message: "${message}")`);
+    if (message) {
+      // Извлекаем ключевые слова из сообщения
+      const keywords = FuzzyMatcher.extractKeywords(message);
+      const searchQuery = keywords.join(' ') || message;
       
-      // Создаем карту ключевых слов для лучшего поиска
-      const searchKeywords = {
-        'стрижка': ['мужская стрижка', 'стрижка машинкой', 'стрижка ножницами', 'детская стрижка', 'стрижка для', 'стрижка +'],
-        'борода': ['борода', 'усы', 'моделирование бороды'],
-        'окрашивание': ['окрашивание', 'тонирование', 'мелирование', 'осветление'],
-        'укладка': ['укладка', 'стайлинг', 'прическа'],
-        'маникюр': ['маникюр', 'ногти', 'покрытие', 'дизайн ногтей'],
-        'педикюр': ['педикюр', 'стопы'],
-        'брови': ['брови', 'бровей', 'коррекция бровей', 'окрашивание бровей'],
-        'ресницы': ['ресницы', 'ресниц', 'наращивание ресниц', 'ламинирование ресниц'],
-        'массаж': ['массаж', 'spa', 'релакс'],
-        'эпиляция': ['эпиляция', 'депиляция', 'шугаринг', 'воск']
-      };
+      logger.info(`Searching for services with query: "${searchQuery}"`);
       
-      // Сначала пробуем найти по точному совпадению с ключевыми словами
-      let keywords = searchKeywords[searchTerm] || [searchTerm];
-      
-      // Фильтруем услуги по релевантности
-      const filtered = services.filter(s => {
-        const title = s.title?.toLowerCase() || '';
-        const category = s.category_title?.toLowerCase() || '';
-        
-        // Приоритет точному совпадению с ключевыми словами
-        return keywords.some(keyword => 
-          title.includes(keyword) || category.includes(keyword)
-        );
+      // Используем fuzzy matching для поиска услуг (только по title, так как category_title пустой)
+      filteredServices = FuzzyMatcher.findBestMatches(searchQuery, services, {
+        keys: ['title'],  // Ищем только по названию услуги
+        threshold: 0.15,  // Понижаем порог для большего охвата
+        limit: 30
       });
       
-      // Сортируем по релевантности и цене
-      const sorted = filtered.sort((a, b) => {
-        // Сначала сортируем по точному совпадению в начале названия
-        const aStartsWith = keywords.some(k => a.title?.toLowerCase().startsWith(k));
-        const bStartsWith = keywords.some(k => b.title?.toLowerCase().startsWith(k));
+      // Если нашли услуги - определяем псевдо-категорию по ключевым словам
+      if (filteredServices.length > 0) {
+        // Анализируем найденные услуги для определения типа
+        const titleLower = filteredServices[0].title?.toLowerCase() || '';
+        if (titleLower.includes('стриж')) {
+          detectedCategory = 'стрижки';
+        } else if (titleLower.includes('бород')) {
+          detectedCategory = 'борода и усы';
+        } else if (titleLower.includes('окраш') || titleLower.includes('тонир')) {
+          detectedCategory = 'окрашивание';
+        } else if (titleLower.includes('уход')) {
+          detectedCategory = 'уход';
+        } else {
+          detectedCategory = 'услуги';
+        }
         
-        if (aStartsWith && !bStartsWith) return -1;
-        if (!aStartsWith && bStartsWith) return 1;
-        
-        // Затем по цене
-        const priceA = a.price_min || a.price || 0;
-        const priceB = b.price_min || b.price || 0;
-        return priceA - priceB;
-      });
-      
-      logger.info(`Found ${sorted.length} services matching "${searchCategory}"`);
-      
-      // Возвращаем структурированные данные с ценами
-      return {
-        category: searchCategory,
-        prices: sorted.slice(0, 10).map(s => ({
-          title: s.title,
-          price_min: s.price_min || s.price || 0,
-          price_max: s.price_max || s.price || s.price_min || 0,
-          duration: s.duration || 60,
-          category: s.category_title
-        }))
-      };
+        logger.info(`Found ${filteredServices.length} services using fuzzy matching`);
+      }
     }
     
-    // Если категория не указана, возвращаем популярные услуги
-    logger.info(`Returning popular services`);
+    // Если указана категория в параметрах - фильтруем по названию услуги
+    if (params.category && filteredServices.length === 0) {
+      detectedCategory = params.category;
+      const searchTerm = detectedCategory.toLowerCase();
+      filteredServices = services.filter(service => 
+        service.title?.toLowerCase().includes(searchTerm)
+      );
+    }
     
-    // Фильтруем базовые услуги (без комплексных)
-    const basicServices = services.filter(s => {
-      const title = s.title?.toLowerCase() || '';
-      // Исключаем комплексные услуги
-      return !title.includes(' + ') && !title.includes('отец') && !title.includes('luxina');
-    });
+    // Если после всех попыток ничего не нашли - показываем популярные
+    if (filteredServices.length === 0) {
+      logger.info('No specific services found, returning popular ones');
+      filteredServices = services;
+      detectedCategory = 'популярные услуги';
+    }
     
-    // Сортируем по цене и возвращаем структурированные данные
-    const sorted = basicServices.sort((a, b) => {
-      const priceA = a.price_min || a.price || 0;
-      const priceB = b.price_min || b.price || 0;
-      return priceA - priceB;
-    }).slice(0, 15);
+    // Сортируем по популярности и весу
+    const sorted = businessLogic.sortServicesForClient(filteredServices, context.client);
     
+    // Возвращаем структурированные данные
     return {
-      category: 'общие',
-      prices: sorted.map(s => ({
+      category: detectedCategory,
+      count: sorted.length,
+      prices: sorted.slice(0, 15).map(s => ({
         title: s.title,
         price_min: s.price_min || s.price || 0,
         price_max: s.price_max || s.price || s.price_min || 0,

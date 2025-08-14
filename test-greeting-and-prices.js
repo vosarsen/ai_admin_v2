@@ -45,8 +45,7 @@ async function testFirstMessage() {
   console.log('\n📱 Тест 1: Первое сообщение за день (должно быть приветствие)');
   console.log('Отправляем: "Добрый день"');
   
-  const aiAdmin = new AIAdminV2();
-  const result = await aiAdmin.processMessage(
+  const result = await AIAdminV2.processMessage(
     'Добрый день',
     TEST_PHONE,
     COMPANY_ID
@@ -66,8 +65,7 @@ async function testServiceQuery() {
   console.log('\n📱 Тест 2: Запрос про стрижки (должны показать конкретные услуги)');
   console.log('Отправляем: "Какие стрижки вы делаете?"');
   
-  const aiAdmin = new AIAdminV2();
-  const result = await aiAdmin.processMessage(
+  const result = await AIAdminV2.processMessage(
     'Какие стрижки вы делаете?',
     TEST_PHONE,
     COMPANY_ID
