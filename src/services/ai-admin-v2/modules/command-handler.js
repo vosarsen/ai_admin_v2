@@ -6,6 +6,7 @@ const contextService = require('../../context');
 const errorMessages = require('../../../utils/error-messages');
 const FuzzyMatcher = require('../../../utils/fuzzy-matcher');
 const businessLogic = require('./business-logic');
+const { formatHumanDate, formatWorkingDays } = require('../../../utils/date-formatter');
 // dateParser теперь используется из formatter
 
 class CommandHandler {
@@ -1769,8 +1770,8 @@ class CommandHandler {
       
       if (futureSchedules && futureSchedules.length > 0) {
         workingDays = futureSchedules.map(s => {
-          const date = new Date(s.date);
-          return formatter.formatDate(date);
+          // Используем человечное форматирование дат
+          return formatHumanDate(s.date);
         });
       }
     }
@@ -1779,7 +1780,7 @@ class CommandHandler {
     const result = {
       date: dateStr,
       originalDate: date || 'сегодня',
-      formattedDate: formatter.formatDate(targetDate),
+      formattedDate: formatHumanDate(targetDate),
       staff: [],
       working: [],
       notWorking: [],
