@@ -980,11 +980,24 @@ class CommandHandler {
    * Получение прайс-листа
    */
   async getPrices(params, context) {
-    const { services } = context;
+    const { services, message } = context;
     
-    if (params.category) {
-      const searchTerm = params.category.toLowerCase().trim();
-      logger.info(`Searching prices for category: "${params.category}"`);
+    // Анализируем сообщение клиента для более точной фильтрации
+    let searchCategory = params.category;
+    if (!searchCategory && message) {
+      // Пытаемся извлечь из сообщения что запрашивает клиент
+      const messageLower = message.toLowerCase();
+      if (messageLower.includes('стриж')) searchCategory = 'стрижка';
+      else if (messageLower.includes('маникюр')) searchCategory = 'маникюр';
+      else if (messageLower.includes('окраш')) searchCategory = 'окрашивание';
+      else if (messageLower.includes('бород')) searchCategory = 'борода';
+      else if (messageLower.includes('бров')) searchCategory = 'брови';
+      else if (messageLower.includes('ресниц')) searchCategory = 'ресницы';
+    }
+    
+    if (searchCategory) {
+      const searchTerm = searchCategory.toLowerCase().trim();
+      logger.info(`Searching prices for category: "${searchCategory}" (from message: "${message}")`);
       
       // Создаем карту ключевых слов для лучшего поиска
       const searchKeywords = {
@@ -1029,10 +1042,19 @@ class CommandHandler {
         return priceA - priceB;
       });
       
-      logger.info(`Found ${sorted.length} services matching "${params.category}"`);
+      logger.info(`Found ${sorted.length} services matching "${searchCategory}"`);
       
-      // Возвращаем только первые 10 наиболее релевантных услуг
-      return sorted.slice(0, 10);
+      // Возвращаем структурированные данные с ценами
+      return {
+        category: searchCategory,
+        prices: sorted.slice(0, 10).map(s => ({
+          title: s.title,
+          price_min: s.price_min || s.price || 0,
+          price_max: s.price_max || s.price || s.price_min || 0,
+          duration: s.duration || 60,
+          category: s.category_title
+        }))
+      };
     }
     
     // Если категория не указана, возвращаем популярные услуги
@@ -1045,12 +1067,23 @@ class CommandHandler {
       return !title.includes(' + ') && !title.includes('отец') && !title.includes('luxina');
     });
     
-    // Сортируем по цене и возвращаем первые 15
-    return basicServices.sort((a, b) => {
+    // Сортируем по цене и возвращаем структурированные данные
+    const sorted = basicServices.sort((a, b) => {
       const priceA = a.price_min || a.price || 0;
       const priceB = b.price_min || b.price || 0;
       return priceA - priceB;
     }).slice(0, 15);
+    
+    return {
+      category: 'общие',
+      prices: sorted.map(s => ({
+        title: s.title,
+        price_min: s.price_min || s.price || 0,
+        price_max: s.price_max || s.price || s.price_min || 0,
+        duration: s.duration || 60,
+        category: s.category_title
+      }))
+    };
   }
 
   /**
