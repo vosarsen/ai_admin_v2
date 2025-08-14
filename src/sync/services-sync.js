@@ -23,6 +23,16 @@ class ServicesSync {
     try {
       logger.info('🛍️ Starting services synchronization...');
       
+      // Сначала получаем категории услуг
+      const categories = await this.fetchServiceCategories();
+      logger.info(`📂 Found ${categories.length} service categories`);
+      
+      // Создаем маппинг category_id -> category_title
+      const categoryMap = {};
+      categories.forEach(cat => {
+        categoryMap[cat.id] = cat.title;
+      });
+      
       // Получаем услуги из YClients API
       const services = await this.fetchServices();
       
@@ -38,6 +48,13 @@ class ServicesSync {
       }
 
       logger.info(`📋 Found ${services.length} services to sync`);
+      
+      // Добавляем category_title к каждой услуге
+      services.forEach(service => {
+        if (service.category_id && categoryMap[service.category_id]) {
+          service.category_title_from_api = categoryMap[service.category_id];
+        }
+      });
 
       // Обрабатываем и сохраняем услуги
       const result = await this.saveServices(services);
@@ -67,6 +84,36 @@ class ServicesSync {
         error: error.message,
         duration: Date.now() - startTime
       };
+    }
+  }
+
+  /**
+   * Получить категории услуг из YClients API
+   * @returns {Promise<Array>} Массив категорий
+   */
+  async fetchServiceCategories() {
+    try {
+      // Правильный endpoint для получения ВСЕХ категорий компании
+      const url = `${this.config.BASE_URL}/company/${this.config.COMPANY_ID}/service_categories`;
+      const headers = createYclientsHeaders(true);
+      
+      logger.debug('Fetching service categories from YClients', { url });
+      
+      const response = await axios.get(url, { headers });
+      
+      if (response.data?.success === false) {
+        throw new Error(response.data?.meta?.message || 'API returned error');
+      }
+      
+      return response.data?.data || [];
+      
+    } catch (error) {
+      logger.error('Failed to fetch service categories from YClients', {
+        error: error.message,
+        response: error.response?.data
+      });
+      // Если не удалось получить категории, возвращаем пустой массив
+      return [];
     }
   }
 
@@ -174,7 +221,7 @@ class ServicesSync {
       company_id: this.config.COMPANY_ID,
       title: service.title || 'Unnamed Service',
       category_id: service.category_id || null,
-      category_title: service.category?.title || null,
+      category_title: service.category_title_from_api || service.category?.title || null,
       price_min: service.price_min || 0,
       price_max: service.price_max || service.price_min || 0,
       discount: service.discount || 0,
