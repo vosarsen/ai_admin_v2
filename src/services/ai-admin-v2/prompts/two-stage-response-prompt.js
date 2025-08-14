@@ -5,6 +5,8 @@
  * Цель: Создать дружелюбный, понятный ответ для клиента
  */
 
+const { formatWorkingDays } = require('../../../utils/date-formatter');
+
 /**
  * Форматирование результатов команд для включения в промпт
  */
@@ -63,16 +65,8 @@ ID записи: ${data.booking_id}
             return `✅ CHECK_STAFF_SCHEDULE: ${staff.name} работает ${staff.formattedDate || staff.date}
 Время работы: ${staff.workHours || 'весь день'}`;
           } else {
-            // Форматируем список рабочих дней
-            let workDaysStr = 'не указаны';
-            if (staff.workingDays && staff.workingDays.length > 0) {
-              // Берем первые 5 дней для отображения
-              const daysToShow = staff.workingDays.slice(0, 5);
-              workDaysStr = daysToShow.join(', ');
-              if (staff.workingDays.length > 5) {
-                workDaysStr += ` и еще ${staff.workingDays.length - 5} дней`;
-              }
-            }
+            // Форматируем список рабочих дней с использованием утилиты
+            const workDaysStr = formatWorkingDays(staff.workingDays);
             return `⚠️ CHECK_STAFF_SCHEDULE: ${staff.name} НЕ работает ${staff.formattedDate || staff.date}
 Рабочие дни: ${workDaysStr}`;
           }
