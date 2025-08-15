@@ -224,7 +224,7 @@ class AIAdminV2 {
           timestamp: new Date().toISOString()
         },
         // Сохраняем контекст диалога, включая последнего упомянутого мастера
-        ...(fullContext.conversationContext && { conversationContext: fullContext.conversationContext })
+        ...(context.conversationContext && { conversationContext: context.conversationContext })
       });
       
       // Сохраняем информацию о выбранных услуге и времени из выполненных команд
