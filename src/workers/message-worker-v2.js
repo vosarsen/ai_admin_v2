@@ -103,8 +103,9 @@ class MessageWorkerV2 {
           
           // Отправляем ответ (разделяем на несколько сообщений)
           if (result.response) {
-            // Разделяем ответ на отдельные сообщения по символу |
-            const messages = result.response.split('|').map(msg => msg.trim()).filter(msg => msg);
+            // Разделяем ответ на отдельные сообщения по двойному переносу строки
+            // Это стандартный способ разделения абзацев/сообщений
+            const messages = result.response.split('\n\n').map(msg => msg.trim()).filter(msg => msg);
             
             if (messages.length === 0) {
               // Если нет разделителя, отправляем как одно сообщение
