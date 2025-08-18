@@ -15,6 +15,9 @@ function formatCommandResults(commandResults) {
     return 'Команды не выполнялись (простое сообщение)';
   }
   
+  // Логируем для отладки
+  console.log('📊 formatCommandResults received:', JSON.stringify(commandResults, null, 2));
+  
   return commandResults.map(result => {
     const { command, success, data, error } = result;
     
@@ -24,11 +27,27 @@ function formatCommandResults(commandResults) {
     
     switch (command) {
       case 'SEARCH_SLOTS':
-        if (data.slots && data.slots.length > 0) {
-          return `✅ SEARCH_SLOTS: Найдено ${data.slots.length} слотов
-Слоты: ${data.slots.join(', ')}
-Услуга: ${data.service || 'не указана'}
-Мастер: ${data.staff || 'любой'}`;
+        // Обрабатываем два варианта структуры: data.slots или data как объект с полями
+        const slots = data.slots || (data.data ? data.data.slots : null);
+        const service = data.service || (data.data ? data.data.service : null);
+        const staff = data.staff || (data.data ? data.data.staff : null);
+        
+        if (slots && slots.length > 0) {
+          // Форматируем слоты для отображения
+          const formattedSlots = slots.map(slot => {
+            if (typeof slot === 'object') {
+              return slot.time || slot.datetime?.split('T')[1]?.substring(0, 5) || JSON.stringify(slot);
+            }
+            return slot;
+          }).slice(0, 10); // Ограничиваем 10 слотами для читаемости
+          
+          const serviceName = typeof service === 'object' ? service.title : service;
+          const staffName = typeof staff === 'object' ? staff.name : staff;
+          
+          return `✅ SEARCH_SLOTS: Найдено ${slots.length} слотов
+Слоты: ${formattedSlots.join(', ')}${slots.length > 10 ? '...' : ''}
+Услуга: ${serviceName || 'не указана'}
+Мастер: ${staffName || 'любой'}`;
         } else {
           return `⚠️ SEARCH_SLOTS: Свободных слотов не найдено`;
         }
