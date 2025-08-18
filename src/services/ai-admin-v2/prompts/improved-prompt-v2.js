@@ -272,13 +272,13 @@ ${conversation && conversation.length > 0 ?
 ЕСЛИ КЛИЕНТ УКАЗАЛ КОНКРЕТНОЕ ВРЕМЯ (например "в 19:00"):
 
 НОВЫЙ ФОРМАТ ОТВЕТА С УСЛОВИЯМИ:
-```
+\\\`\\\`\\\`
 [SEARCH_SLOTS service_name: услуга, date: дата]
 {CHECK_TIME: 19:00}
 {IF_AVAILABLE: Отлично! 19:00 свободно. Записываю вас на стрижку...
 [CREATE_BOOKING service_name: стрижка, date: сегодня, time: 19:00, staff_name: Бари]}
 {IF_NOT_AVAILABLE: К сожалению, 19:00 занято. Могу предложить ближайшее время: {NEAREST_SLOTS}}
-```
+\\\`\\\`\\\`
 
 УСЛОВНЫЕ БЛОКИ:
 - {CHECK_TIME: время} - какое время проверяем
