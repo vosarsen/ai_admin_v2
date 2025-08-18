@@ -27,10 +27,28 @@ function formatCommandResults(commandResults) {
     
     switch (command) {
       case 'SEARCH_SLOTS':
-        // Обрабатываем два варианта структуры: data.slots или data как объект с полями
-        const slots = data.slots || (data.data ? data.data.slots : null);
-        const service = data.service || (data.data ? data.data.service : null);
-        const staff = data.staff || (data.data ? data.data.staff : null);
+        // Обрабатываем разные варианты структуры:
+        // 1. data как массив слотов напрямую (two-stage)
+        // 2. data.slots (ReAct mode)
+        // 3. data.data.slots (вложенная структура)
+        let slots, service, staff;
+        
+        if (Array.isArray(data)) {
+          // data сам является массивом слотов
+          slots = data;
+          // Пытаемся извлечь информацию о сервисе и мастере из первого слота
+          if (slots.length > 0 && slots[0].staff_name) {
+            staff = slots[0].staff_name;
+          }
+          if (slots.length > 0 && slots[0].service_name) {
+            service = slots[0].service_name;
+          }
+        } else {
+          // data - объект с полями slots, service, staff
+          slots = data.slots || (data.data ? data.data.slots : null);
+          service = data.service || (data.data ? data.data.service : null);
+          staff = data.staff || (data.data ? data.data.staff : null);
+        }
         
         if (slots && slots.length > 0) {
           // Форматируем слоты для отображения
