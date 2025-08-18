@@ -31,9 +31,13 @@ function formatCommandResults(commandResults) {
         // 1. data как массив слотов напрямую (two-stage)
         // 2. data.slots (ReAct mode)
         // 3. data.data.slots (вложенная структура)
+        // 4. data может быть undefined при ошибке
         let slots, service, staff;
         
-        if (Array.isArray(data)) {
+        if (!data) {
+          // Если data undefined - команда не вернула результатов
+          return `⚠️ SEARCH_SLOTS: Не удалось найти свободные слоты (услуга не указана или не найдена)`;
+        } else if (Array.isArray(data)) {
           // data сам является массивом слотов
           slots = data;
           // Пытаемся извлечь информацию о сервисе и мастере из первого слота

@@ -89,10 +89,12 @@ ${previousContext.lastStaff ? `- Ранее выбран мастер: ${previou
 
 КРИТИЧЕСКИ ВАЖНО - ПОДТВЕРЖДЕНИЯ И УТОЧНЕНИЯ:
 - Если в контексте есть lastService И клиент указывает время → CREATE_BOOKING
+- "На 10 утра" когда есть lastService и lastDate → CREATE_BOOKING с time="10:00"
 - "Давайте на 18:00" когда в контексте есть lastService и lastDate → CREATE_BOOKING
 - "Давайте на 6" = "18:00" → CREATE_BOOKING с time="18:00"
 - "Да", "давайте", "хорошо" после предложения времени → CREATE_BOOKING с lastTime из контекста
 - ВАЖНО: Если есть контекст записи (lastService, lastDate) и клиент указывает только время → это CREATE_BOOKING!
+- ВАЖНО: Всегда используй lastService, lastDate, lastStaff из контекста, НЕ меняй их!
 
 ПРАВИЛА ОТВЕТА:
 
@@ -216,6 +218,23 @@ ${previousContext.lastStaff ? `- Ранее выбран мастер: ${previou
         "service_name": "СТРИЖКА",
         "date": "завтра",
         "time": "18:00",
+        "staff_name": "Сергей"
+      }
+    }
+  ]
+}
+
+Пример 9: Указание времени утром
+Контекст: lastService="МУЖСКАЯ СТРИЖКА", lastDate="завтра", lastStaff="Сергей"
+Сообщение: "На 10 утра"
+{
+  "commands": [
+    {
+      "name": "CREATE_BOOKING",
+      "params": {
+        "service_name": "МУЖСКАЯ СТРИЖКА",
+        "date": "завтра",
+        "time": "10:00",
         "staff_name": "Сергей"
       }
     }
