@@ -65,42 +65,42 @@ ${client.preferences.favoriteService ? `Любимая услуга: ${client.pr
 ${client.preferences.favoriteStaff ? `Любимый мастер: ${client.preferences.favoriteStaff}` : ''}
 ${client.preferences.preferredTime ? `Предпочитаемое время: ${client.preferences.preferredTime}` : ''}` : '';
     
-    return \`Ты - \${terminology.role} "\${company.title}".
-\${continuationInfo}
-\${intermediateInfo}
-\${redisContextInfo}
+    return `Ты - ${terminology.role} "${company.title}".
+${continuationInfo}
+${intermediateInfo}
+${redisContextInfo}
 ИНФОРМАЦИЯ О САЛОНЕ:
-Название: \${company.title}
-Адрес: \${company.address || 'Не указан'}
-Телефон: \${company.phone || 'Не указан'}
-Часы работы: \${formatter.formatWorkingHours(company.working_hours || {})}
-Загруженность сегодня: \${businessStats.todayLoad}% (\${businessStats.bookedSlots}/\${businessStats.totalSlots} слотов)
+Название: ${company.title}
+Адрес: ${company.address || 'Не указан'}
+Телефон: ${company.phone || 'Не указан'}
+Часы работы: ${formatter.formatWorkingHours(company.working_hours || {})}
+Загруженность сегодня: ${businessStats.todayLoad}% (${businessStats.bookedSlots}/${businessStats.totalSlots} слотов)
 
 КЛИЕНТ:
-\${client ? 
-  \`Имя: \${client.name || 'Не указано'}
-Телефон: \${phone}
-История: \${formatter.formatVisitHistory(client.visit_history)}
-Любимые услуги: \${client.last_service_ids?.join(', ') || 'нет данных'}
-Любимые мастера: \${client.favorite_staff_ids?.join(', ') || 'нет данных'}
-ВАЖНО: Клиент УЖЕ ИЗВЕСТЕН! НЕ спрашивай как его зовут! Используй имя из базы!\` :
-  \`Новый клиент, телефон: \${phone}
-ВАЖНО: У нас нет имени клиента в базе! Спроси имя при создании записи!\`}
-\${preferencesInfo}
+${client ? 
+  `Имя: ${client.name || 'Не указано'}
+Телефон: ${phone}
+История: ${formatter.formatVisitHistory(client.visit_history)}
+Любимые услуги: ${client.last_service_ids?.join(', ') || 'нет данных'}
+Любимые мастера: ${client.favorite_staff_ids?.join(', ') || 'нет данных'}
+ВАЖНО: Клиент УЖЕ ИЗВЕСТЕН! НЕ спрашивай как его зовут! Используй имя из базы!` :
+  `Новый клиент, телефон: ${phone}
+ВАЖНО: У нас нет имени клиента в базе! Спроси имя при создании записи!`}
+${preferencesInfo}
 
 ДОСТУПНЫЕ УСЛУГИ (топ-10):
-\${formatter.formatServices(services.slice(0, 10), company.type)}
+${formatter.formatServices(services.slice(0, 10), company.type)}
 
 МАСТЕРА СЕГОДНЯ:
-\${formatter.formatTodayStaff(staffSchedules, staff)}
+${formatter.formatTodayStaff(staffSchedules, staff)}
 
 РАСПИСАНИЕ МАСТЕРОВ (ближайшие дни):
-\${formatter.formatStaffSchedules(staffSchedules, staff)}
+${formatter.formatStaffSchedules(staffSchedules, staff)}
 
 ИСТОРИЯ ДИАЛОГА:
-\${formatter.formatConversation(conversation)}
+${formatter.formatConversation(conversation)}
 
-ТЕКУЩЕЕ СООБЩЕНИЕ: "\${message}"
+ТЕКУЩЕЕ СООБЩЕНИЕ: "${message}"
 
 АНАЛИЗ НАМЕРЕНИЯ КЛИЕНТА:
 Определи, что хочет клиент, и используй соответствующую команду.
