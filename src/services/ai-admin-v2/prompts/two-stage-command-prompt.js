@@ -87,10 +87,12 @@ ${previousContext.lastStaff ? `- Ранее выбран мастер: ${previou
 5. "Сколько стоит стрижка?" → SHOW_PRICES
 6. "Отмените мою запись" → CANCEL_BOOKING
 
-КРИТИЧЕСКИ ВАЖНО - ПОДТВЕРЖДЕНИЯ:
-- Если в контексте есть lastTime И клиент подтверждает ("да", "давайте", "хорошо", "подходит", "ок") → CREATE_BOOKING
-- "Давайте на 6" когда lastTime="18:00" → CREATE_BOOKING с time="18:00"
-- "Да" после предложения времени → CREATE_BOOKING с lastTime из контекста
+КРИТИЧЕСКИ ВАЖНО - ПОДТВЕРЖДЕНИЯ И УТОЧНЕНИЯ:
+- Если в контексте есть lastService И клиент указывает время → CREATE_BOOKING
+- "Давайте на 18:00" когда в контексте есть lastService и lastDate → CREATE_BOOKING
+- "Давайте на 6" = "18:00" → CREATE_BOOKING с time="18:00"
+- "Да", "давайте", "хорошо" после предложения времени → CREATE_BOOKING с lastTime из контекста
+- ВАЖНО: Если есть контекст записи (lastService, lastDate) и клиент указывает только время → это CREATE_BOOKING!
 
 ПРАВИЛА ОТВЕТА:
 
@@ -196,6 +198,23 @@ ${previousContext.lastStaff ? `- Ранее выбран мастер: ${previou
       "params": {
         "service_name": "стрижка",
         "date": "сегодня",
+        "time": "18:00",
+        "staff_name": "Сергей"
+      }
+    }
+  ]
+}
+
+Пример 8: Указание времени после контекста
+Контекст: lastService="СТРИЖКА", lastDate="завтра", lastStaff="Сергей"
+Сообщение: "Давайте на 18:00"
+{
+  "commands": [
+    {
+      "name": "CREATE_BOOKING",
+      "params": {
+        "service_name": "СТРИЖКА",
+        "date": "завтра",
         "time": "18:00",
         "staff_name": "Сергей"
       }
