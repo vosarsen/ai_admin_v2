@@ -79,13 +79,13 @@ module.exports = {
       allWordsMatch: 500,                   // Баллы за совпадение всех слов
       titleContainsQuery: 80,               // Баллы если название содержит запрос
       queryContainsTitle: 70,               // Баллы если запрос содержит название
-      wordMatch: 20,                        // Баллы за каждое совпавшее слово
-      synonymMatch: 30,                     // Баллы за совпадение синонимов
+      wordMatch: 25,                        // Баллы за каждое совпавшее слово (увеличено с 20)
+      synonymMatch: 40,                     // Баллы за совпадение синонимов (увеличено с 30)
       popularServiceBonus: 5,               // Бонус за популярную услугу
-      simpleServiceBonus: 25,               // Бонус за простую услугу
-      longTitlePenalty: -20,                // Штраф за длинное название
-      complexServicePenalty: -30,           // Штраф за каждый "+" в услуге
-      premiumPenalty: -15,                  // Штраф за премиум услуги
+      simpleServiceBonus: 15,               // Бонус за простую услугу (уменьшено с 25)
+      longTitlePenalty: -5,                 // Штраф за длинное название (уменьшено с -20)
+      complexServicePenalty: -10,           // Штраф за каждый "+" в услуге (уменьшено с -30)
+      premiumPenalty: -5,                   // Штраф за премиум услуги (уменьшено с -15)
     },
     thresholds: {
       minWordLength: 2,                     // Минимальная длина значимого слова
