@@ -53,6 +53,8 @@ module.exports = {
 ${previousContext.lastService ? `- Ранее выбрана услуга: ${previousContext.lastService}` : ''}
 ${previousContext.lastTime ? `- Ранее выбрано время: ${previousContext.lastTime}` : ''}
 ${previousContext.lastStaff ? `- Ранее выбран мастер: ${previousContext.lastStaff}` : ''}
+${previousContext.lastDate ? `- Ранее выбрана дата: ${previousContext.lastDate}` : ''}
+${client?.favorite_staff_ids?.length ? `- Любимые мастера клиента: ${client.favorite_staff_ids.join(', ')} (используй только если клиент НЕ указал другого)` : ''}
 
 СООБЩЕНИЕ КЛИЕНТА: "${message}"
 
@@ -94,7 +96,8 @@ ${previousContext.lastStaff ? `- Ранее выбран мастер: ${previou
 - "Давайте на 6" = "18:00" → CREATE_BOOKING с time="18:00"
 - "Да", "давайте", "хорошо" после предложения времени → CREATE_BOOKING с lastTime из контекста
 - ВАЖНО: Если есть контекст записи (lastService, lastDate) и клиент указывает только время → это CREATE_BOOKING!
-- ВАЖНО: Всегда используй lastService, lastDate, lastStaff из контекста, НЕ меняй их!
+- ВАЖНО: Всегда используй lastService, lastDate из контекста, НЕ меняй их!
+- ВАЖНО: Если только что обсуждался конкретный мастер (например, "Сергей работает завтра"), используй ЭТОГО мастера, а не favorite_staff!
 
 ПРАВИЛА ОТВЕТА:
 
