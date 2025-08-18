@@ -249,6 +249,21 @@ class AIAdminV2 {
           contextData.lastCommand = cmd.command;
         });
         
+        // Также сохраняем информацию из результатов команд
+        if (result.commandResults && result.commandResults.length > 0) {
+          result.commandResults.forEach(cmdResult => {
+            if (cmdResult.command === 'SEARCH_SLOTS' && cmdResult.success) {
+              // Если найдены слоты, сохраняем информацию о мастере из первого слота
+              if (Array.isArray(cmdResult.data) && cmdResult.data.length > 0) {
+                const firstSlot = cmdResult.data[0];
+                if (firstSlot.staff_name && !contextData.lastStaff) {
+                  contextData.lastStaff = firstSlot.staff_name;
+                }
+              }
+            }
+          });
+        }
+        
         // Сохраняем в Redis контекст
         if (Object.keys(contextData).length > 0) {
           await contextService.setContext(normalizedPhone, companyId, {
