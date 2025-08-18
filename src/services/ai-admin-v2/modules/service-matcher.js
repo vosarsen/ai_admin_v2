@@ -156,29 +156,32 @@ class ServiceMatcher {
     }
     
     // 6. Штраф за слишком длинное название (вероятно комплексная услуга)
-    if (serviceWords.length > 5) {
-      score -= 20;
-      scoreDetails.components.push({ rule: 'long_title_penalty', points: -20, words: serviceWords.length });
+    if (serviceWords.length > config.serviceMatcher.thresholds.longTitleWords) {
+      const penalty = config.serviceMatcher.scoring.longTitlePenalty;
+      score += penalty;
+      scoreDetails.components.push({ rule: 'long_title_penalty', points: penalty, words: serviceWords.length });
     }
     
     // Дополнительный штраф за услуги с "+"
     const plusCount = (service.title.match(/\+/g) || []).length; // Используем оригинальный title для подсчета +
     if (plusCount > 0) {
-      const penalty = -30 * plusCount;
-      score += penalty; // Изменено с -= на +=, чтобы корректно добавить отрицательное значение
+      const penalty = config.serviceMatcher.scoring.complexServicePenalty * plusCount;
+      score += penalty;
       scoreDetails.components.push({ rule: 'complex_service_penalty', points: penalty, plusCount });
     }
     
     // Бонус за простые базовые услуги
-    if (serviceWords.length <= 2 && !service.title.includes('+')) {
-      score += 25;
-      scoreDetails.components.push({ rule: 'simple_service_bonus', points: 25 });
+    if (serviceWords.length <= config.serviceMatcher.thresholds.maxSimpleServiceWords && !service.title.includes('+')) {
+      const bonus = config.serviceMatcher.scoring.simpleServiceBonus;
+      score += bonus;
+      scoreDetails.components.push({ rule: 'simple_service_bonus', points: bonus });
     }
     
     // Штраф за премиум-услуги
     if (serviceTitle.includes('luxina') || serviceTitle.includes('премиум') || serviceTitle.includes('vip')) {
-      score -= 15;
-      scoreDetails.components.push({ rule: 'premium_penalty', points: -15 });
+      const penalty = config.serviceMatcher.scoring.premiumPenalty;
+      score += penalty;
+      scoreDetails.components.push({ rule: 'premium_penalty', points: penalty });
     }
     
     // 7. Бонус за популярные услуги (если есть статистика)
@@ -206,19 +209,51 @@ class ServiceMatcher {
   checkSynonyms(query, serviceTitle) {
     let score = 0;
     
-    // Словарь синонимов для beauty-индустрии
+    // Расширенный словарь синонимов для барбершопа и beauty-индустрии
     const synonymGroups = [
-      ['стрижка', 'подстричь', 'подстричься', 'постричь', 'постричься', 'стричь', 'стрич'],
+      // Стрижки
+      ['стрижка', 'подстричь', 'подстричься', 'постричь', 'постричься', 'стричь', 'стрич', 'подровнять', 'освежить'],
+      
+      // Детские услуги
+      ['детская', 'детский', 'ребенок', 'ребёнок', 'дети', 'сын', 'дочь', 'мальчик', 'девочка', 'школьник', 'подросток'],
+      
+      // Борода и усы
+      ['борода', 'бородка', 'бороды', 'моделирование', 'оформить', 'убрать', 'подровнять бороду', 'тримминг'],
+      ['усы', 'усики', 'бакенбарды'],
+      
+      // Быстрые/дешевые услуги
+      ['машинка', 'машинкой', 'быстро', 'экспресс', 'недорого', 'дешево', 'бюджетно', 'эконом', 'простая', 'обычная'],
+      
+      // Премиум услуги
+      ['ножницы', 'ножницами', 'классическая', 'премиум', 'люкс', 'вип', 'luxina'],
+      
+      // Комплексные услуги
+      ['комплекс', 'полный', 'все включено', 'всё включено', 'вместе', 'плюс', 'с бородой'],
+      
+      // Семейные
+      ['отец', 'папа', 'батя', 'семейная', 'вместе с сыном'],
+      
+      // Счастливые часы
+      ['акция', 'скидка', 'счастливые', 'выгодно', 'спецпредложение'],
+      
+      // Окрашивание/тонирование
+      ['окрашивание', 'покраска', 'красить', 'покрасить', 'цвет', 'краска', 'окраска', 'тонирование', 'тонировка', 'камуфляж'],
+      
+      // Бритье
+      ['бритье', 'побрить', 'бритва', 'выбрить', 'гладко'],
+      
+      // Общие beauty термины (оставляем для совместимости)
       ['маникюр', 'ногти', 'ноготки', 'маник'],
       ['педикюр', 'педик', 'ноги', 'стопы'],
-      ['окрашивание', 'покраска', 'красить', 'покрасить', 'цвет', 'краска', 'окраска'],
       ['укладка', 'уложить', 'прическа', 'причёска'],
       ['брови', 'бровки', 'бровей'],
       ['ресницы', 'реснички', 'ресниц'],
       ['эпиляция', 'депиляция', 'воск', 'шугаринг', 'удаление волос'],
       ['массаж', 'масаж', 'массажик'],
       ['косметология', 'косметолог', 'уход', 'чистка'],
-      ['барбер', 'барбершоп', 'мужская', 'борода', 'бороды', 'усы']
+      
+      // Общие термины барбершопа
+      ['барбер', 'барбершоп', 'мужская', 'мужской', 'парикмахер', 'цирюльник']
     ];
     
     // Находим группу синонимов для запроса
@@ -234,7 +269,7 @@ class ServiceMatcher {
         );
         
         if (serviceInGroup) {
-          score += 30; // Найдено соответствие по синонимам
+          score += config.serviceMatcher.scoring.synonymMatch; // Найдено соответствие по синонимам
           break;
         }
       }
