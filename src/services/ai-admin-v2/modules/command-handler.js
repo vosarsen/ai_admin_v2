@@ -1002,62 +1002,92 @@ class CommandHandler {
     if (message) {
       const messageLower = message.toLowerCase();
       
-      // Проверяем паттерны категорий из конфигурации
-      let categoryFound = false;
-      for (const [categoryKey, categoryConfig] of Object.entries(serviceSearchConfig.categoryPatterns)) {
-        // Проверяем, содержит ли сообщение ключевые слова категории
-        const hasKeyword = categoryConfig.keywords.some(keyword => 
-          messageLower.includes(keyword)
-        );
-        
-        if (hasKeyword) {
-          // Фильтруем услуги по ключевым словам категории
-          filteredServices = services.filter(s => {
-            const titleLower = s.title?.toLowerCase() || '';
-            return categoryConfig.keywords.some(keyword => 
-              titleLower.includes(keyword)
-            );
-          });
-          
-          if (filteredServices.length > 0) {
-            detectedCategory = categoryConfig.categoryName;
-            logger.info(`Found ${filteredServices.length} services in category: ${detectedCategory}`);
-            categoryFound = true;
-            break; // Используем первую найденную категорию
-          }
-        }
-      }
+      // УЛУЧШЕНИЕ: Используем ServiceMatcher для более точного поиска
+      // Ищем конкретную услугу или категорию
+      const searchQuery = params.service_name || params.category || message;
       
-      // Если категория не найдена, используем fuzzy matching
-      if (!categoryFound) {
-        const keywords = FuzzyMatcher.extractKeywords(message);
-        const searchQuery = keywords.join(' ') || message;
+      // Если спрашивают про конкретную услугу - используем ServiceMatcher
+      if (searchQuery && searchQuery.length > 2) {
+        // Получаем топ-20 релевантных услуг через ServiceMatcher
+        const topMatches = serviceMatcher.findTopMatches(searchQuery, services, 20);
         
-        logger.info(`Searching for services with query: "${searchQuery}"`);
-        
-        filteredServices = FuzzyMatcher.findBestMatches(searchQuery, services, serviceSearchConfig.fuzzyMatchConfig);
-        
-        // Если нашли услуги - определяем категорию по первой найденной услуге
-        if (filteredServices.length > 0) {
-          const titleLower = filteredServices[0].title?.toLowerCase() || '';
+        if (topMatches.length > 0) {
+          filteredServices = topMatches;
           
-          // Определяем категорию по паттернам
-          for (const [categoryKey, categoryConfig] of Object.entries(serviceSearchConfig.categoryPatterns)) {
-            const hasKeyword = categoryConfig.keywords.some(keyword => 
-              titleLower.includes(keyword)
-            );
-            if (hasKeyword) {
-              detectedCategory = categoryConfig.categoryName;
-              break;
+          // Определяем категорию по найденным услугам
+          const firstService = topMatches[0];
+          const titleLower = firstService.title?.toLowerCase() || '';
+          
+          // Специальная логика для стрижек
+          if (titleLower.includes('стриж')) {
+            detectedCategory = 'стрижки';
+          } else if (titleLower.includes('бород') || titleLower.includes('усы')) {
+            detectedCategory = 'борода и усы';
+          } else if (titleLower.includes('детск')) {
+            detectedCategory = 'детские услуги';
+          } else {
+            // Определяем по паттернам
+            for (const [categoryKey, categoryConfig] of Object.entries(serviceSearchConfig.categoryPatterns)) {
+              const hasKeyword = categoryConfig.keywords.some(keyword => 
+                titleLower.includes(keyword)
+              );
+              if (hasKeyword) {
+                detectedCategory = categoryConfig.categoryName;
+                break;
+              }
             }
           }
           
           if (!detectedCategory) {
-            detectedCategory = 'услуги';
+            detectedCategory = 'найденные услуги';
+          }
+          
+          logger.info(`ServiceMatcher found ${topMatches.length} services for: "${searchQuery}"`);
+        }
+      }
+      
+      // Если ServiceMatcher не нашел - используем старую логику с паттернами
+      if (filteredServices.length === 0) {
+        // Проверяем паттерны категорий из конфигурации
+        let categoryFound = false;
+        for (const [categoryKey, categoryConfig] of Object.entries(serviceSearchConfig.categoryPatterns)) {
+          // Проверяем, содержит ли сообщение ключевые слова категории
+          const hasKeyword = categoryConfig.keywords.some(keyword => 
+            messageLower.includes(keyword)
+          );
+          
+          if (hasKeyword) {
+            // Фильтруем услуги по ключевым словам категории
+            filteredServices = services.filter(s => {
+              const titleLower = s.title?.toLowerCase() || '';
+              return categoryConfig.keywords.some(keyword => 
+                titleLower.includes(keyword)
+              );
+            });
+            
+            if (filteredServices.length > 0) {
+              detectedCategory = categoryConfig.categoryName;
+              logger.info(`Found ${filteredServices.length} services in category: ${detectedCategory}`);
+              categoryFound = true;
+              break; // Используем первую найденную категорию
+            }
           }
         }
         
-        logger.info(`Found ${filteredServices.length} services using fuzzy matching`);
+        // Если категория не найдена, используем fuzzy matching
+        if (!categoryFound) {
+          const keywords = FuzzyMatcher.extractKeywords(message);
+          const searchQuery = keywords.join(' ') || message;
+          
+          logger.info(`Fallback to FuzzyMatcher with query: "${searchQuery}"`);
+          
+          filteredServices = FuzzyMatcher.findBestMatches(searchQuery, services, serviceSearchConfig.fuzzyMatchConfig);
+          
+          // Если нашли услуги - определяем категорию по первой найденной услуге
+          if (filteredServices.length > 0) {
+            detectedCategory = 'найденные услуги';
+          }
+        }
       }
     }
     
@@ -1072,26 +1102,94 @@ class CommandHandler {
     
     // Если после всех попыток ничего не нашли - показываем популярные
     if (filteredServices.length === 0) {
-      logger.info('No specific services found, returning popular ones');
+      logger.info('No specific services found, returning categorized all services');
+      // УЛУЧШЕНИЕ: Вместо случайных - показываем ВСЕ услуги категоризированно
       filteredServices = services;
-      detectedCategory = 'популярные услуги';
+      detectedCategory = 'все услуги';
     }
     
     // Сортируем по популярности и весу
     const sorted = businessLogic.sortServicesForClient(filteredServices, context.client);
     
+    // УЛУЧШЕНИЕ: Категоризируем услуги для лучшего отображения
+    const categorizedPrices = this.categorizeServices(sorted);
+    
     // Возвращаем структурированные данные
     return {
       category: detectedCategory,
       count: sorted.length,
-      prices: sorted.slice(0, 15).map(s => ({
+      prices: sorted.slice(0, 30).map(s => ({ // Увеличили лимит до 30
         title: s.title,
         price_min: s.price_min || s.price || 0,
         price_max: s.price_max || s.price || s.price_min || 0,
         duration: s.duration || 60,
         category: s.category_title
-      }))
+      })),
+      categorized: categorizedPrices // Новое поле с категоризацией
     };
+  }
+  
+  /**
+   * Категоризирует услуги для удобного отображения
+   */
+  categorizeServices(services) {
+    const categories = {
+      'Быстрые и недорогие': [],
+      'Стрижки': [],
+      'Детские услуги': [],
+      'Борода и усы': [],
+      'Комплексные услуги': [],
+      'Премиум услуги': [],
+      'Акции и спецпредложения': [],
+      'Другие услуги': []
+    };
+    
+    services.forEach(service => {
+      const titleLower = service.title?.toLowerCase() || '';
+      const price = service.price || service.price_min || 0;
+      
+      // Быстрые и недорогие (до 1500₽ или машинкой)
+      if (price <= 1500 || titleLower.includes('машинк') || titleLower.includes('экспресс')) {
+        categories['Быстрые и недорогие'].push(service);
+      }
+      // Детские
+      else if (titleLower.includes('детск') || titleLower.includes('ребен') || titleLower.includes('сын')) {
+        categories['Детские услуги'].push(service);
+      }
+      // Борода
+      else if (titleLower.includes('бород') || titleLower.includes('усы') || titleLower.includes('бритье')) {
+        categories['Борода и усы'].push(service);
+      }
+      // Комплексные (содержат +)
+      else if (service.title?.includes('+')) {
+        categories['Комплексные услуги'].push(service);
+      }
+      // Премиум
+      else if (titleLower.includes('luxina') || titleLower.includes('премиум') || titleLower.includes('vip') || price >= 4000) {
+        categories['Премиум услуги'].push(service);
+      }
+      // Акции
+      else if (titleLower.includes('счастлив') || titleLower.includes('акци') || titleLower.includes('скидк')) {
+        categories['Акции и спецпредложения'].push(service);
+      }
+      // Стрижки
+      else if (titleLower.includes('стриж')) {
+        categories['Стрижки'].push(service);
+      }
+      // Другие
+      else {
+        categories['Другие услуги'].push(service);
+      }
+    });
+    
+    // Удаляем пустые категории
+    Object.keys(categories).forEach(key => {
+      if (categories[key].length === 0) {
+        delete categories[key];
+      }
+    });
+    
+    return categories;
   }
 
   /**
