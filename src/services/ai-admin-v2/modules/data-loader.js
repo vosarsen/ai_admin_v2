@@ -187,6 +187,25 @@ class DataLoader {
       
       if (data) {
         logger.info(`✅ Client found: ${data.name} (${data.phone})`);
+        
+        // Маппинг полей для совместимости с персонализацией
+        if (data.visit_history) {
+          data.visits = data.visit_history; // Для ServiceMatcher.calculatePersonalizationScore
+        }
+        if (data.services_amount) {
+          data.average_check = Math.round(data.services_amount / (data.visit_count || 1));
+        }
+        // favorite_services пока не храним в БД, но можем извлечь из last_services
+        if (data.last_services && Array.isArray(data.last_services)) {
+          // Пытаемся найти ID услуг по названиям (временное решение)
+          data.favorite_services = [];
+        }
+        
+        logger.debug(`Client data mapped for personalization:`, {
+          has_visits: !!data.visits,
+          visit_count: data.visit_count,
+          average_check: data.average_check
+        });
       } else {
         logger.debug(`No client found for raw_phone: ${phoneWithPlus}`);
       }

@@ -315,6 +315,14 @@ class ServiceMatcher {
   findTopMatchesWithPersonalization(query, services, client, limit = 10) {
     if (!query || !services?.length) return [];
     
+    logger.info('🎯 Personalized search activated:', {
+      query,
+      client_name: client?.name,
+      visit_count: client?.visit_count || 0,
+      has_visits: !!client?.visits,
+      average_check: client?.average_check
+    });
+    
     const normalizedQuery = this.normalizeText(query);
     
     // Получаем базовые оценки
@@ -354,6 +362,12 @@ class ServiceMatcher {
     let reasons = [];
     
     if (!client) return { score: 0, reason: null };
+    
+    logger.debug('Calculating personalization for service:', {
+      service: service.title,
+      client_visits: client.visits?.length || 0,
+      client_avg_check: client.average_check
+    });
     
     // 1. Любимые услуги (часто заказываемые)
     if (client.visits && client.visits.length > 0) {
