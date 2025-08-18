@@ -303,6 +303,249 @@ class ServiceMatcher {
       .slice(0, limit)
       .map(s => s.service);
   }
+  
+  /**
+   * Поиск услуг с учетом персонализации
+   * @param {string} query - Запрос клиента
+   * @param {Service[]} services - Массив услуг
+   * @param {Object} client - Информация о клиенте
+   * @param {number} [limit=10] - Максимальное количество результатов
+   * @returns {Service[]} - Массив услуг с персонализацией
+   */
+  findTopMatchesWithPersonalization(query, services, client, limit = 10) {
+    if (!query || !services?.length) return [];
+    
+    const normalizedQuery = this.normalizeText(query);
+    
+    // Получаем базовые оценки
+    const scoredServices = services.map(service => {
+      const baseScore = this.calculateMatchScore(normalizedQuery, service);
+      const personalizationBoost = this.calculatePersonalizationScore(service, client);
+      const timeBoost = this.calculateTimeBasedScore(service);
+      const genderPenalty = this.calculateGenderPenalty(service, client);
+      
+      return {
+        ...service,
+        base_score: baseScore,
+        personalization_boost: personalizationBoost.score,
+        personalization_reason: personalizationBoost.reason,
+        time_boost: timeBoost.score,
+        time_reason: timeBoost.reason,
+        gender_penalty: genderPenalty,
+        final_score: baseScore + personalizationBoost.score + timeBoost.score - genderPenalty
+      };
+    });
+    
+    // Фильтруем и сортируем
+    return scoredServices
+      .filter(s => s.final_score > 0)
+      .sort((a, b) => b.final_score - a.final_score)
+      .slice(0, limit);
+  }
+  
+  /**
+   * Рассчитать персонализированный бонус на основе истории клиента
+   * @param {Service} service - Услуга
+   * @param {Object} client - Информация о клиенте
+   * @returns {{score: number, reason: string}} - Бонус и причина
+   */
+  calculatePersonalizationScore(service, client) {
+    let score = 0;
+    let reasons = [];
+    
+    if (!client) return { score: 0, reason: null };
+    
+    // 1. Любимые услуги (часто заказываемые)
+    if (client.visits && client.visits.length > 0) {
+      const serviceCount = client.visits.filter(v => v.service_id === service.id).length;
+      
+      if (serviceCount >= 3) {
+        score += 100; // Большой бонус за частую услугу
+        reasons.push(`часто заказываете (${serviceCount} раз)`);
+      } else if (serviceCount >= 1) {
+        score += 30; // Средний бонус за знакомую услугу
+        reasons.push('заказывали ранее');
+      }
+      
+      // Недавно заказанная услуга
+      const lastVisit = client.visits
+        .filter(v => v.service_id === service.id)
+        .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+      
+      if (lastVisit) {
+        const daysSince = Math.floor((Date.now() - new Date(lastVisit.date)) / (1000 * 60 * 60 * 24));
+        
+        // Если прошло примерно месяц - время повторить
+        if (daysSince >= 25 && daysSince <= 35) {
+          score += 50;
+          reasons.push('пора обновить стрижку');
+        }
+      }
+    }
+    
+    // 2. Учет среднего чека
+    if (client.average_check && client.average_check > 0) {
+      const priceDiff = Math.abs(service.price - client.average_check);
+      const priceRatio = priceDiff / client.average_check;
+      
+      // Бонус за услуги в привычном ценовом диапазоне
+      if (priceRatio < 0.3) { // В пределах 30% от среднего чека
+        score += 20;
+        reasons.push('в вашем ценовом диапазоне');
+      }
+      // Штраф за слишком дорогие услуги
+      else if (service.price > client.average_check * 2) {
+        score -= 30;
+        reasons.push('дороже обычного');
+      }
+    }
+    
+    // 3. Учет любимых услуг (если указаны явно)
+    if (client.favorite_services && client.favorite_services.includes(service.id)) {
+      score += 80;
+      reasons.push('ваша любимая услуга');
+    }
+    
+    // 4. Для родителей - бонус детским услугам
+    if (client.visits && client.visits.some(v => v.service_name && v.service_name.toLowerCase().includes('детск'))) {
+      if (service.title.toLowerCase().includes('детск') || service.title.toLowerCase().includes('сын')) {
+        score += 40;
+        reasons.push('для вашего ребенка');
+      }
+    }
+    
+    return {
+      score,
+      reason: reasons.length > 0 ? reasons.join(', ') : null
+    };
+  }
+  
+  /**
+   * Рассчитать бонус/штраф на основе времени суток и дня недели
+   * @param {Service} service - Услуга
+   * @returns {{score: number, reason: string}} - Бонус/штраф и причина
+   */
+  calculateTimeBasedScore(service) {
+    const now = new Date();
+    const hour = now.getHours();
+    const dayOfWeek = now.getDay(); // 0 = Sunday, 5 = Friday, 6 = Saturday
+    
+    let score = 0;
+    let reasons = [];
+    
+    // Утреннее время (7-10) - предпочтение быстрым услугам
+    if (hour >= 7 && hour < 10) {
+      if (service.duration && service.duration <= 30) {
+        score += 30;
+        reasons.push('быстрая услуга для утра');
+      }
+      if (service.title.toLowerCase().includes('машинк') || service.title.toLowerCase().includes('экспресс')) {
+        score += 20;
+        reasons.push('экспресс для утра');
+      }
+      // Штраф для долгих услуг утром
+      if (service.title.includes('+') || (service.duration && service.duration > 90)) {
+        score -= 20;
+        reasons.push('слишком долго для утра');
+      }
+    }
+    
+    // Вечер пятницы/субботы (17-21) - готовы на комплексные услуги
+    if ((dayOfWeek === 5 || dayOfWeek === 6) && hour >= 17 && hour <= 21) {
+      if (service.title.includes('+')) {
+        score += 30;
+        reasons.push('комплекс для выходных');
+      }
+      if (service.price >= 3500) {
+        score += 15;
+        reasons.push('премиум для вечера выходных');
+      }
+    }
+    
+    // Обеденное время (12-14) - быстрые услуги
+    if (hour >= 12 && hour < 14) {
+      if (service.duration && service.duration <= 45) {
+        score += 20;
+        reasons.push('успеете в обед');
+      }
+    }
+    
+    // Поздний вечер (после 20) - только быстрые
+    if (hour >= 20) {
+      if (service.duration && service.duration <= 30) {
+        score += 25;
+        reasons.push('быстро перед закрытием');
+      }
+      if (service.duration && service.duration > 60) {
+        score -= 30;
+        reasons.push('слишком поздно для долгой услуги');
+      }
+    }
+    
+    return {
+      score,
+      reason: reasons.length > 0 ? reasons.join(', ') : null
+    };
+  }
+  
+  /**
+   * Рассчитать штраф за несоответствие полу клиента
+   * @param {Service} service - Услуга
+   * @param {Object} client - Информация о клиенте
+   * @returns {number} - Штраф
+   */
+  calculateGenderPenalty(service, client) {
+    if (!client || !client.gender) return 0;
+    
+    const serviceTitle = service.title.toLowerCase();
+    let penalty = 0;
+    
+    // Для мужчин
+    if (client.gender === 'male') {
+      if (serviceTitle.includes('женск') || serviceTitle.includes('дамск')) {
+        penalty = 100; // Большой штраф за женские услуги
+      }
+      if (serviceTitle.includes('маникюр') || serviceTitle.includes('педикюр')) {
+        penalty = 50; // Средний штраф (некоторые мужчины делают)
+      }
+    }
+    
+    // Для женщин
+    if (client.gender === 'female') {
+      if (serviceTitle.includes('мужск') || serviceTitle.includes('барбер')) {
+        penalty = 100; // Большой штраф за мужские услуги
+      }
+      if (serviceTitle.includes('борода') || serviceTitle.includes('усы')) {
+        penalty = 150; // Очень большой штраф за услуги для бороды
+      }
+    }
+    
+    return penalty;
+  }
+  
+  /**
+   * Получить рекомендации на основе времени суток
+   * @param {Service[]} services - Массив услуг
+   * @returns {Service[]} - Отсортированные услуги
+   */
+  getTimeBasedRecommendations(services) {
+    if (!services || services.length === 0) return [];
+    
+    // Добавляем временные бонусы к каждой услуге
+    const servicesWithTimeScore = services.map(service => {
+      const timeBoost = this.calculateTimeBasedScore(service);
+      return {
+        ...service,
+        time_score: timeBoost.score,
+        time_reason: timeBoost.reason
+      };
+    });
+    
+    // Сортируем по временному score
+    return servicesWithTimeScore
+      .sort((a, b) => b.time_score - a.time_score)
+      .filter(s => s.time_score > 0);
+  }
 }
 
 module.exports = new ServiceMatcher();

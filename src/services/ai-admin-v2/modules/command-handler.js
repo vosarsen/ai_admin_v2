@@ -277,11 +277,24 @@ class CommandHandler {
    * Поиск свободных слотов
    */
   async searchSlots(params, context) {
-    // Используем интеллектуальный поиск услуги
-    const service = serviceMatcher.findBestMatch(
-      params.service_name || '', 
-      context.services
-    );
+    // ПЕРСОНАЛИЗАЦИЯ: Используем интеллектуальный поиск услуги с учетом истории
+    let service;
+    if (context.client) {
+      // Если есть информация о клиенте - используем персонализацию
+      const matches = serviceMatcher.findTopMatchesWithPersonalization(
+        params.service_name || '',
+        context.services,
+        context.client,
+        1
+      );
+      service = matches[0] || null;
+    } else {
+      // Иначе используем обычный поиск
+      service = serviceMatcher.findBestMatch(
+        params.service_name || '', 
+        context.services
+      );
+    }
     
     if (!service) {
       logger.warn('Service not found for query:', params.service_name);
@@ -591,10 +604,30 @@ class CommandHandler {
     // Если передан service_name вместо service_id, ищем услугу
     let serviceId = params.service_id;
     if (params.service_name && !params.service_id) {
-      const service = serviceMatcher.findBestMatch(
-        params.service_name, 
-        context.services
-      );
+      // ПЕРСОНАЛИЗАЦИЯ: Используем персонализированный поиск для CREATE_BOOKING
+      let service;
+      if (context.client) {
+        const matches = serviceMatcher.findTopMatchesWithPersonalization(
+          params.service_name,
+          context.services,
+          context.client,
+          1
+        );
+        service = matches[0] || null;
+        if (service && service.personalization_reason) {
+          logger.info('Personalized service selection:', {
+            query: params.service_name,
+            found: service.title,
+            reason: service.personalization_reason
+          });
+        }
+      } else {
+        service = serviceMatcher.findBestMatch(
+          params.service_name, 
+          context.services
+        );
+      }
+      
       if (service) {
         serviceId = service.yclients_id;
         logger.info('Found service by name:', { 
@@ -1008,8 +1041,10 @@ class CommandHandler {
       
       // Если спрашивают про конкретную услугу - используем ServiceMatcher
       if (searchQuery && searchQuery.length > 2) {
-        // Получаем топ-20 релевантных услуг через ServiceMatcher
-        const topMatches = serviceMatcher.findTopMatches(searchQuery, services, 20);
+        // ПЕРСОНАЛИЗАЦИЯ: Используем ServiceMatcher с учетом истории клиента
+        const topMatches = context.client 
+          ? serviceMatcher.findTopMatchesWithPersonalization(searchQuery, services, context.client, 20)
+          : serviceMatcher.findTopMatches(searchQuery, services, 20);
         
         if (topMatches.length > 0) {
           filteredServices = topMatches;
