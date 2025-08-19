@@ -156,13 +156,25 @@ module.exports = {
     if (lastMessageDate) {
       // Новая логика - проверяем дату
       isFirstMessageToday = lastMessageDate !== today;
+      console.log('📅 Greeting check:', {
+        lastMessageDate,
+        today,
+        isFirstMessageToday,
+        comparison: `"${lastMessageDate}" !== "${today}"`
+      });
     } else if (lastActivity) {
       // Fallback для старых контекстов - проверяем прошло ли больше 12 часов
       const hoursSinceLastActivity = (Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60);
       isFirstMessageToday = hoursSinceLastActivity > 12;
+      console.log('⏰ Greeting check (fallback):', {
+        lastActivity,
+        hoursSinceLastActivity,
+        isFirstMessageToday
+      });
     } else {
       // Нет никакой информации - приветствуем
       isFirstMessageToday = true;
+      console.log('🆕 Greeting check: No context, will greet');
     }
     
     // Определяем время суток по московскому времени
