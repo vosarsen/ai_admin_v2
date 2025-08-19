@@ -50,7 +50,7 @@ class ContextService {
     }
     
     const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
-    const contextKey = `${companyId}:${normalizedPhone}`;
+    const contextKey = `context:${companyId}:${normalizedPhone}`;
     
     try {
       // Get all context data in parallel
@@ -137,7 +137,7 @@ class ContextService {
    */
   async updateContext(phone, companyId, update) {
     const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
-    const contextKey = `${companyId}:${normalizedPhone}`;
+    const contextKey = `context:${companyId}:${normalizedPhone}`;
     
     try {
       // Update last message
@@ -380,7 +380,7 @@ class ContextService {
    */
   async setContext(phone, companyId, contextData) {
     const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
-    const contextKey = `${companyId}:${normalizedPhone}`;
+    const contextKey = `context:${companyId}:${normalizedPhone}`;
     
     try {
       // Получаем текущий контекст для проверки времени последней активности
@@ -485,7 +485,7 @@ class ContextService {
    */
   async canContinueConversation(phone, companyId) {
     const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
-    const contextKey = `${companyId}:${normalizedPhone}`;
+    const contextKey = `context:${companyId}:${normalizedPhone}`;
     
     try {
       // Check if context exists
@@ -512,7 +512,7 @@ class ContextService {
    */
   async getConversationSummary(phone, companyId) {
     const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
-    const contextKey = `${companyId}:${normalizedPhone}`;
+    const contextKey = `context:${companyId}:${normalizedPhone}`;
     
     try {
       const [messages, lastBooking, preferences] = await Promise.all([
