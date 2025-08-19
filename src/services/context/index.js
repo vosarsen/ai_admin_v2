@@ -114,7 +114,10 @@ class ContextService {
         lastBooking,
         timestamp: new Date().toISOString(),
         // Добавляем сохраненное имя для обратной совместимости
-        clientName: finalClient?.name || contextData?.clientName
+        clientName: finalClient?.name || contextData?.clientName,
+        // Добавляем дату последнего сообщения для проверки приветствий
+        lastMessageDate: contextData?.lastMessageDate,
+        lastActivity: contextData?.lastActivity
       };
     } catch (error) {
       logger.error('Failed to get context:', error);
@@ -414,10 +417,12 @@ class ContextService {
       }
       
       // Save main context data - использовать правильный формат для hset
+      const now = new Date();
       await this.redis.hset(contextKey, 
         'phone', normalizedPhone,
         'companyId', companyId,
-        'lastActivity', new Date().toISOString(),
+        'lastActivity', now.toISOString(),
+        'lastMessageDate', now.toDateString(), // Сохраняем дату для проверки приветствий
         'state', contextData.state || 'active',
         'data', JSON.stringify(dataToSave)
       );

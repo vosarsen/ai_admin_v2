@@ -138,7 +138,8 @@ module.exports = {
       commandResults,
       executedCommands,
       intermediateContext,
-      lastActivity
+      lastActivity,
+      lastMessageDate
     } = context;
     
     // Форматируем результаты команд для промпта
@@ -147,9 +148,9 @@ module.exports = {
     // Определяем, это продолжение диалога или новый
     const isConversationContinuation = intermediateContext?.isRecent;
     
-    // Проверяем, прошло ли больше суток с последней активности
-    const isFirstMessageToday = !lastActivity || 
-      (Date.now() - new Date(lastActivity).getTime()) > 24 * 60 * 60 * 1000;
+    // Проверяем, нужно ли приветствие (если дата отличается от последнего сообщения)
+    const today = new Date().toDateString();
+    const isFirstMessageToday = !lastMessageDate || lastMessageDate !== today;
     
     return `Ты - администратор салона красоты "${company.title}".
 

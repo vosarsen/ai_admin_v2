@@ -95,7 +95,8 @@ class TwoStageProcessor {
         commandResults,
         executedCommands,
         intermediateContext: context.intermediateContext,
-        lastActivity: context.redisContext?.lastActivity || context.lastActivity
+        lastActivity: context.redisContext?.lastActivity || context.lastActivity,
+        lastMessageDate: context.redisContext?.lastMessageDate || context.lastMessageDate
       });
       
       // Вызываем AI для генерации ответа
