@@ -142,6 +142,11 @@ class CachedDataLoader {
     const intermediateContext = require('../../context/intermediate-context');
     const intermediate = await intermediateContext.getIntermediateContext(phone);
     
+    // Загружаем Redis контекст для доступа к lastActivity и lastMessageDate
+    const contextService = require('../../context');
+    const cleanPhone = phone.replace('@c.us', '');
+    const redisContext = await contextService.getContext(cleanPhone, companyId);
+    
     const context = {
       phone,
       company,
@@ -154,6 +159,7 @@ class CachedDataLoader {
       conversation,
       companyId,
       intermediateContext: intermediate,
+      redisContext, // Добавляем Redis контекст для доступа к lastActivity и lastMessageDate
       startTime,
       loadTime: Date.now() - startTime
     };

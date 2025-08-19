@@ -87,7 +87,8 @@ class TwoStageProcessor {
       const stage2Start = Date.now();
       logger.info('💬 Stage 2: Response generation');
       
-      // Строим промпт для генерации ответа
+      // Строим промпт для генерации ответа  
+      // redisContext содержит lastActivity и lastMessageDate на верхнем уровне
       const responsePromptText = this.responsePrompt.getPrompt({
         message,
         company: context.company,
