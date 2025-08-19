@@ -150,7 +150,35 @@ module.exports = {
     
     // Проверяем, нужно ли приветствие (если дата отличается от последнего сообщения)
     const today = new Date().toDateString();
-    const isFirstMessageToday = !lastMessageDate || lastMessageDate !== today;
+    // Если lastMessageDate нет (старый контекст), проверяем lastActivity
+    let isFirstMessageToday = false;
+    
+    if (lastMessageDate) {
+      // Новая логика - проверяем дату
+      isFirstMessageToday = lastMessageDate !== today;
+    } else if (lastActivity) {
+      // Fallback для старых контекстов - проверяем прошло ли больше 12 часов
+      const hoursSinceLastActivity = (Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60);
+      isFirstMessageToday = hoursSinceLastActivity > 12;
+    } else {
+      // Нет никакой информации - приветствуем
+      isFirstMessageToday = true;
+    }
+    
+    // Определяем время суток по московскому времени
+    const moscowTime = new Date().toLocaleString("en-US", { timeZone: "Europe/Moscow" });
+    const moscowHour = new Date(moscowTime).getHours();
+    
+    let timeOfDay;
+    if (moscowHour >= 6 && moscowHour < 12) {
+      timeOfDay = 'morning';
+    } else if (moscowHour >= 12 && moscowHour < 18) {
+      timeOfDay = 'afternoon';
+    } else if (moscowHour >= 18 && moscowHour < 24) {
+      timeOfDay = 'evening';
+    } else {
+      timeOfDay = 'night';
+    }
     
     return `Ты - администратор салона красоты "${company.title}".
 
@@ -172,7 +200,7 @@ ${formattedResults}
 
 ПРАВИЛА ОТВЕТА:
 
-1. ОБЯЗАТЕЛЬНОЕ ПРИВЕТСТВИЕ если это первое сообщение за сутки (${isFirstMessageToday ? '✅ ДА, НУЖНО ПРИВЕТСТВИЕ' : 'нет, продолжение диалога'})
+1. ОБЯЗАТЕЛЬНОЕ ПРИВЕТСТВИЕ если это первое сообщение за сутки (${isFirstMessageToday ? `✅ ДА, НУЖНО ПРИВЕТСТВИЕ (время суток: ${timeOfDay === 'morning' ? 'утро' : timeOfDay === 'afternoon' ? 'день' : timeOfDay === 'evening' ? 'вечер' : 'ночь'})` : 'нет, продолжение диалога'})
 2. БЕЗ ПРИВЕТСТВИЯ если это продолжение диалога в течение дня
 3. ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙ результаты выполненных команд в ответе
 4. Если выполнена команда SHOW_PRICES - покажи ТОЛЬКО те услуги, которые запросил клиент

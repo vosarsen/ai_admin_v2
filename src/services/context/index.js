@@ -162,6 +162,13 @@ class ContextService {
         }));
       }
       
+      // Always update lastActivity and lastMessageDate
+      const now = new Date();
+      await this.redis.hset(contextKey, 
+        'lastActivity', now.toISOString(),
+        'lastMessageDate', now.toDateString()
+      );
+      
       // Refresh TTL
       await this.redis.expire(contextKey, this.contextTTL);
       
