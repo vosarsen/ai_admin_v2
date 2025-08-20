@@ -17,7 +17,8 @@ const twoStageProcessor = require('./modules/two-stage-processor');
 // ResponseProcessor удален - используем commandHandler напрямую
 const { ErrorHandler, BookingError, ContextError, ValidationError } = require('./modules/error-handler');
 const MessageProcessor = require('./modules/message-processor');
-const contextManager = require('./modules/context-manager');
+// Используем новый context-manager-v2
+const contextManager = require('./modules/context-manager-v2');
 const performanceMetrics = require('./modules/performance-metrics');
 const prometheusMetrics = require('./modules/prometheus-metrics');
 const ClientPersonalizationService = require('../personalization/client-personalization');
@@ -102,8 +103,8 @@ class AIAdminV2 {
       // 2. Проверяем и ждем завершения предыдущей обработки
       await this.messageProcessor.checkAndWaitForPreviousProcessing(phone);
       
-      // 3. Загружаем полный контекст
-      context = await this.messageProcessor.loadContext(phone, companyId);
+      // 3. Загружаем полный контекст через новый context manager
+      context = await contextManager.loadFullContext(phone, companyId);
       
       // 4. Сохраняем промежуточный контекст
       await intermediateContext.saveProcessingStart(phone, message, context);
@@ -212,80 +213,57 @@ class AIAdminV2 {
       const responseForContext = useTwoStage ? finalResponse : (typeof aiResponse !== 'undefined' ? aiResponse : finalResponse);
       await intermediateContext.updateAfterAIAnalysis(phone, responseForContext, result.executedCommands || []);
       
-      // Сохраняем сообщения в контекст
-      await contextService.updateContext(phone.replace('@c.us', ''), companyId, {
-        lastMessage: {
-          sender: 'user',
-          text: message,
-          timestamp: new Date().toISOString()
-        }
-      });
+      // НОВЫЙ ПОДХОД: Единое атомарное сохранение контекста
+      const normalizedPhone = phone.replace('@c.us', '');
       
-      await contextService.updateContext(phone.replace('@c.us', ''), companyId, {
-        lastMessage: {
-          sender: 'bot',
-          text: result.response,
-          timestamp: new Date().toISOString()
-        },
-        // Сохраняем контекст диалога, включая последнего упомянутого мастера
-        ...(context.conversationContext && { conversationContext: context.conversationContext })
-      });
+      // Собираем все данные для сохранения
+      const contextUpdates = {
+        userMessage: message,
+        botResponse: result.response,
+        state: 'active'
+      };
       
-      // Сохраняем информацию о выбранных услуге и времени из выполненных команд
+      // Извлекаем информацию о выборе из команд
       if (result.executedCommands && result.executedCommands.length > 0) {
-        const normalizedPhone = phone.replace('@c.us', '');
-        const contextData = {};
+        const selection = {};
         
-        // Извлекаем информацию из выполненных команд
         result.executedCommands.forEach(cmd => {
           if (cmd.params?.service_name) {
-            contextData.lastService = cmd.params.service_name;
-          }
-          if (cmd.params?.time) {
-            contextData.lastTime = cmd.params.time;
+            selection.service = cmd.params.service_name;
           }
           if (cmd.params?.staff_name) {
-            contextData.lastStaff = cmd.params.staff_name;
+            selection.staff = cmd.params.staff_name;
+          }
+          if (cmd.params?.time) {
+            selection.time = cmd.params.time;
           }
           if (cmd.params?.date) {
-            contextData.lastDate = cmd.params.date;
+            selection.date = cmd.params.date;
           }
-          contextData.lastCommand = cmd.command;
         });
         
-        // Также сохраняем информацию из результатов команд
-        if (result.commandResults && result.commandResults.length > 0) {
-          result.commandResults.forEach(cmdResult => {
-            if (cmdResult.command === 'SEARCH_SLOTS' && cmdResult.success) {
-              // Если найдены слоты, сохраняем информацию о мастере из первого слота
-              if (Array.isArray(cmdResult.data) && cmdResult.data.length > 0) {
-                const firstSlot = cmdResult.data[0];
-                if (firstSlot.staff_name && !contextData.lastStaff) {
-                  contextData.lastStaff = firstSlot.staff_name;
-                }
-              }
-            }
-          });
-        }
-        
-        // Сохраняем в Redis контекст
-        if (Object.keys(contextData).length > 0) {
-          logger.info('Saving context data to Redis:', {
-            phone: normalizedPhone,
-            companyId,
-            contextData,
-            keys: Object.keys(contextData)
-          });
-          await contextService.setContext(normalizedPhone, companyId, {
-            data: contextData,
-            state: 'active'
-          });
-          logger.info('Context data saved:', contextData);
+        if (Object.keys(selection).length > 0) {
+          contextUpdates.selection = selection;
         }
       }
       
-      // Сохраняем контекст диалога
-      await contextManager.saveContext(context);
+      // Сохраняем имя клиента если оно было извлечено
+      if (context.client?.name && !context.client?.fromDatabase) {
+        contextUpdates.clientName = context.client.name;
+      }
+      
+      // Единый вызов для сохранения всего контекста
+      await contextManager.saveContext(normalizedPhone, companyId, contextUpdates);
+      
+      // Сохраняем контекст из команд (включая результаты)
+      if (result.executedCommands && result.executedCommands.length > 0) {
+        await contextManager.saveCommandContext(
+          normalizedPhone, 
+          companyId, 
+          result.executedCommands,
+          result.commandResults
+        );
+      }
       
       // Помечаем обработку как завершенную
       await intermediateContext.markAsCompleted(phone, result);
