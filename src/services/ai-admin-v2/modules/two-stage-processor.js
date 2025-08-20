@@ -44,6 +44,12 @@ class TwoStageProcessor {
         intermediateContext: context.intermediateContext
       });
       
+      // ОТЛАДКА: Логируем ключевые части промпта для диагностики
+      logger.debug(`📝 Stage 1 Context: phone=${context.phone}, message="${message}"`);
+      if (context.redisContext?.data) {
+        logger.debug(`📝 Stage 1 Redis Context: ${context.redisContext.data}`);
+      }
+      
       // Вызываем AI для извлечения команд
       const commandsResponse = await aiService.callAI(commandPromptText, {
         message: message,
