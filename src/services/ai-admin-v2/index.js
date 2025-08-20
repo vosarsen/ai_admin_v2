@@ -141,6 +141,8 @@ class AIAdminV2 {
       let finalResponse;
       let executedCommands = [];
       
+      let commandResults = []; // Добавляем переменную для результатов команд
+      
       if (useTwoStage) {
         // Используем новый двухэтапный процессор
         logger.info('🎯 Using Two-Stage processor for fast response');
@@ -152,6 +154,7 @@ class AIAdminV2 {
         
         finalResponse = twoStageResult.response;
         executedCommands = twoStageResult.commands;
+        commandResults = twoStageResult.commandResults || []; // Сохраняем результаты команд
         
         logger.info(`✅ Two-Stage completed in 2 iterations with ${twoStageResult.metrics.totalTime}ms`);
       } else if (useReAct) {
@@ -192,6 +195,7 @@ class AIAdminV2 {
         success: true,
         response: finalResponse,
         executedCommands: executedCommands,
+        commandResults: commandResults, // Добавляем результаты команд для сохранения контекста
         results: []
       };
       
