@@ -106,6 +106,9 @@ class AIAdminV2 {
       // 3. Загружаем полный контекст через новый context manager
       context = await contextManager.loadFullContext(phone, companyId);
       
+      // КРИТИЧНО: Добавляем Redis контекст в полный контекст для Stage 1
+      context.redisContext = redisContext;
+      
       // 4. Сохраняем промежуточный контекст
       await intermediateContext.saveProcessingStart(phone, message, context);
       
