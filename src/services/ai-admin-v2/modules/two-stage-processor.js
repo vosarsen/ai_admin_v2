@@ -46,8 +46,9 @@ class TwoStageProcessor {
       
       // ОТЛАДКА: Логируем ключевые части промпта для диагностики
       logger.debug(`📝 Stage 1 Context: phone=${context.phone}, message="${message}"`);
+      logger.debug(`📝 Stage 1 Redis Context: ${JSON.stringify(context.redisContext)}`);
       if (context.redisContext?.data) {
-        logger.debug(`📝 Stage 1 Redis Context: ${context.redisContext.data}`);
+        logger.debug(`📝 Stage 1 Redis Data: ${context.redisContext.data}`);
       }
       
       // Вызываем AI для извлечения команд
