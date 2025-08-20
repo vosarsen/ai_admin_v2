@@ -145,6 +145,7 @@ class ContextServiceV2 {
       // 2. Умное слияние selection (не теряем выбор клиента)
       let selection = existing.selection ? JSON.parse(existing.selection) : {};
       if (updates.selection) {
+        // Сохраняем старые значения если новые не переданы
         selection = {
           ...selection,  // Сохраняем старый выбор
           ...updates.selection,  // Добавляем новый
@@ -154,6 +155,13 @@ class ContextServiceV2 {
           time: updates.selection.time !== undefined ? updates.selection.time : selection.time,
           date: updates.selection.date !== undefined ? updates.selection.date : selection.date,
         };
+        
+        // Логируем для отладки
+        logger.debug('Selection merge result:', {
+          oldSelection: existing.selection ? JSON.parse(existing.selection) : {},
+          newSelection: updates.selection,
+          mergedSelection: selection
+        });
       }
       
       // 3. Подготавливаем данные для сохранения

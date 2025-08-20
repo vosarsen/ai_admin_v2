@@ -221,6 +221,8 @@ class ContextManagerV2 {
       }
       if (cmd.params?.date) {
         selection.date = cmd.params.date;
+        // Важно: сохраняем дату из SEARCH_SLOTS чтобы AI помнил какой день обсуждался
+        logger.info(`Saving date from ${cmd.command}: ${cmd.params.date}`);
       }
     });
     
