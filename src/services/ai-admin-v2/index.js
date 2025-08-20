@@ -270,6 +270,12 @@ class AIAdminV2 {
         
         // Сохраняем в Redis контекст
         if (Object.keys(contextData).length > 0) {
+          logger.info('Saving context data to Redis:', {
+            phone: normalizedPhone,
+            companyId,
+            contextData,
+            keys: Object.keys(contextData)
+          });
           await contextService.setContext(normalizedPhone, companyId, {
             data: contextData,
             state: 'active'
