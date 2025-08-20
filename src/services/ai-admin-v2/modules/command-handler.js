@@ -298,8 +298,8 @@ class CommandHandler {
     
     if (!service) {
       logger.warn('Service not found for query:', params.service_name);
-      // Возвращаем пустой массив слотов вместо использования первой услуги
-      return [];
+      // Возвращаем корректную структуру с пустыми слотами
+      return { service: null, staff: null, slots: [] };
     }
     
     logger.info('Found service for query:', {

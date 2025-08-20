@@ -209,6 +209,19 @@ class ServiceMatcher {
   checkSynonyms(query, serviceTitle) {
     let score = 0;
     
+    // Специальная проверка для детских услуг - высокий приоритет
+    const childKeywords = ['ребенок', 'ребёнок', 'дети', 'сын', 'дочь', 'мальчик', 'девочка', 'школьник', 'подросток', 'ребенка', 'сына', 'дочку'];
+    const hasChildKeyword = childKeywords.some(keyword => query.includes(keyword));
+    const isChildService = serviceTitle.includes('детск');
+    
+    if (hasChildKeyword && isChildService) {
+      // Большой бонус если упоминается ребенок и это детская услуга
+      return 100;
+    } else if (hasChildKeyword && !isChildService) {
+      // Штраф если упоминается ребенок, но это НЕ детская услуга
+      return -50;
+    }
+    
     // Расширенный словарь синонимов для барбершопа и beauty-индустрии
     const synonymGroups = [
       // Стрижки
