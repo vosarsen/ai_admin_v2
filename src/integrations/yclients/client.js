@@ -241,6 +241,11 @@ class YclientsClient {
           ...params
         };
         
+        // Исправляем service_id если он передан как вложенный объект
+        if (queryParams.service_id && typeof queryParams.service_id === 'object') {
+          queryParams.service_id = queryParams.service_id.service_id;
+        }
+        
         const endpoint = YclientsClient.ENDPOINTS.bookTimes(companyId, staffId, date);
         const fullUrl = `${this.config.baseUrl}/${endpoint}`;
         const queryString = new URLSearchParams(queryParams).toString();

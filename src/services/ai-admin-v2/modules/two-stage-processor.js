@@ -120,6 +120,8 @@ class TwoStageProcessor {
       return {
         response: finalResponse,
         commands: executedCommands,
+        executedCommands: executedCommands, // Добавляем для совместимости с сохранением контекста
+        commandResults: commandResults, // Добавляем для сохранения результатов
         iterations: 2, // Всегда 2 этапа
         metrics: {
           stage1Time,

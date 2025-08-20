@@ -1,6 +1,7 @@
 const { supabase } = require('../../../database/supabase');
 const logger = require('../../../utils/logger').child({ module: 'ai-admin-v2:data-loader' });
-const companyInfoSync = require('../../../sync/company-info-sync');
+const { CompanyInfoSync } = require('../../../sync/company-info-sync');
+const companyInfoSync = new CompanyInfoSync();
 
 class DataLoader {
   /**
@@ -266,7 +267,12 @@ class DataLoader {
         .limit(10);
       
       if (error) {
-        logger.error('Error loading bookings:', error);
+        // Если таблица не существует, просто возвращаем пустой массив
+        if (error.code === '42P01') {
+          logger.debug('Bookings table does not exist yet');
+        } else {
+          logger.error('Error loading bookings:', error);
+        }
         return [];
       }
       
