@@ -148,6 +148,22 @@ class RedisBatchService {
       logger.debug(`Searching for batch keys with pattern: ${this.batchPrefix}*`);
       const keys = await this.redis.keys(`${this.batchPrefix}*`);
       
+      // Дополнительная диагностика для отладки
+      if (keys.length === 0) {
+        // Проверяем SELECT команду
+        const currentDb = await this.redis.config('GET', 'databases');
+        logger.debug(`Current Redis DB config: ${JSON.stringify(currentDb)}`);
+        
+        // Проверяем другие ключи для отладки
+        const allKeysCount = await this.redis.dbsize();
+        const sampleKeys = await this.redis.keys('*');
+        const rapidKeys = sampleKeys.filter(k => k.includes('rapid'));
+        if (rapidKeys.length > 0) {
+          logger.warn(`Found rapid keys but with different pattern: ${rapidKeys.join(', ')}`);
+        }
+        logger.debug(`Total keys in DB: ${allKeysCount}, sample: ${sampleKeys.slice(0, 5).join(', ')}`);
+      }
+      
       if (keys.length === 0) {
         logger.debug('No pending batches found');
         return { processed: 0 };
