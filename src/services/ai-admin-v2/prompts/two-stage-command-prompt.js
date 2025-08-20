@@ -23,20 +23,36 @@ module.exports = {
     } = context;
     
     // Информация о контексте из предыдущих сообщений
+    // Проверяем два источника: currentSelection (новая система) и redisContext.data (старая)
+    const currentSelection = context.currentSelection || {};
     const previousContext = redisContext?.data ? (() => {
       try {
         const data = JSON.parse(redisContext.data);
         return {
-          lastService: data.lastService,
-          lastTime: data.lastTime,
-          lastStaff: data.lastStaff,
-          lastDate: data.lastDate,
+          lastService: currentSelection.service || data.lastService,
+          lastTime: currentSelection.time || data.lastTime,
+          lastStaff: currentSelection.staff || data.lastStaff,
+          lastDate: currentSelection.date || data.lastDate,
           lastCommand: data.lastCommand
         };
       } catch (e) {
-        return {};
+        // Если нет старого контекста, используем currentSelection
+        return {
+          lastService: currentSelection.service,
+          lastTime: currentSelection.time,
+          lastStaff: currentSelection.staff,
+          lastDate: currentSelection.date,
+          lastCommand: null
+        };
       }
-    })() : {};
+    })() : {
+      // Если нет redisContext, используем только currentSelection
+      lastService: currentSelection.service,
+      lastTime: currentSelection.time,
+      lastStaff: currentSelection.staff,
+      lastDate: currentSelection.date,
+      lastCommand: null
+    };
     
     // Список доступных услуг для контекста
     const servicesList = services.slice(0, 20).map(s => s.title).join(', ');
@@ -116,6 +132,15 @@ ${client?.favorite_staff_ids?.length ? `- Любимые мастера клие
 - ВАЖНО: Если есть контекст записи (lastService, lastDate) и клиент указывает только время → это CREATE_BOOKING!
 - ВАЖНО: Всегда используй lastService, lastDate из контекста, НЕ меняй их!
 - ВАЖНО: Если только что обсуждался конкретный мастер (например, "Сергей работает завтра"), используй ЭТОГО мастера, а не favorite_staff!
+
+🔴 КРИТИЧЕСКИ ВАЖНО - ИСПОЛЬЗОВАНИЕ ДАТЫ ИЗ КОНТЕКСТА:
+- ЕСЛИ В КОНТЕКСТЕ ЕСТЬ lastDate → ВСЕГДА ИСПОЛЬЗУЙ ЕЁ!
+- НЕ заменяй lastDate на "сегодня" если клиент не говорил "сегодня"!
+- Примеры:
+  * Контекст: lastDate="завтра", Клиент: "на 16:00" → date="завтра" (НЕ "сегодня"!)
+  * Контекст: lastDate="пятница", Клиент: "давай в 15:00" → date="пятница"
+  * Контекст: lastDate="2025-08-21", Клиент: "на 14:00" → date="2025-08-21"
+- ТОЛЬКО если клиент ЯВНО указал новую дату - используй новую!
 
 ПРАВИЛА ОТВЕТА:
 
