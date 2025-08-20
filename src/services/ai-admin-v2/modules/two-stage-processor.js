@@ -50,6 +50,9 @@ class TwoStageProcessor {
         promptName: 'two-stage-command'
       });
       
+      // ОТЛАДКА: Логируем сырой ответ AI для диагностики
+      logger.debug(`📝 Stage 1 Raw AI Response: ${commandsResponse}`);
+      
       // Парсим JSON ответ
       const commands = this.parseCommandsResponse(commandsResponse);
       
@@ -147,9 +150,11 @@ class TwoStageProcessor {
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         logger.warn('No JSON found in command response, assuming no commands needed');
+        logger.debug(`📝 Response that failed JSON parsing: "${response}"`);
         return [];
       }
       
+      logger.debug(`📝 Found JSON to parse: ${jsonMatch[0]}`);
       const parsed = JSON.parse(jsonMatch[0]);
       
       if (!parsed.commands || !Array.isArray(parsed.commands)) {
