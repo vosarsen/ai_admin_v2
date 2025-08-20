@@ -1,6 +1,6 @@
 // src/config/redis-config.js
 const logger = require('../utils/logger');
-const envConfig = require('./environments');
+const envConfig = require('./environments/index');
 
 /**
  * Централизованная конфигурация Redis
