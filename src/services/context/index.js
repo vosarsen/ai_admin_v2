@@ -392,6 +392,14 @@ class ContextService {
     const normalizedPhone = DataTransformers.normalizePhoneNumber(phone);
     const contextKey = `context:${companyId}:${normalizedPhone}`;
     
+    logger.info('setContext called with:', {
+      phone: normalizedPhone,
+      companyId,
+      contextData,
+      hasData: !!contextData.data,
+      dataKeys: contextData.data ? Object.keys(contextData.data) : []
+    });
+    
     try {
       // Получаем текущий контекст для проверки времени последней активности
       const existingContext = await this.redis.hgetall(contextKey);
