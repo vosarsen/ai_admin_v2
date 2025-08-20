@@ -9,7 +9,7 @@ class RedisBatchService {
     this.redis = null;
     this.batchPrefix = 'rapid-fire:';
     this.lastMessagePrefix = 'last-msg:';
-    this.defaultTTL = 120; // секунд - увеличиваем TTL для надежности
+    this.defaultTTL = 600; // 10 минут - увеличиваем TTL чтобы ключи не истекали
     this.batchTimeout = 9000; // 9 секунд после последнего сообщения
     this.maxBatchSize = 10; // максимум сообщений в батче
   }
@@ -161,6 +161,17 @@ class RedisBatchService {
         if (rapidKeys.length > 0) {
           logger.warn(`Found rapid keys but with different pattern: ${rapidKeys.join(', ')}`);
         }
+        
+        // Проверяем первые 20 ключей для полной диагностики
+        const first20Keys = sampleKeys.slice(0, 20);
+        logger.info(`First 20 keys in Redis: ${first20Keys.join(', ')}`);
+        
+        // Проверяем есть ли ключи с + в начале
+        const plusKeys = sampleKeys.filter(k => k.includes('+'));
+        if (plusKeys.length > 0) {
+          logger.info(`Keys with + symbol: ${plusKeys.slice(0, 5).join(', ')}`);
+        }
+        
         logger.debug(`Total keys in DB: ${allKeysCount}, sample: ${sampleKeys.slice(0, 5).join(', ')}`);
       }
       
