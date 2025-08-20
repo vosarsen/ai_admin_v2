@@ -226,6 +226,7 @@ class AIAdminV2 {
       // Извлекаем информацию о выборе из команд
       if (result.executedCommands && result.executedCommands.length > 0) {
         const selection = {};
+        let hasDateFromSearch = false;
         
         result.executedCommands.forEach(cmd => {
           if (cmd.params?.service_name) {
@@ -239,11 +240,21 @@ class AIAdminV2 {
           }
           if (cmd.params?.date) {
             selection.date = cmd.params.date;
+            // Особенно важно сохранить дату из SEARCH_SLOTS
+            if (cmd.command === 'SEARCH_SLOTS') {
+              hasDateFromSearch = true;
+              logger.info(`Saving date from SEARCH_SLOTS: ${cmd.params.date}`);
+            }
           }
         });
         
         if (Object.keys(selection).length > 0) {
           contextUpdates.selection = selection;
+        }
+        
+        // Также сохраняем в старый формат для совместимости
+        if (hasDateFromSearch && selection.date) {
+          contextUpdates.lastDate = selection.date;
         }
       }
       
@@ -263,6 +274,25 @@ class AIAdminV2 {
           result.executedCommands,
           result.commandResults
         );
+        
+        // Дополнительно сохраняем дату в старом формате для совместимости
+        const dateCommand = result.executedCommands.find(cmd => 
+          cmd.params?.date && (cmd.command === 'SEARCH_SLOTS' || cmd.command === 'CREATE_BOOKING')
+        );
+        
+        if (dateCommand) {
+          const contextService = require('../context');
+          const normalizedPhone2 = normalizedPhone.startsWith('+') ? normalizedPhone : '+' + normalizedPhone;
+          await contextService.setContext(normalizedPhone2, companyId, {
+            data: { 
+              lastDate: dateCommand.params.date,
+              lastService: dateCommand.params.service_name || contextUpdates.selection?.service,
+              lastStaff: dateCommand.params.staff_name || contextUpdates.selection?.staff
+            },
+            state: 'active'
+          });
+          logger.info(`Saved lastDate to old context: ${dateCommand.params.date}`);
+        }
       }
       
       // Помечаем обработку как завершенную
