@@ -9,7 +9,7 @@ class RedisBatchService {
     this.redis = null;
     this.batchPrefix = 'rapid-fire:';
     this.lastMessagePrefix = 'last-msg:';
-    this.defaultTTL = 60; // 60 секунд - оптимальный TTL (9 сек батч + запас)
+    this.defaultTTL = 120; // 120 секунд - оптимальный TTL (достаточный запас для батчинга)
     this.batchTimeout = 9000; // 9 секунд после последнего сообщения
     this.maxBatchSize = 10; // максимум сообщений в батче
   }
