@@ -16,7 +16,7 @@ AI Admin v2 is a next-generation WhatsApp booking assistant designed for beauty 
 - 🤖 **AI-First Processing**: Dynamic service/staff resolution without hardcoding
 - 🎭 **Client Personalization**: Personalized greetings based on visit history (1096 clients synced)
 - ⚡ **Automatic Booking**: Creates bookings instantly when time & service specified
-- 🚀 **Smart Caching**: Redis-based context caching with 12-hour TTL
+- 🚀 **Smart Context System**: Multi-level caching (Memory→Redis→DB) with atomic operations
 - 🔥 **Rapid-Fire Protection**: Redis-based message batching (10s window)
 - 💡 **Smart Recommendations**: Suggests favorite services and masters based on history
 - 📊 **Performance Monitoring**: Real-time metrics with Prometheus integration
@@ -25,6 +25,7 @@ AI Admin v2 is a next-generation WhatsApp booking assistant designed for beauty 
 - ⏰ **Automatic Reminders**: Two-tier reminder system (day before + 2 hours before)
 - 🔔 **Booking Monitor**: Auto-notifies clients when admin creates bookings
 - 🏆 **Loyalty Program**: VIP status recognition with priority booking
+- 🧠 **Context Memory**: Maintains conversation state across messages with smart date/time preservation
 
 ### 🎯 AI Commands (v2)
 
@@ -35,6 +36,18 @@ AI Admin v2 is a next-generation WhatsApp booking assistant designed for beauty 
 - `[CANCEL_BOOKING]` - ✅ Booking cancellation (soft delete via attendance status)
 - `[RESCHEDULE_BOOKING]` - ✅ Booking rescheduling with dual-method fallback
 - `[CHECK_STAFF_SCHEDULE]` - ✅ Silent staff availability check
+
+## 🧠 Context Management System
+
+The v2 architecture includes a sophisticated context management system that maintains conversation state across messages:
+
+- **Multi-Level Caching**: Memory (LRU) → Redis → Database
+- **Atomic Operations**: Prevents race conditions and data overwrites
+- **Smart Data Separation**: Different TTLs for dialog (2h), client (24h), preferences (30d)
+- **Date/Time Preservation**: Correctly maintains temporal context between messages
+- **Performance**: <10ms with cache hit, <100ms full load
+
+[Learn more about context system →](docs/CONTEXT_SYSTEM.md)
 
 ## 📁 Project Structure
 
@@ -48,6 +61,8 @@ ai_admin_v2/
 │   ├── queue/             # Message queue management (BullMQ)
 │   ├── services/          # Core services
 │   │   ├── ai-admin-v2/   # Main AI service
+│   │   │   └── modules/   # Context manager, processors, handlers
+│   │   ├── context/       # Context services (v1 & v2)
 │   │   ├── booking/       # Booking operations
 │   │   └── context/       # Context management
 │   └── workers/           # Background workers
@@ -193,6 +208,9 @@ Configure in `src/config/business-types.js`:
 - [CLAUDE.md](CLAUDE.md) - AI assistant instructions
 - [PLANNING.md](PLANNING.md) - Architecture overview
 - [TASK.md](TASK.md) - Current tasks and progress
+- [docs/CONTEXT_SYSTEM.md](docs/CONTEXT_SYSTEM.md) - Context management system
+- [docs/CONTEXT_API.md](docs/CONTEXT_API.md) - Context API reference
+- [docs/CONTEXT_TROUBLESHOOTING.md](docs/CONTEXT_TROUBLESHOOTING.md) - Context troubleshooting guide
 - [docs/guides/](docs/guides/) - Setup and deployment guides
 - [docs/features/](docs/features/) - Feature documentation
 
