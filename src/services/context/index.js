@@ -429,6 +429,13 @@ class ContextService {
         delete dataToSave.activeBookings;
         
         logger.info(`Clearing old context data for ${normalizedPhone} (last activity: ${lastActivity})`);
+      } else {
+        // Если не прошло суток, объединяем старые данные с новыми
+        const oldData = existingContext?.data ? JSON.parse(existingContext.data) : {};
+        dataToSave = {
+          ...oldData,  // Сохраняем старые данные
+          ...dataToSave  // Перезаписываем новыми
+        };
       }
       
       // Save main context data - использовать правильный формат для hset
