@@ -162,9 +162,30 @@ class ServiceMatcher {
       scoreDetails.components.push({ rule: 'long_title_penalty', points: penalty, words: serviceWords.length });
     }
     
-    // Дополнительный штраф за услуги с "+"
+    // Специальная логика для слова "комплекс"
+    const isLookingForComplex = query.includes('комплекс') || query.includes('полный') || query.includes('все включено');
     const plusCount = (service.title.match(/\+/g) || []).length; // Используем оригинальный title для подсчета +
-    if (plusCount > 0) {
+    
+    if (isLookingForComplex) {
+      // Когда ищут "комплекс", приоритизируем популярные комплексные услуги
+      if (service.title.includes('СТРИЖКА') && service.title.includes('МОДЕЛИРОВАНИЕ') && service.title.includes('БОРОДЫ')) {
+        // Максимальный приоритет для основной комплексной услуги
+        const bonus = 200;
+        score += bonus;
+        scoreDetails.components.push({ rule: 'main_complex_service', points: bonus });
+      } else if (plusCount > 0) {
+        // БОНУС за другие комплексные услуги с "+"
+        const bonus = 50 * plusCount; // +50 за каждый плюс
+        score += bonus;
+        scoreDetails.components.push({ rule: 'complex_service_bonus', points: bonus, plusCount });
+      } else if (serviceTitle.includes('комплекс')) {
+        // Средний бонус за услуги со словом "комплекс" в названии
+        const bonus = 30;
+        score += bonus;
+        scoreDetails.components.push({ rule: 'has_complex_word', points: bonus });
+      }
+    } else if (!isLookingForComplex && plusCount > 0) {
+      // Штраф за услуги с "+" когда НЕ ищут комплекс
       const penalty = config.serviceMatcher.scoring.complexServicePenalty * plusCount;
       score += penalty;
       scoreDetails.components.push({ rule: 'complex_service_penalty', points: penalty, plusCount });
