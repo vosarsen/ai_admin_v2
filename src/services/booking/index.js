@@ -9,6 +9,7 @@ const { utcToZonedTime, zonedTimeToUtc } = require('date-fns-tz');
 const { RetryHandler } = require('../../utils/retry-handler');
 const criticalErrorLogger = require('../../utils/critical-error-logger');
 const bookingOwnership = require('./booking-ownership');
+const slotValidator = require('./slot-validator');
 
 class BookingService {
   constructor() {
@@ -113,10 +114,39 @@ class BookingService {
     }
   }
 
-  async getAvailableSlots(staffId, date, serviceId, companyId = config.yclients.companyId) {
+  async getAvailableSlots(staffId, date, serviceId, companyId = config.yclients.companyId, validateSlots = false) {
     try {
       // Слоты всегда получаем из YClients (они динамические)
-      return await this.getYclientsClient().getAvailableSlots(staffId, date, { service_id: serviceId }, companyId);
+      const result = await this.getYclientsClient().getAvailableSlots(staffId, date, { service_id: serviceId }, companyId);
+      
+      // Если нужна валидация и запрос успешен
+      if (validateSlots && result.success && result.data) {
+        const slots = Array.isArray(result.data) ? result.data : 
+                     (result.data.data ? result.data.data : []);
+        
+        if (slots.length > 0) {
+          logger.info(`Validating ${slots.length} slots for staff ${staffId} on ${date}`);
+          
+          // Валидируем слоты с учетом существующих записей
+          const validSlots = await slotValidator.validateSlotsWithBookings(
+            slots,
+            this.getYclientsClient(),
+            companyId,
+            staffId,
+            date
+          );
+          
+          // Возвращаем результат с валидированными слотами
+          return {
+            ...result,
+            data: Array.isArray(result.data) ? validSlots : { ...result.data, data: validSlots },
+            originalCount: slots.length,
+            validatedCount: validSlots.length
+          };
+        }
+      }
+      
+      return result;
     } catch (error) {
       logger.error('Error getting available slots:', error);
       return { success: false, error: error.message };
@@ -178,8 +208,9 @@ class BookingService {
             const staffSlots = await this.getAvailableSlots(
               staffMember.yclients_id,
               targetDate,
-              { service_id: actualServiceId },
-              companyId
+              actualServiceId,
+              companyId,
+              true // Включаем валидацию слотов
             );
             
             if (staffSlots.success && staffSlots.data) {
@@ -255,8 +286,9 @@ class BookingService {
           const result = await this.getAvailableSlots(
             staffId,
             targetDate,
-            { service_id: actualServiceId },
-            companyId
+            actualServiceId,
+            companyId,
+            true // Включаем валидацию слотов
           );
           
           if (!result.success) {
