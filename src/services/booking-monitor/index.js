@@ -653,11 +653,31 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
       // Получаем имя клиента
       const clientName = record.client?.name || '';
       
+      // Получаем склонения для услуги из БД
+      let serviceDeclensions = null;
+      if (record.services?.[0]?.id) {
+        try {
+          const { data: serviceData } = await supabase
+            .from('services')
+            .select('declensions')
+            .eq('yclients_id', record.services[0].id)
+            .eq('company_id', record.company_id || config.yclients.companyId)
+            .single();
+          
+          if (serviceData?.declensions) {
+            serviceDeclensions = serviceData.declensions;
+          }
+        } catch (error) {
+          logger.debug('Could not fetch service declensions:', error);
+        }
+      }
+      
       // Подготавливаем данные для шаблона
       const templateData = {
         clientName: clientName,
         time: time,
         service: services,
+        serviceDeclensions: serviceDeclensions, // Передаем склонения
         staff: staff,
         price: price,
         address: address,

@@ -6,6 +6,7 @@ const { supabase } = require('../database/supabase');
 const logger = require('../utils/logger').child({ module: 'services-sync' });
 const { YCLIENTS_CONFIG, createYclientsHeaders, delay } = require('./sync-utils');
 const axios = require('axios');
+const serviceDeclension = require('../services/declension/service-declension');
 
 class ServicesSync {
   constructor() {
@@ -53,6 +54,17 @@ class ServicesSync {
       services.forEach(service => {
         if (service.category_id && categoryMap[service.category_id]) {
           service.category_title_from_api = categoryMap[service.category_id];
+        }
+      });
+
+      // Генерируем склонения для всех услуг
+      logger.info('🔤 Generating declensions for services...');
+      const declensionsMap = await serviceDeclension.generateBatchDeclensions(services);
+      
+      // Добавляем склонения к услугам
+      services.forEach(service => {
+        if (declensionsMap.has(service.id)) {
+          service.declensions = declensionsMap.get(service.id);
         }
       });
 
@@ -231,6 +243,7 @@ class ServicesSync {
       is_bookable: service.bookable !== 0 && service.bookable !== "0",
       description: service.comment || null,
       weight: service.weight || 0,
+      declensions: service.declensions || null, // Сохраняем склонения
       last_sync_at: new Date().toISOString(),
       raw_data: service // Сохраняем полные данные для отладки
     };

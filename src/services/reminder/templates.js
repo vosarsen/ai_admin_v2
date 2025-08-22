@@ -86,7 +86,23 @@ function fillTemplate(template, data) {
   // Заменяем плейсхолдеры
   result = result.replace('{name}', data.clientName || 'дорогой клиент');
   result = result.replace('{time}', data.time);
-  result = result.replace('{service}', data.service);
+  
+  // Используем склонения для услуг, если есть
+  if (data.serviceDeclensions) {
+    // Для шаблонов с "на {service}" используем prepositional_na (предложный с НА)
+    if (template.includes('на {service}')) {
+      result = result.replace('на {service}', 
+        `на ${data.serviceDeclensions.prepositional_na || data.service}`);
+    }
+    // Для остальных случаев используем винительный падеж (accusative)
+    else {
+      result = result.replace('{service}', 
+        data.serviceDeclensions.accusative || data.service);
+    }
+  } else {
+    result = result.replace('{service}', data.service);
+  }
+  
   result = result.replace('{staff}', data.staff);
   
   return result;
