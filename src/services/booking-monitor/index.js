@@ -658,7 +658,7 @@ ${price > 0 ? `${emojis.price} Стоимость: ${price} руб.\n` : ''}
       
       // Получаем конфигурацию бизнеса (эмодзи и терминологию)
       const businessConfig = await this.getBusinessConfig(record.company_id || config.yclients.companyId);
-      const { emojis, terminology } = businessConfig;
+      const { emojis = defaultEmojis, terminology = businessTypes.beauty.terminology } = businessConfig || {};
       
       // Определяем, это сегодня или завтра
       const isToday = recordDate.toDateString() === now.toDateString();
