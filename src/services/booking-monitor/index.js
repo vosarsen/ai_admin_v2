@@ -109,6 +109,8 @@ class BookingMonitorService {
       // Обрабатываем каждую запись
       for (const record of records) {
         await this.processBooking(record);
+        // Проверяем и отправляем напоминания
+        await this.checkAndSendReminders(record);
       }
 
       // Очищаем старые записи из booking_states (старше 30 дней)
@@ -228,8 +230,30 @@ class BookingMonitorService {
   detectChanges(previousState, currentState) {
     const changes = [];
 
+    // ВАЖНО: Сначала проверяем статусы attendance
+    // Игнорируем изменения статуса на "подтвержден" (0->2, null->2, undefined->2)
+    const prevAttendance = previousState.attendance ?? 0;
+    const currAttendance = currentState.attendance ?? 0;
+    
+    // Если только изменился статус с "ожидается" на "подтвержден"
+    if ((prevAttendance === 0 || prevAttendance === null || prevAttendance === undefined) && 
+        currAttendance === 2) {
+      logger.debug('📝 Booking confirmed (0/null->2), no notification needed');
+      // Проверяем есть ли другие изменения кроме статуса
+      const hasOtherChanges = this.hasOtherChanges(previousState, currentState);
+      if (!hasOtherChanges) {
+        return []; // Если только статус изменился - не отправляем уведомление
+      }
+    }
+
+    // Если изменился на статус "пришел"
+    if (currAttendance === 1) {
+      logger.debug('📝 Client attended (->1), no notification needed');
+      return [];
+    }
+
     // Проверяем отмену (attendance изменился на -1)
-    if (previousState.attendance !== -1 && currentState.attendance === -1) {
+    if (prevAttendance !== -1 && currAttendance === -1) {
       changes.push({
         type: 'booking_cancelled',
         description: 'Запись отменена'
@@ -270,19 +294,30 @@ class BookingMonitorService {
       });
     }
 
-    // НЕ считаем изменением переход из 0 в 2 (подтверждение)
-    if (previousState.attendance === 0 && currentState.attendance === 2) {
-      logger.debug('📝 Booking confirmed (0->2), but no notification needed');
-      return []; // Возвращаем пустой массив изменений
-    }
-
-    // НЕ считаем изменением переход в статус 1 (пришел)
-    if (currentState.attendance === 1) {
-      logger.debug('📝 Client attended (->1), no notification needed');
-      return [];
-    }
-
     return changes;
+  }
+
+  /**
+   * Проверить есть ли изменения помимо статуса attendance
+   */
+  hasOtherChanges(previousState, currentState) {
+    // Проверяем время
+    const prevTime = new Date(previousState.datetime).getTime();
+    const currTime = new Date(currentState.datetime).getTime();
+    if (prevTime !== currTime) return true;
+
+    // Проверяем мастера
+    if (previousState.staff_id !== currentState.staff_id) return true;
+
+    // Проверяем услуги
+    const prevServices = JSON.stringify(previousState.services || []);
+    const currServices = JSON.stringify(currentState.services || []);
+    if (prevServices !== currServices) return true;
+
+    // Проверяем цену
+    if (previousState.price !== currentState.price) return true;
+
+    return false;
   }
 
   /**
@@ -438,6 +473,133 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
     }
     
     return cleaned;
+  }
+
+  /**
+   * Проверить и отправить напоминания для записи
+   */
+  async checkAndSendReminders(record) {
+    try {
+      const recordId = record.id.toString();
+      const now = new Date();
+      const recordDate = new Date(record.datetime);
+      
+      // Пропускаем прошедшие записи
+      if (recordDate <= now) {
+        return;
+      }
+
+      // Пропускаем отмененные записи или записи со статусом "пришел"
+      if (record.attendance === -1 || record.attendance === 1) {
+        return;
+      }
+
+      const phone = this.formatPhoneNumber(record.client?.phone || record.phone);
+      if (!phone) {
+        return;
+      }
+
+      // Получаем информацию о ранее отправленных напоминаниях
+      const { data: sentReminders } = await supabase
+        .from('booking_notifications')
+        .select('notification_type_new')
+        .eq('yclients_record_id', recordId)
+        .in('notification_type_new', ['reminder_day_before', 'reminder_2hours']);
+
+      const sentTypes = sentReminders?.map(r => r.notification_type_new) || [];
+      
+      // Рассчитываем время для напоминаний
+      const timeDiff = recordDate - now;
+      const hoursUntil = timeDiff / (1000 * 60 * 60);
+      
+      // Напоминание за день (отправляем вечером предыдущего дня между 19:00 и 21:00)
+      const dayBefore = new Date(recordDate);
+      dayBefore.setDate(dayBefore.getDate() - 1);
+      dayBefore.setHours(20, 0, 0, 0); // Устанавливаем на 20:00
+      
+      // Проверяем, нужно ли отправить напоминание за день
+      if (now >= dayBefore && 
+          now < recordDate && 
+          hoursUntil > 3 && // Больше 3 часов до записи
+          !sentTypes.includes('reminder_day_before')) {
+        
+        await this.sendReminderNotification(record, 'day_before', phone);
+      }
+      
+      // Напоминание за 2 часа
+      if (hoursUntil <= 2.5 && 
+          hoursUntil >= 1.5 && 
+          !sentTypes.includes('reminder_2hours')) {
+        
+        await this.sendReminderNotification(record, '2hours', phone);
+      }
+      
+    } catch (error) {
+      logger.error(`❌ Error checking reminders for booking ${record.id}:`, error);
+    }
+  }
+
+  /**
+   * Отправить напоминание о записи
+   */
+  async sendReminderNotification(record, reminderType, phone) {
+    try {
+      const date = formatDate(new Date(record.datetime));
+      const time = formatTime(new Date(record.datetime));
+      const services = record.services?.map(s => s.title).join(', ') || 'Услуга';
+      const staff = record.staff?.name || 'Мастер';
+      const price = record.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0;
+      
+      let message = '';
+      let notificationType = '';
+      
+      if (reminderType === 'day_before') {
+        notificationType = 'reminder_day_before';
+        message = `🔔 *Напоминание о записи на завтра*
+
+📅 ${date} в ${time}
+💇 ${services}
+👤 ${staff}
+${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
+📍 Адрес: ${record.company?.address || 'ул. Сретенка 12'}
+
+Ждем вас! Если планы изменились, пожалуйста, предупредите заранее.`;
+      } else if (reminderType === '2hours') {
+        notificationType = 'reminder_2hours';
+        message = `⏰ *Напоминание: через 2 часа у вас запись*
+
+📅 Сегодня в ${time}
+💇 ${services}
+👤 ${staff}
+${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
+📍 Адрес: ${record.company?.address || 'ул. Сретенка 12'}
+
+До встречи!`;
+      }
+      
+      if (!message) return;
+      
+      // Отправляем сообщение
+      await this.whatsappClient.sendMessage(phone, message);
+      
+      // Сохраняем информацию об отправке
+      await supabase
+        .from('booking_notifications')
+        .insert({
+          yclients_record_id: record.id.toString(),
+          phone: phone,
+          notification_type: notificationType, // Для совместимости
+          notification_type_new: notificationType,
+          message: message,
+          sent_at: new Date().toISOString(),
+          company_id: record.company_id || config.yclients.companyId
+        });
+      
+      logger.info(`✅ ${notificationType} sent for booking ${record.id} to ${phone}`);
+      
+    } catch (error) {
+      logger.error(`❌ Failed to send reminder for booking ${record.id}:`, error);
+    }
   }
 }
 
