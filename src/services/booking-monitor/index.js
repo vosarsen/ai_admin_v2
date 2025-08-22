@@ -533,23 +533,26 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
       // Рассчитываем время для напоминаний
       const timeDiff = recordDate - now;
       const hoursUntil = timeDiff / (1000 * 60 * 60);
+      const daysUntil = Math.floor(hoursUntil / 24);
       
       // Напоминание за день (отправляем вечером предыдущего дня между 19:00 и 21:00)
-      const dayBefore = new Date(recordDate);
-      dayBefore.setDate(dayBefore.getDate() - 1);
-      dayBefore.setHours(20, 0, 0, 0); // Устанавливаем на 20:00
+      // ВАЖНО: Отправляем только если запись ЗАВТРА, а сейчас вечер (после 19:00)
+      const currentHour = now.getHours();
+      const isEvening = currentHour >= 19 && currentHour <= 21;
+      const isTomorrow = daysUntil === 0 && recordDate.getDate() !== now.getDate() || daysUntil === 1;
       
       // Проверяем, нужно ли отправить напоминание за день
-      if (now >= dayBefore && 
-          now < recordDate && 
-          hoursUntil > 3 && // Больше 3 часов до записи
+      if (isEvening && 
+          isTomorrow && 
           !sentTypes.includes('reminder_day_before')) {
         
         await this.sendReminderNotification(record, 'day_before', phone);
       }
       
-      // Напоминание за 2 часа
-      if (hoursUntil <= 2.5 && 
+      // Напоминание за 2 часа (только в день записи)
+      const isToday = recordDate.toDateString() === now.toDateString();
+      if (isToday &&
+          hoursUntil <= 2.5 && 
           hoursUntil >= 1.5 && 
           !sentTypes.includes('reminder_2hours')) {
         
@@ -566,18 +569,24 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
    */
   async sendReminderNotification(record, reminderType, phone) {
     try {
-      const date = formatDate(new Date(record.datetime));
-      const time = formatTime(new Date(record.datetime));
+      const recordDate = new Date(record.datetime);
+      const now = new Date();
+      const date = formatDate(recordDate);
+      const time = formatTime(recordDate);
       const services = record.services?.map(s => s.title).join(', ') || 'Услуга';
       const staff = record.staff?.name || 'Мастер';
       const price = record.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0;
+      
+      // Определяем, это сегодня или завтра
+      const isToday = recordDate.toDateString() === now.toDateString();
+      const dayText = isToday ? 'сегодня' : 'завтра';
       
       let message = '';
       let notificationType = '';
       
       if (reminderType === 'day_before') {
         notificationType = 'reminder_day_before';
-        message = `🔔 *Напоминание о записи на завтра*
+        message = `🔔 *Напоминание о записи на ${dayText}*
 
 📅 ${date} в ${time}
 💇 ${services}
