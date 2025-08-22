@@ -577,6 +577,10 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
       const staff = record.staff?.name || 'Мастер';
       const price = record.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0;
       
+      // Получаем информацию о компании из базы данных
+      const companyInfo = await this.getCompanyInfo(record.company_id || config.yclients.companyId);
+      const address = companyInfo?.address || '';
+      
       // Определяем, это сегодня или завтра
       const isToday = recordDate.toDateString() === now.toDateString();
       const dayText = isToday ? 'сегодня' : 'завтра';
@@ -592,8 +596,7 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
 💇 ${services}
 👤 ${staff}
 ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
-📍 Адрес: ${record.company?.address || 'ул. Сретенка 12'}
-
+${address ? `📍 Адрес: ${address}\n` : ''}
 Ждем вас! Если планы изменились, пожалуйста, предупредите заранее.`;
       } else if (reminderType === '2hours') {
         notificationType = 'reminder_2hours';
@@ -603,8 +606,7 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
 💇 ${services}
 👤 ${staff}
 ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
-📍 Адрес: ${record.company?.address || 'ул. Сретенка 12'}
-
+${address ? `📍 Адрес: ${address}\n` : ''}
 До встречи!`;
       }
       
