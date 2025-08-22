@@ -193,22 +193,29 @@ class SchedulesSync {
   /**
    * Сохранить расписания в Supabase
    * @param {Object} staffMember - Данные мастера
-   * @param {Array} schedules - Массив расписаний
+   * @param {Array} schedules - Массив дат (строки формата YYYY-MM-DD)
    * @returns {Promise<Object>} Результат сохранения
    */
   async saveSchedules(staffMember, schedules) {
     let processed = 0;
     let errors = 0;
 
-    for (const schedule of schedules) {
+    for (const dateString of schedules) {
       try {
+        // Валидация даты
+        if (!dateString || typeof dateString !== 'string') {
+          logger.warn(`Invalid date for ${staffMember.name}: ${dateString}`);
+          errors++;
+          continue;
+        }
+
         const scheduleData = {
           staff_id: staffMember.id,
           staff_name: staffMember.name,
-          date: schedule.date,
-          is_working: schedule.is_working || false,
-          has_booking_slots: schedule.has_free_slots || false,
-          working_hours: schedule.working_hours || null,
+          date: dateString, // Используем дату напрямую как строку
+          is_working: true, // Если дата есть в списке - мастер работает
+          has_booking_slots: true, // Если дата есть - есть слоты
+          working_hours: null, // Детальные часы работы недоступны в этом endpoint
           last_updated: new Date().toISOString()
         };
         
@@ -222,7 +229,7 @@ class SchedulesSync {
         if (error) {
           errors++;
           if (errors <= 5) {
-            logger.warn(`Failed to save schedule for ${staffMember.name} on ${schedule.date}`, { 
+            logger.warn(`Failed to save schedule for ${staffMember.name} on ${dateString}`, { 
               error: error.message 
             });
           }
@@ -235,7 +242,7 @@ class SchedulesSync {
         if (errors <= 5) {
           logger.error('Error processing schedule', {
             staff: staffMember.name,
-            date: schedule.date,
+            date: dateString,
             error: error.message
           });
         }
