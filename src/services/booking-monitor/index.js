@@ -111,8 +111,8 @@ class BookingMonitorService {
       // Обрабатываем каждую запись
       for (const record of records) {
         await this.processBooking(record);
-        // ВРЕМЕННО ОТКЛЮЧЕНО: Проверяем и отправляем напоминания
-        // await this.checkAndSendReminders(record);
+        // Проверяем и отправляем напоминания
+        await this.checkAndSendReminders(record);
       }
 
       // Очищаем старые записи из booking_states (старше 30 дней)
@@ -548,14 +548,12 @@ ${price > 0 ? `${emojis.price} Стоимость: ${price} руб.\n` : ''}
       }
 
       // ВАЖНО: Проверяем, был ли клиент сегодня
-      // Если да - не отправляем напоминания о завтрашних записях
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(23, 59, 59, 999);
       
-      // Проверяем есть ли у клиента визит сегодня со статусом "пришел"
       const { data: todayVisits } = await supabase
         .from('booking_states')
         .select('*')
@@ -572,11 +570,23 @@ ${price > 0 ? `${emojis.price} Стоимость: ${price} руб.\n` : ''}
       // Получаем информацию о ранее отправленных напоминаниях
       const { data: sentReminders } = await supabase
         .from('booking_notifications')
-        .select('notification_type_new')
+        .select('notification_type_new, sent_at')
         .eq('yclients_record_id', recordId)
-        .in('notification_type_new', ['reminder_day_before', 'reminder_2hours']);
+        .in('notification_type_new', ['reminder_day_before', 'reminder_2hours'])
+        .order('sent_at', { ascending: false });
 
       const sentTypes = sentReminders?.map(r => r.notification_type_new) || [];
+      
+      // Проверяем, не отправляли ли мы напоминание недавно (за последние 2 часа)
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      const recentlysentDayBefore = sentReminders?.some(r => 
+        r.notification_type_new === 'reminder_day_before' && 
+        new Date(r.sent_at) > twoHoursAgo
+      );
+      const recentlySent2Hours = sentReminders?.some(r => 
+        r.notification_type_new === 'reminder_2hours' && 
+        new Date(r.sent_at) > twoHoursAgo
+      );
       
       // Рассчитываем время для напоминаний
       const timeDiff = recordDate - now;
@@ -584,7 +594,6 @@ ${price > 0 ? `${emojis.price} Стоимость: ${price} руб.\n` : ''}
       const daysUntil = Math.floor(hoursUntil / 24);
       
       // Напоминание за день (отправляем вечером предыдущего дня между 19:00 и 21:00)
-      // ВАЖНО: Отправляем только если запись ЗАВТРА, а сейчас вечер (после 19:00)
       const currentHour = now.getHours();
       const isEvening = currentHour >= 19 && currentHour <= 21;
       const isTomorrow = daysUntil === 0 && recordDate.getDate() !== now.getDate() || daysUntil === 1;
@@ -592,7 +601,7 @@ ${price > 0 ? `${emojis.price} Стоимость: ${price} руб.\n` : ''}
       // Проверяем, нужно ли отправить напоминание за день
       if (isEvening && 
           isTomorrow && 
-          !sentTypes.includes('reminder_day_before')) {
+          !recentlysentDayBefore) {
         
         await this.sendReminderNotification(record, 'day_before', phone);
       }
@@ -602,7 +611,7 @@ ${price > 0 ? `${emojis.price} Стоимость: ${price} руб.\n` : ''}
       if (isToday &&
           hoursUntil <= 2.5 && 
           hoursUntil >= 1.5 && 
-          !sentTypes.includes('reminder_2hours')) {
+          !recentlySent2Hours) {
         
         await this.sendReminderNotification(record, '2hours', phone);
       }
