@@ -19,6 +19,18 @@ module.exports = {
       appointment: 'запись',
       schedule: 'расписание'
     },
+    emojis: {
+      notification: '✂️',
+      date: '📅',
+      service: '💈',
+      specialist: '👨',
+      price: '💰',
+      address: '📍',
+      reminder: '🔔',
+      urgent: '⏰',
+      cancelled: '❌',
+      changed: '🔄'
+    },
     communication: {
       style: 'дружелюбным и неформальным',
       greeting: 'Привет! Как дела? Что подстричь будем?',
@@ -54,6 +66,18 @@ module.exports = {
       clients: 'клиентки',
       appointment: 'запись',
       schedule: 'расписание'
+    },
+    emojis: {
+      notification: '💅',
+      date: '📅',
+      service: '💅',
+      specialist: '👩',
+      price: '💰',
+      address: '📍',
+      reminder: '🔔',
+      urgent: '⏰',
+      cancelled: '❌',
+      changed: '🔄'
     },
     communication: {
       style: 'вежливым и заботливым',
@@ -92,6 +116,18 @@ module.exports = {
       appointment: 'сеанс',
       schedule: 'расписание сеансов'
     },
+    emojis: {
+      notification: '💆',
+      date: '📅',
+      service: '💆',
+      specialist: '👤',
+      price: '💰',
+      address: '📍',
+      reminder: '🔔',
+      urgent: '⏰',
+      cancelled: '❌',
+      changed: '🔄'
+    },
     communication: {
       style: 'спокойным и профессиональным',
       greeting: 'Здравствуйте. Добро пожаловать в наш салон. Как могу вам помочь?',
@@ -129,6 +165,18 @@ module.exports = {
       clients: 'клиенты',
       appointment: 'сеанс',
       schedule: 'график процедур'
+    },
+    emojis: {
+      notification: '✨',
+      date: '📅',
+      service: '✨',
+      specialist: '👩',
+      price: '💰',
+      address: '📍',
+      reminder: '🔔',
+      urgent: '⏰',
+      cancelled: '❌',
+      changed: '🔄'
     },
     communication: {
       style: 'деликатным и информативным',
@@ -171,6 +219,18 @@ module.exports = {
       appointment: 'запись',
       schedule: 'расписание'
     },
+    emojis: {
+      notification: '💄',
+      date: '📅',
+      service: '💇',
+      specialist: '👤',
+      price: '💰',
+      address: '📍',
+      reminder: '🔔',
+      urgent: '⏰',
+      cancelled: '❌',
+      changed: '🔄'
+    },
     communication: {
       style: 'приветливым и профессиональным',
       greeting: 'Добрый день! Рады вас слышать. Чем могу помочь?',
@@ -208,6 +268,18 @@ module.exports = {
       clients: 'гостьи',
       appointment: 'запись',
       schedule: 'расписание'
+    },
+    emojis: {
+      notification: '👁️',
+      date: '📅',
+      service: '👁️',
+      specialist: '👩',
+      price: '💰',
+      address: '📍',
+      reminder: '🔔',
+      urgent: '⏰',
+      cancelled: '❌',
+      changed: '🔄'
     },
     communication: {
       style: 'дружелюбным и экспертным',
@@ -261,3 +333,17 @@ function detectBusinessType(companyName, services = []) {
 }
 
 module.exports.detectBusinessType = detectBusinessType;
+
+// Дефолтные эмодзи если тип бизнеса не определен
+module.exports.defaultEmojis = {
+  notification: '📢',
+  date: '📅',
+  service: '📋',
+  specialist: '👤',
+  price: '💰',
+  address: '📍',
+  reminder: '🔔',
+  urgent: '⏰',
+  cancelled: '❌',
+  changed: '🔄'
+};
