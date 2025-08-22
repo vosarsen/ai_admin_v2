@@ -1,6 +1,63 @@
 # AI Admin v2 - Рекомендации и улучшения
 
-## 📅 Last Updated: August 4, 2025
+## 📅 Last Updated: August 22, 2025
+
+## 🔒 Database Security Best Practices (NEW - August 22, 2025)
+
+### При создании новых таблиц
+```sql
+-- ВСЕГДА включайте RLS при создании таблицы
+CREATE TABLE public.new_table (...);
+ALTER TABLE public.new_table ENABLE ROW LEVEL SECURITY;
+
+-- Сразу создавайте политику для service_role
+CREATE POLICY "service_role_all" ON public.new_table
+    FOR ALL TO service_role
+    USING (true) WITH CHECK (true);
+```
+
+### При создании новых функций
+```sql
+-- ВСЕГДА указывайте search_path
+CREATE OR REPLACE FUNCTION public.my_function()
+RETURNS void
+LANGUAGE plpgsql
+SET search_path = public, pg_catalog  -- Важно!
+AS $$
+BEGIN
+    -- function body
+END;
+$$;
+```
+
+### Мониторинг безопасности
+```bash
+# Регулярно проверяйте Supabase Linter
+# Dashboard → Database → Linter
+
+# Проверка RLS статуса
+SELECT tablename, rowsecurity 
+FROM pg_tables 
+WHERE schemaname = 'public';
+
+# Проверка функций без search_path
+SELECT proname 
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+    AND p.proconfig IS NULL;
+```
+
+### Мониторинг производительности
+```bash
+# Через месяц проверьте использование индексов
+SELECT indexname, idx_scan 
+FROM pg_stat_user_indexes
+WHERE schemaname = 'public'
+ORDER BY idx_scan;
+
+# Удаляйте только индексы с 0 использований при >10k записей
+```
 
 ## 🆕 AI Provider System - Quick Reference
 
