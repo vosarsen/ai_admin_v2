@@ -3,13 +3,24 @@
  * Генерирует склонения один раз при синхронизации и сохраняет в БД
  */
 
-const { AIService } = require('../ai');
+const AIAdminV2 = require('../ai-admin-v2');
 const logger = require('../../utils/logger').child({ module: 'service-declension' });
+const providerFactory = require('../ai/provider-factory');
 
 class ServiceDeclension {
   constructor() {
-    this.aiService = AIService;
+    this.aiProvider = null; // Будем инициализировать при первом использовании
     this.cache = new Map();
+  }
+
+  /**
+   * Получить AI провайдера
+   */
+  async getAIProvider() {
+    if (!this.aiProvider) {
+      this.aiProvider = await providerFactory.getProvider();
+    }
+    return this.aiProvider;
   }
 
   /**
@@ -48,7 +59,9 @@ class ServiceDeclension {
 - prepositional_na используется после предлога "на" (записаться НА что?)
 `;
 
-      const response = await this.aiService._callAI(prompt);
+      const aiProvider = await this.getAIProvider();
+      const result = await aiProvider.call(prompt, {});
+      const response = result.text;
       
       // Пытаемся извлечь JSON из ответа
       let declensions;
@@ -120,7 +133,9 @@ ${serviceNames.map((name, i) => `${i + 1}. "${name}"`).join('\n')}
 Важно: prepositional_na - это форма после предлога "на" (записаться НА что?)
 `;
 
-        const response = await this.aiService._callAI(prompt);
+        const aiProvider = await this.getAIProvider();
+      const result = await aiProvider.call(prompt, {});
+      const response = result.text;
         
         try {
           const jsonMatch = response.match(/\[[\s\S]*\]/);
