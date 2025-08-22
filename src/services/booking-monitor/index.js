@@ -499,6 +499,28 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
         return;
       }
 
+      // ВАЖНО: Проверяем, был ли клиент сегодня
+      // Если да - не отправляем напоминания о завтрашних записях
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(23, 59, 59, 999);
+      
+      // Проверяем есть ли у клиента визит сегодня со статусом "пришел"
+      const { data: todayVisits } = await supabase
+        .from('booking_states')
+        .select('*')
+        .eq('client_phone', phone)
+        .gte('datetime', today.toISOString())
+        .lt('datetime', tomorrow.toISOString())
+        .eq('attendance', 1);
+      
+      if (todayVisits && todayVisits.length > 0) {
+        logger.debug(`⏭️ Skipping reminder for ${phone} - client visited today`);
+        return;
+      }
+
       // Получаем информацию о ранее отправленных напоминаниях
       const { data: sentReminders } = await supabase
         .from('booking_notifications')
