@@ -5,6 +5,8 @@ const whatsappClient = require('../../integrations/whatsapp/client');
 const config = require('../../config');
 const businessTypes = require('../../config/business-types');
 const { detectBusinessType, defaultEmojis } = businessTypes;
+const { generateDayBeforeReminder, generateTwoHoursReminder } = require('../reminder/templates');
+const contextService = require('../context');
 
 // Простые функции форматирования даты
 const formatDate = (date) => {
@@ -644,41 +646,33 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
       const staff = record.staff?.name || 'Мастер';
       const price = record.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0;
       
-      // Получаем информацию о компании из базы данных
+      // Получаем информацию о компании и клиенте
       const companyInfo = await this.getCompanyInfo(record.company_id || config.yclients.companyId);
       const address = companyInfo?.address || '';
       
-      // Получаем конфигурацию бизнеса (эмодзи и терминологию)
-      const businessConfig = await this.getBusinessConfig(record.company_id || config.yclients.companyId);
-      const { emojis = defaultEmojis, terminology = businessTypes.beauty.terminology } = businessConfig || {};
+      // Получаем имя клиента
+      const clientName = record.client?.name || '';
       
-      // Определяем, это сегодня или завтра
-      const isToday = recordDate.toDateString() === now.toDateString();
-      const dayText = isToday ? 'сегодня' : 'завтра';
+      // Подготавливаем данные для шаблона
+      const templateData = {
+        clientName: clientName,
+        time: time,
+        service: services,
+        staff: staff,
+        price: price,
+        address: address,
+        date: date
+      };
       
       let message = '';
       let notificationType = '';
       
       if (reminderType === 'day_before') {
         notificationType = 'reminder_day_before';
-        message = `Добрый вечер! Напоминаем, что завтра вас ждут:
-
-${date} в ${time}
-${services}
-Мастер: ${staff}
-${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
-${address ? `Адрес: ${address}\n` : ''}
-Если планы изменились, пожалуйста, предупредите заранее.`;
+        message = generateDayBeforeReminder(templateData);
       } else if (reminderType === '2hours') {
         notificationType = 'reminder_2hours';
-        message = `Здравствуйте! Через 2 часа вас ждут.
-
-Сегодня в ${time}
-${services}
-Мастер: ${staff}
-${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
-${address ? `Адрес: ${address}\n` : ''}
-До встречи!`;
+        message = generateTwoHoursReminder(templateData);
       }
       
       if (!message) return;
@@ -686,7 +680,7 @@ ${address ? `Адрес: ${address}\n` : ''}
       // Отправляем сообщение
       await this.whatsappClient.sendMessage(phone, message);
       
-      // Сохраняем информацию об отправке
+      // Сохраняем информацию об отправке в БД
       await supabase
         .from('booking_notifications')
         .insert({
@@ -697,6 +691,48 @@ ${address ? `Адрес: ${address}\n` : ''}
           sent_at: new Date().toISOString(),
           company_id: record.company_id || config.yclients.companyId
         });
+      
+      // Добавляем напоминание в контекст диалога для AI Admin
+      try {
+        const phoneForContext = phone.replace('@c.us', '');
+        const context = await contextService.getContext(phoneForContext);
+        
+        // Добавляем информацию о напоминании в историю
+        const reminderInfo = {
+          type: 'system_reminder',
+          timestamp: new Date().toISOString(),
+          reminderType: notificationType,
+          message: message,
+          bookingDetails: {
+            datetime: record.datetime,
+            services: services,
+            staff: staff,
+            price: price,
+            recordId: record.id
+          }
+        };
+        
+        // Обновляем последнее системное действие
+        context.lastSystemAction = reminderInfo;
+        
+        // Добавляем в историю диалога
+        if (!context.dialogHistory) {
+          context.dialogHistory = [];
+        }
+        context.dialogHistory.push({
+          role: 'system',
+          content: `[Отправлено напоминание о записи]\n${message}`,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Сохраняем обновленный контекст
+        await contextService.updateContext(phoneForContext, context);
+        
+        logger.info(`📝 Reminder added to dialog context for ${phoneForContext}`);
+      } catch (error) {
+        logger.warn('Failed to add reminder to context:', error);
+        // Не прерываем процесс, если не удалось обновить контекст
+      }
       
       logger.info(`✅ ${notificationType} sent for booking ${record.id} to ${phone}`);
       
