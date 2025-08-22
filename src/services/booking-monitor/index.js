@@ -3,6 +3,8 @@ const { supabase } = require('../../database/supabase');
 const { YclientsClient } = require('../../integrations/yclients/client');
 const whatsappClient = require('../../integrations/whatsapp/client');
 const config = require('../../config');
+const businessTypes = require('../../config/business-types');
+const { detectBusinessType, defaultEmojis } = businessTypes;
 
 // Простые функции форматирования даты
 const formatDate = (date) => {
@@ -352,11 +354,11 @@ class BookingMonitorService {
     if (isCancelled) {
       // Отмена записи
       notificationType = 'booking_cancelled';
-      message = this.formatCancellationMessage(record);
+      message = await this.formatCancellationMessage(record, record.company_id || config.yclients.companyId);
     } else if (timeChanged || staffChanged || serviceChanged) {
       // Изменения в записи
       notificationType = 'booking_changed';
-      message = this.formatChangeMessage(record, changes, previousState);
+      message = await this.formatChangeMessage(record, changes, previousState, record.company_id || config.yclients.companyId);
     }
 
     if (!message) {
@@ -400,30 +402,36 @@ class BookingMonitorService {
   /**
    * Форматировать сообщение об отмене
    */
-  formatCancellationMessage(record) {
+  async formatCancellationMessage(record, companyId) {
     const date = formatDate(new Date(record.datetime));
     const time = formatTime(new Date(record.datetime));
     const services = record.services?.map(s => s.title).join(', ') || 'Услуга';
+    
+    // Получаем конфигурацию бизнеса
+    const businessConfig = await this.getBusinessConfig(companyId);
+    const { emojis, terminology } = businessConfig;
 
-    return `❌ *Ваша запись отменена*
+    return `${emojis.cancelled} *Ваша ${terminology.appointment} отменена*
 
-📅 ${date} в ${time}
-💇 ${services}
+${emojis.date} ${date} в ${time}
+${emojis.service} ${services}
 
-Если это ошибка, пожалуйста, свяжитесь с нами для восстановления записи.
-
-🤖 _Автоматическое уведомление_`;
+Если это ошибка, пожалуйста, свяжитесь с нами для восстановления записи.`;
   }
 
   /**
    * Форматировать сообщение об изменениях
    */
-  formatChangeMessage(record, changes, previousState) {
+  async formatChangeMessage(record, changes, previousState, companyId) {
     const date = formatDate(new Date(record.datetime));
     const time = formatTime(new Date(record.datetime));
     const services = record.services?.map(s => s.title).join(', ') || 'Услуга';
-    const staff = record.staff?.name || 'Мастер';
+    const staff = record.staff?.name || 'Специалист';
     const price = record.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0;
+    
+    // Получаем конфигурацию бизнеса
+    const businessConfig = await this.getBusinessConfig(companyId);
+    const { emojis, terminology } = businessConfig;
 
     let changesList = [];
 
@@ -431,26 +439,66 @@ class BookingMonitorService {
       if (change.type === 'booking_time_changed') {
         const oldDate = formatDate(new Date(change.oldValue));
         const oldTime = formatTime(new Date(change.oldValue));
-        changesList.push(`📅 Время: ${oldDate} ${oldTime} → ${date} ${time}`);
+        changesList.push(`${emojis.date} Время: ${oldDate} ${oldTime} → ${date} ${time}`);
       } else if (change.type === 'booking_staff_changed') {
-        changesList.push(`👤 Мастер: ${change.oldValue || 'Не указан'} → ${staff}`);
+        changesList.push(`${emojis.specialist} ${terminology.specialist}: ${change.oldValue || 'Не указан'} → ${staff}`);
       } else if (change.type === 'booking_service_changed') {
-        changesList.push(`💇 Услуги изменены`);
+        changesList.push(`${emojis.service} Услуги изменены`);
       }
     });
 
-    return `🔄 *Ваша запись изменена*
+    return `${emojis.changed} *Ваша ${terminology.appointment} изменена*
 
 ${changesList.join('\n')}
 
-📋 *Актуальные данные:*
-📅 ${date} в ${time}
-💇 ${services}
-👤 ${staff}
-${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
-Если есть вопросы - пишите!
+*Актуальные данные:*
+${emojis.date} ${date} в ${time}
+${emojis.service} ${services}
+${emojis.specialist} ${terminology.specialist}: ${staff}
+${price > 0 ? `${emojis.price} Стоимость: ${price} руб.\n` : ''}
+Если есть вопросы - пишите!`;
+  }
 
-🤖 _Автоматическое уведомление_`;
+  /**
+   * Получить конфигурацию бизнеса (эмодзи, терминологию)
+   */
+  async getBusinessConfig(companyId) {
+    try {
+      // Получаем информацию о компании
+      const { data: company } = await supabase
+        .from('companies')
+        .select('name, business_type')
+        .eq('yclients_id', companyId)
+        .single();
+      
+      // Определяем тип бизнеса
+      let businessType = company?.business_type;
+      if (!businessType && company?.name) {
+        // Пытаемся определить по названию компании
+        const { data: services } = await supabase
+          .from('services')
+          .select('title')
+          .eq('company_id', companyId)
+          .limit(10);
+        
+        businessType = detectBusinessType(company.name, services || []);
+      }
+      
+      // Получаем конфигурацию для типа бизнеса
+      const config = businessTypes[businessType] || businessTypes.beauty;
+      return {
+        emojis: config.emojis || defaultEmojis,
+        terminology: config.terminology || businessTypes.beauty.terminology,
+        businessType: businessType || 'beauty'
+      };
+    } catch (error) {
+      logger.warn('Failed to get business config, using defaults', error);
+      return {
+        emojis: defaultEmojis,
+        terminology: businessTypes.beauty.terminology,
+        businessType: 'beauty'
+      };
+    }
   }
 
   /**
@@ -581,6 +629,10 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
       const companyInfo = await this.getCompanyInfo(record.company_id || config.yclients.companyId);
       const address = companyInfo?.address || '';
       
+      // Получаем конфигурацию бизнеса (эмодзи и терминологию)
+      const businessConfig = await this.getBusinessConfig(record.company_id || config.yclients.companyId);
+      const { emojis, terminology } = businessConfig;
+      
       // Определяем, это сегодня или завтра
       const isToday = recordDate.toDateString() === now.toDateString();
       const dayText = isToday ? 'сегодня' : 'завтра';
@@ -590,23 +642,23 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
       
       if (reminderType === 'day_before') {
         notificationType = 'reminder_day_before';
-        message = `🔔 *Напоминание о записи на ${dayText}*
+        message = `${emojis.reminder} *Напоминание о записи на ${dayText}*
 
-📅 ${date} в ${time}
-💇 ${services}
-👤 ${staff}
-${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
-${address ? `📍 Адрес: ${address}\n` : ''}
+${emojis.date} ${date} в ${time}
+${emojis.service} ${services}
+${emojis.specialist} ${terminology.specialist}: ${staff}
+${price > 0 ? `${emojis.price} Стоимость: ${price} руб.\n` : ''}
+${address ? `${emojis.address} Адрес: ${address}\n` : ''}
 Ждем вас! Если планы изменились, пожалуйста, предупредите заранее.`;
       } else if (reminderType === '2hours') {
         notificationType = 'reminder_2hours';
-        message = `⏰ *Напоминание: через 2 часа у вас запись*
+        message = `${emojis.urgent} *Напоминание: через 2 часа у вас ${terminology.appointment}*
 
-📅 Сегодня в ${time}
-💇 ${services}
-👤 ${staff}
-${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
-${address ? `📍 Адрес: ${address}\n` : ''}
+${emojis.date} Сегодня в ${time}
+${emojis.service} ${services}
+${emojis.specialist} ${terminology.specialist}: ${staff}
+${price > 0 ? `${emojis.price} Стоимость: ${price} руб.\n` : ''}
+${address ? `${emojis.address} Адрес: ${address}\n` : ''}
 До встречи!`;
       }
       
