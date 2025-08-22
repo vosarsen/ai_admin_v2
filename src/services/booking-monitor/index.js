@@ -111,8 +111,8 @@ class BookingMonitorService {
       // Обрабатываем каждую запись
       for (const record of records) {
         await this.processBooking(record);
-        // ВРЕМЕННО ОТКЛЮЧЕНО: Проверяем и отправляем напоминания
-        // await this.checkAndSendReminders(record);
+        // Проверяем и отправляем напоминания
+        await this.checkAndSendReminders(record);
       }
 
       // Очищаем старые записи из booking_states (старше 30 дней)
@@ -368,7 +368,7 @@ class BookingMonitorService {
 
     // Проверяем, не отправляли ли мы такое же уведомление недавно
     const isDuplicate = recentNotifications?.some(n => 
-      n.notification_type_new === notificationType
+      n.notification_type === notificationType
     );
 
     if (isDuplicate) {
@@ -386,8 +386,7 @@ class BookingMonitorService {
         .insert({
           yclients_record_id: record.id.toString(),
           phone: phone,
-          notification_type: notificationType, // Старое поле для совместимости
-          notification_type_new: notificationType,
+          notification_type: notificationType,
           message: message,
           sent_at: new Date().toISOString(),
           company_id: record.company_id || config.yclients.companyId
@@ -562,9 +561,9 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
       // Получаем информацию о ранее отправленных напоминаниях
       const { data: sentReminders } = await supabase
         .from('booking_notifications')
-        .select('notification_type_new, sent_at')
+        .select('notification_type, sent_at')
         .eq('yclients_record_id', recordId)
-        .in('notification_type_new', ['reminder_day_before', 'reminder_2hours'])
+        .in('notification_type', ['reminder_day_before', 'reminder_2hours'])
         .order('sent_at', { ascending: false });
 
       // Проверяем, не отправляли ли мы уже напоминание сегодня
@@ -572,12 +571,12 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
       todayStart.setHours(0, 0, 0, 0);
       
       const sentDayBeforeToday = sentReminders?.some(r => 
-        r.notification_type_new === 'reminder_day_before' && 
+        r.notification_type === 'reminder_day_before' && 
         new Date(r.sent_at) > todayStart
       );
       
       const sent2HoursToday = sentReminders?.some(r => 
-        r.notification_type_new === 'reminder_2hours' && 
+        r.notification_type === 'reminder_2hours' && 
         new Date(r.sent_at) > todayStart
       );
       
@@ -693,8 +692,7 @@ ${address ? `Адрес: ${address}\n` : ''}
         .insert({
           yclients_record_id: record.id.toString(),
           phone: phone,
-          notification_type: notificationType, // Для совместимости
-          notification_type_new: notificationType,
+          notification_type: notificationType,
           message: message,
           sent_at: new Date().toISOString(),
           company_id: record.company_id || config.yclients.companyId
