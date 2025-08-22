@@ -567,17 +567,18 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
         .in('notification_type_new', ['reminder_day_before', 'reminder_2hours'])
         .order('sent_at', { ascending: false });
 
-      const sentTypes = sentReminders?.map(r => r.notification_type_new) || [];
+      // Проверяем, не отправляли ли мы уже напоминание сегодня
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
       
-      // Проверяем, не отправляли ли мы напоминание недавно (за последние 2 часа)
-      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-      const recentlysentDayBefore = sentReminders?.some(r => 
+      const sentDayBeforeToday = sentReminders?.some(r => 
         r.notification_type_new === 'reminder_day_before' && 
-        new Date(r.sent_at) > twoHoursAgo
+        new Date(r.sent_at) > todayStart
       );
-      const recentlySent2Hours = sentReminders?.some(r => 
+      
+      const sent2HoursToday = sentReminders?.some(r => 
         r.notification_type_new === 'reminder_2hours' && 
-        new Date(r.sent_at) > twoHoursAgo
+        new Date(r.sent_at) > todayStart
       );
       
       // Рассчитываем время для напоминаний
@@ -593,7 +594,7 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
       // Проверяем, нужно ли отправить напоминание за день
       if (isEvening && 
           isTomorrow && 
-          !recentlysentDayBefore) {
+          !sentDayBeforeToday) {
         
         await this.sendReminderNotification(record, 'day_before', phone);
       }
@@ -603,7 +604,7 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
       if (isToday &&
           hoursUntil <= 2.5 && 
           hoursUntil >= 1.5 && 
-          !recentlySent2Hours) {
+          !sent2HoursToday) {
         
         await this.sendReminderNotification(record, '2hours', phone);
       }
