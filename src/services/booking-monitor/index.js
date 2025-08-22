@@ -406,15 +406,11 @@ class BookingMonitorService {
     const date = formatDate(new Date(record.datetime));
     const time = formatTime(new Date(record.datetime));
     const services = record.services?.map(s => s.title).join(', ') || 'Услуга';
-    
-    // Получаем конфигурацию бизнеса
-    const businessConfig = await this.getBusinessConfig(companyId);
-    const { emojis, terminology } = businessConfig;
 
-    return `${emojis.cancelled} *Ваша ${terminology.appointment} отменена*
+    return `Ваша запись отменена
 
-${emojis.date} ${date} в ${time}
-${emojis.service} ${services}
+${date} в ${time}
+${services}
 
 Если это ошибка, пожалуйста, свяжитесь с нами для восстановления записи.`;
   }
@@ -428,10 +424,6 @@ ${emojis.service} ${services}
     const services = record.services?.map(s => s.title).join(', ') || 'Услуга';
     const staff = record.staff?.name || 'Специалист';
     const price = record.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0;
-    
-    // Получаем конфигурацию бизнеса
-    const businessConfig = await this.getBusinessConfig(companyId);
-    const { emojis, terminology } = businessConfig;
 
     let changesList = [];
 
@@ -439,23 +431,23 @@ ${emojis.service} ${services}
       if (change.type === 'booking_time_changed') {
         const oldDate = formatDate(new Date(change.oldValue));
         const oldTime = formatTime(new Date(change.oldValue));
-        changesList.push(`${emojis.date} Время: ${oldDate} ${oldTime} → ${date} ${time}`);
+        changesList.push(`Время изменено: ${oldDate} ${oldTime} → ${date} ${time}`);
       } else if (change.type === 'booking_staff_changed') {
-        changesList.push(`${emojis.specialist} ${terminology.specialist}: ${change.oldValue || 'Не указан'} → ${staff}`);
+        changesList.push(`Мастер изменен: ${change.oldValue || 'Не указан'} → ${staff}`);
       } else if (change.type === 'booking_service_changed') {
-        changesList.push(`${emojis.service} Услуги изменены`);
+        changesList.push(`Услуги изменены`);
       }
     });
 
-    return `${emojis.changed} *Ваша ${terminology.appointment} изменена*
+    return `Ваша запись изменена
 
 ${changesList.join('\n')}
 
-*Актуальные данные:*
-${emojis.date} ${date} в ${time}
-${emojis.service} ${services}
-${emojis.specialist} ${terminology.specialist}: ${staff}
-${price > 0 ? `${emojis.price} Стоимость: ${price} руб.\n` : ''}
+Актуальные данные:
+${date} в ${time}
+${services}
+Мастер: ${staff}
+${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
 Если есть вопросы - пишите!`;
   }
 
@@ -669,23 +661,23 @@ ${price > 0 ? `${emojis.price} Стоимость: ${price} руб.\n` : ''}
       
       if (reminderType === 'day_before') {
         notificationType = 'reminder_day_before';
-        message = `${emojis.reminder} *Напоминание о записи на ${dayText}*
+        message = `Добрый вечер! Напоминаем, что завтра вас ждут:
 
-${emojis.date} ${date} в ${time}
-${emojis.service} ${services}
-${emojis.specialist} ${terminology.specialist}: ${staff}
-${price > 0 ? `${emojis.price} Стоимость: ${price} руб.\n` : ''}
-${address ? `${emojis.address} Адрес: ${address}\n` : ''}
-Ждем вас! Если планы изменились, пожалуйста, предупредите заранее.`;
+${date} в ${time}
+${services}
+Мастер: ${staff}
+${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
+${address ? `Адрес: ${address}\n` : ''}
+Если планы изменились, пожалуйста, предупредите заранее.`;
       } else if (reminderType === '2hours') {
         notificationType = 'reminder_2hours';
-        message = `${emojis.urgent} *Напоминание: через 2 часа у вас ${terminology.appointment}*
+        message = `Здравствуйте! Через 2 часа вас ждут.
 
-${emojis.date} Сегодня в ${time}
-${emojis.service} ${services}
-${emojis.specialist} ${terminology.specialist}: ${staff}
-${price > 0 ? `${emojis.price} Стоимость: ${price} руб.\n` : ''}
-${address ? `${emojis.address} Адрес: ${address}\n` : ''}
+Сегодня в ${time}
+${services}
+Мастер: ${staff}
+${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
+${address ? `Адрес: ${address}\n` : ''}
 До встречи!`;
       }
       
