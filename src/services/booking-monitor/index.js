@@ -622,6 +622,24 @@ ${price > 0 ? `${emojis.price} Стоимость: ${price} руб.\n` : ''}
   }
 
   /**
+   * Получить информацию о компании
+   */
+  async getCompanyInfo(companyId) {
+    try {
+      const { data: company } = await supabase
+        .from('companies')
+        .select('address')
+        .eq('yclients_id', companyId)
+        .single();
+      
+      return company;
+    } catch (error) {
+      logger.warn('Failed to get company info', error);
+      return null;
+    }
+  }
+
+  /**
    * Отправить напоминание о записи
    */
   async sendReminderNotification(record, reminderType, phone) {
