@@ -109,8 +109,8 @@ class BookingMonitorService {
       // Обрабатываем каждую запись
       for (const record of records) {
         await this.processBooking(record);
-        // Проверяем и отправляем напоминания
-        await this.checkAndSendReminders(record);
+        // ВРЕМЕННО ОТКЛЮЧЕНО: Проверяем и отправляем напоминания
+        // await this.checkAndSendReminders(record);
       }
 
       // Очищаем старые записи из booking_states (старше 30 дней)
