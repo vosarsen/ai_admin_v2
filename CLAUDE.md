@@ -361,7 +361,7 @@ The system uses Supabase (PostgreSQL) with the following key tables:
 #### Available MCP Servers:
 1. **@test-simple** - Basic test server (use to verify MCP is working)
 2. **@redis** - Redis cache management (requires SSH tunnel on port 6380)
-3. **@supabase** - Direct database access
+3. **@supabase** - Direct database access (uses service_role key for full access)
 4. **@whatsapp** - WhatsApp testing
 5. **@yclients** - YClients API access
 6. **@logs** - Server logs via SSH
@@ -371,6 +371,7 @@ The system uses Supabase (PostgreSQL) with the following key tables:
 - List servers: `claude mcp list`
 - Add server: `claude mcp add <name> <command> [args...]`
 - Remove server: `claude mcp remove <name>`
+- **Important**: Restart Claude Code after changing MCP configurations or server code
 
 **Redis Tunnel Required**:
 ```bash
