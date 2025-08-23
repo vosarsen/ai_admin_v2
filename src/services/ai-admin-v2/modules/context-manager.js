@@ -83,7 +83,8 @@ class ContextManager {
       redisContext,
       preferences,
       conversationSummary,
-      intermediateCtx
+      intermediateCtx,
+      recentReminders
     ] = await Promise.all([
       dataLoader.loadCompanyData(companyId).catch(e => { console.log('[DEBUG] loadCompanyData failed:', e.message); throw e; }),
       dataLoader.loadClient(phone, companyId).catch(e => { console.log('[DEBUG] loadClient failed:', e.message); throw e; }),
@@ -108,7 +109,12 @@ class ContextManager {
       contextService.getContext(phone.replace('@c.us', ''), companyId).catch(e => { console.log('[DEBUG] getContext failed:', e.message); throw e; }),
       dataLoader.loadClientPreferences(phone, companyId).catch(e => { console.log('[DEBUG] loadClientPreferences failed:', e.message); throw e; }),
       dataLoader.generateConversationSummary(phone, companyId).catch(e => { console.log('[DEBUG] generateConversationSummary failed:', e.message); throw e; }),
-      intermediateContext.getIntermediateContext(phone).catch(e => { console.log('[DEBUG] getIntermediateContext failed:', e.message); throw e; })
+      intermediateContext.getIntermediateContext(phone).catch(e => { console.log('[DEBUG] getIntermediateContext failed:', e.message); throw e; }),
+      // Загружаем последние напоминания
+      this.loadRecentReminders(phone, companyId).catch(e => { 
+        console.log('[DEBUG] loadRecentReminders failed:', e.message); 
+        return []; 
+      })
     ]);
     
     // Отладочная информация по всем результатам Promise.all
@@ -149,6 +155,7 @@ class ContextManager {
       preferences,
       conversationSummary,
       intermediate: intermediateCtx,
+      recentReminders,  // Добавляем информацию о последних напоминаниях
       // Включаем conversationContext из Redis для сохранения контекста диалога
       conversationContext: redisContext?.conversationContext || {},
       companyId
@@ -176,6 +183,41 @@ class ContextManager {
       this.cleanupInterval = null;
     }
     this.memoryCache.clear();
+  }
+
+  /**
+   * Загрузка последних напоминаний для клиента
+   */
+  async loadRecentReminders(phone, companyId) {
+    try {
+      const { supabase } = require('../../../database/supabase');
+      const cleanPhone = phone.replace('@c.us', '').replace('+', '');
+      
+      // Загружаем последние 5 напоминаний за последние 7 дней
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const { data: reminders, error } = await supabase
+        .from('booking_notifications')
+        .select('notification_type, message, sent_at, yclients_record_id')
+        .eq('phone', cleanPhone)
+        .eq('company_id', companyId)
+        .in('notification_type', ['reminder_day_before', 'reminder_2hours'])
+        .gte('sent_at', sevenDaysAgo.toISOString())
+        .order('sent_at', { ascending: false })
+        .limit(5);
+      
+      if (error) {
+        logger.error('Failed to load recent reminders:', error);
+        return [];
+      }
+      
+      logger.info(`Loaded ${reminders?.length || 0} recent reminders for ${cleanPhone}`);
+      return reminders || [];
+    } catch (error) {
+      logger.error('Error loading recent reminders:', error);
+      return [];
+    }
   }
 
   /**

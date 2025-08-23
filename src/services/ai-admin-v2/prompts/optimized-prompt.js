@@ -30,7 +30,8 @@ function buildOptimizedPrompt(context) {
     conversation = [],
     redisContext = null,
     intermediate = null,
-    intermediateContext = null
+    intermediateContext = null,
+    recentReminders = []
   } = context;
   
   // Используем intermediate если intermediateContext не передан
@@ -192,6 +193,14 @@ ${staff.map(s => `- ${s.name} (${s.rating ? `рейтинг ${s.rating}` : 'но
 ${conversation && conversation.length > 0 ? conversation.slice(-5).map(m => `${m.sender}: ${m.text}`).join('\n') : 'Пустая история'}
 ${conversation && conversation.length > 0 ? '\n🔴 ЭТО ПРОДОЛЖЕНИЕ ДИАЛОГА - НЕ ЗДОРОВАЙСЯ!' : ''}
 
+${recentReminders && recentReminders.length > 0 ? `
+📨 ПОСЛЕДНИЕ НАПОМИНАНИЯ КЛИЕНТУ:
+${recentReminders.slice(0, 3).map(r => {
+  const date = new Date(r.sent_at);
+  const type = r.notification_type === 'reminder_day_before' ? 'за день' : 'за 2 часа';
+  return \`- \${date.toLocaleDateString('ru-RU')} в \${date.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'})} (\${type})\`;
+}).join('\n')}
+` : ''}
 ТЕКУЩЕЕ СООБЩЕНИЕ: "{message}"
 
 ВАЖНО: ${conversation.length > 0 || intermediateCtx?.isRecent ? 'НЕ ЗДОРОВАЙСЯ - диалог уже начат!' : 'Начни с приветствия'}
