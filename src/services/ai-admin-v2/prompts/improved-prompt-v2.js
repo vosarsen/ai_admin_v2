@@ -122,6 +122,15 @@ ${conversation && conversation.length > 0 ?
   conversation.slice(-5).map(m => `${m.sender}: ${m.text}`).join('\n') : 
   'Пустая история'}
 
+${recentReminders && recentReminders.length > 0 ? `
+📨 ПОСЛЕДНИЕ НАПОМИНАНИЯ КЛИЕНТУ:
+${recentReminders.slice(0, 3).map(r => {
+  const date = new Date(r.sent_at);
+  const type = r.notification_type === 'reminder_day_before' ? 'за день' : 'за 2 часа';
+  return `- ${date.toLocaleDateString('ru-RU')} в ${date.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'})} (${type})`;
+}).join('\n')}
+` : ''}
+
 ТЕКУЩЕЕ СООБЩЕНИЕ: "${message}"
 
 🔴🔴🔴 КРИТИЧЕСКИ ВАЖНОЕ ПРАВИЛО №1: ВСЕГДА ИСПОЛЬЗУЙ КОМАНДЫ! 🔴🔴🔴
