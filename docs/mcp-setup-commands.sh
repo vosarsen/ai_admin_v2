@@ -19,11 +19,11 @@ claude mcp add redis \
   -- /usr/local/bin/node \
   /Users/vosarsen/Documents/GitHub/ai_admin_v2/mcp/mcp-redis/server.js
 
-# 3. Supabase Server
+# 3. Supabase Server (using service_role key for full access)
 echo "Adding Supabase server..."
 claude mcp add supabase \
   -e SUPABASE_URL=https://yazteodihdglhoxgqunp.supabase.co \
-  -e SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhenRlb2RpaGRnbGhveGdxdW5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQyOTU0NzcsImV4cCI6MjA1OTg3MTQ3N30.YWm7hXpWgbmQjN_s0CH_SsMcC7DFi-ZPNahY4rKl7a8 \
+  -e SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhenRlb2RpaGRnbGhveGdxdW5wIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDI5NTQ3NywiZXhwIjoyMDU5ODcxNDc3fQ.43Hq1KlOaTnkhddnybWZWgKlbHGK0FCuhytXVTUBhgY \
   -- /usr/local/bin/node \
   /Users/vosarsen/Documents/GitHub/ai_admin_v2/mcp/mcp-supabase/server.js
 

@@ -109,6 +109,7 @@ server.registerTool("list_tables",
     inputSchema: {}
   },
   async () => {
+    const supabase = getSupabaseClient();
     const tables = [
       'companies',
       'bookings',
@@ -158,6 +159,7 @@ server.registerTool("get_database_stats",
     inputSchema: {}
   },
   async () => {
+    const supabase = getSupabaseClient();
     const stats = {
       timestamp: new Date().toISOString(),
       tables: {}
@@ -215,6 +217,7 @@ server.registerTool("search_bookings",
     }
   },
   async ({ companyId, clientPhone, dateFrom, dateTo, status }) => {
+    const supabase = getSupabaseClient();
     let query = supabase
       .from('bookings')
       .select(`
