@@ -1149,8 +1149,8 @@ class CommandHandler {
     // УЛУЧШЕНИЕ: Категоризируем услуги для лучшего отображения
     const categorizedPrices = this.categorizeServices(sorted);
     
-    // Возвращаем структурированные данные
-    return {
+    // Логируем результат для отладки
+    const result = {
       category: detectedCategory,
       count: sorted.length,
       prices: sorted.slice(0, 30).map(s => ({ // Увеличили лимит до 30
@@ -1162,6 +1162,16 @@ class CommandHandler {
       })),
       categorized: categorizedPrices // Новое поле с категоризацией
     };
+    
+    logger.info(`📋 SHOW_PRICES returning ${result.prices.length} services for "${detectedCategory}":`, {
+      query: params.service_name || params.category || message,
+      totalFound: sorted.length,
+      returnedCount: result.prices.length,
+      services: result.prices.map(p => p.title).slice(0, 10) // Показываем первые 10 названий
+    });
+    
+    // Возвращаем структурированные данные
+    return result;
   }
   
   /**

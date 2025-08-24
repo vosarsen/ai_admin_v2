@@ -87,14 +87,18 @@ ID записи: ${data.booking_id}
       case 'SHOW_PRICES':
         if (data.prices && data.prices.length > 0) {
           const category = data.category || 'услуги';
-          const priceList = data.prices.slice(0, 10).map(p => {
+          // НЕ обрезаем список - показываем ВСЕ услуги, которые вернула команда
+          const priceList = data.prices.map(p => {
             const priceStr = p.price_min === p.price_max ? 
               `${p.price_min}₽` : 
               `от ${p.price_min}₽`;
             const duration = p.duration ? ` (${p.duration} мин)` : '';
             return `- ${p.title}: ${priceStr}${duration}`;
           }).join('\n');
-          return `✅ SHOW_PRICES: Найдены цены на ${category}:\n${priceList}`;
+          
+          console.log(`📋 formatCommandResults: SHOW_PRICES has ${data.prices.length} services`);
+          
+          return `✅ SHOW_PRICES: Найдены цены на ${category} (${data.prices.length} услуг):\n${priceList}`;
         }
         return `⚠️ SHOW_PRICES: Услуги не найдены`;
         
