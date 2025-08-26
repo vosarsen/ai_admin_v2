@@ -267,10 +267,21 @@ class AIAdminV2 {
       }
       
       // Единый вызов для сохранения всего контекста
+      logger.info('🔥 Calling contextManager.saveContext with:', {
+        phone: normalizedPhone,
+        companyId,
+        updates: contextUpdates
+      });
       await contextManager.saveContext(normalizedPhone, companyId, contextUpdates);
       
       // Сохраняем контекст из команд (включая результаты)
       if (result.executedCommands && result.executedCommands.length > 0) {
+        logger.info('🔥 Calling contextManager.saveCommandContext with:', {
+          phone: normalizedPhone,
+          companyId,
+          commands: result.executedCommands,
+          hasResults: !!result.commandResults
+        });
         await contextManager.saveCommandContext(
           normalizedPhone, 
           companyId, 
