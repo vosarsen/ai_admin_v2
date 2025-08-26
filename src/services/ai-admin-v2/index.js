@@ -32,7 +32,7 @@ class AIAdminV2 {
     this.responseFormatter = formatter; // Добавляем форматтер
     // ResponseProcessor удален - используем commandHandler напрямую
     this.errorHandler = ErrorHandler;
-    this.messageProcessor = new MessageProcessor(dataLoader, contextService, intermediateContext);
+    this.messageProcessor = new MessageProcessor(dataLoader, contextServiceV2, intermediateContext);
     this.personalizationService = new ClientPersonalizationService();
   }
 
