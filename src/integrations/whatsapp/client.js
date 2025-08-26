@@ -3,7 +3,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 const config = require('../../config');
 const logger = require('../../utils/logger');
-const circuitBreakerFactory = require('../../utils/circuit-breaker');
+const { CircuitBreakerFactory: circuitBreakerFactory } = require('../../utils/circuit-breaker');
 
 class WhatsAppClient {
   constructor() {
@@ -14,9 +14,9 @@ class WhatsAppClient {
     this.retries = config.whatsapp.retries;
     
     // Initialize circuit breaker
-    this.circuitBreaker = circuitBreakerFactory.getBreaker('whatsapp', {
+    this.circuitBreaker = circuitBreakerFactory.get('whatsapp', {
       timeout: this.timeout,
-      errorThreshold: 5,
+      failureThreshold: 5,
       resetTimeout: 60000 // 1 minute
     });
     
