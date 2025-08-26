@@ -2,7 +2,7 @@ const logger = require('../../../utils/logger').child({ module: 'ai-admin-v2:com
 const bookingService = require('../../booking');
 const formatter = require('./formatter');
 const serviceMatcher = require('./service-matcher');
-const contextService = require('../../context');
+const contextServiceV2 = require('../../context/context-service-v2');
 const errorMessages = require('../../../utils/error-messages');
 const FuzzyMatcher = require('../../../utils/fuzzy-matcher');
 const businessLogic = require('./business-logic');
@@ -846,10 +846,10 @@ class CommandHandler {
     
     // Если имени нет в контексте клиента, проверяем Redis
     if (!clientName) {
-      const contextService = require('../../context');
+      const contextServiceV2 = require('../../context/context-service-v2');
       const companyId = context.company?.yclients_id || context.company?.company_id;
       try {
-        const redisContext = await contextService.getContext(cleanPhone, companyId);
+        const redisContext = await contextServiceV2.getFullContext(cleanPhone, companyId);
         if (redisContext && redisContext.clientName) {
           clientName = redisContext.clientName;
         }
@@ -878,9 +878,9 @@ class CommandHandler {
         logger.info('Using name from current message:', { name: clientName, phone: cleanPhone });
         
         // Сохраняем в Redis для будущего использования
-        const contextService = require('../../context');
-        await contextService.updateContext(cleanPhone, context.company.yclients_id || context.company.company_id, {
-          clientInfo: { name: clientName }
+        const contextServiceV2 = require('../../context/context-service-v2');
+        await contextServiceV2.updateDialogContext(cleanPhone, context.company.yclients_id || context.company.company_id, {
+          clientName: clientName
         });
         
         // Обновляем контекст текущей сессии
@@ -1413,7 +1413,7 @@ class CommandHandler {
     }
     
     // Сохраняем имя в Redis для будущих сессий
-    const contextService = require('../../context');
+    const contextServiceV2 = require('../../context/context-service-v2');
     const companyId = context.company.yclients_id || context.company.company_id;
     await contextService.updateContext(cleanPhone, companyId, {
       clientInfo: { name: params.name }
@@ -1605,7 +1605,7 @@ class CommandHandler {
       
       // Инвалидируем кеш контекста после успешной отмены
       try {
-        const contextService = require('../../context');
+        const contextServiceV2 = require('../../context/context-service-v2');
         await contextService.invalidateCachedContext(
           context.phone, 
           context.company.company_id || context.company.yclients_id

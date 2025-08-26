@@ -6,9 +6,8 @@ const dataLoader = require('./modules/cached-data-loader'); // Использу�
 const formatter = require('./modules/formatter');
 const businessLogic = require('./modules/business-logic');
 const commandHandler = require('./modules/command-handler');
-const contextService = require('../context');
+const contextServiceV2 = require('../context/context-service-v2');
 const intermediateContext = require('../context/intermediate-context');
-const unifiedContext = require('../context/unified-context-service');
 const errorMessages = require('../../utils/error-messages');
 const criticalErrorLogger = require('../../utils/critical-error-logger');
 const providerFactory = require('../ai/provider-factory');
@@ -89,8 +88,13 @@ class AIAdminV2 {
       
       logger.info(`🤖 AI Admin v2 processing: "${message}" from ${phone}`);
       
-      // 1. Проверяем ожидающую отмену записи
-      const redisContext = await unifiedContext.getContext(phone.replace('@c.us', ''), companyId);
+      // 1. Проверяем ожидающую отмену записи (через v2)
+      const normalizedPhone = phone.replace('@c.us', '');
+      const dialogContext = await contextServiceV2.getDialogContext(normalizedPhone, companyId);
+      const redisContext = dialogContext ? {
+        ...dialogContext,
+        pendingCancellation: dialogContext.pendingAction?.type === 'cancellation'
+      } : null;
       if (redisContext?.pendingCancellation) {
         const cancellationResult = await this.messageProcessor.handlePendingCancellation(
           message, phone, companyId, redisContext
@@ -296,16 +300,7 @@ class AIAdminV2 {
         );
         
         if (dateCommand) {
-          const normalizedPhone2 = normalizedPhone.startsWith('+') ? normalizedPhone : '+' + normalizedPhone;
-          await unifiedContext.saveContext(normalizedPhone2, companyId, {
-            selection: {
-              date: dateCommand.params.date,
-              service: dateCommand.params.service_name || contextUpdates.selection?.service,
-              staff: dateCommand.params.staff_name || contextUpdates.selection?.staff
-            },
-            state: 'active'
-          });
-          logger.info(`Saved lastDate to old context: ${dateCommand.params.date}`);
+          logger.info(`Date synchronized to context: ${dateCommand.params.date}`);
         }
       }
       

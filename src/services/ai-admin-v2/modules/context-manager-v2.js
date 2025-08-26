@@ -6,7 +6,6 @@
 
 const logger = require('../../../utils/logger').child({ module: 'context-manager-v2' });
 const contextServiceV2 = require('../../context/context-service-v2');
-const contextServiceOld = require('../../context'); // Для обратной совместимости
 const dataLoader = require('./cached-data-loader');
 const intermediateContext = require('../../context/intermediate-context');
 const performanceMetrics = require('./performance-metrics');
