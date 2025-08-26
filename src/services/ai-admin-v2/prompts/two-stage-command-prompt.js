@@ -25,34 +25,30 @@ module.exports = {
     // Информация о контексте из предыдущих сообщений
     // Проверяем два источника: currentSelection (новая система) и redisContext.data (старая)
     const currentSelection = context.currentSelection || {};
-    const previousContext = redisContext?.data ? (() => {
+    
+    // Парсим данные из Redis контекста
+    let parsedRedisData = {};
+    if (redisContext?.data) {
       try {
-        const data = JSON.parse(redisContext.data);
-        return {
-          lastService: currentSelection.service || data.lastService,
-          lastTime: currentSelection.time || data.lastTime,
-          lastStaff: currentSelection.staff || data.lastStaff,
-          lastDate: currentSelection.date || data.lastDate,
-          lastCommand: data.lastCommand
-        };
+        // data может быть уже строкой JSON или объектом
+        parsedRedisData = typeof redisContext.data === 'string' ? 
+          JSON.parse(redisContext.data) : redisContext.data;
+        console.log('📝 Parsed Redis data:', parsedRedisData);
       } catch (e) {
-        // Если нет старого контекста, используем currentSelection
-        return {
-          lastService: currentSelection.service,
-          lastTime: currentSelection.time,
-          lastStaff: currentSelection.staff,
-          lastDate: currentSelection.date,
-          lastCommand: null
-        };
+        console.error('Failed to parse Redis data:', e, redisContext.data);
       }
-    })() : {
-      // Если нет redisContext, используем только currentSelection
-      lastService: currentSelection.service,
-      lastTime: currentSelection.time,
-      lastStaff: currentSelection.staff,
-      lastDate: currentSelection.date,
-      lastCommand: null
+    }
+    
+    // Объединяем контекст из разных источников
+    const previousContext = {
+      lastService: currentSelection.service || parsedRedisData.lastService,
+      lastTime: currentSelection.time || parsedRedisData.lastTime,
+      lastStaff: currentSelection.staff || parsedRedisData.lastStaff,
+      lastDate: currentSelection.date || parsedRedisData.lastDate,
+      lastCommand: parsedRedisData.lastCommand
     };
+    
+    console.log('📝 Previous context for Stage 1:', previousContext);
     
     // Список доступных услуг для контекста
     const servicesList = services.slice(0, 20).map(s => s.title).join(', ');
