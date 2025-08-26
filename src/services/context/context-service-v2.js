@@ -7,24 +7,25 @@
 const { createRedisClient } = require('../../utils/redis-factory');
 const logger = require('../../utils/logger').child({ module: 'context-v2' });
 const DataTransformers = require('../../utils/data-transformers');
+const config = require('../../config/context-config');
 
-// Конфигурация TTL для разных типов данных
+// Используем TTL из конфигурации
 const TTL_CONFIG = {
   // Контекст текущего диалога
   dialog: {
-    messages: 24 * 60 * 60,         // 24 часа - история сообщений
-    selection: 2 * 60 * 60,          // 2 часа - текущий выбор (услуга, мастер, время)
-    pendingAction: 30 * 60,          // 30 минут - ожидающие действия
+    messages: config.ttl.dialog.messages,
+    selection: config.ttl.dialog.selection,
+    pendingAction: config.ttl.dialog.pendingAction,
   },
   
   // Кэш данных из Supabase
-  clientCache: 24 * 60 * 60,         // 24 часа - обновится при синхронизации
+  clientCache: config.ttl.cache.client,
   
   // Персональные предпочтения
-  preferences: 30 * 24 * 60 * 60,    // 30 дней - долгосрочные предпочтения
+  preferences: config.ttl.persistent.preferences,
   
   // Полный контекст для AI
-  fullContext: 12 * 60 * 60,         // 12 часов - кэш полного контекста
+  fullContext: config.ttl.cache.fullContext,
 };
 
 class ContextServiceV2 {

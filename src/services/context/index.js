@@ -70,13 +70,13 @@ class ContextService {
         this.redis.hgetall(contextKey)
       ]);
 
-      // Логируем что получили из Redis
-      logger.info('Context data from Redis:', {
+      // Логируем что получили из Redis (без персональных данных)
+      logger.debug('Context data from Redis:', {
         contextKey,
         hasContextData: !!contextData,
         contextKeys: Object.keys(contextData || {}),
-        dataField: contextData?.data,
-        fullData: JSON.stringify(contextData)
+        // НЕ логируем fullData и dataField - там персональные данные
+        dataLength: contextData?.data?.length || 0
       });
       
       // Если клиент не найден в кэше, но есть имя в контексте
@@ -89,9 +89,10 @@ class ContextService {
           logger.error('Failed to parse context data:', e);
         }
         
-        logger.info('Parsed context data:', {
-          savedData,
-          hasClientName: !!savedData.clientName
+        logger.debug('Parsed context data:', {
+          hasClientName: !!savedData.clientName,
+          // НЕ логируем savedData - там персональные данные
+          dataKeys: Object.keys(savedData || {})
         });
         
         if (savedData.clientName) {
