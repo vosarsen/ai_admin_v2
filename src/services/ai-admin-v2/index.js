@@ -89,8 +89,8 @@ class AIAdminV2 {
       logger.info(`🤖 AI Admin v2 processing: "${message}" from ${phone}`);
       
       // 1. Проверяем ожидающую отмену записи (через v2)
-      const normalizedPhone = phone.replace('@c.us', '');
-      const dialogContext = await contextServiceV2.getDialogContext(normalizedPhone, companyId);
+      const cleanPhone = phone.replace('@c.us', '');
+      const dialogContext = await contextServiceV2.getDialogContext(cleanPhone, companyId);
       const redisContext = dialogContext ? {
         ...dialogContext,
         pendingCancellation: dialogContext.pendingAction?.type === 'cancellation'
