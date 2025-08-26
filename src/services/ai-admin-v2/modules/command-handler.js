@@ -1055,7 +1055,7 @@ class CommandHandler {
           lastBookingDate: parsedDate
         };
         
-        await contextService.savePreferences(
+        await contextServiceV2.savePreferences(
           context.phone.replace('@c.us', ''), 
           context.company.company_id || context.company.yclients_id,
           preferences
@@ -1070,7 +1070,7 @@ class CommandHandler {
     
     // Инвалидируем кеш контекста после успешного создания записи
     try {
-      await contextService.invalidateCachedContext(
+      await contextServiceV2.invalidateFullContextCache(
         context.phone || cleanPhone, 
         context.company.company_id || context.company.yclients_id
       );
@@ -1415,13 +1415,8 @@ class CommandHandler {
     // Сохраняем имя в Redis для будущих сессий
     const contextServiceV2 = require('../../context/context-service-v2');
     const companyId = context.company.yclients_id || context.company.company_id;
-    await contextService.updateContext(cleanPhone, companyId, {
-      clientInfo: { name: params.name }
-    });
-    
-    // Также сохраняем в основной контекст для обратной совместимости
-    await contextService.setContext(cleanPhone, companyId, {
-      data: { clientName: params.name }
+    await contextServiceV2.updateDialogContext(cleanPhone, companyId, {
+      clientName: params.name
     });
     
     // Инвалидируем кеш контекста чтобы при следующем запросе загрузить обновленные данные
@@ -1606,7 +1601,7 @@ class CommandHandler {
       // Инвалидируем кеш контекста после успешной отмены
       try {
         const contextServiceV2 = require('../../context/context-service-v2');
-        await contextService.invalidateCachedContext(
+        await contextServiceV2.invalidateFullContextCache(
           context.phone, 
           context.company.company_id || context.company.yclients_id
         );

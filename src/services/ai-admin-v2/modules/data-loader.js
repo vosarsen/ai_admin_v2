@@ -5,42 +5,30 @@ const companyInfoSync = new CompanyInfoSync();
 
 class DataLoader {
   /**
-   * Санитизация входных данных для защиты от SQL инъекций
+   * Валидация входных данных
+   * Supabase использует параметризованные запросы, поэтому санитизация не нужна
    */
-  sanitizeInput(input) {
+  validateInput(input, type = 'any') {
     if (input === null || input === undefined) return input;
     
-    // Для чисел
-    if (typeof input === 'number') {
-      return isNaN(input) ? 0 : input;
+    // Валидация по типу
+    switch (type) {
+      case 'companyId':
+      case 'number':
+        if (typeof input !== 'number' || isNaN(input)) {
+          throw new Error(`Invalid ${type}: ${input}`);
+        }
+        return input;
+      
+      case 'phone':
+        if (typeof input !== 'string' || !input.match(/^\+?\d{10,15}$/)) {
+          logger.warn(`Invalid phone format: ${input}`);
+        }
+        return input;
+      
+      default:
+        return input;
     }
-    
-    // Для строк
-    if (typeof input === 'string') {
-      // Удаляем потенциально опасные символы для SQL
-      return input
-        .replace(/['";\\]/g, '') // Удаляем кавычки и обратный слеш
-        .replace(/--/g, '') // Удаляем SQL комментарии
-        .replace(/\/\*/g, '') // Удаляем начало блочных комментариев
-        .replace(/\*\//g, '') // Удаляем конец блочных комментариев
-        .substring(0, 1000); // Ограничиваем длину
-    }
-    
-    // Для массивов
-    if (Array.isArray(input)) {
-      return input.map(item => this.sanitizeInput(item));
-    }
-    
-    // Для объектов
-    if (typeof input === 'object') {
-      const sanitized = {};
-      for (const [key, value] of Object.entries(input)) {
-        sanitized[this.sanitizeInput(key)] = this.sanitizeInput(value);
-      }
-      return sanitized;
-    }
-    
-    return input;
   }
 
   /**
@@ -48,8 +36,8 @@ class DataLoader {
    */
   async loadCompany(companyId) {
     try {
-      // Санитизация входных данных
-      const safeCompanyId = this.sanitizeInput(companyId);
+      // Валидация входных данных
+      const safeCompanyId = this.validateInput(companyId, 'companyId');
       
       const { data, error } = await supabase
         .from('companies')
@@ -95,13 +83,14 @@ class DataLoader {
       logger.error(`Error loading company ${companyId}:`, error);
       
       // Возвращаем минимальные данные чтобы бот продолжил работать
+      const config = require('../../../config');
       return {
         company_id: companyId,
-        title: 'Салон красоты',
-        address: 'Адрес не указан',
-        phone: '',
-        timezone: 'Europe/Moscow',
-        working_hours: {
+        title: config.company?.defaultTitle || 'Салон красоты',
+        address: config.company?.defaultAddress || '',
+        phone: config.company?.defaultPhone || '',
+        timezone: config.app?.timezone || 'Europe/Moscow',
+        working_hours: config.company?.defaultWorkingHours || {
           monday: { start: '10:00', end: '22:00' },
           tuesday: { start: '10:00', end: '22:00' },
           wednesday: { start: '10:00', end: '22:00' },
@@ -161,9 +150,9 @@ class DataLoader {
    */
   async loadClient(phone, companyId) {
     try {
-      // Санитизация входных данных
-      const safePhone = this.sanitizeInput(phone);
-      const safeCompanyId = this.sanitizeInput(companyId);
+      // Валидация входных данных
+      const safePhone = this.validateInput(phone, 'phone');
+      const safeCompanyId = this.validateInput(companyId, 'companyId');
       
       // Убираем @c.us если есть, но оставляем + для raw_phone
       const cleanPhone = safePhone.replace('@c.us', '');
@@ -423,21 +412,21 @@ class DataLoader {
    */
   async saveContext(phone, companyId, context, result) {
     try {
-      // Санитизация входных данных
-      const safePhone = this.sanitizeInput(phone);
-      const safeCompanyId = this.sanitizeInput(companyId);
+      // Валидация входных данных
+      const safePhone = this.validateInput(phone, 'phone');
+      const safeCompanyId = this.validateInput(companyId, 'companyId');
       const cleanPhone = safePhone.replace('@c.us', '');
       
       // Добавляем новое сообщение в историю
       const messages = context.conversation || [];
       messages.push({
         role: 'user',
-        content: this.sanitizeInput(context.currentMessage),
+        content: this.validateInput(context.currentMessage),
         timestamp: new Date().toISOString()
       });
       messages.push({
         role: 'assistant',
-        content: this.sanitizeInput(result.response),
+        content: this.validateInput(result.response),
         timestamp: new Date().toISOString()
       });
       
@@ -458,21 +447,28 @@ class DataLoader {
         });
       
       // ВАЖНО: Также сохраняем контекст в Redis для быстрого доступа
-      const contextService = require('../../context');
+      const contextServiceV2 = require('../../context/context-service-v2');
       
-      // Сохраняем информацию о последней команде и услуге
-      const contextData = {
-        lastCommand: result.executedCommands?.[0]?.command || null,
-        lastService: result.executedCommands?.[0]?.params?.service_name || null,
-        lastStaff: result.executedCommands?.[0]?.params?.staff_name || null,
-        lastMessageTime: new Date().toISOString(),
-        recentMessages: recentMessages.slice(-5), // Последние 5 сообщений для контекста
+      // Сохраняем информацию о последней команде и услуге через updateDialogContext
+      const contextUpdates = {
+        selection: {
+          lastCommand: result.executedCommands?.[0]?.command || null,
+          lastService: result.executedCommands?.[0]?.params?.service_name || null,
+          lastStaff: result.executedCommands?.[0]?.params?.staff_name || null,
+        },
         clientName: context.client?.name || null
       };
       
-      await contextService.setContext(cleanPhone, companyId, {
-        data: contextData
-      });
+      await contextServiceV2.updateDialogContext(cleanPhone, companyId, contextUpdates);
+      
+      // Добавляем сообщения в историю
+      for (const msg of recentMessages.slice(-5)) {
+        await contextServiceV2.addMessage(cleanPhone, companyId, {
+          text: msg.content,
+          type: msg.role === 'user' ? 'incoming' : 'outgoing',
+          timestamp: msg.timestamp || new Date().toISOString()
+        });
+      }
       
       logger.info('Context saved to both Supabase and Redis');
     } catch (error) {
