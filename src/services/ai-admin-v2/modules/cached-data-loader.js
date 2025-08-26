@@ -143,9 +143,9 @@ class CachedDataLoader {
     const intermediate = await intermediateContext.getIntermediateContext(phone);
     
     // Загружаем Redis контекст для доступа к lastActivity и lastMessageDate
-    const contextService = require('../../context');
+    const contextServiceV2 = require('../../context/context-service-v2');
     const cleanPhone = phone.replace('@c.us', '');
-    const redisContext = await contextService.getContext(cleanPhone, companyId);
+    const redisContext = await contextServiceV2.getDialogContext(cleanPhone, companyId);
     
     const context = {
       phone,
@@ -180,12 +180,12 @@ class CachedDataLoader {
     return this.cache.getOrSet('context', cacheKey, async () => {
       logger.debug(`Loading conversation from Redis: ${phone}`);
       
-      // Загружаем из Redis через contextService
-      const contextService = require('../../context');
+      // Загружаем из Redis через contextServiceV2
+      const contextServiceV2 = require('../../context/context-service-v2');
       const cleanPhone = phone.replace('@c.us', '');
       
       try {
-        const redisContext = await contextService.getContext(cleanPhone, companyId);
+        const redisContext = await contextServiceV2.getFullContext(cleanPhone, companyId);
         // ВАЖНО: сообщения возвращаются в поле lastMessages, а не messages!
         const messages = redisContext?.lastMessages || redisContext?.messages || [];
         logger.debug(`Loaded ${messages.length} messages from Redis for ${cleanPhone}`);
