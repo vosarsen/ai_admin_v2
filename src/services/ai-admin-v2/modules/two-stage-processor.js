@@ -41,7 +41,8 @@ class TwoStageProcessor {
         services: context.services,
         staff: context.staff,
         redisContext: context.redisContext,
-        intermediateContext: context.intermediateContext
+        intermediateContext: context.intermediateContext,
+        currentSelection: context.currentSelection // Передаем из context-v2
       });
       
       // ОТЛАДКА: Логируем ключевые части промпта для диагностики

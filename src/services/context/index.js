@@ -117,7 +117,9 @@ class ContextService {
         clientName: finalClient?.name || contextData?.clientName,
         // Добавляем дату последнего сообщения для проверки приветствий
         lastMessageDate: contextData?.lastMessageDate,
-        lastActivity: contextData?.lastActivity
+        lastActivity: contextData?.lastActivity,
+        // ВАЖНО: Добавляем поле data для передачи в two-stage processor
+        data: contextData?.data
       };
     } catch (error) {
       logger.error('Failed to get context:', error);

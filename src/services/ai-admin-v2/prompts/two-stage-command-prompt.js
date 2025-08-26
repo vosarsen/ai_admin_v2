@@ -23,28 +23,28 @@ module.exports = {
     } = context;
     
     // Информация о контексте из предыдущих сообщений
-    // Проверяем два источника: currentSelection (новая система) и redisContext.data (старая)
+    // Проверяем ТРИ источника: currentSelection (новая система), redisContext.data (старая) и сам redisContext
     const currentSelection = context.currentSelection || {};
     
-    // Парсим данные из Redis контекста
+    // Парсим данные из Redis контекста (старая система)
     let parsedRedisData = {};
     if (redisContext?.data) {
       try {
         // data может быть уже строкой JSON или объектом
         parsedRedisData = typeof redisContext.data === 'string' ? 
           JSON.parse(redisContext.data) : redisContext.data;
-        console.log('📝 Parsed Redis data:', parsedRedisData);
+        console.log('📝 Parsed Redis data from old system:', parsedRedisData);
       } catch (e) {
         console.error('Failed to parse Redis data:', e, redisContext.data);
       }
     }
     
-    // Объединяем контекст из разных источников
+    // Объединяем контекст из ВСЕХ источников с правильным приоритетом
     const previousContext = {
-      lastService: currentSelection.service || parsedRedisData.lastService,
-      lastTime: currentSelection.time || parsedRedisData.lastTime,
-      lastStaff: currentSelection.staff || parsedRedisData.lastStaff,
-      lastDate: currentSelection.date || parsedRedisData.lastDate,
+      lastService: currentSelection.service || parsedRedisData.lastService || parsedRedisData.selectedService,
+      lastTime: currentSelection.time || parsedRedisData.lastTime || parsedRedisData.selectedTime,
+      lastStaff: currentSelection.staff || parsedRedisData.lastStaff || parsedRedisData.selectedStaff,
+      lastDate: currentSelection.date || parsedRedisData.lastDate || parsedRedisData.selectedDate,
       lastCommand: parsedRedisData.lastCommand
     };
     
