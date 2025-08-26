@@ -8,6 +8,7 @@ const businessLogic = require('./modules/business-logic');
 const commandHandler = require('./modules/command-handler');
 const contextService = require('../context');
 const intermediateContext = require('../context/intermediate-context');
+const unifiedContext = require('../context/unified-context-service');
 const errorMessages = require('../../utils/error-messages');
 const criticalErrorLogger = require('../../utils/critical-error-logger');
 const providerFactory = require('../ai/provider-factory');
@@ -89,7 +90,7 @@ class AIAdminV2 {
       logger.info(`🤖 AI Admin v2 processing: "${message}" from ${phone}`);
       
       // 1. Проверяем ожидающую отмену записи
-      const redisContext = await contextService.getContext(phone.replace('@c.us', ''), companyId);
+      const redisContext = await unifiedContext.getContext(phone.replace('@c.us', ''), companyId);
       if (redisContext?.pendingCancellation) {
         const cancellationResult = await this.messageProcessor.handlePendingCancellation(
           message, phone, companyId, redisContext
@@ -295,13 +296,12 @@ class AIAdminV2 {
         );
         
         if (dateCommand) {
-          const contextService = require('../context');
           const normalizedPhone2 = normalizedPhone.startsWith('+') ? normalizedPhone : '+' + normalizedPhone;
-          await contextService.setContext(normalizedPhone2, companyId, {
-            data: { 
-              lastDate: dateCommand.params.date,
-              lastService: dateCommand.params.service_name || contextUpdates.selection?.service,
-              lastStaff: dateCommand.params.staff_name || contextUpdates.selection?.staff
+          await unifiedContext.saveContext(normalizedPhone2, companyId, {
+            selection: {
+              date: dateCommand.params.date,
+              service: dateCommand.params.service_name || contextUpdates.selection?.service,
+              staff: dateCommand.params.staff_name || contextUpdates.selection?.staff
             },
             state: 'active'
           });
