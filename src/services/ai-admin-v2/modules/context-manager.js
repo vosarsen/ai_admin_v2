@@ -398,6 +398,176 @@ class ContextManager {
     
     return { handled: false };
   }
+
+  /**
+   * Сохранение полного контекста после обработки сообщения
+   */
+  async saveContext(phone, companyId, updates) {
+    const normalizedPhone = phone.replace('@c.us', '').replace('+', '');
+    const cacheKey = `${phone}@${companyId}`;
+    
+    logger.info(`Saving context for ${normalizedPhone}`, {
+      hasSelection: !!updates.selection,
+      hasClientName: !!updates.clientName,
+      state: updates.state
+    });
+
+    // Инвалидируем кэш при обновлении
+    await this.invalidateCache(cacheKey, phone, companyId);
+    
+    // Сохраняем в Redis через contextService
+    await contextService.setContext(normalizedPhone, companyId, {
+      ...updates,
+      lastUpdated: new Date().toISOString()
+    });
+
+    // Сохраняем историю сообщения
+    if (updates.userMessage && updates.botResponse) {
+      await contextService.updateContext(normalizedPhone, companyId, {
+        lastMessage: {
+          sender: 'user',
+          text: updates.userMessage,
+          response: updates.botResponse,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  }
+
+  /**
+   * Сохранение контекста из выполненных команд
+   */
+  async saveCommandContext(phone, companyId, executedCommands, commandResults) {
+    if (!executedCommands || executedCommands.length === 0) {
+      return;
+    }
+
+    const normalizedPhone = phone.replace('@c.us', '').replace('+', '');
+    const contextData = {};
+
+    // Извлекаем важную информацию из команд
+    executedCommands.forEach((cmd, index) => {
+      const result = commandResults?.[index];
+      
+      // Сохраняем выбранную дату
+      if (cmd.params?.date) {
+        contextData.selectedDate = cmd.params.date;
+        contextData.lastSearchDate = cmd.params.date;
+        logger.info(`Saving selected date from ${cmd.command}: ${cmd.params.date}`);
+      }
+      
+      // Сохраняем выбранную услугу
+      if (cmd.params?.service_name) {
+        contextData.selectedService = cmd.params.service_name;
+        contextData.selectedServiceId = cmd.params?.service_id;
+      }
+      
+      // Сохраняем выбранного мастера
+      if (cmd.params?.staff_name) {
+        contextData.selectedStaff = cmd.params.staff_name;
+        contextData.selectedStaffId = cmd.params?.staff_id;
+      }
+      
+      // Сохраняем выбранное время
+      if (cmd.params?.time) {
+        contextData.selectedTime = cmd.params.time;
+      }
+      
+      // Сохраняем результаты поиска слотов
+      if (cmd.command === 'SEARCH_SLOTS' && result?.slots) {
+        contextData.lastSearchResults = {
+          date: cmd.params.date,
+          slots: result.slots,
+          timestamp: new Date().toISOString()
+        };
+      }
+      
+      // Сохраняем информацию о созданной записи
+      if (cmd.command === 'CREATE_BOOKING' && result?.success) {
+        contextData.lastBooking = {
+          recordId: result.record_id,
+          date: cmd.params.date,
+          time: cmd.params.time,
+          service: cmd.params.service_name,
+          staff: cmd.params.staff_name,
+          createdAt: new Date().toISOString()
+        };
+      }
+    });
+
+    if (Object.keys(contextData).length > 0) {
+      // Сохраняем через contextService
+      await contextService.setContext(normalizedPhone, companyId, {
+        data: contextData,
+        lastCommandUpdate: new Date().toISOString()
+      });
+      
+      logger.info(`Command context saved for ${normalizedPhone}:`, contextData);
+    }
+  }
+
+  /**
+   * Обогащение данных клиента информацией из контекста
+   */
+  enrichClientData(clientFromDb, redisContext) {
+    if (!clientFromDb && redisContext) {
+      // Если клиента нет в БД, но есть в Redis
+      const contextData = redisContext.data || {};
+      if (contextData.clientName) {
+        return {
+          phone: redisContext.phone,
+          name: contextData.clientName,
+          fromContext: true
+        };
+      }
+    }
+    
+    // Обогащаем существующего клиента данными из контекста
+    if (clientFromDb && redisContext?.data) {
+      return {
+        ...clientFromDb,
+        contextData: redisContext.data,
+        lastActivity: redisContext.lastActivity
+      };
+    }
+    
+    return clientFromDb;
+  }
+
+  /**
+   * Сортировка услуг для клиента на основе истории и предпочтений
+   */
+  async sortServicesForClient(services, client, businessStats) {
+    if (!services || services.length === 0) {
+      return [];
+    }
+
+    // Если нет клиента или истории, возвращаем как есть
+    if (!client || !businessStats) {
+      return services;
+    }
+
+    // Создаем мапу популярности услуг
+    const popularityMap = new Map();
+    if (businessStats.popularServices) {
+      businessStats.popularServices.forEach((stat, index) => {
+        popularityMap.set(stat.service_id, businessStats.popularServices.length - index);
+      });
+    }
+
+    // Сортируем с учетом популярности
+    return services.sort((a, b) => {
+      const scoreA = popularityMap.get(a.id) || 0;
+      const scoreB = popularityMap.get(b.id) || 0;
+      
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA; // Более популярные первыми
+      }
+      
+      // При одинаковой популярности - по имени
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  }
 }
 
 module.exports = new ContextManager();

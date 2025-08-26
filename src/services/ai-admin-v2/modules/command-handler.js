@@ -165,6 +165,19 @@ class CommandHandler {
       logger.info(`Executing command: ${cmd.command}`, safeParams);
       
       try {
+        // Валидируем параметры команды
+        const validation = this.validateCommandParams(cmd.command, cmd.params || {});
+        if (!validation.valid) {
+          logger.warn(`Command ${cmd.command} validation failed:`, validation.error);
+          results.push({ 
+            type: 'error', 
+            command: cmd.command,
+            error: validation.error,
+            validationError: true
+          });
+          continue;
+        }
+        
         switch (cmd.command) {
           case 'SEARCH_SLOTS':
             const slotsResult = await this.searchSlots(cmd.params, context);
@@ -274,32 +287,89 @@ class CommandHandler {
   }
 
   /**
+   * Валидация параметров команды
+   */
+  validateCommandParams(command, params) {
+    const requiredParams = {
+      'SEARCH_SLOTS': [], // date и service_name обрабатываются внутри метода
+      'CREATE_BOOKING': ['date', 'time'], // service определяется из контекста или lastSearch
+      'CANCEL_BOOKING': [], // booking_id определяется из контекста
+      'SHOW_PRICES': [], // category определяется из сообщения
+      'CHECK_STAFF_SCHEDULE': [], // staff и date определяются из сообщения
+    };
+    
+    const required = requiredParams[command];
+    if (!required) return { valid: true };
+    
+    const missing = [];
+    for (const param of required) {
+      if (!params[param] || params[param].trim() === '') {
+        missing.push(param);
+      }
+    }
+    
+    if (missing.length > 0) {
+      return {
+        valid: false,
+        error: `Не указаны обязательные параметры: ${missing.join(', ')}`
+      };
+    }
+    
+    return { valid: true };
+  }
+
+  /**
    * Поиск свободных слотов
    */
   async searchSlots(params, context) {
+    // Проверяем, что услуга указана
+    if (!params.service_name && !params.service_id && !context.lastSearch?.service_id) {
+      logger.warn('SEARCH_SLOTS called without service specification');
+      return { 
+        service: null, 
+        staff: null, 
+        slots: [],
+        error: 'Не указана услуга для поиска слотов'
+      };
+    }
+    
     // ПЕРСОНАЛИЗАЦИЯ: Используем интеллектуальный поиск услуги с учетом истории
     let service;
-    if (context.client) {
-      // Если есть информация о клиенте - используем персонализацию
-      const matches = serviceMatcher.findTopMatchesWithPersonalization(
-        params.service_name || '',
-        context.services,
-        context.client,
-        1
-      );
-      service = matches[0] || null;
-    } else {
-      // Иначе используем обычный поиск
-      service = serviceMatcher.findBestMatch(
-        params.service_name || '', 
-        context.services
-      );
+    if (params.service_id) {
+      // Если передан ID услуги, ищем по ID
+      service = context.services.find(s => s.yclients_id === parseInt(params.service_id));
+    } else if (params.service_name) {
+      // Ищем по названию с персонализацией
+      if (context.client) {
+        // Если есть информация о клиенте - используем персонализацию
+        const matches = serviceMatcher.findTopMatchesWithPersonalization(
+          params.service_name,
+          context.services,
+          context.client,
+          1
+        );
+        service = matches[0] || null;
+      } else {
+        // Иначе используем обычный поиск
+        service = serviceMatcher.findBestMatch(
+          params.service_name, 
+          context.services
+        );
+      }
+    } else if (context.lastSearch?.service_id) {
+      // Используем услугу из последнего поиска
+      service = context.services.find(s => s.yclients_id === context.lastSearch.service_id);
     }
     
     if (!service) {
-      logger.warn('Service not found for query:', params.service_name);
+      logger.warn('Service not found for query:', params.service_name || params.service_id);
       // Возвращаем корректную структуру с пустыми слотами
-      return { service: null, staff: null, slots: [] };
+      return { 
+        service: null, 
+        staff: null, 
+        slots: [],
+        error: `Услуга "${params.service_name || params.service_id}" не найдена`
+      };
     }
     
     logger.info('Found service for query:', {
