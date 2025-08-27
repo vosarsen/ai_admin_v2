@@ -1,229 +1,96 @@
-*** Value Offer: Creating Your Grand Slam Offer Part II: Trim & Stack *** 
-
-I divided this chapter into two parts because it’s the meatiest section in the book. It’s also the most important. Without a valuable product or service, the rest of the book won’t be as actionable. We just covered all the problems we are going to solve. The second half of making your offer is breaking down tactically what we are going to do/provide for our client. In theory, we’d all love to fly out and live with our customers to fix their problems. In reality, that wouldn’t make a very scalable business. We need our offer to be incredibly attractive and profitable.
-
- That being said, if this is your first Grand Slam Offer, it’s important to over-deliver like crazy. Maybe flying out isn’t such a bad idea in the beginning. Make some sales, then think about how to make it easier for your clients. You want them to think to themselves, “I get all this, for only that?” In essence, you want them to perceive tremendous value.
-      
-Everyone buys bargains. Some people just buy $100,000 things for only $10,000. That’s where we want to live: high prices, but a steal for the value (like hopefully this book so far).
-
-**Sales to Fulfillment Continuum**
-🙂 <--easy to sell-------hard to sell--🙁
-🙁 <--hard to fulfill-------easy to fulfill--🙂 
-
-In order to best absorb the notions of trimming and stacking, we need a mental reframe.
-
- Enter the sales to fulfillment continuum.
-Whenever you are building a business, you have a continuum between ease of fulfillment and ease of sales. If you lower what you have to do, it increases how hard your product or service is to sell. If you do as much as possible, it makes your product or service easy to sell but hard to fulfill because there’s more demand on your time investment. The trick, and the ultimate goal, is to find a sweet spot where you sell something very well that’s also easy to fulfill.
-
-I have always lived by the mantra, “Create flow. Monetize flow. Then add friction.” This means I generate demand first. Then, with my offer, I get them to say yes. Once I have people saying yes, then, and only then, will I add friction in my marketing, or decide to offer less for the same price.
-
-Practicality drives this practice. If you can’t get demand flowing in, then you have no idea whether what you have is good. I’d rather do more for every customer and have cash flow coming in, then optimize my business but have zero cash flow coming in after (and zero idea about what I need to adjust to better serve my customers).
-
-Here’s a perfect example to drive this home. When I started Gym Launch, gym owners reached out asking me to help. They needed so much help, I didn’t know where to start. But I wanted to make sure they got way more than they paid me. So here’s what I ended up doing to fill their gyms: I would fly out to their gym for 21 days, spend my own money on hotels, car rentals, eating out, advertising, generate the leads, work the leads, then sell for them. I would even do the first onboarding meeting with clients to get them started. In short, I did everything. I took on all the risk.
-
-They only had to put down $500 to “reserve” their date, which I made refundable at the end of their launch. So they had 0 financial risk, 0 time risk, 0 effort, and the deal was, I got to keep all the up front cash collected from selling their services, and they got clients for free. You can imagine how this was a pretty compelling offer.
-
-On my own, I was able to sell about $100,000/mo in up front cash for myself. So these deals were very lucrative for me. Over time, I scaled that to a team of 8 guys selling every month. But this began to wear on me and the team. It was at that point that I realized that if I were to simply teach them how to do what I did, I could charge maybe a third of what I would normally make, but I would be able to help hundreds of gyms a month instead of eight. And, I could do it all sleeping in my own bed every night.
-
-My promise was fundamentally the same: I will fill your gym in 30 days. It was simply the how and what I did that changed. The how and what is what we are breaking apart.
-
-When talking to business owners about their model, I tell them to create cash flow by over-delivering like crazy at first. Then use the cash flow to fix your operations and make your business more efficient. This revision process can be pretty seamless. You may not even have to change what you offer. You may just end up creating systems that create the same value for the customer but cost you significantly less resources.
-
-Ultimately this is how businesses beat one another. Understanding this will be important as you scale your business.
-
-Now that we’ve established the importance of the fulcrum and how to approach the sales-fulfillment balance at the outset, let’s cover the last two steps of creating our Grand Slam offer. To recap quickly, remember that we covered identifying dream outcomes (step one), listing problems (step two), and determining solutions (step three).
-      
-**Step #4 Create Your Solutions Delivery Vehicles (“The How”)** 
-
-The next step is thinking about all the things you could do to solve each of these problems you’ve identified. This is the most important step in this process. This is what you are going to deliver. This is what you are going to do or provide in exchange for money.
-
-For the purposes of keeping creativity high (divergent thinking), think about anything you could possibly do. Think of all the things that might enhance the value of your offer. So much so that they would be stupid to say no.
-
-What could you do that someone would immediately say, “All that? Seriously? Yes, I'm in.”
-
-Doing this exercise will make your job of selling So. Much. Easier.
-
-Even if you come up with something you’re not actually willing to do, it’s okay. The goal here is to push your limits and jog your brain into thinking of a different version of the solution you’d normally default to. This is where you get to flex your entrepreneurial creativity.
-
-      Reminder: You only need to do this once. Literally one time for a product that may last years. This is high-value, high-leverage work. You ultimately get paid for thinking. You got this. This should be fun. Go ahead and list out all your possibilities now. Then I’ll take you through my example. I’ll just use the buying food problem from earlier as an example. I like to group things by how many people I'm going to deliver this thing to at once.
-     
-My list is below. And at the bottom, I’ve given you my “cheat codes” for how I think through this to get even more creative.
-      
-      
-Problem: Buying Healthy Food Is Hard, Confusing, and I Won’t Like It
-If I wanted to provide a one-on-one solution I might offer . . .
-
-1. “In-person grocery shopping, where I take clients to the store and teach them how to shop”
-2. Personalized grocery list, where I teach them how to make their list
-3. Full-service shopping, where I buy their food for them. We’re talking 100 percent done for them.
-4. In-person orientation (not at store), where I teach them what to get
-5. Text support while shopping, where I help them if they get stuck
-6. Phone call while grocery shopping, where I plan to call when they go shopping to provide direction and support
-
-If I wanted to provide a small group solution I might offer . . .
-
-1. In-person grocery shopping, where I meet a bunch of people and take them all shopping for themselves
-2. Personalized grocery list, where I teach a bunch of people how to make their weekly lists. I could do this one time or every week if I wanted to.
-3. Buy their food for them, where I purchase their groceries and deliver them as well
-4. In-person orientation, where I teach a small group offsite what to do (not at store)
-
-If I wanted to provide a one to many solution I might offer . . .
-
-1. Live grocery tour virtual, where I might live stream me going through the grocery store for all my new customers and let them ask questions live
-2. Recorded grocery tour, where I might shop once, record it, then give it as a reference point from that point onwards for my clients to watch on their own
-3. DIY grocery calculator, where I create a shareable tool or show them how to use a tool to calculate their grocery list
-4. Predetermined lists, where each customer plan comes with its own grocery list for each week. I could make this ahead of time so they have it. Then they could use it on their own time
-5. Grocery buddy system, where I could pair customers all up, which takes no time really, and let them go shopping together
-6. Pre-made, insta-cart grocery carts for delivery, where I could pre-make insta-cart lists so clients could have their groceries delivered to their doorstep with one click
-
-As you see, the list can really go on and on here. This is just to illustrate the many ways to solve a single problem.
-      Now do this for all of the perceived problems that your clients encounter before, after, and during their experience with your service/products. You should have a monster list by the end of this.
-      
-***Product Delivery Cheat Codes***
-
-      What’s that? You’re having trouble being creative? I'm going to give you the cheat codes right now, kind of like I did with the brick example: “the brick could be gold, or plastic, or have holes in it, or be a lego, etc.” Here are my “cheat codes” for product variation/enhancement and a visual to break down the process for you from my consulting deck:
-
-      DELIVERY CUBE
-      
-1. 1 to 1, Small Group, 1 to many
-2. Do it yourself (DIY), Do with you (WDY), Do for you (DFY) 
-3. Support: sms, chat, mail, customer support, phone call, video-call
-4. consumption: video, audio, text, live stream
-5. Speed & Convinience: 24/7, 9-5, fast, M-F?
-6. 10x & 1/10th test: x > 10x or 1/10x
-
-1. What level of personal attention do I want to provide? one-on-one, small group, one to many
-
-2. What level of effort is expected from them? Do it themselves (DIY) - figure out how to do it on their own; do it with them (DWY) - you teach them how to do it; done for them (DFY) - you do it for them
-
-3. If doing something live, what environment or medium do I want to deliver it in? In-person, phone support, email support, text support, Zoom support, chat support
-
-4. If doing a recording, how do I want them to consume it? Audio, video, or written.
-        
-5. How quickly do we want to reply? On what days? during what hours? 24/7. 9-5, within 5 minutes, within an hour, within 24 hrs?
-
-6. 10x to 1/10th test. If my customers paid me 10x my price (or $100,000) what would I provide? If they paid me 1/10th the price and I had to make my product more valuable than it already is, how would I do that? How could I still make them successful for 1/10th price? Stretch your mind in either direction and you’ll come up with widely different solutions.
-
-In other words, how could I actually deliver on these solutions I am claiming I will provide. 
-Do this for each problem because solutions from one problem will give you ideas for others you wouldn’t normally have considered.
-
-Remember, it’s important that you solve every problem. I can’t tell you the amount of times one single item becomes the reason someone doesn't buy.
-
-Anecdote: Why We Must Solve Every Perceived Problem
-        When I was selling weight loss, I insisted that folks prepare all their food at home. I found it too difficult to help clients lose weight when they ate out because they always blew their diets. Rather than solve the problem, I insisted they do it my way, or not at all. As a result, I lost many sales.
-        One month I really needed to make some sales to pay rent. My next sale walked in the door - it was a business exec looking to lose weight. As we got into the sales presentation, she told me the program wouldn’t work for her because she went out to eat for lunch everyday. Normally, I would have lost this sale. I was a stickler for making people not eat out. But I really needed the money. Refusing to lose the sale because of this one thing, I conceded “I’ll make you an eating out guide for when you go to restaurants so you can eat our 100 percent of the time and still hit your goal. How does that sound?” She agreed, and I closed the sale. I took the time to make an eating out guide for her. But from that point going forward, whenever someone said “but what about eating out??” I had the solution. Over time, I continued solving obstacles with templates and trainings until there were no more “one things” to prevent my sales. This lesson has stuck with me to this day. Don’t get romantic about how you want to solve the problem. Find a way to solve every problem a prospect presents with. When you do that, you make an offer that’s so good, people just can't say no. And that’s what we’re building here.
-        Note: You must resolve every obstacle a buyer believes they will have to convert the highest amount of people. That’s not to say that if you don't, you won’t sell people. Not at all. But you won't sell as many people as you otherwise could have. And that’s the goal, to sell the most people, for the highest possible price, with the highest possible margin.
+**Enhancing The Offer: Scarcity, Urgency, Bonuses, Guarantees, and Naming**
 
 
-**Step #5: Trim & Stack**
+“But wait . . . there’s more, if you order today . . . ”
 
-Now that we have enumerated our potential solutions, we will have a gigantic list. Next, I look at the cost of providing these solutions to me (the business). I remove the ones that are high cost and low value first. Then I remove low cost, low value items.
-      If you aren’t sure what’s high value, go through the value equation and ask yourself which of these things will this person:
+Every infomercial in the 90s
 
-1. Financially value
-2. Cause them to believe they will be likely to succeed
-3. Make them feel like they can do it with much less effort and sacrifice
-4. Help them accomplish their goal and see the result they want with far less time investment.
-      
-What should remain are offer items that are 1) low cost, high value and 2) high cost, high value.
-      
-      Example: Let’s say I moved in with someone and did their shopping, exercising, and cooking for them. They would probably believe they would definitely lose weight. But I am not willing to do that for any amount of money short of a gazillion dollars.
-      
-      The next question becomes, is there a lesser version of this experience that I can deliver at scale?
 
-      Just take one step back at a time until you arrive at something that has a time commitment or cost you are willing to live with (or, obviously, massively increase your price so it becomes worth it for you — i.e., the gazillion dollars to live with someone).
+May 2019. Arnold Scwarzenegger’s home.
 
-      If there’s one type of delivery vehicle to focus on, it’s creating high value, “one to many” solutions. These will be the ones that typically have the biggest discrepancy between cost and value. For example, before I started my first gym, I had an online training business. I created a small excel sheet application that after inputting all of someone’s goals, automatically generated over 100 meals perfectly suited to their macronutrient and calorie needs. Better yet, depending which meals they selected, would tell them what they needed to buy at the grocery store in exact amounts, and how to prepare them in bulk for their exact amounts. It took me about 100 hours to put the whole thing together. But from that point going forward I sold truly personalized eating plans for very expensive prices, but they only took me about 15minutes to make. High value. Low cost.
-      These types of solutions require a high, one-time cost of creation, but infinitely low additional effort after. (Fyi - This is exactly why software becomes so valuable).
-      That doesn’t mean you don’t ever want to do something in a small group or one-on-one model. After all, I do 1-on-1 with all of my portfolio company CEOs that we help scale past $30m+. You just want to make sure you save those high cost items for big value adds only. If you think you can accomplish the same value with a lower cost alternative, then do that instead.
-      When I was running my gym, I went through this exercise and created: bulking blueprints, an eating-out system, a travel eating and workout guide, meal plans for every bodyweight and gender, a grocery list calculator, plateau busting meal plans (for when they got stuck), fast cooking guides partnered with meal prep services, and did in-person nutrition orientations with every client one-on-one.
-      Many of the “one to many” solutions require more up front work. Once created, however, they become valuable assets that create value in perpetuity. It’s worth putting in the time to create these because they will create high margin profit for years to come.
+After School All Stars Fundraiser. The line of cars outside Arnold’s house was around the corner . . . and we were in one of them. We were sitting in our Uber when a security guard with an earpiece, black suit, and black sunglasses knocked on the driver’s window. It was like straight out of a movie.
 
-      Real talk: the meal plans I made for my gym have been used by 4,000+ gyms now and literally hundreds of thousands of people. They are simple and easy to follow. So they have provided ample return for the week or two of dedicated time I spent making them.
+The driver rolled down the window. “Name?” “Alex and Leila Hormozi.”
 
-      And if you ever have the desire to build a repeatable business model, something that scales, these assets you create will become the bedrock. This book, for example, is a high-value asset that is low cost overall. Sure, it costs me a lot up front, but each additional book I sell after my first one costs me very little and provides tremendous value.
+He scanned the list on his clipboard, nodded, then checked off our names. “Great,” he said. His demeanor transformed from stern to inviting. “Welcome to the fundraiser. Stay in this line. You’ll make a left, then security will escort you the rest of the way.”
 
-**The Final High Value Deliverable**
-     
-Let’s sum this up before we configure our final high value deliverable.”
+The security guard talked into his walkie talkie to the next post down the road, signaling our car was approved.
 
-Step #1: We figured out our prospective client's dream outcome.
+Pulling up to the front of the estate was like entering into a Bond movie. Lamborghinis, Bugattis, Ferraris, and brands of cars that are too expensive to even speak of. Old guys with young, scantily-clad girls. A-List Actors. Celebrities with millions of followers who were recording themselves as they arrived, talking through their iphones to their audiences. And us.
 
-Step #2: We listed out all the obstacles they’re likely to encounter on their way (our opportunities for value).
-        
-Step #3: We listed all those obstacles as solutions.
+The fundraiser was $25,000 per ticket to attend, with an invite list of only 100. There was a red carpet and all. Every year, the fundraiser culminated in a big auction for memorabilia and items some of the business owners in the audience gave away for charity.
 
-Step #4: We figured out all the different ways we could deliver those solutions.
+We walked around looking at the entertainment stations purposely devised to get donors in the “giving mood.” We saw $10,000 scotches . . . $500 cigars . . . pre-released items from major brands that wouldn’t be available to the public until months later. And, of course, the most expensive cuisine you could imagine. Leila and I were just soaking it all in. It was a wonderful night. We definitely felt like cool kids.
 
-Step #5a: We trimmed those ways down to only the things that were the highest value and lowest cost to us.
-All we have to do now  is…
+Ben, the CEO of the charity, saw us looking lost and walked over. He took me by the arm to introduce me to some of the other donors. These were all men who were older than me and donating $100,000 and up without a second thought.
 
-Step #5b: Put all the bundles together into the ultimate high value deliverable.
-      
-      
-So let’s go back to the example. We see our prospects struggled with the following:      
-        
-        Format Note
-        I’m going to display each problem-solution set as:
-        Problem → Solution Wording→ Sexier Name for Bundle .
-        Then, underneath, you will see the actual delivery vehicle (what we’re actually gonna do for them/provide)”
+The man he introduced me to was one of the charity’s biggest donors. He had built an ultra-high end jewelry and watch business. I’m talking $100,000, $500,000, $2,000,000+ rare status symbols that people buy only so other .001 percenters know they belong. He had donated upwards of $700,000 in merchandise as prizes for the fundraiser that evening.
 
-Buying food→ How anyone can buy food fast, easy, cheaply → Foolproof Bargain Grocery System . . . that’ll save hundreds of dollars per month on your food and take less time than your current shopping routine ($1,000 value for the money it'll save you from this point on in your life)
-      
-1. 1-on-1 Nutrition Orientation where I explain how to use…
-2. Recoded grocery tour
-3. DIY Grocery Calculator
-4. Each plan comes with it’s own list for each week
-5. Bargain grocery shopping training
-6. Grocery Buddy System
-7. Pre-made insta-cart grocery carts for delivery
-8. And a check-in via text weekly.
+“Alex and Leila, meet George,” Ben said. “He’s been very generous with his time and money to the cause. George, this is Alex and Leila Hormozi. They’re donating $1,000,000 tonight to ASAS. I figured you are both good people and wanted to connect you two.”
 
-Cooking → Ready in 5min Busy Parent Cooking Guide . . . how anyone can eat healthy even if they have no time ($600 value from getting 200 hours per year back — that’s four weeks of wookr!)
+“Nice to meet you both,” George said with calm, weathered eyes. He was in his late sixties, tall and sturdily built. You could hear his eastern block origins in his accent. He sounded like a man who had fought tooth and nail to be here, but had softened his demeanor for gatherings such as these. But the tiger with teeth and claws remained under the surface, ready to be called upon at a moment’s notice. I felt like I understood this guy.
 
-1. 1-on-1 Nutrition Orientation where I explain how to use…
-2. Meal Prep Instructions
-3. DIY Meal Prep Calculator
-4. Each plan comes with it’s own meal prep instructions for each week
-5. Meal prep buddy system
-6. Healthy snacks in under 5min guide
-7. A weekly post they make to tag me for feedback
-      
-Eating → Personalized Lick Your Fingers Good Meal Plan . . . so good it’ll be easier to follow than eating what you used to “cheat” with and cost less! ($500 value)
-      
-1. 1-on-1 Nutrition Orientation where I explain how to use…
-2. Personalized Meal Plan
-3. 5min Morning shake guide
-5. 5min Budget Lunches
-6. 5min Budget Dinners
-7. Family size meals
-8. A daily picture of their meals
-9. 1-on-1 feedback meeting to make adjustments to their plan (and upsell them)
-      
-Exercise→ Fat Burning Workouts Proven To Burn More Fat Than Doing It Alone . . . adjusted to your needs so you never go too fast, plateau, or risk injury ($699 value)
+Ben broke the ice. “So….George was the one who got me to raise the price from $15,000 per ticket to $25,000. We had more demand than ever this year. But I took his advice. I cut the amount of tickets we sold and raised the prices.”
 
-Traveling→ The Ultimate Tone Up While You Travel Eating & Workout Blueprint . . . for getting amazing workouts in with no equipment so you don't feel guilty enjoying yourself ($199 value)
+“That’s right,” said George, content that his sage business advice had been followed.
 
-How to actually stick with it→ The “Never Fall Off” Accountability System . . . the unbeatable system that works without your permission (it’s even gotten people who hate coming to the gym to look forward to showing up) ($1000 value)
+“When demand increases, cut supply.” He perked up slightly as we talked about money.
 
-How To Be Social→ The ‘Live It Up While Slimming Down” Eating Out System that will give you the freedom to eat out and live life without feeling like the “odd man out” ($349 value)
+This man had built his business from nothing and had found ways to sell things for extraordinary profits by understanding human psychology. I had long learned about supply and demand, but this guy was using its psychological underpinnings to fuel a fundraising. You could take the tiger out of the jungle, but not the jungle out of the tiger.
 
-*Total value: $4,351 (!) All for only $599.*
+People want what they can’t have. People want what other people want. People want things only a select few have access to. He was dead right. They had raised an extra one million dollars that night before the event had even started by cutting the supply of tickets and raising the prices. On top of that, all the people were more qualified than ever to be big donors. The night ended up being the most successful night in the charity’s history, raising nearly $5,400,000 from only 100 people (that’s $54,000 per head!). Each of the items was auctioned off as a one-of-a-kind item. And if you missed it, you would never have a chance again to buy it. Arnold even threw in some bonuses when two people would get high enough in the bidding, allowing the charity to get both donations.
 
-Author Note
-        Most of our facilities now sell this bundle for longer periods of time for $2,400 to $5,200. Wild. As we got better at creating and monetizing value, the prices and profit of our facilities skyrocketed. Once you start down this value creation process, each additional piece of value you create stacks on top over time. This is why it is important to begin.
-        
-      
-Can you see how much more valuable this is than a gym membership? The bundle does three core things:
-      
-1. Solves all the perceived problems (not just some)
-2. Gives you the conviction that what you’re selling is one of a kind (very important)
-3. Makes it impossible to compare or confuse your business or offering with the one down the street
+It was a masterful display of human psychology at work in a setting where people were knowingly over-paying for products. The products remained unchanged, yet within this setting, an item that wouldn’t sell at a different venue for $10,000 sold for $100,000. That’s how powerful scarcity, urgency, and bonuses are. And breaking down how to use them to further increase demand for your offer, without changing your offer, is the purpose of this section.
 
-Whew! We finally have what we are going to deliver in all its glory. That being said, it is unlikely we would present it in this way. Depending on whether we sell one on one or one to many, we would present this differently. I will address how to present each of these bundled items in the bonus section (next section).
-      
-***Summary Points***
+*Author Note - Other Persuasion Powers At Play*
 
-We went through this entire process to accomplish one objective: to create a valuable offer that is differentiated and unable to be compared to anything else in the marketplace. We are selling something unique. As such, we are no longer bound by the normal pricing forces of commoditization. Prospects will now only make a value-based rather than a price-based decision on whether they should buy from us. Hoorah!
+Scarcity, urgency, bonuses, and guarantees were not the only persuasion tools being employed to get egregious prices at the fundraiser. They also used commitment and consistency, status, peer pressure, goodwill, celebrity endorsements, competition, etc. However, scarcity, urgency, and bonuses are the only three I will be breaking down in this book as I believe they belong more with the “offer” and less with the actual “selling,” which I will talk about in depth in Acquisition: Volume IV $100M Sales.
 
-Now that we have our core offer, the next section will be dedicated to enhancing it. We will employ a combination of psychological levers: bonuses, urgency, scarcity, guarantees, and naming.
+**The Delicate Dance of Desire**
+
+Fundamentally, all marketing exists to influence the supply and demand curve. We artificially increase the demand for our products and services through some sort of persuasive communication. When we increase the demand, we can sell more units. When we decrease supply, we can sell those units for more money. The “perfect profit combination” is lots of demand, and very little supply, or perceived supply. The process of enhancing your core offer is designed to do both of these things: increase demand and decrease perceived supply so that you can sell the same products for more money than you otherwise could, and in higher volumes than you otherwise would (over a longer time horizon).
+
+*Author Note:*
+
+This assumes a regular business who is not trying to gain mass market penetration for some other strategic advantage.
+Desire comes from not getting what you want. In fact, I heard this quote that I love from Naval Ravikant: “Desire is a contract you make with yourself to be unhappy until you get what you want.” It follows, therefore, that we only want things we do not have. As soon as we have them, our desire for them disappears. Therefore, if we seek to increase the demand (or desire), we must decrease or delay satisfying the desires of our prospects. We must sell fewer units than we otherwise can. Let that sit with you for a second.
+
+Consider this example. We promote some two-day workshop that is upcoming. First we whisper that it’s coming. Then we tease it with some of the benefits. Then we shout that it is launching in a week. Then, when we launch this amazing workshop. We have two supply-demand scenarios:
+
+Scenario one: We sell 10 units at $500 each (sell entire pyramid at price all say yes)
+
+Scenario two: We sell two one-day workshops 1-on-1 for $5000 each. (skim top of pyramid, with 80 percent not purchasing)
+
+It’s worth noting that each of these prospects have a different buying threshold. In my experience, demand for services is non-linear. Instead, I’ve found demand to be fractal (80/20). In other words, one fifth of the prospects are willing to pay five times the price (or more).
+
+In the example, I might have ten people willing to pay $500, but two of them willing to pay $5000. So, I would make more, have lower costs (more profits), provide more value, and increase the demand in the remaining prospect base by selling fewer units. Think about how exclusive scenario one vs scenario two would feel. Think about all the people who would want to purchase, but would not be able to. Would this increase or decrease their desire? It would increase it, of course.
+
+On top of that, if people see that others who ‘were able to get in’ are loving it, it would further increase their desire. And the next time, they would act with more urgency, and be willing to pay more for the same thing than they originally did. So now, in the aftermath of our second scenario, we still have eight people who have unsatisfied desire. This increases their desire further. And to boot, we now have new prospects who weren't in the original pool who now want what we have.
+
+The next time we promote scenario two, we then open three spots at the same price and sell them all (still leaving some prospects with pent up demand!). This is a continuous theme.
+
+Conversely, if we were to promote scenario one again (the $500 price point), we would probably sell fewer slots the second time around. Why? We have no pent up demand. All desire has been satisfied. When you “pull the trigger too early,” each successive instance we promote, we sell even fewer. Eventually, we run out of sufficient demand to make even a single sale. This is the sad state many businesses find themselves in always trying to generate more demand to make another quick sale.
+
+Hormozi Law: The longer you delay the ask, the bigger the ask you can make. “The longer the runway, the bigger the plane that can take off.”
+
+We must endeavor to keep our supply (and satisfaction of desire) under the demand that we are able to generate. This maximizes profits and keeps desire ravenous in our customer base. This is the real key to never going hungry.
+
+Summary Points
+
+The reason I titled this sub-section “Delicate Dance of Desire” is that supply and demand are inversely correlated (in theory). If you satisfy zero desire (provide zero supply), you will not make money, and eventually leave people feeling rejected (Note: it takes much longer than you think).
+
+Conversely, if you satisfy all the demand, you will kill your golden goose, and not know where your next meal will come from. Mastering supply and demand comes from the elegant dance between the two. If you sleep with your significant other everyday they have less desire than if you haven’t slept with them for a week. We want the ravenous prospect, not merely the aroused.
+
+Therefore, understanding the interplay between these variables is key to enhancing your offer and the amount of profits you will make over time. Up to this point, we have covered all the things inside of your offer that can make it immune to price comparison and transform regular services and products into things that people will find a way to pay for. It would follow that the next variable that can make your offer more desirable is how it is presented. In other words, the outside variables that position the product in your prospect’s mind. These forces are often more powerful than your core offer. In this next section Enhancing Your Offer, I will show you how I:
+
+Use scarcity to decrease supply to raise prices (and indirectly increase demand through perceived exclusiveness)
+
+Use urgency to increase demand by decreasing the action threshold of a prospect.
+
+Use bonuses to increase demand (and increase perceived exclusivity).
+
+Use guarantees to increase demand by reversing risk.
+
+Use names to re-stimulate demand and expand awareness of my offer to my target audience.
+
+I will define each, then give you examples of how to use them. We will use all these variables to enhance our offer and shift the demand curve in our favor, leaving our customers always wanting for more. We will start by tactically stimulating “fear of missing out” aka FOMO through scarcity.

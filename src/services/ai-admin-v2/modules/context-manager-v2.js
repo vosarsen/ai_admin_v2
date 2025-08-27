@@ -73,14 +73,14 @@ class ContextManagerV2 {
    */
   async _enrichContextWithDatabaseData(context, phone, companyId) {
     // Если контекст уже содержит все необходимые данные - не загружаем повторно
-    if (context.company && context.services && context.staff) {
+    if (context.company && context.services && context.staff && context.client) {
       return context;
     }
     
     logger.info('Enriching context with database data...');
     
     // Параллельная загрузка недостающих данных
-    const [company, services, staff, staffSchedules, businessStats] = await Promise.all([
+    const [company, services, staff, staffSchedules, businessStats, client] = await Promise.all([
       context.company || dataLoader.loadCompanyData(companyId).catch(e => {
         logger.error('Failed to load company:', e.message);
         return null;
@@ -104,15 +104,29 @@ class ContextManagerV2 {
       context.businessStats || dataLoader.loadBusinessStats(companyId).catch(e => {
         logger.error('Failed to load stats:', e.message);
         return null;
+      }),
+      
+      // Загружаем клиента из БД если его нет в Redis контексте
+      context.client || dataLoader.loadClient(phone, companyId).catch(e => {
+        logger.error('Failed to load client:', e.message);
+        return null;
       })
     ]);
     
-    // Сортируем услуги с учетом предпочтений клиента
+    // Сортируем услуги с учетом предпочтений клиента (используем клиент из БД если был загружен)
     const sortedServices = this._sortServicesForClient(
       services, 
-      context.client, 
+      client || context.client, 
       businessStats
     );
+    
+    // Если загрузили клиента из БД - сохраним его в Redis для будущих запросов
+    if (client && !context.client) {
+      logger.info(`Saving client ${client.name} to Redis cache`);
+      await contextServiceV2.saveClientCache(phone, companyId, client).catch(e => {
+        logger.error('Failed to save client to Redis:', e.message);
+      });
+    }
     
     return {
       ...context,
@@ -124,7 +138,7 @@ class ContextManagerV2 {
       // Сохраняем все важные поля из оригинального контекста
       phone: context.phone,
       companyId: context.companyId,
-      client: context.client,
+      client: client || context.client,  // Используем клиента из БД если загрузили
       currentSelection: context.currentSelection,
       pendingAction: context.pendingAction,
       messages: context.messages,
