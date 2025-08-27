@@ -23,7 +23,8 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         AI_PROVIDER: 'deepseek', // Используем DeepSeek как стабильный провайдер
-        AI_PROMPT_VERSION: 'enhanced-prompt' // Оптимальный промпт для DeepSeek
+        AI_PROMPT_VERSION: 'two-stage', // Two-stage для быстрой обработки
+        USE_TWO_STAGE: 'true' // Явно включаем two-stage процессор
       },
       error_file: './logs/worker-v2-error.log',
       out_file: './logs/worker-v2-out.log',
