@@ -7,6 +7,7 @@
 const { createRedisClient } = require('../../utils/redis-factory');
 const logger = require('../../utils/logger').child({ module: 'context-v2' });
 const DataTransformers = require('../../utils/data-transformers');
+const InternationalPhone = require('../../utils/international-phone');
 const config = require('../../config/context-config');
 
 // Используем TTL из конфигурации
@@ -532,12 +533,16 @@ class ContextServiceV2 {
   _normalizePhoneForKey(phone) {
     if (!phone) return '';
     
-    // Используем стандартный нормализатор
-    const normalized = DataTransformers.normalizePhoneNumber(phone);
+    // Используем централизованную утилиту для нормализации
+    const normalized = InternationalPhone.normalize(phone);
     
-    // Убираем + для ключей Redis (чтобы избежать проблем с разными форматами)
-    // Всегда возвращаем в формате: 79001234567
-    return normalized.replace(/^\+/, '');
+    if (!normalized) {
+      logger.warn(`Failed to normalize phone for key: ${phone}`);
+      // Fallback - просто удаляем все нецифровые символы
+      return phone.toString().replace(/[^\d]/g, '');
+    }
+    
+    return normalized;
   }
   
   /**
