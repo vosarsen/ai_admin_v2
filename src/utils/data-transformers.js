@@ -1,47 +1,27 @@
 // src/utils/data-transformers.js
 const { format, parse, parseISO, isValid } = require('date-fns');
 const { utcToZonedTime, zonedTimeToUtc } = require('date-fns-tz');
+const InternationalPhone = require('./international-phone');
 
 /**
  * Data transformation utilities
  */
 class DataTransformers {
   /**
-   * Normalize phone number to international format
+   * Normalize phone number to international format (E.164)
+   * Supports any international numbers
    */
   static normalizePhoneNumber(phone) {
-    if (!phone) return null;
-    
-    // Remove all non-numeric characters
-    let cleaned = phone.toString().replace(/\D/g, '');
-    
-    // Handle WhatsApp format
-    if (phone.includes('@c.us')) {
-      cleaned = phone.split('@')[0].replace(/\D/g, '');
-    }
-    
-    // Handle Russian numbers
-    if (cleaned.length === 10 && (cleaned.startsWith('9'))) {
-      cleaned = '7' + cleaned;
-    } else if (cleaned.length === 11 && cleaned.startsWith('8')) {
-      cleaned = '7' + cleaned.substring(1);
-    }
-    
-    // Validate length (Russian numbers)
-    if (cleaned.length !== 11 || !cleaned.startsWith('7')) {
-      return null;
-    }
-    
-    return '+' + cleaned;
+    // Используем централизованную утилиту
+    return InternationalPhone.format(phone);
   }
 
   /**
    * Format phone for WhatsApp
    */
   static formatPhoneForWhatsApp(phone) {
-    const normalized = this.normalizePhoneNumber(phone);
-    if (!normalized) return null;
-    return normalized.substring(1) + '@c.us';
+    // Используем централизованную утилиту
+    return InternationalPhone.formatForWhatsApp(phone);
   }
 
   /**
