@@ -585,16 +585,29 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
       // Рассчитываем время для напоминаний
       const timeDiff = recordDate - now;
       const hoursUntil = timeDiff / (1000 * 60 * 60);
-      const daysUntil = Math.floor(hoursUntil / 24);
+      
+      // Более точный расчёт: проверяем, что запись именно завтра
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const isRecordTomorrow = recordDate.toDateString() === tomorrow.toDateString();
       
       // Напоминание за день (отправляем вечером предыдущего дня между 19:00 и 21:00)
       const currentHour = now.getHours();
       const isEvening = currentHour >= 19 && currentHour <= 21;
-      const isTomorrow = daysUntil === 0 && recordDate.getDate() !== now.getDate() || daysUntil === 1;
+      
+      // Логирование для отладки
+      logger.debug(`📅 Reminder check for record ${recordId}:`, {
+        now: now.toDateString(),
+        recordDate: recordDate.toDateString(),
+        tomorrow: tomorrow.toDateString(),
+        isRecordTomorrow,
+        hoursUntil: Math.round(hoursUntil),
+        isEvening
+      });
       
       // Проверяем, нужно ли отправить напоминание за день
       if (isEvening && 
-          isTomorrow && 
+          isRecordTomorrow && 
           !sentDayBeforeToday) {
         
         await this.sendReminderNotification(record, 'day_before', phone);
