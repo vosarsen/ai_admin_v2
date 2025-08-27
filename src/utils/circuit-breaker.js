@@ -275,6 +275,9 @@ class CircuitBreakerFactory {
 // Экспортируем singleton фабрику
 const factory = new CircuitBreakerFactory();
 
+// Добавляем метод getBreaker для обратной совместимости
+factory.getBreaker = factory.get;
+
 module.exports = {
   CircuitBreaker,
   CircuitBreakerFactory: factory,
