@@ -300,7 +300,8 @@ class TwoStageProcessor {
       return {
         command: cmd.name,
         success: false,
-        error: error.message
+        error: error.message,
+        errorCode: error.code || null
       };
     }
   }
