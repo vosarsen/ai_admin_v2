@@ -323,8 +323,24 @@ class CommandHandler {
    * Поиск свободных слотов
    */
   async searchSlots(params, context) {
-    // Проверяем, что услуга указана
-    if (!params.service_name && !params.service_id && !context.lastSearch?.service_id) {
+    // Сначала пытаемся использовать данные из контекста диалога
+    let serviceToSearch = params.service_name;
+    let staffToSearch = params.staff_name;
+    
+    // Если услуга не указана в params, используем из контекста диалога
+    if (!serviceToSearch && !params.service_id && context.redisContext?.selection?.service) {
+      serviceToSearch = context.redisContext.selection.service;
+      logger.info('Using service from dialog context:', serviceToSearch);
+    }
+    
+    // Если мастер не указан в params, используем из контекста диалога
+    if (!staffToSearch && context.redisContext?.selection?.staff) {
+      staffToSearch = context.redisContext.selection.staff;
+      logger.info('Using staff from dialog context:', staffToSearch);
+    }
+    
+    // Проверяем, что услуга указана (либо в params, либо в контексте)
+    if (!serviceToSearch && !params.service_id && !context.lastSearch?.service_id) {
       logger.warn('SEARCH_SLOTS called without service specification');
       return { 
         service: null, 
@@ -339,12 +355,12 @@ class CommandHandler {
     if (params.service_id) {
       // Если передан ID услуги, ищем по ID
       service = context.services.find(s => s.yclients_id === parseInt(params.service_id));
-    } else if (params.service_name) {
+    } else if (serviceToSearch) {
       // Ищем по названию с персонализацией
       if (context.client) {
         // Если есть информация о клиенте - используем персонализацию
         const matches = serviceMatcher.findTopMatchesWithPersonalization(
-          params.service_name,
+          serviceToSearch,
           context.services,
           context.client,
           1
@@ -353,7 +369,7 @@ class CommandHandler {
       } else {
         // Иначе используем обычный поиск
         service = serviceMatcher.findBestMatch(
-          params.service_name, 
+          serviceToSearch, 
           context.services
         );
       }
@@ -379,10 +395,17 @@ class CommandHandler {
       serviceId: service.yclients_id
     });
     
-    // Находим staff если указан
+    // Находим staff если указан (используем staffToSearch который может быть из params или контекста)
     let targetStaff = null;
-    if (params.staff_name) {
-      targetStaff = context.staff.find(s => s.name.toLowerCase().includes(params.staff_name.toLowerCase()));
+    if (staffToSearch) {
+      targetStaff = context.staff.find(s => s.name.toLowerCase().includes(staffToSearch.toLowerCase()));
+      if (targetStaff) {
+        logger.info('Found staff for search:', {
+          query: staffToSearch,
+          found: targetStaff.name,
+          staffId: targetStaff.yclients_id
+        });
+      }
     }
     
     // Если мастер не указан, используем любимых мастеров клиента
