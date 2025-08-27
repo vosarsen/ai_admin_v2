@@ -45,7 +45,7 @@ module.exports = {
       lastTime: currentSelection.time || parsedRedisData.lastTime || parsedRedisData.selectedTime,
       lastStaff: currentSelection.staff || parsedRedisData.lastStaff || parsedRedisData.selectedStaff,
       lastDate: currentSelection.date || parsedRedisData.lastDate || parsedRedisData.selectedDate,
-      lastCommand: parsedRedisData.lastCommand
+      lastCommand: currentSelection.lastCommand || parsedRedisData.lastCommand || redisContext?.selection?.lastCommand
     };
     
     console.log('📝 Previous context for Stage 1:', previousContext);
@@ -66,6 +66,7 @@ ${previousContext.lastService ? `- Ранее выбрана услуга: ${pre
 ${previousContext.lastTime ? `- Ранее выбрано время: ${previousContext.lastTime}` : ''}
 ${previousContext.lastStaff ? `- Ранее выбран мастер: ${previousContext.lastStaff}` : ''}
 ${previousContext.lastDate ? `- Ранее выбрана дата: ${previousContext.lastDate}` : ''}
+${previousContext.lastCommand ? `- Последняя команда: ${previousContext.lastCommand}` : ''}
 ${client?.favorite_staff_ids?.length ? `- Любимые мастера клиента: ${client.favorite_staff_ids.join(', ')} (используй только если клиент НЕ указал другого)` : ''}
 
 СООБЩЕНИЕ КЛИЕНТА: "${message}"
@@ -77,8 +78,8 @@ ${client?.favorite_staff_ids?.length ? `- Любимые мастера клие
    Когда: клиент спрашивает о свободном времени или хочет записаться
 
 2. CREATE_BOOKING - создание записи
-   Параметры: service_name, date, time, staff_name
-   Когда: клиент указал конкретное время И услугу
+   Параметры: service_name, date, time, staff_name, client_name (для новых клиентов)
+   Когда: клиент указал конкретное время И услугу, ИЛИ клиент ответил именем после вопроса "Как вас зовут?"
 
 3. CANCEL_BOOKING - отмена записи
    Параметры: нет
@@ -131,6 +132,15 @@ ${client?.favorite_staff_ids?.length ? `- Любимые мастера клие
 - ВАЖНО: Если есть контекст записи (lastService, lastDate) и клиент указывает только время → это CREATE_BOOKING!
 - ВАЖНО: Всегда используй lastService, lastDate из контекста, НЕ меняй их!
 - ВАЖНО: Если только что обсуждался конкретный мастер (например, "Сергей работает завтра"), используй ЭТОГО мастера, а не favorite_staff!
+
+🔴 КРИТИЧЕСКИ ВАЖНО - ОТВЕТ НА ВОПРОС О ИМЕНИ:
+- ЕСЛИ lastCommand="CLIENT_NAME_REQUIRED" И сообщение содержит только имя (1-2 слова) → CREATE_BOOKING с client_name
+- ЕСЛИ в контексте есть lastService, lastDate, lastTime И бот спросил имя → CREATE_BOOKING с client_name
+- Примеры:
+  * Контекст: lastService="стрижка", lastTime="17:00", lastCommand="CLIENT_NAME_REQUIRED"
+    Сообщение: "Наталия" → CREATE_BOOKING с client_name="Наталия"
+  * Контекст: lastService="детская стрижка", lastTime="17:00", lastDate="завтра"
+    Сообщение: "Иван" → CREATE_BOOKING с client_name="Иван"
 
 🔴 КРИТИЧЕСКИ ВАЖНО - ИСПОЛЬЗОВАНИЕ ДАТЫ ИЗ КОНТЕКСТА:
 - ЕСЛИ В КОНТЕКСТЕ ЕСТЬ lastDate → ВСЕГДА ИСПОЛЬЗУЙ ЕЁ!
@@ -326,7 +336,25 @@ ${client?.favorite_staff_ids?.length ? `- Любимые мастера клие
   ]
 }
 
-Пример 9: Указание времени утром
+Пример 9: Ответ на вопрос о имени
+Контекст: lastService="ДЕТСКАЯ СТРИЖКА", lastDate="завтра", lastTime="17:00", lastStaff="Бари"
+Сообщение: "Наталия"
+{
+  "commands": [
+    {
+      "name": "CREATE_BOOKING",
+      "params": {
+        "service_name": "ДЕТСКАЯ СТРИЖКА",
+        "date": "завтра",
+        "time": "17:00",
+        "staff_name": "Бари",
+        "client_name": "Наталия"
+      }
+    }
+  ]
+}
+
+Пример 10: Указание времени утром
 Контекст: lastService="МУЖСКАЯ СТРИЖКА", lastDate="завтра", lastStaff="Сергей"
 Сообщение: "На 10 утра"
 {

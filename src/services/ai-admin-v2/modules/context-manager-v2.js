@@ -251,6 +251,12 @@ class ContextManagerV2 {
           }
         }
         
+        // Сохраняем если бот запросил имя клиента
+        if (result.command === 'CREATE_BOOKING' && !result.success && result.error?.includes('Как вас зовут')) {
+          selection.lastCommand = 'CLIENT_NAME_REQUIRED';
+          logger.info('Bot asked for client name, saved lastCommand=CLIENT_NAME_REQUIRED');
+        }
+        
         // Сохраняем созданную запись
         if (result.command === 'CREATE_BOOKING' && result.success) {
           // После создания записи очищаем выбор
