@@ -835,17 +835,24 @@ class CommandHandler {
     // Извлекаем чистый номер телефона (убираем @c.us)
     const cleanPhone = (context.client?.phone || context.phone || '').replace('@c.us', '');
     
-    // Получаем имя клиента из контекста или Redis
-    let clientName = context.client?.name;
+    // ПРИОРИТЕТ 1: Если передан client_name в параметрах команды (ответ на "Как вас зовут?")
+    let clientName = params.client_name;
+    
+    // ПРИОРИТЕТ 2: Если client_name не передан, берем из контекста клиента
+    if (!clientName) {
+      clientName = context.client?.name;
+    }
     
     logger.info('Initial client name check:', { 
-      clientName, 
+      clientName,
+      fromParams: params.client_name,
+      fromContext: context.client?.name,
       hasClient: !!context.client,
       clientData: context.client,
       currentMessage: context.currentMessage 
     });
     
-    // Если имени нет в контексте клиента, проверяем Redis
+    // ПРИОРИТЕТ 3: Если имени нет в контексте клиента, проверяем Redis
     if (!clientName) {
       const contextServiceV2 = require('../../context/context-service-v2');
       const companyId = context.company?.yclients_id || context.company?.company_id;
@@ -857,6 +864,33 @@ class CommandHandler {
         logger.info('Redis context check:', { clientName, redisContext });
       } catch (error) {
         logger.error('Failed to get Redis context:', error);
+      }
+    }
+    
+    // Если имя было передано через params.client_name, сохраняем его
+    if (params.client_name && params.client_name !== context.client?.name) {
+      logger.info('Saving client name from params to Redis:', { 
+        name: params.client_name, 
+        phone: cleanPhone 
+      });
+      
+      const contextServiceV2 = require('../../context/context-service-v2');
+      const companyId = context.company?.yclients_id || context.company?.company_id;
+      
+      // Сохраняем в Redis
+      await contextServiceV2.updateDialogContext(cleanPhone, companyId, {
+        clientName: params.client_name
+      });
+      
+      // Обновляем контекст текущей сессии
+      if (context.client) {
+        context.client.name = params.client_name;
+      } else {
+        context.client = {
+          phone: cleanPhone,
+          name: params.client_name,
+          company_id: companyId
+        };
       }
     }
     
