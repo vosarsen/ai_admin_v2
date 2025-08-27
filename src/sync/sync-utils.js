@@ -9,9 +9,8 @@
  * @returns {string|null} Нормализованный номер или null
  */
 function normalizePhone(phone) {
-  if (!phone) return null;
-  // Удаляем все не-цифры и заменяем 8 на 7 для российских номеров
-  return phone.toString().replace(/\D/g, '').replace(/^8/, '7');
+  const InternationalPhone = require('../utils/international-phone');
+  return InternationalPhone.normalize(phone);
 }
 
 /**

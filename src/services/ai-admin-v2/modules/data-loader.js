@@ -2,6 +2,7 @@ const { supabase } = require('../../../database/supabase');
 const logger = require('../../../utils/logger').child({ module: 'ai-admin-v2:data-loader' });
 const { CompanyInfoSync } = require('../../../sync/company-info-sync');
 const companyInfoSync = new CompanyInfoSync();
+const InternationalPhone = require('../../../utils/international-phone');
 
 class DataLoader {
   /**
@@ -299,8 +300,8 @@ class DataLoader {
    */
   async loadConversation(phone, companyId) {
     try {
-      // Убираем @c.us если есть
-      const cleanPhone = phone.replace('@c.us', '');
+      // Нормализуем номер телефона к международному формату
+      const cleanPhone = InternationalPhone.normalize(phone) || phone.replace('@c.us', '');
       
       const { data, error } = await supabase
         .from('dialog_contexts')

@@ -2,6 +2,7 @@
 const dataLoader = require('./data-loader');
 const localCache = require('../../../utils/local-cache');
 const logger = require('../../../utils/logger').child({ module: 'cached-data-loader' });
+const InternationalPhone = require('../../../utils/international-phone');
 
 /**
  * Обертка над data-loader с локальным кэшированием
@@ -144,7 +145,7 @@ class CachedDataLoader {
     
     // Загружаем Redis контекст для доступа к lastActivity и lastMessageDate
     const contextServiceV2 = require('../../context/context-service-v2');
-    const cleanPhone = phone.replace('@c.us', '');
+    const cleanPhone = InternationalPhone.normalize(phone) || phone.replace('@c.us', '');
     const redisContext = await contextServiceV2.getDialogContext(cleanPhone, companyId);
     
     const context = {
@@ -182,7 +183,7 @@ class CachedDataLoader {
       
       // Загружаем из Redis через contextServiceV2
       const contextServiceV2 = require('../../context/context-service-v2');
-      const cleanPhone = phone.replace('@c.us', '');
+      const cleanPhone = InternationalPhone.normalize(phone) || phone.replace('@c.us', '');
       
       try {
         const redisContext = await contextServiceV2.getFullContext(cleanPhone, companyId);

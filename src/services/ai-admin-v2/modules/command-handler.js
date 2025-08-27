@@ -8,6 +8,7 @@ const FuzzyMatcher = require('../../../utils/fuzzy-matcher');
 const businessLogic = require('./business-logic');
 const { formatHumanDate, formatWorkingDays } = require('../../../utils/date-formatter');
 const serviceSearchConfig = require('../../../config/service-search');
+const InternationalPhone = require('../../../utils/international-phone');
 // dateParser теперь используется из formatter
 
 class CommandHandler {
@@ -1056,7 +1057,7 @@ class CommandHandler {
         };
         
         await contextServiceV2.savePreferences(
-          context.phone.replace('@c.us', ''), 
+          InternationalPhone.normalize(context.phone) || context.phone.replace('@c.us', ''), 
           context.company.company_id || context.company.yclients_id,
           preferences
         );
@@ -1436,7 +1437,7 @@ class CommandHandler {
    * Показать список активных записей клиента
    */
   async showBookings(params, context) {
-    const phone = context.phone.replace('@c.us', '');
+    const phone = InternationalPhone.normalize(context.phone) || context.phone.replace('@c.us', '');
     
     // Получаем список всех записей клиента
     const bookingsResult = await bookingService.getClientBookings(phone, context.company.company_id);
@@ -1492,7 +1493,7 @@ class CommandHandler {
    * Обработка отмены записи
    */
   async cancelBooking(params, context) {
-    const phone = context.phone.replace('@c.us', '');
+    const phone = InternationalPhone.normalize(context.phone) || context.phone.replace('@c.us', '');
     
     // Получаем список всех записей клиента
     const bookingsResult = await bookingService.getClientBookings(phone, context.company.company_id);
@@ -1703,7 +1704,7 @@ class CommandHandler {
    * Перенос записи
    */
   async rescheduleBooking(params, context) {
-    const phone = context.phone.replace('@c.us', '');
+    const phone = InternationalPhone.normalize(context.phone) || context.phone.replace('@c.us', '');
     const companyId = context.company.yclients_id || context.company.company_id;
     
     try {
