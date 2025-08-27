@@ -442,27 +442,13 @@ class YClientsWebhookProcessor {
   }
 
   normalizePhone(phone) {
-    if (!phone) return null;
-    return phone.replace(/[\s\-\(\)\+]/g, '')
-                .replace(/^8/, '7')
-                .replace(/^([^7])/, '7$1');
+    const InternationalPhone = require('../utils/international-phone');
+    return InternationalPhone.normalize(phone);
   }
 
   formatPhoneForWhatsApp(phone) {
-    // Убираем все не-цифры
-    let cleaned = phone.replace(/\D/g, '');
-    
-    // Если начинается с 8, меняем на 7
-    if (cleaned.startsWith('8') && cleaned.length === 11) {
-      cleaned = '7' + cleaned.slice(1);
-    }
-    
-    // Добавляем 7 если нет кода страны
-    if (cleaned.length === 10) {
-      cleaned = '7' + cleaned;
-    }
-    
-    return cleaned;
+    const InternationalPhone = require('../utils/international-phone');
+    return InternationalPhone.formatForWhatsApp(phone);
   }
 
   async getCompanyInfo(companyId) {

@@ -2,7 +2,7 @@
 const { createRedisClient } = require('../utils/redis-factory');
 const logger = require('../utils/logger');
 const messageQueue = require('../queue/message-queue');
-const { normalizePhone } = require('../utils/phone-normalizer');
+const InternationalPhone = require('../utils/international-phone');
 
 class RedisBatchService {
   constructor() {
@@ -63,7 +63,7 @@ class RedisBatchService {
    */
   async addMessage(phone, message, companyId, metadata = {}) {
     // Нормализуем номер телефона к единому формату
-    const normalizedPhone = normalizePhone(phone);
+    const normalizedPhone = InternationalPhone.normalize(phone);
     logger.debug(`Phone normalization: ${phone} -> ${normalizedPhone}`);
     
     const batchKey = `${this.batchPrefix}${normalizedPhone}`;
@@ -206,7 +206,7 @@ class RedisBatchService {
    */
   async shouldProcessBatch(phone) {
     // Нормализуем номер для консистентности
-    const normalizedPhone = normalizePhone(phone);
+    const normalizedPhone = InternationalPhone.normalize(phone);
     
     const batchKey = `${this.batchPrefix}${normalizedPhone}`;
     const lastMsgKey = `${this.lastMessagePrefix}${normalizedPhone}`;
@@ -273,7 +273,7 @@ class RedisBatchService {
    */
   async processBatch(phone) {
     // Нормализуем номер для консистентности
-    const normalizedPhone = normalizePhone(phone);
+    const normalizedPhone = InternationalPhone.normalize(phone);
     
     const batchKey = `${this.batchPrefix}${normalizedPhone}`;
     const lastMsgKey = `${this.lastMessagePrefix}${normalizedPhone}`;
@@ -382,7 +382,7 @@ class RedisBatchService {
    */
   async clearBatch(phone) {
     // Нормализуем номер для консистентности
-    const normalizedPhone = normalizePhone(phone);
+    const normalizedPhone = InternationalPhone.normalize(phone);
     
     const batchKey = `${this.batchPrefix}${normalizedPhone}`;
     const lastMsgKey = `${this.lastMessagePrefix}${normalizedPhone}`;

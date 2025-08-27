@@ -1,5 +1,6 @@
 const config = require('../../config');
 const logger = require('../../utils/logger').child({ module: 'ai-admin-v2' });
+const InternationalPhone = require('../../utils/international-phone');
 
 // Импортируем модули
 const dataLoader = require('./modules/cached-data-loader'); // Используем версию с кэшем
@@ -89,7 +90,7 @@ class AIAdminV2 {
       logger.info(`🤖 AI Admin v2 processing: "${message}" from ${phone}`);
       
       // 1. Проверяем ожидающую отмену записи (через v2)
-      const cleanPhone = phone.replace('@c.us', '');
+      const cleanPhone = InternationalPhone.normalize(phone) || phone.replace('@c.us', '');
       const dialogContext = await contextServiceV2.getDialogContext(cleanPhone, companyId);
       const redisContext = dialogContext ? {
         ...dialogContext,
@@ -222,7 +223,7 @@ class AIAdminV2 {
       await intermediateContext.updateAfterAIAnalysis(phone, responseForContext, result.executedCommands || []);
       
       // НОВЫЙ ПОДХОД: Единое атомарное сохранение контекста
-      const normalizedPhone = phone.replace('@c.us', '');
+      const normalizedPhone = InternationalPhone.normalize(phone) || phone.replace('@c.us', '');
       
       // Собираем все данные для сохранения
       const contextUpdates = {
@@ -563,7 +564,7 @@ ${JSON.stringify(slotsData)}
     
     try {
       const { supabase } = require('../../database/supabase');
-      const phone = context.phone.replace('@c.us', '');
+      const phone = InternationalPhone.normalize(context.phone) || context.phone.replace('@c.us', '');
       
       // Находим клиента
       const { data: clientData } = await supabase

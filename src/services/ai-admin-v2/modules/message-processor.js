@@ -1,5 +1,6 @@
 const logger = require('../../../utils/logger').child({ module: 'message-processor' });
 const config = require('../config/modules-config');
+const InternationalPhone = require('../../../utils/international-phone');
 
 /**
  * Модуль для разделения processMessage на более мелкие методы
@@ -32,7 +33,8 @@ class MessageProcessor {
       
       // Очищаем состояние ожидания
       delete redisContext.pendingCancellation;
-      await this.contextService.setContext(phone.replace('@c.us', ''), companyId, redisContext);
+      const normalizedPhone = InternationalPhone.normalize(phone) || phone.replace('@c.us', '');
+      await this.contextService.setContext(normalizedPhone, companyId, redisContext);
       
       if (cancelResult.success) {
         return {
@@ -49,7 +51,8 @@ class MessageProcessor {
     
     // Если ввели не номер - очищаем состояние и продолжаем
     delete redisContext.pendingCancellation;
-    await this.contextService.setContext(phone.replace('@c.us', ''), companyId, redisContext);
+    const normalizedPhone = InternationalPhone.normalize(phone) || phone.replace('@c.us', '');
+    await this.contextService.setContext(normalizedPhone, companyId, redisContext);
     
     return { handled: false };
   }
