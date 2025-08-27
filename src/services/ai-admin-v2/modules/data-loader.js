@@ -14,6 +14,13 @@ class DataLoader {
     // Валидация по типу
     switch (type) {
       case 'companyId':
+        // Преобразуем строку в число для companyId
+        const numValue = typeof input === 'string' ? parseInt(input, 10) : input;
+        if (isNaN(numValue)) {
+          throw new Error(`Invalid ${type}: ${input}`);
+        }
+        return numValue;
+      
       case 'number':
         if (typeof input !== 'number' || isNaN(input)) {
           throw new Error(`Invalid ${type}: ${input}`);
