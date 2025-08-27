@@ -587,9 +587,9 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
       const hoursUntil = timeDiff / (1000 * 60 * 60);
       
       // Более точный расчёт: проверяем, что запись именно завтра
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const isRecordTomorrow = recordDate.toDateString() === tomorrow.toDateString();
+      const tomorrowDate = new Date(now);
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      const isRecordTomorrow = recordDate.toDateString() === tomorrowDate.toDateString();
       
       // Напоминание за день (отправляем вечером предыдущего дня между 19:00 и 21:00)
       const currentHour = now.getHours();
@@ -599,7 +599,7 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
       logger.debug(`📅 Reminder check for record ${recordId}:`, {
         now: now.toDateString(),
         recordDate: recordDate.toDateString(),
-        tomorrow: tomorrow.toDateString(),
+        tomorrow: tomorrowDate.toDateString(),
         isRecordTomorrow,
         hoursUntil: Math.round(hoursUntil),
         isEvening
