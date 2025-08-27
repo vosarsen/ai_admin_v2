@@ -326,6 +326,7 @@ class CommandHandler {
     // Сначала пытаемся использовать данные из контекста диалога
     let serviceToSearch = params.service_name;
     let staffToSearch = params.staff_name;
+    let dateToSearch = params.date;
     
     // Если услуга не указана в params, используем из контекста диалога
     if (!serviceToSearch && !params.service_id && context.redisContext?.selection?.service) {
@@ -337,6 +338,12 @@ class CommandHandler {
     if (!staffToSearch && context.redisContext?.selection?.staff) {
       staffToSearch = context.redisContext.selection.staff;
       logger.info('Using staff from dialog context:', staffToSearch);
+    }
+    
+    // Если дата не указана в params, используем из контекста диалога
+    if (!dateToSearch && context.redisContext?.selection?.date) {
+      dateToSearch = context.redisContext.selection.date;
+      logger.info('Using date from dialog context:', dateToSearch);
     }
     
     // Проверяем, что услуга указана (либо в params, либо в контексте)
@@ -417,12 +424,13 @@ class CommandHandler {
     // Проверяем слоты для нескольких мастеров
     const allSlots = [];
     
-    // Логируем дату для отладки
-    const parsedDate = formatter.parseRelativeDate(params.date);
+    // Логируем дату для отладки (используем dateToSearch который может быть из params или контекста)
+    const parsedDate = formatter.parseRelativeDate(dateToSearch);
     logger.info('SEARCH_SLOTS date parsing:', {
-      originalDate: params.date,
+      originalDate: dateToSearch,
       parsedDate: parsedDate,
-      params: params
+      params: params,
+      fromContext: dateToSearch === context.redisContext?.selection?.date
     });
     
     for (const staff of staffToCheck) {
