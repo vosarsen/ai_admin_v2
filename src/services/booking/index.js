@@ -373,17 +373,29 @@ class BookingService {
           
           // Проверяем успешность ответа
           if (!response.success) {
+            // Логируем полный ответ для диагностики
+            logger.error('❌ Booking creation failed:', {
+              response: response,
+              errorType: typeof response.error,
+              bookingData: bookingData
+            });
+            
+            // Получаем текст ошибки (может быть строкой или объектом)
+            const errorMessage = typeof response.error === 'string' 
+              ? response.error 
+              : (response.error?.message || JSON.stringify(response.error) || 'Booking creation failed');
+            
             // Если ошибка временная (например, слот занят), не повторяем
-            if (response.error && (
-              response.error.includes('занят') ||
-              response.error.includes('недоступ') ||
-              response.error.includes('не работает')
+            if (errorMessage && (
+              errorMessage.includes('занят') ||
+              errorMessage.includes('недоступ') ||
+              errorMessage.includes('не работает')
             )) {
-              throw Object.assign(new Error(response.error), { retryable: false });
+              throw Object.assign(new Error(errorMessage), { retryable: false });
             }
             
             // Для других ошибок позволяем retry
-            throw new Error(response.error || 'Booking creation failed');
+            throw new Error(errorMessage);
           }
           
           return response;
