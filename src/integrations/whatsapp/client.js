@@ -204,6 +204,31 @@ class WhatsAppClient {
   }
 
   /**
+   * Send reaction to a message
+   */
+  async sendReaction(phone, emoji = '❤️') {
+    const whatsappPhone = this._formatPhone(phone);
+    
+    try {
+      logger.info(`💫 Sending reaction ${emoji} to ${this._sanitizePhone(whatsappPhone)}`);
+      
+      // Venom bot doesn't have direct reaction API, so we'll send emoji as a message
+      // In production, this would use WhatsApp Business API's reaction endpoint
+      const response = await this.sendMessage(phone, emoji);
+      
+      if (response.success) {
+        logger.info(`💫 Reaction sent to ${this._sanitizePhone(whatsappPhone)}`);
+        return { success: true };
+      }
+      
+      return response;
+    } catch (error) {
+      logger.error(`Failed to send reaction to ${this._sanitizePhone(whatsappPhone)}:`, error);
+      return { success: false, error: error.message || 'Failed to send reaction' };
+    }
+  }
+
+  /**
    * Send file via WhatsApp
    */
   async sendFile(phone, fileUrl, caption = '') {

@@ -8,6 +8,8 @@ const whatsappClient = require('../integrations/whatsapp/client');
 const messageQueue = require('../queue/message-queue');
 const errorMessages = require('../utils/error-messages');
 const criticalErrorLogger = require('../utils/critical-error-logger');
+const reminderContextTracker = require('../services/reminder/reminder-context-tracker');
+const { YclientsClient } = require('../integrations/yclients/client');
 
 /**
  * Упрощенный Message Worker для AI Admin v2
@@ -94,6 +96,52 @@ class MessageWorkerV2 {
     
     return new Promise(async (resolve, reject) => {
       try {
+        // Проверяем, является ли это подтверждением напоминания
+        const isReminderResponse = await reminderContextTracker.shouldHandleAsReminderResponse(from, message);
+        
+        if (isReminderResponse) {
+          logger.info(`✅ Detected reminder confirmation from ${from}: "${message}"`);
+          
+          // Получаем контекст напоминания
+          const reminderContext = await reminderContextTracker.getReminderContext(from);
+          
+          if (reminderContext && reminderContext.booking) {
+            try {
+              // Отправляем реакцию сердечком
+              await whatsappClient.sendReaction(from, '❤️');
+              logger.info(`❤️ Sent heart reaction to ${from}`);
+              
+              // Обновляем статус записи в YClients на "подтвержден" (attendance = 2)
+              const yclientsClient = new YclientsClient();
+              const updateResult = await yclientsClient.updateBookingStatus(
+                reminderContext.booking.recordId,
+                2 // attendance = 2 (подтвержден)
+              );
+              
+              if (updateResult.success) {
+                logger.info(`✅ Updated booking ${reminderContext.booking.recordId} status to confirmed`);
+              } else {
+                logger.warn(`Failed to update booking status: ${updateResult.error}`);
+              }
+              
+              // Помечаем напоминание как подтвержденное
+              await reminderContextTracker.markAsConfirmed(from);
+              
+              // Возвращаем успешный результат без отправки дополнительных сообщений
+              resolve({
+                success: true,
+                processingTime: Date.now() - startTime,
+                response: null, // Не отправляем текстовый ответ
+                isReminderConfirmation: true
+              });
+              return;
+            } catch (error) {
+              logger.error('Error handling reminder confirmation:', error);
+              // Продолжаем обработку как обычное сообщение если что-то пошло не так
+            }
+          }
+        }
+        
         // Сообщение уже обработано через rapid-fire в webhook
         const result = await aiAdminV2.processMessage(message, from, companyId);
           
