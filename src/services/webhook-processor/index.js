@@ -150,6 +150,13 @@ class YClientsWebhookProcessor {
       return;
     }
 
+    // ВАЖНО: Игнорируем изменения статуса "подтвердил" (attendance = 2 или visit_attendance = 2)
+    if (recordData.attendance === 2 || recordData.visit_attendance === 2 || 
+        recordData.attendance === '2' || recordData.visit_attendance === '2') {
+      logger.info('✅ Record marked as confirmed, skipping notification');
+      return;
+    }
+
     // Проверяем, не является ли это отменой записи (attendance = -1)
     if (recordData.attendance === -1 || recordData.visit_attendance === -1 ||
         recordData.attendance === '-1' || recordData.visit_attendance === '-1' ||
