@@ -962,6 +962,41 @@ class YclientsClient {
   }
 
   /**
+   * Упрощенный метод для обновления статуса записи
+   * @param {number} recordId - ID записи
+   * @param {number} attendance - Статус: 2=подтвердил, 1=пришел, 0=ожидание, -1=не пришел
+   */
+  async updateBookingStatus(recordId, attendance) {
+    try {
+      logger.info(`📝 Updating booking ${recordId} status to attendance=${attendance}`);
+      
+      const attendanceMap = {
+        2: 'Подтвержден',
+        1: 'Пришел',
+        0: 'Ожидание',
+        '-1': 'Не пришел'
+      };
+      
+      // Используем updateRecord с нужными параметрами
+      const result = await this.updateRecord(this.companyId, recordId, {
+        attendance: attendance
+      });
+      
+      if (result.success) {
+        logger.info(`✅ Booking ${recordId} status updated to: ${attendanceMap[attendance]}`);
+      }
+      
+      return result;
+    } catch (error) {
+      logger.error(`Error updating booking ${recordId} status:`, error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
    * Обновить запись (например, изменить статус)
    */
   async updateRecord(companyId, recordId, updateData) {

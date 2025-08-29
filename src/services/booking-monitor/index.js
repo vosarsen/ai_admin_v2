@@ -7,6 +7,7 @@ const businessTypes = require('../../config/business-types');
 const { detectBusinessType, defaultEmojis } = businessTypes;
 const { generateDayBeforeReminder, generateTwoHoursReminder } = require('../reminder/templates');
 const contextService = require('../context');
+const reminderContextTracker = require('../reminder/reminder-context-tracker');
 
 // Простые функции форматирования даты
 const formatDate = (date) => {
@@ -712,6 +713,15 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
       
       // Отправляем сообщение
       await this.whatsappClient.sendMessage(phone, message);
+      
+      // Сохраняем контекст напоминания для правильной обработки ответов
+      const phoneForTracker = phone.replace('@c.us', '');
+      await reminderContextTracker.saveReminderContext(phoneForTracker, {
+        record_id: record.id,
+        datetime: record.datetime,
+        service_name: services,
+        staff_name: staff
+      }, reminderType);
       
       // Сохраняем информацию об отправке в БД
       await supabase
