@@ -108,7 +108,11 @@ class TwoStageProcessor {
         executedCommands,
         intermediateContext: context.intermediateContext,
         lastActivity: context.redisContext?.lastActivity || context.lastActivity,
-        lastMessageDate: context.redisContext?.lastMessageDate || context.lastMessageDate
+        lastMessageDate: context.redisContext?.lastMessageDate || context.lastMessageDate,
+        // Передаем флаги вопросов
+        askedForTimeSelection: context.redisContext?.askedForTimeSelection || false,
+        askedForTimeAt: context.redisContext?.askedForTimeAt || null,
+        shownSlotsAt: context.redisContext?.shownSlotsAt || null
       });
       
       // Вызываем AI для генерации ответа
