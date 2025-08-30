@@ -600,7 +600,7 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
       logger.debug(`📅 Reminder check for record ${recordId}:`, {
         now: now.toDateString(),
         recordDate: recordDate.toDateString(),
-        tomorrow: tomorrowDate.toDateString(),
+        tomorrow: tomorrowDateCheck.toDateString(),
         isRecordTomorrow,
         hoursUntil: Math.round(hoursUntil),
         isEvening
