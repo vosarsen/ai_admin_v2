@@ -6,13 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **IMPORTANT**: Before starting any work, ALWAYS:
 1. Run `./start-work.sh` to get current project status
-2. Read `CONTEXT.md` for where we left off last time
-3. Read `PLANNING.md` to understand the project architecture and design principles
-4. Check `TASK.md` to see current tasks, completed work, and known issues
-5. Review `RECOMMENDATIONS.md` for improvement ideas
+2. Read `config/project-docs/CONTEXT.md` for where we left off last time
+3. Read `config/project-docs/PLANNING.md` to understand the project architecture and design principles
+4. Check `config/project-docs/TASK.md` to see current tasks, completed work, and known issues
+5. Review `config/project-docs/RECOMMENDATIONS.md` for improvement ideas
 6. Check `docs/TROUBLESHOOTING.md` if encountering issues
 7. Review relevant examples in `examples/` folder for established patterns
-8. Check `INITIAL.md` if working on a new feature request
+8. Check `config/project-docs/INITIAL.md` if working on a new feature request
 9. Review `docs/development-diary/` for historical context and decisions
 
 **AFTER completing any feature or significant work**:
@@ -908,3 +908,41 @@ ssh root@46.149.70.219 "pm2 restart ai-admin-worker-v2"
 node test-direct-webhook.js
 ssh root@46.149.70.219 "pm2 logs ai-admin-worker-v2 --lines 50"
 ```
+
+## 📁 Project Structure
+
+### Root Directory Organization
+- **src/** - Main source code
+- **scripts/** - Utility and management scripts
+- **tests/** - Test files and test scenarios
+- **mcp/** - MCP server implementations
+- **docs/** - All documentation (organized by category)
+- **examples/** - Code examples and patterns
+- **config/** - Configuration files and project docs
+- **archive/** - Archived scripts and test files (not for active use)
+- **legacy/** - Legacy code kept for reference
+- **public/** - Public assets and HTML files
+- **kultura-analytics/** - Business analytics specific to Kultura
+
+### Documentation Structure (docs/)
+- **architecture/** - System architecture, database design, caching
+- **technical/** - Technical guides for AI, integrations, implementations
+- **features/** - Feature documentation and specifications
+- **configuration/** - Setup guides and configuration instructions
+- **deployment/** - Deployment guides, MCP setup, infrastructure
+- **development-diary/** - Daily development logs and decisions
+- **guides/** - User guides, admin guides, quick references
+- **api/** - API documentation
+- **sessions/** - Work session summaries
+- **testing-results/** - Test results and reports
+
+### Config Directory (config/)
+- **project-docs/** - Project management docs (CONTEXT.md, TASK.md, etc.)
+- Configuration files for different environments
+
+### Archive Directory (archive/)
+- **test-files/** - Old test scripts and JSON results
+- **sync-scripts/** - Database synchronization scripts
+- **analysis-scripts/** - Debugging and analysis utilities
+
+**Note**: Files in `archive/` are kept for reference only. Use main source code for active development.

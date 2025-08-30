@@ -146,7 +146,7 @@ ${serviceNames.map((name, i) => `${i + 1}. "${name}"`).join('\n')}
             for (const item of declensionsArray) {
               const service = chunk.find(s => s.title === item.original);
               if (service) {
-                results.set(service.yclients_id, item);
+                results.set(service.id, item);  // Используем service.id вместо yclients_id
                 this.cache.set(item.original, item);
               }
             }
@@ -155,7 +155,7 @@ ${serviceNames.map((name, i) => `${i + 1}. "${name}"`).join('\n')}
           logger.error('Failed to parse batch response:', parseError);
           // Fallback для каждой услуги
           for (const service of chunk) {
-            results.set(service.yclients_id, this.getFallbackDeclensions(service.title));
+            results.set(service.id, this.getFallbackDeclensions(service.title));
           }
         }
 
@@ -166,7 +166,7 @@ ${serviceNames.map((name, i) => `${i + 1}. "${name}"`).join('\n')}
         logger.error('Error in batch generation:', error);
         // Fallback для всех услуг в chunk
         for (const service of chunk) {
-          results.set(service.yclients_id, this.getFallbackDeclensions(service.title));
+          results.set(service.id, this.getFallbackDeclensions(service.title));
         }
       }
     }
