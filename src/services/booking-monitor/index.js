@@ -192,12 +192,15 @@ class BookingMonitorService {
           .from('bookings')
           .insert(currentState);
 
-        // НЕ отправляем уведомление для новых записей с attendance = 0 или 2
-        // Только если запись создана через админку (не через бота)
-        if (record.attendance !== 2 && record.attendance !== 0) {
-          logger.debug(`📝 New booking ${recordId} saved, but no notification (attendance=${record.attendance})`);
+        // Отправляем уведомление о создании только для attendance = 0 (ожидается)
+        // и только если запись НЕ создана ботом
+        if (!currentState.created_by_bot && record.attendance === 0) {
+          logger.info(`📝 New booking ${recordId} created externally, sending confirmation`);
+          await this.sendBookingConfirmation(record);
+        } else if (currentState.created_by_bot) {
+          logger.debug(`📝 New booking ${recordId} created by bot, skipping notification`);
         } else {
-          logger.debug(`📝 New booking ${recordId} saved without notification`);
+          logger.debug(`📝 New booking ${recordId} saved without notification (attendance=${record.attendance})`);
         }
         return;
       }
@@ -243,8 +246,8 @@ class BookingMonitorService {
 
     // ВАЖНО: Сначала проверяем статусы attendance
     // Игнорируем изменения статуса на "подтвержден" (0->2, null->2, undefined->2)
-    const prevAttendance = previousState.attendance ?? 0;
-    const currAttendance = currentState.attendance ?? 0;
+    const prevAttendance = previousState.visit_attendance ?? 0;
+    const currAttendance = currentState.visit_attendance ?? 0;
     
     // Если только изменился статус с "ожидается" на "подтвержден"
     if ((prevAttendance === 0 || prevAttendance === null || prevAttendance === undefined) && 
@@ -326,7 +329,7 @@ class BookingMonitorService {
     if (prevServices !== currServices) return true;
 
     // Проверяем цену
-    if (previousState.price !== currentState.price) return true;
+    if (previousState.cost !== currentState.cost) return true;
 
     return false;
   }
