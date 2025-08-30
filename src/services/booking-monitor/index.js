@@ -686,13 +686,33 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
         }
       }
       
+      // Получаем склонения для мастера из БД
+      let staffDeclensions = null;
+      if (record.staff?.id) {
+        try {
+          const { data: staffData } = await supabase
+            .from('staff')
+            .select('declensions')
+            .eq('yclients_id', record.staff.id)
+            .eq('company_id', record.company_id || config.yclients.companyId)
+            .single();
+          
+          if (staffData?.declensions) {
+            staffDeclensions = staffData.declensions;
+          }
+        } catch (error) {
+          logger.debug('Could not fetch staff declensions:', error);
+        }
+      }
+      
       // Подготавливаем данные для шаблона
       const templateData = {
         clientName: clientName,
         time: time,
         service: services,
-        serviceDeclensions: serviceDeclensions, // Передаем склонения
+        serviceDeclensions: serviceDeclensions, // Передаем склонения услуги
         staff: staff,
+        staffDeclensions: staffDeclensions, // Передаем склонения мастера
         price: price,
         address: address,
         date: date
