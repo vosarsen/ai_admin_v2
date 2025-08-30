@@ -6,6 +6,7 @@ const { supabase } = require('../database/supabase');
 const logger = require('../utils/logger').child({ module: 'staff-sync' });
 const { YCLIENTS_CONFIG, createYclientsHeaders, delay } = require('./sync-utils');
 const axios = require('axios');
+const staffDeclension = require('../services/declension/staff-declension');
 
 class StaffSync {
   constructor() {
@@ -38,6 +39,17 @@ class StaffSync {
       }
 
       logger.info(`📋 Found ${staff.length} active staff members to sync`);
+
+      // Генерируем склонения для всех мастеров
+      logger.info('🔤 Generating declensions for staff names...');
+      const declensionsMap = await staffDeclension.generateBatchDeclensions(staff);
+      
+      // Добавляем склонения к мастерам
+      staff.forEach(staffMember => {
+        if (declensionsMap.has(staffMember.id)) {
+          staffMember.declensions = declensionsMap.get(staffMember.id);
+        }
+      });
 
       // Сначала деактивируем всех существующих мастеров в базе
       await this.deactivateAllStaff();
@@ -198,6 +210,7 @@ class StaffSync {
       rating: staff.rating || 0,
       is_bookable: staff.bookable !== 0 && staff.bookable !== "0",
       information: staff.information || staff.comment || null,
+      declensions: staff.declensions || null, // Сохраняем склонения
       last_sync_at: new Date().toISOString(),
       raw_data: staff // Сохраняем полные данные для отладки
     };
