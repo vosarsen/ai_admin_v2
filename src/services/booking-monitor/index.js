@@ -463,6 +463,65 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
   }
 
   /**
+   * Отправить подтверждение о создании записи
+   */
+  async sendBookingConfirmation(record) {
+    try {
+      const phone = this.formatPhoneNumber(record.client?.phone || record.phone || '');
+      if (!phone) {
+        logger.warn(`⚠️ No phone number for booking ${record.id}`);
+        return;
+      }
+
+      // Форматируем сообщение
+      const date = formatDate(new Date(record.datetime));
+      const time = formatTime(new Date(record.datetime));
+      const services = record.services?.map(s => s.title || s.name).join(', ') || 'Услуга';
+      const staff = record.staff?.name || 'Специалист';
+      const price = record.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0;
+      
+      // Получаем адрес компании
+      const { data: company } = await supabase
+        .from('companies')
+        .select('address')
+        .eq('id', record.company_id || config.yclients.companyId)
+        .single();
+        
+      const address = company?.address || 'Малаховка, Южная улица, 38';
+
+      const message = `✅ Ваша запись успешно создана!
+
+📅 ${date} в ${time}
+💇 ${services}
+👤 Мастер: ${staff}
+${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
+📍 Адрес: ${address}
+
+До встречи! Если планы изменятся, пожалуйста, предупредите нас заранее.`;
+
+      // Отправляем сообщение
+      await this.whatsappClient.sendMessage(phone, message);
+
+      // Сохраняем информацию об отправке
+      await supabase
+        .from('booking_notifications')
+        .insert({
+          yclients_record_id: parseInt(record.id),
+          phone: phone,
+          notification_type: 'booking_created',
+          message: message,
+          sent_at: new Date().toISOString(),
+          company_id: record.company_id || config.yclients.companyId
+        });
+
+      logger.info(`✅ booking_created notification sent for booking ${record.id} to ${phone}`);
+      
+    } catch (error) {
+      logger.error(`❌ Error sending booking confirmation for ${record.id}:`, error);
+    }
+  }
+
+  /**
    * Получить конфигурацию бизнеса (эмодзи, терминологию)
    */
   async getBusinessConfig(companyId) {
