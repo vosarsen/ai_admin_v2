@@ -118,12 +118,12 @@ class BookingMonitorService {
         await this.checkAndSendReminders(record);
       }
 
-      // Очищаем старые записи из booking_states (старше 30 дней)
+      // Очищаем старые записи из bookings (старше 30 дней)
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
       await supabase
-        .from('booking_states')
+        .from('bookings')
         .delete()
         .lt('datetime', thirtyDaysAgo.toISOString());
 
@@ -155,31 +155,41 @@ class BookingMonitorService {
 
       // Получаем предыдущее состояние записи из БД
       const { data: previousState } = await supabase
-        .from('booking_states')
+        .from('bookings')
         .select('*')
-        .eq('yclients_record_id', recordId)
+        .eq('yclients_record_id', parseInt(recordId))
         .single();
 
-      // Подготавливаем текущее состояние
+      // Подготавливаем текущее состояние для таблицы bookings
       const currentState = {
-        yclients_record_id: recordId,
+        yclients_record_id: parseInt(recordId),
         company_id: record.company_id || config.yclients.companyId,
-        attendance: record.attendance || 0,
-        datetime: record.datetime,
-        services: record.services || [],
-        staff_id: record.staff?.id || record.staff_id,
-        staff_name: record.staff?.name || '',
         client_phone: this.formatPhoneNumber(record.client?.phone || record.phone || ''),
         client_name: record.client?.name || '',
-        price: record.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0,
-        last_checked_at: now.toISOString()
+        client_yclients_id: record.client?.id || null,
+        staff_id: record.staff?.id || record.staff_id,
+        staff_name: record.staff?.name || '',
+        services: record.services?.map(s => s.title || s.name) || [],
+        service_ids: record.services?.map(s => s.id) || [],
+        datetime: record.datetime,
+        date: record.datetime.split('T')[0],
+        duration: record.seance_length || 0,
+        cost: record.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0,
+        prepaid: record.prepaid || 0,
+        status: record.deleted ? 'cancelled' : (record.attendance === 1 ? 'completed' : 'active'),
+        visit_attendance: record.attendance || 0,
+        comment: record.comment || '',
+        online: record.online || false,
+        created_by_bot: false,
+        synced_at: now.toISOString(),
+        updated_at: now.toISOString()
       };
 
       // Если записи нет в БД - это новая запись
       if (!previousState) {
         // Сохраняем состояние
         await supabase
-          .from('booking_states')
+          .from('bookings')
           .insert(currentState);
 
         // НЕ отправляем уведомление для новых записей с attendance = 0 или 2
@@ -196,30 +206,26 @@ class BookingMonitorService {
       const changes = this.detectChanges(previousState, currentState);
 
       if (changes.length === 0) {
-        // Обновляем только last_checked_at
+        // Обновляем только updated_at
         await supabase
-          .from('booking_states')
-          .update({ last_checked_at: now.toISOString() })
-          .eq('yclients_record_id', recordId);
+          .from('bookings')
+          .update({ updated_at: now.toISOString() })
+          .eq('yclients_record_id', parseInt(recordId));
         
         logger.debug(`✅ No changes in booking ${recordId}`);
         return;
       }
 
-      // Обновляем состояние в БД с сохранением предыдущих значений
+      // Обновляем состояние в БД
       const updateData = {
         ...currentState,
-        last_attendance: previousState.attendance,
-        last_datetime: previousState.datetime,
-        last_services: previousState.services,
-        last_staff_id: previousState.staff_id,
         updated_at: now.toISOString()
       };
 
       await supabase
-        .from('booking_states')
+        .from('bookings')
         .update(updateData)
-        .eq('yclients_record_id', recordId);
+        .eq('yclients_record_id', parseInt(recordId));
 
       // Отправляем уведомления об изменениях
       await this.sendChangeNotifications(record, changes, previousState);
@@ -340,7 +346,7 @@ class BookingMonitorService {
     const { data: recentNotifications } = await supabase
       .from('booking_notifications')
       .select('*')
-      .eq('yclients_record_id', record.id.toString())
+      .eq('yclients_record_id', parseInt(record.id))
       .gte('sent_at', new Date(Date.now() - 30 * 60 * 1000).toISOString()) // За последние 30 минут
       .order('sent_at', { ascending: false });
 
@@ -549,7 +555,7 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
       tomorrow.setHours(23, 59, 59, 999);
       
       const { data: todayVisits } = await supabase
-        .from('booking_states')
+        .from('bookings')
         .select('*')
         .eq('client_phone', phone)
         .gte('datetime', today.toISOString())
@@ -565,7 +571,7 @@ ${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
       const { data: sentReminders } = await supabase
         .from('booking_notifications')
         .select('notification_type, sent_at')
-        .eq('yclients_record_id', recordId)
+        .eq('yclients_record_id', parseInt(recordId))
         .in('notification_type', ['reminder_day_before', 'reminder_2hours'])
         .order('sent_at', { ascending: false });
 
