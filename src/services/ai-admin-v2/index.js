@@ -272,6 +272,31 @@ class AIAdminV2 {
         contextUpdates.clientName = context.client.name;
       }
       
+      // Отслеживаем вопросы о времени записи
+      if (result.response && result.response.includes('На какое время вас записать?')) {
+        contextUpdates.askedForTimeSelection = true;
+        contextUpdates.askedForTimeAt = new Date().toISOString();
+        logger.info('📝 Detected time selection question in response');
+      }
+      
+      // Отслеживаем показ слотов
+      if (result.executedCommands && result.executedCommands.some(cmd => 
+        cmd.command === 'SEARCH_SLOTS' && cmd.success
+      )) {
+        contextUpdates.shownSlotsAt = new Date().toISOString();
+        logger.info('📝 Marked slots shown at', contextUpdates.shownSlotsAt);
+      }
+      
+      // Сбрасываем флаги после успешной записи
+      if (result.executedCommands && result.executedCommands.some(cmd => 
+        cmd.command === 'CREATE_BOOKING' && cmd.success
+      )) {
+        contextUpdates.askedForTimeSelection = false;
+        contextUpdates.askedForTimeAt = null;
+        contextUpdates.shownSlotsAt = null;
+        logger.info('📝 Reset question flags after successful booking');
+      }
+      
       // Единый вызов для сохранения всего контекста
       logger.info('🔥 Calling contextManager.saveContext with:', {
         phone: normalizedPhone,

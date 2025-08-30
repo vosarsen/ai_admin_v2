@@ -142,7 +142,11 @@ class ContextServiceV2 {
         ...data,
         selection: data.selection ? JSON.parse(data.selection) : {},
         pendingAction: data.pendingAction ? JSON.parse(data.pendingAction) : null,
-        lastUpdated: data.lastUpdated
+        lastUpdated: data.lastUpdated,
+        // Добавляем флаги вопросов
+        askedForTimeSelection: data.askedForTimeSelection === 'true',
+        askedForTimeAt: data.askedForTimeAt || null,
+        shownSlotsAt: data.shownSlotsAt || null
       };
     } catch (error) {
       logger.error('Error getting dialog context:', error);
@@ -224,6 +228,25 @@ class ContextServiceV2 {
           dataToSave.pendingAction = JSON.stringify(updates.pendingAction);
         } else if (existing.pendingAction) {
           dataToSave.pendingAction = existing.pendingAction;
+        }
+        
+        // Добавляем флаги для отслеживания вопросов
+        if (updates.askedForTimeSelection !== undefined) {
+          dataToSave.askedForTimeSelection = updates.askedForTimeSelection.toString();
+        } else if (existing.askedForTimeSelection) {
+          dataToSave.askedForTimeSelection = existing.askedForTimeSelection;
+        }
+        
+        if (updates.askedForTimeAt !== undefined) {
+          dataToSave.askedForTimeAt = updates.askedForTimeAt;
+        } else if (existing.askedForTimeAt) {
+          dataToSave.askedForTimeAt = existing.askedForTimeAt;
+        }
+        
+        if (updates.shownSlotsAt !== undefined) {
+          dataToSave.shownSlotsAt = updates.shownSlotsAt;
+        } else if (existing.shownSlotsAt) {
+          dataToSave.shownSlotsAt = existing.shownSlotsAt;
         }
         
         // 4. Используем транзакцию для атомарного обновления
