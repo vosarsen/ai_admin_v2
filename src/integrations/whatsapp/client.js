@@ -14,7 +14,7 @@ class WhatsAppClient {
     this.retries = config.whatsapp.retries;
     
     // Initialize circuit breaker
-    this.circuitBreaker = circuitBreakerFactory.get('whatsapp', {
+    this.circuitBreaker = circuitBreakerFactory.getBreaker('whatsapp', {
       timeout: this.timeout,
       failureThreshold: 5,
       resetTimeout: 60000 // 1 minute
