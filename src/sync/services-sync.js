@@ -57,14 +57,45 @@ class ServicesSync {
         }
       });
 
-      // Генерируем склонения для всех услуг
-      logger.info('🔤 Generating declensions for services...');
-      const declensionsMap = await serviceDeclension.generateBatchDeclensions(services);
+      // Получаем существующие услуги из БД для сохранения склонений
+      logger.info('📚 Loading existing services from database...');
+      const { data: existingServices } = await supabase
+        .from(this.tableName)
+        .select('yclients_id, declensions')
+        .eq('company_id', this.config.COMPANY_ID);
       
-      // Добавляем склонения к услугам
+      // Создаем маппинг существующих склонений
+      const existingDeclensionsMap = new Map();
+      if (existingServices) {
+        existingServices.forEach(service => {
+          if (service.declensions) {
+            existingDeclensionsMap.set(service.yclients_id, service.declensions);
+          }
+        });
+      }
+      logger.info(`📝 Found ${existingDeclensionsMap.size} existing declensions`);
+
+      // Определяем новые услуги (для которых нужно генерировать склонения)
+      const newServices = services.filter(service => 
+        !existingDeclensionsMap.has(service.id)
+      );
+      
+      if (newServices.length > 0) {
+        logger.info(`🆕 Found ${newServices.length} new services, generating declensions...`);
+        const declensionsMap = await serviceDeclension.generateBatchDeclensions(newServices);
+        
+        // Добавляем новые склонения к услугам
+        newServices.forEach(service => {
+          if (declensionsMap.has(service.id)) {
+            existingDeclensionsMap.set(service.id, declensionsMap.get(service.id));
+          }
+        });
+      }
+      
+      // Применяем склонения ко всем услугам (существующие или новые)
       services.forEach(service => {
-        if (declensionsMap.has(service.id)) {
-          service.declensions = declensionsMap.get(service.id);
+        if (existingDeclensionsMap.has(service.id)) {
+          service.declensions = existingDeclensionsMap.get(service.id);
         }
       });
 

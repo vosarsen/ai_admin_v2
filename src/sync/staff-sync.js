@@ -40,14 +40,45 @@ class StaffSync {
 
       logger.info(`📋 Found ${staff.length} active staff members to sync`);
 
-      // Генерируем склонения для всех мастеров
-      logger.info('🔤 Generating declensions for staff names...');
-      const declensionsMap = await staffDeclension.generateBatchDeclensions(staff);
+      // Получаем существующих мастеров из БД для сохранения склонений
+      logger.info('📚 Loading existing staff from database...');
+      const { data: existingStaff } = await supabase
+        .from(this.tableName)
+        .select('yclients_id, declensions')
+        .eq('company_id', this.config.COMPANY_ID);
       
-      // Добавляем склонения к мастерам
+      // Создаем маппинг существующих склонений
+      const existingDeclensionsMap = new Map();
+      if (existingStaff) {
+        existingStaff.forEach(staffMember => {
+          if (staffMember.declensions) {
+            existingDeclensionsMap.set(staffMember.yclients_id, staffMember.declensions);
+          }
+        });
+      }
+      logger.info(`📝 Found ${existingDeclensionsMap.size} existing staff declensions`);
+
+      // Определяем новых мастеров (для которых нужно генерировать склонения)
+      const newStaff = staff.filter(staffMember => 
+        !existingDeclensionsMap.has(staffMember.id)
+      );
+      
+      if (newStaff.length > 0) {
+        logger.info(`🆕 Found ${newStaff.length} new staff members, generating declensions...`);
+        const declensionsMap = await staffDeclension.generateBatchDeclensions(newStaff);
+        
+        // Добавляем новые склонения к мастерам
+        newStaff.forEach(staffMember => {
+          if (declensionsMap.has(staffMember.id)) {
+            existingDeclensionsMap.set(staffMember.id, declensionsMap.get(staffMember.id));
+          }
+        });
+      }
+      
+      // Применяем склонения ко всем мастерам (существующие или новые)
       staff.forEach(staffMember => {
-        if (declensionsMap.has(staffMember.id)) {
-          staffMember.declensions = declensionsMap.get(staffMember.id);
+        if (existingDeclensionsMap.has(staffMember.id)) {
+          staffMember.declensions = existingDeclensionsMap.get(staffMember.id);
         }
       });
 
