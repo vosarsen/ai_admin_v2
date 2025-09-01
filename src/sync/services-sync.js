@@ -65,10 +65,12 @@ class ServicesSync {
         .eq('company_id', this.config.COMPANY_ID);
       
       // Создаем маппинг существующих склонений
+      // ВАЖНО: service.id из YClients API соответствует yclients_id в нашей БД
       const existingDeclensionsMap = new Map();
       if (existingServices) {
         existingServices.forEach(service => {
           if (service.declensions) {
+            // Используем yclients_id как ключ, так как он будет сравниваться с service.id из API
             existingDeclensionsMap.set(service.yclients_id, service.declensions);
           }
         });
