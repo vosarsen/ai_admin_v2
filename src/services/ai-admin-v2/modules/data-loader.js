@@ -154,7 +154,7 @@ class DataLoader {
   }
 
   /**
-   * Загрузка информации о клиенте
+   * Загрузка информации о клиенте с обогащением данных
    */
   async loadClient(phone, companyId) {
     try {
@@ -193,16 +193,29 @@ class DataLoader {
         if (data.services_amount) {
           data.average_check = Math.round(data.services_amount / (data.visit_count || 1));
         }
-        // favorite_services пока не храним в БД, но можем извлечь из last_services
-        if (data.last_services && Array.isArray(data.last_services)) {
-          // Пытаемся найти ID услуг по названиям (временное решение)
-          data.favorite_services = [];
+        
+        // Загружаем имена мастеров для favorite_staff_ids
+        if (data.favorite_staff_ids && data.favorite_staff_ids.length > 0) {
+          const staffNames = await this.getStaffNamesByIds(data.favorite_staff_ids, safeCompanyId);
+          data.favorite_staff_names = staffNames;
+          logger.debug(`Mapped favorite staff: ${staffNames.join(', ')}`);
         }
+        
+        // Загружаем названия услуг для last_service_ids
+        if (data.last_service_ids && data.last_service_ids.length > 0) {
+          const serviceNames = await this.getServiceNamesByIds(data.last_service_ids, safeCompanyId);
+          data.favorite_services = serviceNames; // Используем как любимые услуги
+          logger.debug(`Mapped favorite services: ${serviceNames.join(', ')}`);
+        }
+        
+        // Анализируем паттерны посещений
+        data.visit_patterns = this.analyzeVisitPatterns(data);
         
         logger.debug(`Client data mapped for personalization:`, {
           has_visits: !!data.visits,
           visit_count: data.visit_count,
-          average_check: data.average_check
+          average_check: data.average_check,
+          has_patterns: !!data.visit_patterns
         });
       } else {
         logger.debug(`No client found for raw_phone: ${phoneWithPlus}`);
@@ -413,6 +426,149 @@ class DataLoader {
     });
     
     return scheduleByDate;
+  }
+
+  /**
+   * Получить имена мастеров по их ID
+   */
+  async getStaffNamesByIds(staffIds, companyId) {
+    try {
+      const { data, error } = await supabase
+        .from('staff')
+        .select('id, name')
+        .eq('company_id', companyId)
+        .in('id', staffIds);
+      
+      if (error || !data) {
+        logger.error('Error loading staff names:', error);
+        return [];
+      }
+      
+      return data.map(staff => staff.name);
+    } catch (error) {
+      logger.error('Error in getStaffNamesByIds:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Получить названия услуг по их ID
+   */
+  async getServiceNamesByIds(serviceIds, companyId) {
+    try {
+      const { data, error } = await supabase
+        .from('services')
+        .select('id, title')
+        .eq('company_id', companyId)
+        .in('id', serviceIds);
+      
+      if (error || !data) {
+        logger.error('Error loading service names:', error);
+        return [];
+      }
+      
+      return data.map(service => service.title);
+    } catch (error) {
+      logger.error('Error in getServiceNamesByIds:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Анализ паттернов посещений клиента
+   */
+  analyzeVisitPatterns(clientData) {
+    try {
+      const patterns = {
+        averageFrequency: null,
+        preferredDayOfWeek: null,
+        preferredTimeOfDay: null,
+        lastVisitDaysAgo: null,
+        nextExpectedVisit: null,
+        serviceStaffPairs: {}
+      };
+      
+      // Вычисляем дни с последнего визита
+      if (clientData.last_visit_date) {
+        const lastVisit = new Date(clientData.last_visit_date);
+        const today = new Date();
+        const diffTime = Math.abs(today - lastVisit);
+        patterns.lastVisitDaysAgo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      }
+      
+      // Анализируем историю посещений
+      if (clientData.visit_history && Array.isArray(clientData.visit_history)) {
+        const visits = clientData.visit_history;
+        
+        // Частота посещений (средний интервал между визитами)
+        if (visits.length > 1) {
+          const sortedVisits = visits.sort((a, b) => new Date(a.date) - new Date(b.date));
+          let totalDays = 0;
+          for (let i = 1; i < sortedVisits.length; i++) {
+            const diff = new Date(sortedVisits[i].date) - new Date(sortedVisits[i-1].date);
+            totalDays += diff / (1000 * 60 * 60 * 24);
+          }
+          patterns.averageFrequency = Math.round(totalDays / (sortedVisits.length - 1));
+          
+          // Прогнозируем следующий визит
+          if (patterns.lastVisitDaysAgo && patterns.averageFrequency) {
+            const daysUntilNext = patterns.averageFrequency - patterns.lastVisitDaysAgo;
+            if (daysUntilNext > 0) {
+              patterns.nextExpectedVisit = `через ${daysUntilNext} дней`;
+            } else {
+              patterns.nextExpectedVisit = 'пора записаться';
+            }
+          }
+        }
+        
+        // Предпочитаемый день недели
+        const dayCount = {};
+        const timeCount = { morning: 0, afternoon: 0, evening: 0 };
+        
+        visits.forEach(visit => {
+          if (visit.date) {
+            const date = new Date(visit.date);
+            const dayOfWeek = date.getDay();
+            dayCount[dayOfWeek] = (dayCount[dayOfWeek] || 0) + 1;
+            
+            // Анализ времени
+            if (visit.time) {
+              const hour = parseInt(visit.time.split(':')[0]);
+              if (hour < 12) timeCount.morning++;
+              else if (hour < 18) timeCount.afternoon++;
+              else timeCount.evening++;
+            }
+          }
+          
+          // Собираем связки услуга-мастер
+          if (visit.service && visit.staff) {
+            const key = `${visit.service}_${visit.staff}`;
+            patterns.serviceStaffPairs[key] = (patterns.serviceStaffPairs[key] || 0) + 1;
+          }
+        });
+        
+        // Находим самый популярный день
+        const maxDay = Object.keys(dayCount).reduce((a, b) => 
+          dayCount[a] > dayCount[b] ? a : b, null);
+        if (maxDay) {
+          const days = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+          patterns.preferredDayOfWeek = days[maxDay];
+        }
+        
+        // Находим предпочитаемое время
+        const maxTime = Object.keys(timeCount).reduce((a, b) => 
+          timeCount[a] > timeCount[b] ? a : b, null);
+        if (maxTime) {
+          patterns.preferredTimeOfDay = maxTime === 'morning' ? 'утро' : 
+                                       maxTime === 'afternoon' ? 'день' : 'вечер';
+        }
+      }
+      
+      return patterns;
+    } catch (error) {
+      logger.error('Error analyzing visit patterns:', error);
+      return null;
+    }
   }
 
   /**
