@@ -163,14 +163,58 @@ ${data.lastCommand ? `- Последняя команда: ${data.lastCommand}` 
     const { client, phone } = context;
     
     if (client) {
-      return `
+      let clientInfo = `
 КЛИЕНТ:
 Имя: ${client.name || 'Не указано'}
 Телефон: ${phone}
-История: ${formatter.formatVisitHistory(client.visit_history)}
-Любимые услуги: ${client.last_service_ids?.join(', ') || 'нет данных'}
-Любимые мастера: ${client.favorite_staff_ids?.join(', ') || 'нет данных'}
-ВАЖНО: Клиент УЖЕ ИЗВЕСТЕН! НЕ спрашивай как его зовут! Используй имя из базы!`;
+История: ${formatter.formatVisitHistory(client.visit_history)}`;
+
+      // Добавляем любимые услуги
+      if (client.favorite_services && client.favorite_services.length > 0) {
+        clientInfo += `\nЛюбимые услуги: ${client.favorite_services.join(', ')}`;
+      } else if (client.last_services && client.last_services.length > 0) {
+        clientInfo += `\nПоследние услуги: ${client.last_services.join(', ')}`;
+      }
+      
+      // Добавляем любимых мастеров (теперь с именами!)
+      if (client.favorite_staff_names && client.favorite_staff_names.length > 0) {
+        clientInfo += `\nЛюбимые мастера: ${client.favorite_staff_names.join(', ')}`;
+      }
+      
+      // Добавляем паттерны посещений
+      if (client.visit_patterns) {
+        const patterns = client.visit_patterns;
+        if (patterns.averageFrequency) {
+          clientInfo += `\nПериодичность: раз в ${patterns.averageFrequency} дней`;
+        }
+        if (patterns.nextExpectedVisit) {
+          clientInfo += `\nОжидаемый визит: ${patterns.nextExpectedVisit}`;
+        }
+        if (patterns.preferredDayOfWeek) {
+          clientInfo += `\nПредпочитает: ${patterns.preferredDayOfWeek}`;
+        }
+        if (patterns.preferredTimeOfDay) {
+          clientInfo += `, ${patterns.preferredTimeOfDay}`;
+        }
+        
+        // Добавляем связки услуга-мастер
+        if (patterns.serviceStaffPairs && Object.keys(patterns.serviceStaffPairs).length > 0) {
+          const pairs = Object.entries(patterns.serviceStaffPairs)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([key, count]) => {
+              const [service, staff] = key.split('_');
+              return `${service} у ${staff}`;
+            });
+          if (pairs.length > 0) {
+            clientInfo += `\nОбычные предпочтения: ${pairs.join(', ')}`;
+          }
+        }
+      }
+      
+      clientInfo += `\nВАЖНО: Клиент УЖЕ ИЗВЕСТЕН! НЕ спрашивай как его зовут! Используй имя из базы!`;
+      
+      return clientInfo;
     } else {
       return `
 КЛИЕНТ:
