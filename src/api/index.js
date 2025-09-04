@@ -3,7 +3,8 @@ const express = require('express');
 const config = require('../config');
 const logger = require('../utils/logger');
 const messageQueue = require('../queue/message-queue');
-const whatsappClient = require('../integrations/whatsapp/client');
+const clientFactory = require('../integrations/whatsapp/client-factory');
+const whatsappClient = clientFactory.getClient();
 const { validateWebhookSignature, validateApiKey } = require('../middlewares/webhook-auth');
 const rateLimiter = require('../middlewares/rate-limiter');
 const criticalErrorMiddleware = require('../middlewares/critical-error');
@@ -12,6 +13,7 @@ const { getSyncManager } = require('../sync/sync-manager');
 
 // Import webhook routes
 const whatsappBatchedWebhook = require('./webhooks/whatsapp-batched');
+const whatsappBaileysWebhook = require('./webhooks/whatsapp-baileys');
 
 // Import Swagger documentation
 const { setupSwagger } = require('./swagger');
@@ -39,6 +41,7 @@ setupSwagger(app);
 
 // Mount webhook routes
 app.use(whatsappBatchedWebhook);
+app.use(whatsappBaileysWebhook);
 
 // Mount API routes
 const calendarRoutes = require('./routes/calendar');
