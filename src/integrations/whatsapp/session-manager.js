@@ -41,15 +41,17 @@ class WhatsAppSessionManager extends EventEmitter {
     try {
       const { data: companies, error } = await supabase
         .from('companies')
-        .select('id, phone, whatsapp_config');
+        .select('id, phone, whatsapp_enabled, whatsapp_config')
+        .eq('whatsapp_enabled', true);
 
       if (error) throw error;
 
       logger.info(`Loading ${companies?.length || 0} existing WhatsApp sessions`);
 
       for (const company of companies || []) {
-        // Load all companies for now since we only have one
-        await this.initializeCompanySession(company.id, company.whatsapp_config || {});
+        if (company.whatsapp_enabled) {
+          await this.initializeCompanySession(company.id, company.whatsapp_config || {});
+        }
       }
     } catch (error) {
       logger.error('Failed to load existing sessions:', error);
