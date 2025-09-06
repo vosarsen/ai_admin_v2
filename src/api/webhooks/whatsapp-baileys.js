@@ -119,7 +119,7 @@ router.post('/webhook/whatsapp/baileys', rateLimiter, validateWebhookSignature, 
 /**
  * Get session status for a company
  */
-router.get('/webhook/whatsapp/baileys/status/:companyId?', async (req, res) => {
+router.get(['/webhook/whatsapp/baileys/status/:companyId', '/webhook/whatsapp/baileys/status'], async (req, res) => {
   try {
     const companyId = req.params.companyId || 'default';
     const status = sessionManager.getSessionStatus(companyId);
