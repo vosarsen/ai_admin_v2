@@ -1,6 +1,6 @@
 // src/integrations/whatsapp/session-manager.js
 const baileysProvider = require('./providers/baileys-provider');
-const supabase = require('../../database/supabase');
+const { supabase } = require('../../database/supabase');
 const logger = require('../../utils/logger');
 const EventEmitter = require('events');
 
