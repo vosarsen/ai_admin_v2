@@ -1,5 +1,5 @@
 // src/integrations/whatsapp/providers/baileys-provider.js
-const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, makeInMemoryStore } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys');
 const P = require('pino');
 const path = require('path');
 const fs = require('fs').promises;
@@ -54,20 +54,8 @@ class BaileysProvider extends EventEmitter {
       // Get latest Baileys version
       const { version } = await fetchLatestBaileysVersion();
 
-      // Create store for message history
-      const store = makeInMemoryStore({ 
-        logger: P({ level: 'silent' }) 
-      });
-      this.stores.set(companyId, store);
-
-      // Read store state if exists
-      const storeFile = path.join(authFolder, 'store.json');
-      try {
-        const storeData = await fs.readFile(storeFile, 'utf-8');
-        store.readFromFile(storeFile);
-      } catch {
-        // Store file doesn't exist yet
-      }
+      // Store functionality removed - not available in current Baileys version
+      // Will be added back when makeInMemoryStore is available
 
       // Create socket connection
       const socket = makeWASocket({
@@ -86,13 +74,9 @@ class BaileysProvider extends EventEmitter {
       });
 
       // Bind store to socket
-      store.bind(socket.ev);
+      // Store binding removed - not available in current Baileys version
 
-      // Save store periodically
-      setInterval(async () => {
-        const storeFile = path.join(authFolder, 'store.json');
-        await fs.writeFile(storeFile, JSON.stringify(store, null, 2));
-      }, 30000); // Every 30 seconds
+      // Store saving removed - not available in current Baileys version
 
       // Handle authentication
       socket.ev.on('creds.update', saveCreds);
