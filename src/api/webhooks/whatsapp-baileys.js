@@ -142,7 +142,7 @@ router.get(['/webhook/whatsapp/baileys/status/:companyId', '/webhook/whatsapp/ba
 /**
  * Get QR code for company authentication
  */
-router.get('/webhook/whatsapp/baileys/qr/:companyId?', async (req, res) => {
+router.get(['/webhook/whatsapp/baileys/qr/:companyId', '/webhook/whatsapp/baileys/qr'], async (req, res) => {
   try {
     const companyId = req.params.companyId || 'default';
     const qr = await sessionManager.getQRCode(companyId);
