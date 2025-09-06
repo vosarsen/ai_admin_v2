@@ -5,7 +5,7 @@ require('dotenv').config();
 const fs = require('fs').promises;
 const path = require('path');
 const chalk = require('chalk');
-const supabase = require('../src/database/supabase');
+const { supabase } = require('../src/database/supabase');
 const logger = require('../src/utils/logger');
 
 console.log(chalk.blue.bold('\n🔄 WhatsApp Provider Migration: Venom → Baileys\n'));
