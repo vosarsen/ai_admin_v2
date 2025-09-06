@@ -70,6 +70,10 @@ class BaileysProvider extends EventEmitter {
         generateHighQualityLinkPreview: true,
         syncFullHistory: false,
         markOnlineOnConnect: true,
+        keepAliveIntervalMs: 10_000, // Send keepalive every 10 seconds
+        qrTimeout: 60_000, // QR timeout 60 seconds
+        connectTimeoutMs: 60_000, // Connection timeout 60 seconds
+        defaultQueryTimeoutMs: 60_000, // Query timeout 60 seconds
         ...config
       });
 
@@ -265,18 +269,50 @@ class BaileysProvider extends EventEmitter {
       throw new Error(`No active session for company ${companyId}`);
     }
 
+    // Check if socket is connected
+    if (!socket.user) {
+      logger.warn(`Socket not connected for company ${companyId}, waiting for connection...`);
+      // Wait for connection (max 10 seconds)
+      let waitTime = 0;
+      while (!socket.user && waitTime < 10000) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        waitTime += 1000;
+      }
+      if (!socket.user) {
+        throw new Error(`Socket not connected after waiting for company ${companyId}`);
+      }
+    }
+
     try {
       // Format phone number
       const jid = this.formatPhoneToJid(to);
       
-      // Send message
-      const result = await socket.sendMessage(jid, { 
-        text,
-        ...options 
-      });
-
-      logger.info(`✅ Message sent to ${jid} for company ${companyId}`);
-      return { success: true, messageId: result.key.id };
+      // Send message with retry
+      let retries = 3;
+      let lastError;
+      
+      while (retries > 0) {
+        try {
+          const result = await socket.sendMessage(jid, { 
+            text,
+            ...options 
+          });
+          
+          logger.info(`✅ Message sent to ${jid} for company ${companyId}`);
+          return { success: true, messageId: result.key.id };
+        } catch (error) {
+          lastError = error;
+          retries--;
+          if (retries > 0 && error.message?.includes('Connection Closed')) {
+            logger.warn(`Connection closed, retrying... (${retries} retries left)`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } else {
+            throw error;
+          }
+        }
+      }
+      
+      throw lastError;
 
     } catch (error) {
       logger.error(`Failed to send message for company ${companyId}:`, error);
