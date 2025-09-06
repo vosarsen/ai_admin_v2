@@ -34,6 +34,14 @@ class MessageWorkerV2 {
     logger.info(`🚀 Message Worker v2 ${this.workerId} starting...`);
     this.isRunning = true;
 
+    // Initialize WhatsApp client
+    try {
+      await whatsappClient.initialize();
+      logger.info('✅ WhatsApp client initialized in worker');
+    } catch (error) {
+      logger.error('Failed to initialize WhatsApp client:', error);
+    }
+
     const companyId = config.yclients.companyId;
     if (!companyId) {
       throw new Error('CompanyId is required but not configured');
