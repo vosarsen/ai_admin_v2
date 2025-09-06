@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baileys WhatsApp QR Code</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 500px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 1rem;
+        }
+        #qrcode {
+            margin: 2rem auto;
+            padding: 1rem;
+            background: white;
+            border: 2px solid #eee;
+            border-radius: 10px;
+        }
+        .status {
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+        }
+        .status.connecting {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.8rem 2rem;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin: 0.5rem;
+        }
+        button:hover {
+            background: #5a67d8;
+        }
+        .info {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Подключение WhatsApp</h1>
+        <div id="status" class="status connecting">
+            Загрузка...
+        </div>
+        <div id="qrcode"></div>
+        <div>
+            <button onclick="checkStatus()">Проверить статус</button>
+            <button onclick="getQRCode()">Обновить QR код</button>
+        </div>
+        <div class="info">
+            <strong>Инструкция:</strong><br>
+            1. Откройте WhatsApp на телефоне<br>
+            2. Перейдите в Настройки → Связанные устройства<br>
+            3. Нажмите "Привязать устройство"<br>
+            4. Отсканируйте QR код выше
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://46.149.70.219:3000';
+        const COMPANY_ID = '962302';
+        
+        async function checkStatus() {
+            try {
+                const response = await fetch(`${API_URL}/webhook/whatsapp/baileys/status/${COMPANY_ID}`);
+                const data = await response.json();
+                
+                const statusDiv = document.getElementById('status');
+                
+                if (data.status?.connected) {
+                    statusDiv.className = 'status connected';
+                    statusDiv.innerHTML = '✅ WhatsApp подключен!';
+                    document.getElementById('qrcode').innerHTML = '<p>QR код больше не нужен</p>';
+                } else {
+                    statusDiv.className = 'status connecting';
+                    statusDiv.innerHTML = '⏳ Ожидание подключения...';
+                    // Автоматически получить QR код
+                    getQRCode();
+                }
+            } catch (error) {
+                const statusDiv = document.getElementById('status');
+                statusDiv.className = 'status error';
+                statusDiv.innerHTML = '❌ Ошибка: ' + error.message;
+            }
+        }
+        
+        async function getQRCode() {
+            try {
+                const statusDiv = document.getElementById('status');
+                statusDiv.className = 'status connecting';
+                statusDiv.innerHTML = '⏳ Получение QR кода...';
+                
+                const response = await fetch(`${API_URL}/webhook/whatsapp/baileys/qr/${COMPANY_ID}`);
+                const data = await response.json();
+                
+                if (data.qr) {
+                    // Очистить предыдущий QR код
+                    document.getElementById('qrcode').innerHTML = '';
+                    
+                    // Создать новый QR код
+                    QRCode.toCanvas(data.qr, { width: 300 }, function (err, canvas) {
+                        if (err) {
+                            console.error(err);
+                            statusDiv.className = 'status error';
+                            statusDiv.innerHTML = '❌ Ошибка генерации QR кода';
+                            return;
+                        }
+                        document.getElementById('qrcode').appendChild(canvas);
+                        statusDiv.className = 'status connecting';
+                        statusDiv.innerHTML = '📱 Отсканируйте QR код в WhatsApp';
+                    });
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.innerHTML = '❌ QR код не получен';
+                }
+            } catch (error) {
+                const statusDiv = document.getElementById('status');
+                statusDiv.className = 'status error';
+                statusDiv.innerHTML = '❌ Ошибка: ' + error.message;
+            }
+        }
+        
+        // Проверять статус при загрузке
+        checkStatus();
+        
+        // Автоматически проверять статус каждые 5 секунд
+        setInterval(checkStatus, 5000);
+    </script>
+</body>
+</html>
