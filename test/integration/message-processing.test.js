@@ -4,7 +4,7 @@ const messageQueue = require('../../src/queue/message-queue');
 const whatsappClient = require('../../src/integrations/whatsapp/client');
 const AIAdminV2 = require('../../src/services/ai-admin-v2');
 const contextService = require('../../src/services/context');
-const supabase = require('../../src/database/supabase');
+const { supabase } = require('../../src/database/supabase');
 const { Queue } = require('bullmq');
 
 // Mocks
