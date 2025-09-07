@@ -1,13 +1,14 @@
 // src/config/redis-config.js
 const logger = require('../utils/logger');
-const envConfig = require('./environments/index');
 
 /**
  * Централизованная конфигурация Redis
  * Использует environment-specific настройки
  */
 function getRedisConfig() {
+  // ВАЖНО: Сначала загружаем mainConfig, который инициализирует dotenv
   const mainConfig = require('./index');
+  const envConfig = require('./environments/index');
   
   // Определяем окружение
   const isProduction = process.env.NODE_ENV === 'production';
