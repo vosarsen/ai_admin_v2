@@ -14,9 +14,23 @@ function getRedisConfig() {
   const isDevelopment = !isProduction;
   
   // Базовая конфигурация из environment-specific файлов
+  // ВАЖНО: Если есть REDIS_URL, парсим из него host и port
+  let host = 'localhost';
+  let port = isDevelopment ? 6380 : 6379;
+  
+  if (process.env.REDIS_URL) {
+    try {
+      const url = new URL(process.env.REDIS_URL);
+      host = url.hostname || 'localhost';
+      port = parseInt(url.port) || (isDevelopment ? 6380 : 6379);
+    } catch (e) {
+      // Ignore URL parse errors, use defaults
+    }
+  }
+  
   const config = {
-    host: envConfig.redis?.host || 'localhost',
-    port: envConfig.redis?.port || (isDevelopment ? 6380 : 6379),
+    host: envConfig.redis?.host || host,
+    port: envConfig.redis?.port || port,
     password: mainConfig.redis.password || process.env.REDIS_PASSWORD,
     db: 0, // Явно указываем базу данных 0
     connectTimeout: 10000,
