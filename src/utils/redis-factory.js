@@ -11,12 +11,11 @@ function createRedisClient(role = 'default') {
   // Используем централизованную конфигурацию
   const { getRedisConfig } = require('../config/redis-config');
   
-  try {
-    const clientOptions = {
-      ...getRedisConfig(),
-      lazyConnect: true, // Don't connect immediately
-      connectionName: `${role}-${Date.now()}` // Для идентификации в логах
-    };
+  const clientOptions = {
+    ...getRedisConfig(),
+    lazyConnect: true, // Don't connect immediately
+    connectionName: `${role}-${Date.now()}` // Для идентификации в логах
+  };
 
   // Add specific logger
   const redisLogger = logger.child({ service: 'redis', role });
