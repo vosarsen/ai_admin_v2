@@ -1,13 +1,10 @@
 #!/usr/bin/env node
 
 const Redis = require('ioredis');
+const { getRedisConfig } = require('../src/config/redis-config');
 
-const redis = new Redis({
-  port: 6380,
-  host: 'localhost',
-  password: process.env.REDIS_PASSWORD || 'your_redis_password_here',
-  db: 0
-});
+// Используем централизованную конфигурацию
+const redis = new Redis(getRedisConfig());
 
 async function analyzeRedisKeys() {
   console.log('🔍 Анализ всех ключей Redis...\n');

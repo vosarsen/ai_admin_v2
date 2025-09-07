@@ -7,13 +7,10 @@
 
 const Redis = require('ioredis');
 const logger = require('../src/utils/logger');
+const { getRedisConfig } = require('../src/config/redis-config');
 
-const redis = new Redis({
-  port: 6380,
-  host: 'localhost',
-  password: process.env.REDIS_PASSWORD || '70GB32AhHvMisfK8LtluTbtkWTnTj5jSrOdQj7d1QMg=',
-  db: 0
-});
+// Используем централизованную конфигурацию
+const redis = new Redis(getRedisConfig());
 
 async function cleanRedis() {
   console.log('🧹 Начинаем очистку Redis...\n');
