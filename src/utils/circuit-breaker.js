@@ -8,6 +8,7 @@
  * - HALF_OPEN: Пробное восстановление, пропускаем один запрос
  */
 
+const EventEmitter = require('events');
 const logger = require('./logger');
 
 const STATE = {
@@ -16,8 +17,10 @@ const STATE = {
   HALF_OPEN: 'half_open'
 };
 
-class CircuitBreaker {
+class CircuitBreaker extends EventEmitter {
   constructor(options = {}) {
+    super();
+    
     // Конфигурация
     this.name = options.name || 'default';
     this.failureThreshold = options.failureThreshold || 5; // Открываем после N ошибок
@@ -42,6 +45,9 @@ class CircuitBreaker {
     };
     
     this.logger = logger.child({ module: 'circuit-breaker', name: this.name });
+    
+    // Регистрация в мониторе если доступен
+    this._registerMonitor();
   }
 
   /**
