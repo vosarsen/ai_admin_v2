@@ -314,6 +314,17 @@ class RedisBatchService {
 
       // Берем companyId и metadata из первого сообщения
       const { companyId, metadata } = messages[0];
+      
+      // Валидация companyId - должен быть строкой или числом
+      const validCompanyId = typeof companyId === 'object' 
+        ? (companyId?.id || companyId?.companyId || String(companyId))
+        : String(companyId);
+      
+      if (!validCompanyId || validCompanyId === '[object Object]') {
+        logger.error(`Invalid companyId detected:`, companyId);
+        throw new Error(`Invalid companyId: ${JSON.stringify(companyId)}`);
+      }
+      
       const firstTimestamp = messages[0].timestamp;
       const lastTimestamp = messages[messages.length - 1].timestamp;
 
@@ -325,7 +336,7 @@ class RedisBatchService {
       });
 
       // Добавляем объединенное сообщение в очередь с нормализованным номером
-      await messageQueue.addMessage(companyId, {
+      await messageQueue.addMessage(validCompanyId, {
         from: normalizedPhone,
         message: combinedMessage,
         metadata: {
