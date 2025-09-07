@@ -8,17 +8,15 @@ const { getCircuitBreaker } = require('./circuit-breaker');
  * Create a Redis client with authentication and error handling
  */
 function createRedisClient(role = 'default') {
-  // Warn if Redis password is not configured in production
-  if (!config.redis.password && config.app.env === 'production') {
-    logger.warn('⚠️ Redis running without password in production! This is a security risk. Please set REDIS_PASSWORD environment variable.');
-  }
-
   // Используем централизованную конфигурацию
   const { getRedisConfig } = require('../config/redis-config');
-  const clientOptions = {
-    ...getRedisConfig(),
-    lazyConnect: true // Don't connect immediately
-  };
+  
+  try {
+    const clientOptions = {
+      ...getRedisConfig(),
+      lazyConnect: true, // Don't connect immediately
+      connectionName: `${role}-${Date.now()}` // Для идентификации в логах
+    };
 
   // Add specific logger
   const redisLogger = logger.child({ service: 'redis', role });
