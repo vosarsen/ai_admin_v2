@@ -9,24 +9,25 @@ const logger = require('../../utils/logger').child({ module: 'context-v2' });
 const DataTransformers = require('../../utils/data-transformers');
 const InternationalPhone = require('../../utils/international-phone');
 const config = require('../../config/context-config');
+const redisTTL = require('../../config/redis-ttl-config');
 
-// Используем TTL из конфигурации
+// Используем TTL из централизованной конфигурации
 const TTL_CONFIG = {
   // Контекст текущего диалога
   dialog: {
-    messages: config.ttl.dialog.messages,
-    selection: config.ttl.dialog.selection,
-    pendingAction: config.ttl.dialog.pendingAction,
+    messages: redisTTL.dialog,
+    selection: redisTTL.dialog,
+    pendingAction: redisTTL.dialog,
   },
   
   // Кэш данных из Supabase
-  clientCache: config.ttl.cache.client,
+  clientCache: redisTTL.client,
   
   // Персональные предпочтения
-  preferences: config.ttl.persistent.preferences,
+  preferences: redisTTL.preferences,
   
   // Полный контекст для AI
-  fullContext: config.ttl.cache.fullContext,
+  fullContext: redisTTL.fullContext,
 };
 
 class ContextServiceV2 {
@@ -37,7 +38,7 @@ class ContextServiceV2 {
     this.prefixes = {
       dialog: 'dialog:',           // Текущий диалог
       client: 'client:',           // Кэш клиента из Supabase
-      preferences: 'prefs:',       // Долгосрочные предпочтения
+      preferences: 'preferences:',  // Долгосрочные предпочтения
       messages: 'messages:',       // История сообщений
       fullContext: 'full_ctx:',    // Кэш полного контекста
       processing: 'processing:',   // Статус обработки
@@ -845,7 +846,7 @@ class ContextServiceV2 {
             logger.debug(`Error reading messages key ${key}:`, e);
           }
         }
-        else if (key.includes('prefs:') || key.includes('preferences:')) {
+        else if (key.includes('preferences:')) {
           stats.preferences++;
           // Для строк используем get
           try {
