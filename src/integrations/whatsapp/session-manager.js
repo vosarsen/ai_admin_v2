@@ -134,8 +134,8 @@ class WhatsAppSessionManager extends EventEmitter {
       // Emit for webhook processing
       this.emit('webhook-message', webhookData);
       
-      // Store in database
-      await this.storeMessage(companyId, webhookData);
+      // Store in database - temporarily disabled due to Supabase errors
+      // await this.storeMessage(companyId, webhookData);
 
     } catch (error) {
       logger.error(`Failed to process message for company ${companyId}:`, error);
