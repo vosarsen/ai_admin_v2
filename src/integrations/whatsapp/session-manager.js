@@ -41,7 +41,7 @@ class WhatsAppSessionManager extends EventEmitter {
     try {
       const { data: companies, error } = await supabase
         .from('companies')
-        .select('id, phone, whatsapp_enabled, whatsapp_config')
+        .select('id, company_id, phone, whatsapp_enabled, whatsapp_config')
         .eq('whatsapp_enabled', true);
 
       if (error) throw error;
@@ -50,7 +50,9 @@ class WhatsAppSessionManager extends EventEmitter {
 
       for (const company of companies || []) {
         if (company.whatsapp_enabled) {
-          await this.initializeCompanySession(company.id, company.whatsapp_config || {});
+          // Use company_id (962302) instead of id (15) for WhatsApp sessions
+          const companyIdToUse = company.company_id || company.id;
+          await this.initializeCompanySession(companyIdToUse, company.whatsapp_config || {});
         }
       }
     } catch (error) {
