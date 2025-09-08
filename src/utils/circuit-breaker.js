@@ -47,7 +47,8 @@ class CircuitBreaker extends EventEmitter {
     this.logger = logger.child({ module: 'circuit-breaker', name: this.name });
     
     // Регистрация в мониторе если доступен
-    this._registerMonitor();
+    // TODO: Implement monitor registration
+    // this._registerMonitor();
   }
 
   /**
