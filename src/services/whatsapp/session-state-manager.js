@@ -1,5 +1,5 @@
 // src/services/whatsapp/session-state-manager.js
-const redis = require('../../utils/redis-factory');
+const { createRedisClient } = require('../../utils/redis-factory');
 const logger = require('../../utils/logger');
 
 class SessionStateManager {
@@ -13,7 +13,7 @@ class SessionStateManager {
     if (this.initialized) return;
     
     try {
-      this.redis = redis.getClient();
+      this.redis = createRedisClient('whatsapp-sessions');
       this.initialized = true;
       logger.info('📊 Session state manager initialized with Redis');
     } catch (error) {
