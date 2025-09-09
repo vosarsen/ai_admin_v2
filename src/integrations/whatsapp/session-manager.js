@@ -1,5 +1,6 @@
 // src/integrations/whatsapp/session-manager.js
 const baileysProvider = require('./providers/baileys-provider');
+const healthMonitor = require('../../services/whatsapp/health-monitor');
 const { supabase } = require('../../database/supabase');
 const logger = require('../../utils/logger');
 const EventEmitter = require('events');
@@ -18,6 +19,9 @@ class WhatsAppSessionManager extends EventEmitter {
    */
   async initialize() {
     await this.provider.initialize();
+    
+    // Initialize health monitor with provider
+    healthMonitor.initialize(this.provider);
     
     // Set up event listeners
     this.provider.on('ready', (data) => this.handleSessionReady(data));
@@ -254,6 +258,9 @@ class WhatsAppSessionManager extends EventEmitter {
       session.connectedAt = new Date();
     }
     
+    // Start health monitoring for this session
+    healthMonitor.startMonitoring(companyId);
+    
     this.updateSessionStatus(companyId, 'connected');
     logger.info(`✅ Session ready for company ${companyId}`);
     this.emit('session-ready', { companyId });
@@ -269,6 +276,9 @@ class WhatsAppSessionManager extends EventEmitter {
       session.disconnectedAt = new Date();
       session.disconnectReason = reason;
     }
+    
+    // Stop health monitoring for this session
+    healthMonitor.stopMonitoring(companyId);
     
     this.updateSessionStatus(companyId, 'disconnected');
     logger.warn(`❌ Session disconnected for company ${companyId}: ${reason}`);

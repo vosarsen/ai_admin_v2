@@ -3,6 +3,8 @@ const express = require('express');
 const router = express.Router();
 const logger = require('../../utils/logger');
 const sessionManager = require('../../integrations/whatsapp/session-manager');
+const healthMonitor = require('../../services/whatsapp/health-monitor');
+const sessionStateManager = require('../../services/whatsapp/session-state-manager');
 const messageQueue = require('../../queue/message-queue');
 const { validateWebhookSignature } = require('../../middlewares/webhook-auth');
 const rateLimiter = require('../../middlewares/rate-limiter');
@@ -285,6 +287,195 @@ router.delete('/webhook/whatsapp/baileys/session/:companyId', async (req, res) =
     res.status(500).json({
       success: false,
       error: error.message
+    });
+  }
+});
+
+/**
+ * 🏥 Health check endpoint for session diagnostics
+ */
+router.get('/webhook/whatsapp/baileys/health/:companyId', async (req, res) => {
+  try {
+    const companyId = req.params.companyId || 'default';
+    
+    // Generate comprehensive health report
+    const healthReport = await healthMonitor.generateHealthReport(companyId);
+    
+    res.json({
+      success: true,
+      ...healthReport
+    });
+    
+  } catch (error) {
+    logger.error('Health check failed:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * 📊 Get detailed diagnostics for a session
+ */
+router.get('/webhook/whatsapp/baileys/diagnostics/:companyId', async (req, res) => {
+  try {
+    const companyId = req.params.companyId || 'default';
+    
+    // Get all diagnostic information
+    const providerStatus = sessionManager.getSessionStatus(companyId);
+    const redisState = await sessionStateManager.getSessionState(companyId);
+    const connectionMetrics = await sessionStateManager.getConnectionMetrics(companyId);
+    const healthMetrics = healthMonitor.getMetrics(companyId);
+    const isMonitoring = healthMonitor.isMonitoring(companyId);
+    
+    // Generate recommendations
+    const recommendations = [];
+    
+    if (!providerStatus?.connected && redisState?.status === 'connected') {
+      recommendations.push({
+        level: 'warning',
+        message: 'Session state mismatch - provider disconnected but Redis shows connected',
+        action: 'Consider restarting the session'
+      });
+    }
+    
+    if (connectionMetrics?.reconnectAttempts > 5) {
+      recommendations.push({
+        level: 'error',
+        message: `Too many reconnection attempts (${connectionMetrics.reconnectAttempts})`,
+        action: 'Check authentication or network stability'
+      });
+    }
+    
+    if (connectionMetrics?.lastActivityAge > 600000) { // 10 minutes
+      recommendations.push({
+        level: 'warning',
+        message: 'No activity for 10+ minutes',
+        action: 'Session may be stale, consider reconnecting'
+      });
+    }
+    
+    if (healthMetrics?.failedChecks > healthMetrics?.successfulChecks) {
+      recommendations.push({
+        level: 'error',
+        message: 'More failed health checks than successful',
+        action: 'Check connection stability and logs'
+      });
+    }
+    
+    if (recommendations.length === 0) {
+      recommendations.push({
+        level: 'success',
+        message: 'Session appears healthy',
+        action: 'No action required'
+      });
+    }
+    
+    res.json({
+      success: true,
+      companyId,
+      timestamp: new Date().toISOString(),
+      provider: providerStatus || { error: 'Provider not available' },
+      redis: redisState || { error: 'No Redis state found' },
+      metrics: connectionMetrics || { error: 'No connection metrics' },
+      health: {
+        monitoring: isMonitoring,
+        metrics: healthMetrics || { error: 'No health metrics' }
+      },
+      recommendations
+    });
+    
+  } catch (error) {
+    logger.error('Diagnostics failed:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * 🔄 Force reconnection for a session
+ */
+router.post('/webhook/whatsapp/baileys/reconnect/:companyId', async (req, res) => {
+  try {
+    const companyId = req.params.companyId || 'default';
+    
+    logger.info(`🔄 Force reconnection requested for company ${companyId}`);
+    
+    // First disconnect existing session
+    await sessionManager.disconnectSession(companyId);
+    
+    // Wait a bit
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Try to reconnect
+    await sessionManager.initializeCompanySession(companyId);
+    
+    res.json({
+      success: true,
+      message: `Reconnection initiated for company ${companyId}`,
+      note: 'Check status endpoint in a few seconds to verify connection'
+    });
+    
+  } catch (error) {
+    logger.error('Reconnection failed:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * 📈 Get all health metrics
+ */
+router.get('/webhook/whatsapp/baileys/metrics', async (req, res) => {
+  try {
+    const allMetrics = healthMonitor.getAllMetrics();
+    const monitoredCompanies = healthMonitor.getMonitoredCompanies();
+    const allSessionStates = await sessionStateManager.getAllSessionStates();
+    
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      monitoring: {
+        activeCompanies: monitoredCompanies,
+        count: monitoredCompanies.length
+      },
+      healthMetrics: allMetrics,
+      sessionStates: allSessionStates
+    });
+    
+  } catch (error) {
+    logger.error('Failed to get metrics:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * 🧹 Clear session state from Redis
+ */
+router.delete('/webhook/whatsapp/baileys/redis/:companyId', async (req, res) => {
+  try {
+    const companyId = req.params.companyId;
+    
+    await sessionStateManager.clearSessionState(companyId);
+    
+    res.json({
+      success: true,
+      message: `Redis state cleared for company ${companyId}`
+    });
+    
+  } catch (error) {
+    logger.error('Failed to clear Redis state:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
     });
   }
 });
