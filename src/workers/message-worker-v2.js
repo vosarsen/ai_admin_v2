@@ -4,8 +4,9 @@ const config = require('../config');
 const { getBullMQRedisConfig } = require('../config/redis-config');
 const logger = require('../utils/logger');
 const aiAdminV2 = require('../services/ai-admin-v2');
-const clientFactory = require('../integrations/whatsapp/client-factory');
-const whatsappClient = clientFactory.getClient();
+// Use API client instead of direct WhatsApp connection in worker
+const WhatsAppAPIClient = require('../integrations/whatsapp/api-client');
+const whatsappClient = new WhatsAppAPIClient();
 const messageQueue = require('../queue/message-queue');
 const errorMessages = require('../utils/error-messages');
 const criticalErrorLogger = require('../utils/critical-error-logger');
@@ -34,12 +35,12 @@ class MessageWorkerV2 {
     logger.info(`🚀 Message Worker v2 ${this.workerId} starting...`);
     this.isRunning = true;
 
-    // Initialize WhatsApp client
+    // Initialize WhatsApp API client (no actual connection, just API proxy)
     try {
       await whatsappClient.initialize();
-      logger.info('✅ WhatsApp client initialized in worker');
+      logger.info('✅ WhatsApp API client initialized in worker (using API proxy)');
     } catch (error) {
-      logger.error('Failed to initialize WhatsApp client:', error);
+      logger.error('Failed to initialize WhatsApp API client:', error);
     }
 
     const companyId = config.yclients.companyId;
