@@ -45,7 +45,7 @@ async function processIncomingMessage(messageData) {
     };
     
     // Add to message queue for processing
-    await messageQueue.addMessage(queueData);
+    await messageQueue.addMessage(companyId, queueData);
     
     logger.info(`✅ Message queued for processing: ${messageId}`);
     
