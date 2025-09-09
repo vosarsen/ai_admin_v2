@@ -6,6 +6,7 @@ const fs = require('fs').promises;
 const qrcode = require('qrcode-terminal');
 const logger = require('../../../utils/logger');
 const EventEmitter = require('events');
+const sessionStateManager = require('../../../services/whatsapp/session-state-manager');
 
 class BaileysProvider extends EventEmitter {
   constructor() {
@@ -14,10 +15,24 @@ class BaileysProvider extends EventEmitter {
     this.stores = new Map(); // companyId -> store instance
     this.authStates = new Map(); // companyId -> auth state
     this.reconnectAttempts = new Map(); // companyId -> attempt count
-    this.maxReconnectAttempts = 5;
-    this.reconnectDelay = 5000; // 5 seconds
+    this.maxReconnectAttempts = 10; // Увеличиваем количество попыток
+    this.reconnectDelay = 5000; // 5 seconds base delay
     this.sessionsPath = path.join(process.cwd(), 'sessions');
     this.messageHandlers = new Map(); // companyId -> handler function
+    
+    // Enhanced connection management
+    this.connectionStates = new Map(); // companyId -> state
+    this.lastDisconnectReasons = new Map(); // companyId -> reason
+    this.keepAliveIntervals = new Map(); // companyId -> interval
+    
+    // Enhanced configuration
+    this.config = {
+      reconnectDelay: 5000,
+      maxReconnectDelay: 60000, // Max 1 minute between attempts
+      reconnectBackoffMultiplier: 1.5, // Exponential backoff
+      keepAliveIntervalMs: 30000, // Send keep-alive every 30s
+      connectionTimeoutMs: 60000, // Connection timeout
+    };
   }
 
   async initialize() {
@@ -128,20 +143,54 @@ class BaileysProvider extends EventEmitter {
     }
 
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut);
+      const disconnectReason = lastDisconnect?.error?.output?.statusCode;
+      this.lastDisconnectReasons.set(companyId, disconnectReason);
       
-      logger.warn(`Connection closed for company ${companyId}. Should reconnect: ${shouldReconnect}`);
+      const shouldReconnect = (disconnectReason !== DisconnectReason.loggedOut);
+      
+      logger.warn(`Connection closed for company ${companyId}. Reason: ${disconnectReason}. Should reconnect: ${shouldReconnect}`);
+      
+      // Update connection state
+      this.connectionStates.set(companyId, 'disconnected');
+      
+      // Save state to Redis
+      await sessionStateManager.updateConnectionStatus(companyId, 'disconnected', {
+        lastDisconnectReason: disconnectReason,
+        shouldReconnect
+      });
+      
+      // Stop keep-alive
+      this.stopKeepAlive(companyId);
       
       if (shouldReconnect) {
         await this.handleReconnection(companyId);
       } else {
         // Logged out, clean up session
+        logger.info(`Session logged out for company ${companyId}, cleaning up...`);
+        await sessionStateManager.clearSessionState(companyId);
         await this.disconnectSession(companyId);
       }
     } else if (connection === 'open') {
       logger.info(`✅ Connection opened for company ${companyId}`);
       this.reconnectAttempts.set(companyId, 0);
+      this.connectionStates.set(companyId, 'connected');
+      
+      // Save state to Redis
+      await sessionStateManager.updateConnectionStatus(companyId, 'connected', {
+        phoneNumber: socket.user?.id,
+        reconnectAttempts: 0
+      });
+      
+      // Start keep-alive mechanism
+      this.startKeepAlive(companyId, socket);
+      
       this.emit('ready', { companyId });
+    } else if (connection === 'connecting') {
+      logger.info(`🔄 Connecting for company ${companyId}...`);
+      this.connectionStates.set(companyId, 'connecting');
+      
+      // Save state to Redis
+      await sessionStateManager.updateConnectionStatus(companyId, 'connecting');
     }
   }
 
@@ -150,6 +199,13 @@ class BaileysProvider extends EventEmitter {
    */
   async handleReconnection(companyId) {
     const attempts = this.reconnectAttempts.get(companyId) || 0;
+    const lastReason = this.lastDisconnectReasons.get(companyId);
+    
+    // Don't reconnect if manually disconnected or logged out
+    if (lastReason === DisconnectReason.loggedOut) {
+      logger.info(`Session logged out for company ${companyId}, not reconnecting`);
+      return;
+    }
     
     if (attempts >= this.maxReconnectAttempts) {
       logger.error(`Max reconnection attempts reached for company ${companyId}`);
@@ -157,8 +213,14 @@ class BaileysProvider extends EventEmitter {
       return;
     }
 
-    const delay = this.reconnectDelay * Math.pow(2, attempts);
-    logger.info(`Reconnecting company ${companyId} in ${delay}ms (attempt ${attempts + 1}/${this.maxReconnectAttempts})`);
+    // Calculate delay with exponential backoff
+    const baseDelay = this.config.reconnectDelay;
+    const delay = Math.min(
+      baseDelay * Math.pow(this.config.reconnectBackoffMultiplier, attempts),
+      this.config.maxReconnectDelay
+    );
+    
+    logger.info(`🔄 Reconnecting company ${companyId} in ${delay}ms (attempt ${attempts + 1}/${this.maxReconnectAttempts})`);
     
     this.reconnectAttempts.set(companyId, attempts + 1);
     
@@ -174,6 +236,7 @@ class BaileysProvider extends EventEmitter {
         await this.connectSession(companyId);
       } catch (error) {
         logger.error(`Reconnection failed for company ${companyId}:`, error);
+        // Try again with next attempt
         await this.handleReconnection(companyId);
       }
     }, delay);
@@ -450,6 +513,13 @@ class BaileysProvider extends EventEmitter {
       this.stores.delete(companyId);
       this.authStates.delete(companyId);
       this.messageHandlers.delete(companyId);
+      
+      // Clean up enhanced connection management
+      this.connectionStates.delete(companyId);
+      this.lastDisconnectReasons.delete(companyId);
+      this.reconnectAttempts.delete(companyId);
+      this.stopKeepAlive(companyId);
+      
       logger.info(`Session disconnected for company ${companyId}`);
     }
   }
@@ -478,6 +548,54 @@ class BaileysProvider extends EventEmitter {
       logger.info(`Session data deleted for company ${companyId}`);
     } catch (error) {
       logger.error(`Failed to delete session data for company ${companyId}:`, error);
+    }
+  }
+
+  /**
+   * Start keep-alive mechanism for a session
+   */
+  async startKeepAlive(companyId, socket) {
+    if (!socket) {
+      socket = this.sessions.get(companyId);
+    }
+    if (!socket) return;
+    
+    // Clear existing interval
+    if (this.keepAliveIntervals.has(companyId)) {
+      clearInterval(this.keepAliveIntervals.get(companyId));
+    }
+    
+    const interval = setInterval(async () => {
+      try {
+        const state = this.connectionStates.get(companyId);
+        if (state === 'connected' && socket.user) {
+          // Send presence update as keep-alive
+          await socket.sendPresenceUpdate('available');
+          logger.debug(`💚 Keep-alive sent for company ${companyId}`);
+        }
+      } catch (error) {
+        logger.warn(`⚠️ Keep-alive failed for company ${companyId}:`, error.message);
+        // If keep-alive fails multiple times, try to reconnect
+        if (error.message?.includes('Connection Closed')) {
+          logger.warn(`Connection seems dead for company ${companyId}, initiating reconnection...`);
+          this.stopKeepAlive(companyId);
+          await this.handleReconnection(companyId);
+        }
+      }
+    }, this.config.keepAliveIntervalMs);
+    
+    this.keepAliveIntervals.set(companyId, interval);
+    logger.info(`💚 Keep-alive started for company ${companyId}`);
+  }
+
+  /**
+   * Stop keep-alive mechanism for a session
+   */
+  stopKeepAlive(companyId) {
+    if (this.keepAliveIntervals.has(companyId)) {
+      clearInterval(this.keepAliveIntervals.get(companyId));
+      this.keepAliveIntervals.delete(companyId);
+      logger.info(`🛑 Keep-alive stopped for company ${companyId}`);
     }
   }
 
