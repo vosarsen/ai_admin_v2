@@ -293,7 +293,9 @@ router.get('/metrics', async (req, res) => {
 
 /**
  * WebSocket support for real-time events
+ * NOTE: Temporarily disabled - requires express-ws middleware
  */
+/*
 router.ws('/events', (ws, req) => {
     logger.info('WebSocket connection established for WhatsApp events');
     
@@ -343,6 +345,7 @@ router.ws('/events', (ws, req) => {
         metrics: sessionPool.getMetrics()
     }));
 });
+*/
 
 // Handle incoming messages from WhatsApp
 sessionPool.on('message', async ({ companyId, message }) => {
