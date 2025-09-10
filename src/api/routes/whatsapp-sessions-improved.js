@@ -359,8 +359,7 @@ sessionPool.on('message', async ({ companyId, message }) => {
         
         if (messageContent) {
             // Add to message queue for AI processing
-            await messageQueue.add('process-message', {
-                companyId,
+            await messageQueue.addMessage(companyId, {
                 from: message.key.remoteJid.replace('@s.whatsapp.net', ''),
                 message: messageContent,
                 timestamp: message.messageTimestamp,
