@@ -38,7 +38,8 @@ async function processIncomingMessage(messageData) {
     // Format message for queue
     const queueData = {
       companyId,
-      phone: phone.replace(/\D/g, ''), // Clean phone number
+      from: phone.replace(/\D/g, ''), // Clean phone number (worker expects 'from' field)
+      phone: phone.replace(/\D/g, ''), // Keep for backward compatibility
       message: message.text || message.caption || '[media]',
       messageType: message.type,
       messageId,
