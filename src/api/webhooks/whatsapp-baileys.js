@@ -65,9 +65,13 @@ async function processIncomingMessage(messageData) {
       phone: cleanPhone, // Keep for backward compatibility
       message: message.conversation || message.extendedTextMessage?.text || message.imageMessage?.caption || '[media]',
       messageType: message.conversation ? 'text' : (message.imageMessage ? 'image' : 'other'),
-      messageId,
       clientName: pushName,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      metadata: {
+        messageId: messageId,  // Передаем messageId в metadata, где его ищет worker
+        messageType: message.conversation ? 'text' : (message.imageMessage ? 'image' : 'other'),
+        originalWebhook: 'whatsapp-baileys'
+      }
     };
     
     // Add to message queue for processing
