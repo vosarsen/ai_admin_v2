@@ -76,9 +76,10 @@ class AIAdminV2 {
    * Основной метод обработки сообщений
    * Упрощен с использованием MessageProcessor
    */
-  async processMessage(message, phone, companyId) {
+  async processMessage(message, phone, companyId, options = {}) {
     let context = null;
     let results = null;
+    const { shouldAskHowToHelp = false, isThankYouMessage = false } = options;
     
     // Начинаем отслеживание операции
     const operation = performanceMetrics.startOperation('processMessage');
@@ -139,7 +140,10 @@ class AIAdminV2 {
       }
       
       // Строим умный промпт с полным контекстом
-      const prompt = this.buildSmartPrompt(message, context, phone);
+      const prompt = this.buildSmartPrompt(message, context, phone, {
+        shouldAskHowToHelp,
+        isThankYouMessage
+      });
       
       // Определяем имя промпта для статистики
       const promptName = process.env.AI_PROMPT_VERSION || 'enhanced-prompt';
@@ -180,7 +184,11 @@ class AIAdminV2 {
         const reactResult = await reactProcessor.processReActCycle(
           aiResponse, 
           context,
-          this // передаем ссылку на AIAdminV2 для вызова callAI
+          this, // передаем ссылку на AIAdminV2 для вызова callAI
+          {
+            shouldAskHowToHelp,
+            isThankYouMessage
+          }
         );
         
         finalResponse = reactResult.response;
@@ -423,7 +431,7 @@ class AIAdminV2 {
   /**
    * Построение умного промпта с полным контекстом
    */
-  buildSmartPrompt(message, context, phone) {
+  buildSmartPrompt(message, context, phone, options = {}) {
     const terminology = businessLogic.getBusinessTerminology(context.company.type);
     
     // Анализируем клиента для персонализации
@@ -459,7 +467,13 @@ class AIAdminV2 {
       currentTime: context.currentTime || new Date().toISOString(),
       timezone: context.timezone || 'Europe/Moscow',
       // ВАЖНО: передаем промежуточный контекст для промптов
-      intermediateContext: context.intermediateContext || null
+      intermediateContext: context.intermediateContext || null,
+      
+      // Опции управления диалогом
+      conversationOptions: {
+        shouldAskHowToHelp: options.shouldAskHowToHelp || false,
+        isThankYouMessage: options.isThankYouMessage || false
+      }
     };
     
     // Получаем промпт из менеджера
