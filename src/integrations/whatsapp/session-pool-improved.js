@@ -129,6 +129,19 @@ class WhatsAppSessionPool extends EventEmitter {
         const validatedId = this.validateCompanyId(companyId);
         
         try {
+            // Check if session already exists and close it
+            const existingSession = this.sessions.get(validatedId);
+            if (existingSession) {
+                logger.info(`🔄 Closing existing session for company ${validatedId} before creating new one`);
+                try {
+                    await existingSession.logout();
+                } catch (err) {
+                    // Ignore logout errors - session might be already closed
+                    logger.debug(`Logout error for ${validatedId}:`, err.message);
+                }
+                this.sessions.delete(validatedId);
+            }
+            
             // Auth data path for company
             const authPath = path.join(this.baseAuthPath, `company_${validatedId}`);
             await fs.ensureDir(authPath);

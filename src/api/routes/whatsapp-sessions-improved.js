@@ -387,7 +387,7 @@ sessionPool.on('qr', ({ companyId, qr }) => {
 
 // Handle connections
 sessionPool.on('connected', ({ companyId }) => {
-    logger.info(`✅ WhatsApp connected for company ${companyId}`);
+    // Connection already logged in session-pool-improved.js
     // Could send webhook or notification here
 });
 
