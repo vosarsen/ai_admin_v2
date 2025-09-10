@@ -50,9 +50,18 @@ class MessageWorkerV2 {
     try {
       this.conversationTracker = await createRedisClient('conversation-tracker');
       logger.info('✅ Conversation tracker Redis client initialized');
+      
+      // Тестируем подключение
+      await this.conversationTracker.ping();
+      logger.info('✅ Conversation tracker Redis ping successful');
     } catch (error) {
       logger.error('Failed to initialize conversation tracker:', error);
+      logger.error('Error details:', {
+        message: error.message,
+        stack: error.stack
+      });
       // Продолжаем работу без трекера - просто не будем отслеживать "Чем еще помочь?"
+      this.conversationTracker = null;
     }
 
     // Initialize WhatsApp API client (no actual connection, just API proxy)
@@ -117,6 +126,8 @@ class MessageWorkerV2 {
     }
     
     logger.info(`💬 Processing message from ${from}: "${message}"`);
+    logger.info(`📝 Worker patterns loaded - thanks: ${this.thanksPatterns}, closing: ${this.closingPatterns}`);
+    logger.info(`🔌 Conversation tracker status: ${this.conversationTracker ? 'initialized' : 'not initialized'}`);
     
     // Проверяем, применялась ли уже rapid-fire protection в webhook
     if (metadata.isRapidFireBatch) {
@@ -173,8 +184,10 @@ class MessageWorkerV2 {
         }
         
         // НОВАЯ ЛОГИКА: Проверяем благодарности и завершение диалога
+        logger.info(`🔍 Checking message for thanks/closing patterns: "${message}"`);
         const isThankYou = this.thanksPatterns.test(message);
         const isClosing = this.closingPatterns.test(message);
+        logger.info(`📊 Pattern check results - isThankYou: ${isThankYou}, isClosing: ${isClosing}`);
         
         if (isThankYou || isClosing) {
           logger.info(`💬 Detected ${isThankYou ? 'thank you' : 'closing'} message from ${from}: "${message}"`);
