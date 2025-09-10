@@ -161,8 +161,12 @@ class MessageWorkerV2 {
           
           // Отправляем ответ (разделяем на несколько сообщений)
           if (result.response) {
-            // Фильтруем [THINK] блоки - они не должны отправляться пользователю
-            const cleanResponse = result.response.replace(/\[THINK\][\s\S]*?\[\/THINK\]/g, '').trim();
+            // Фильтруем служебные блоки - они не должны отправляться пользователю
+            let cleanResponse = result.response
+              .replace(/\[THINK\][\s\S]*?\[\/THINK\]/g, '') // Убираем [THINK] блоки
+              .replace(/\[RESPOND\]/g, '') // Убираем открывающий [RESPOND]
+              .replace(/\[\/RESPOND\]/g, '') // Убираем закрывающий [/RESPOND]
+              .trim();
             
             // Разделяем ответ на отдельные сообщения по двойному переносу строки
             // Это стандартный способ разделения абзацев/сообщений
