@@ -3,7 +3,7 @@
  * Provides rate limiting functionality with Redis backend
  */
 
-const redis = require('../services/redis-factory');
+const redis = require('./redis-factory');
 const logger = require('./logger');
 
 class RateLimiter {
