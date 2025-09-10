@@ -1,6 +1,112 @@
 # AI Admin v2 - Troubleshooting Guide
 
-## 📅 Last Updated: August 2, 2025, 16:00
+## 📅 Last Updated: September 10, 2025
+
+## Table of Contents
+1. [Dependency Issues](#dependency-issues)
+2. [API Service Issues](#api-service-issues)
+3. [WhatsApp Integration Issues](#whatsapp-integration-issues)
+4. [Database Connection Issues](#database-connection-issues)
+5. [Redis Issues](#redis-issues)
+6. [PM2 Process Management](#pm2-process-management)
+7. [Common Error Messages](#common-error-messages)
+
+## Dependency Issues
+
+### MODULE_NOT_FOUND Errors
+
+**Symptoms:**
+```
+Error: Cannot find module 'package-name'
+Require stack:
+- /opt/ai-admin/src/path/to/file.js
+```
+
+**Quick Fix:**
+```bash
+# On server
+cd /opt/ai-admin
+npm install missing-package-name
+pm2 restart ai-admin-api
+```
+
+**Permanent Fix:**
+1. Add to package.json locally
+2. Commit and push changes
+3. Pull and install on server
+
+**Common Missing Packages (as of Sept 10, 2025):**
+- node-cron
+- bottleneck
+- date-fns-tz
+- prom-client
+- swagger-ui-express
+- swagger-jsdoc
+- yamljs
+
+### Package Version Conflicts
+
+**Symptoms:**
+- npm WARN peer dependency warnings
+- Application behaves differently in dev vs production
+
+**Solution:**
+```bash
+# Clear and reinstall
+rm -rf node_modules package-lock.json
+npm install
+npm audit fix
+```
+
+## API Service Issues
+
+### Service Won't Start
+
+**Check PM2 Status:**
+```bash
+pm2 status
+pm2 logs ai-admin-api --lines 100
+```
+
+**Common Causes:**
+1. Missing dependencies (see above)
+2. Port already in use
+3. Environment variables not set
+
+**Solutions:**
+```bash
+# Check port usage
+lsof -i :3000
+
+# Restart with environment update
+pm2 restart ai-admin-api --update-env
+
+# Full restart
+pm2 delete ai-admin-api
+pm2 start ecosystem.config.js
+```
+
+### High Restart Count
+
+**Symptoms:**
+- PM2 shows 100+ restarts
+- Service keeps crashing
+
+**Diagnosis:**
+```bash
+# Check error logs
+pm2 logs ai-admin-api --err --lines 50
+
+# Check system resources
+free -m
+df -h
+```
+
+**Common Fixes:**
+1. Fix missing dependencies
+2. Check memory limits
+3. Verify database connection
+4. Check Redis connection
 
 ## Common Issues and Solutions
 
