@@ -12,6 +12,7 @@ const errorMessages = require('../utils/error-messages');
 const criticalErrorLogger = require('../utils/critical-error-logger');
 const reminderContextTracker = require('../services/reminder/reminder-context-tracker');
 const { YclientsClient } = require('../integrations/yclients/client');
+const { createRedisClient } = require('../utils/redis-factory');
 
 /**
  * Упрощенный Message Worker для AI Admin v2
@@ -24,6 +25,16 @@ class MessageWorkerV2 {
     this.workers = [];
     this.connection = getBullMQRedisConfig();
     
+    // Redis клиент для отслеживания состояния диалога
+    // (отдельный от BullMQ для изоляции и логирования)
+    this.conversationTracker = null; // Инициализируем в start()
+    
+    // Паттерны благодарности (для мгновенной реакции ❤️)
+    this.thanksPatterns = /\b(спасибо|спасиб|спс|благодар|пасиб|пасибо|сенкс|thanks?|thx|ty)\b/i;
+    
+    // Паттерны завершения диалога
+    this.closingPatterns = /\b(это\s+всё|всё|больше\s+(ничего|не\s+надо|ничем)|не\s+нужно|достаточно)\b/i;
+    
     logger.debug('MessageWorkerV2 Redis config:', {
       host: this.connection.host,
       port: this.connection.port,
@@ -34,6 +45,15 @@ class MessageWorkerV2 {
   async start() {
     logger.info(`🚀 Message Worker v2 ${this.workerId} starting...`);
     this.isRunning = true;
+
+    // Initialize conversation tracker Redis client
+    try {
+      this.conversationTracker = await createRedisClient('conversation-tracker');
+      logger.info('✅ Conversation tracker Redis client initialized');
+    } catch (error) {
+      logger.error('Failed to initialize conversation tracker:', error);
+      // Продолжаем работу без трекера - просто не будем отслеживать "Чем еще помочь?"
+    }
 
     // Initialize WhatsApp API client (no actual connection, just API proxy)
     try {
@@ -152,8 +172,62 @@ class MessageWorkerV2 {
           }
         }
         
+        // НОВАЯ ЛОГИКА: Проверяем благодарности и завершение диалога
+        const isThankYou = this.thanksPatterns.test(message);
+        const isClosing = this.closingPatterns.test(message);
+        
+        if (isThankYou || isClosing) {
+          logger.info(`💬 Detected ${isThankYou ? 'thank you' : 'closing'} message from ${from}: "${message}"`);
+          
+          try {
+            // Отправляем реакцию сердечком на благодарность
+            if (isThankYou) {
+              await whatsappClient.sendReaction(from, '❤️');
+              logger.info(`❤️ Sent heart reaction to ${from} for thank you message`);
+            }
+            
+            // Сбрасываем флаг "спрашивали ли мы уже"
+            if (this.conversationTracker) {
+              const helpAskedKey = `asked_help:${from}:${companyId}`;
+              await this.conversationTracker.del(helpAskedKey);
+              logger.debug(`Reset "asked help" flag for ${from}`);
+            }
+            
+            // Если это явное завершение диалога - не отправляем текстовый ответ
+            if (isClosing || (isThankYou && message.length < 20)) {
+              // Короткое "спасибо" или явное завершение - просто реакция, без ответа
+              resolve({
+                success: true,
+                processingTime: Date.now() - startTime,
+                response: null,
+                isThanksMessage: true
+              });
+              return;
+            }
+            
+            // Если благодарность с дополнительным текстом - обрабатываем через AI
+            // но с флагом, что не нужно спрашивать "Чем еще помочь?"
+          } catch (error) {
+            logger.error('Error handling thanks/closing message:', error);
+            // Продолжаем обработку если что-то пошло не так
+          }
+        }
+        
+        // Проверяем, нужно ли спрашивать "Чем еще могу помочь?"
+        let shouldAskHowToHelp = false;
+        if (this.conversationTracker && !isThankYou && !isClosing) {
+          const helpAskedKey = `asked_help:${from}:${companyId}`;
+          const alreadyAsked = await this.conversationTracker.get(helpAskedKey);
+          shouldAskHowToHelp = !alreadyAsked;
+          
+          logger.debug(`Should ask "how to help": ${shouldAskHowToHelp} (already asked: ${!!alreadyAsked})`);
+        }
+        
         // Сообщение уже обработано через rapid-fire в webhook
-        const result = await aiAdminV2.processMessage(message, from, companyId);
+        const result = await aiAdminV2.processMessage(message, from, companyId, {
+          shouldAskHowToHelp,
+          isThankYouMessage: isThankYou
+        });
           
           if (!result.success) {
             throw new Error(result.error || 'Processing failed');
@@ -192,6 +266,13 @@ class MessageWorkerV2 {
               if (i < messages.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, 500)); // 500ms задержка
               }
+            }
+            
+            // Проверяем, содержит ли ответ вопрос "Чем еще могу помочь?"
+            if (this.conversationTracker && cleanResponse.includes('Чем еще могу помочь') || cleanResponse.includes('Чем ещё могу помочь')) {
+              const helpAskedKey = `asked_help:${from}:${companyId}`;
+              await this.conversationTracker.set(helpAskedKey, '1', 'EX', 1800); // Храним 30 минут
+              logger.debug(`Set "asked help" flag for ${from}`);
             }
             }
           }

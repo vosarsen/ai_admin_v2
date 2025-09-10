@@ -16,8 +16,9 @@ class ReActProcessor {
   /**
    * Главный метод обработки ReAct цикла
    */
-  async processReActCycle(initialResponse, context, aiService) {
+  async processReActCycle(initialResponse, context, aiService, options = {}) {
     logger.info('Starting ReAct processing cycle');
+    const { shouldAskHowToHelp = false, isThankYouMessage = false } = options;
     
     let currentResponse = initialResponse;
     let iterations = 0;
@@ -145,20 +146,20 @@ class ReActProcessor {
         } else {
           // На первой итерации без команд - возможно AI решил, что не нужны действия
           logger.warn('AI completed without actions, extracting response');
-          finalResponse = this.extractFinalResponse(currentResponse);
+          finalResponse = this.extractFinalResponse(currentResponse, options);
           continueProcessing = false;
         }
       } else {
         // Нет распознанных блоков - завершаем
         logger.warn('No recognized ReAct blocks found, ending cycle');
-        finalResponse = this.extractFinalResponse(currentResponse);
+        finalResponse = this.extractFinalResponse(currentResponse, options);
         continueProcessing = false;
       }
     }
     
     if (iterations >= this.MAX_ITERATIONS) {
       logger.warn('Max iterations reached, forcing completion');
-      finalResponse = this.extractFinalResponse(currentResponse);
+      finalResponse = this.extractFinalResponse(currentResponse, options);
     }
     
     logger.info(`ReAct cycle completed after ${iterations} iterations`);
@@ -380,7 +381,9 @@ ID записи: ${result.data?.record_id}
   /**
    * Извлечение финального ответа если нет RESPOND блока
    */
-  extractFinalResponse(response) {
+  extractFinalResponse(response, options = {}) {
+    const { shouldAskHowToHelp = false, isThankYouMessage = false } = options;
+    
     // Удаляем все технические блоки
     let cleaned = response
       .replace(/\[THINK\][\s\S]*?\[\/THINK\]/g, '')
@@ -395,7 +398,12 @@ ID записи: ${result.data?.record_id}
       return cleaned;
     }
     
-    // Если ничего не осталось - возвращаем стандартный ответ
+    // Если ничего не осталось и не нужно спрашивать
+    if (!shouldAskHowToHelp || isThankYouMessage) {
+      return 'Обработка вашего запроса завершена.';
+    }
+    
+    // Стандартный ответ с вопросом
     return 'Обработка вашего запроса завершена. Чем еще могу помочь?';
   }
 
