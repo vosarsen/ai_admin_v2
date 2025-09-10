@@ -111,7 +111,8 @@ class WhatsAppSessionPool extends EventEmitter {
         // Check existing session
         if (this.sessions.has(validatedId)) {
             const session = this.sessions.get(validatedId);
-            if (session && session.ws && session.ws.readyState === 1) {
+            // For Baileys, check if user is authenticated instead of ws.readyState
+            if (session && session.user) {
                 logger.debug(`✅ Using existing session for company ${validatedId}`);
                 return session;
             }
