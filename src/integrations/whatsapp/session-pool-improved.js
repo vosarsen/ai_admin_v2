@@ -317,7 +317,7 @@ class WhatsAppSessionPool extends EventEmitter {
         // Get or create session
         const sock = await this.getOrCreateSession(validatedId);
         
-        if (!sock || sock.ws?.readyState !== 1) {
+        if (!sock || !sock.user) {
             throw new Error(`No active session for company ${validatedId}`);
         }
 
@@ -355,7 +355,8 @@ class WhatsAppSessionPool extends EventEmitter {
                 };
             }
 
-            const connected = sock.ws?.readyState === 1;
+            // In Baileys, check if user exists to determine connection status
+            const connected = sock.user ? true : false;
             const status = connected ? 'connected' : 'disconnected';
             
             return { 
@@ -432,7 +433,7 @@ class WhatsAppSessionPool extends EventEmitter {
             const validatedId = this.validateCompanyId(companyId);
             const sock = this.sessions.get(validatedId);
             
-            if (!sock || sock.ws?.readyState !== 1) {
+            if (!sock || !sock.user) {
                 return { 
                     healthy: false, 
                     reason: 'Session not connected',
