@@ -119,6 +119,9 @@ class MessageWorkerV2 {
     const startTime = Date.now();
     const { from, message, companyId, metadata = {} } = job.data;
     
+    // Извлекаем messageId из metadata
+    const messageId = metadata.messageId || null;
+    
     // Добавляем валидацию номера телефона
     if (!from || from === '+' || from.length < 5) {
       logger.error(`❌ Invalid phone number in job ${job.id}: "${from}"`);
@@ -129,6 +132,7 @@ class MessageWorkerV2 {
     logger.info(`💬 Processing message from ${from}: "${message}"`);
     logger.info(`📝 Worker patterns loaded - thanks: ${this.thanksPatterns}, closing: ${this.closingPatterns}`);
     logger.info(`🔌 Conversation tracker status: ${this.conversationTracker ? 'initialized' : 'not initialized'}`);
+    logger.info(`📬 Message ID: ${messageId || 'not provided'}`);
     
     // Проверяем, применялась ли уже rapid-fire protection в webhook
     if (metadata.isRapidFireBatch) {
@@ -196,10 +200,15 @@ class MessageWorkerV2 {
           try {
             // Отправляем реакцию сердечком на благодарность
             if (isThankYou) {
-              // ВРЕМЕННОЕ РЕШЕНИЕ: отправляем эмодзи как сообщение, так как для реакции нужен messageId
-              // TODO: Сохранять messageId входящих сообщений для корректной отправки реакций
-              await whatsappClient.sendMessage(from, '❤️');
-              logger.info(`❤️ Sent heart emoji to ${from} for thank you message`);
+              if (messageId) {
+                // Если есть messageId - отправляем настоящую реакцию
+                await whatsappClient.sendReaction(from, '❤️', messageId);
+                logger.info(`❤️ Sent heart reaction to ${from} for thank you message (messageId: ${messageId})`);
+              } else {
+                // Fallback: отправляем эмодзи как сообщение
+                await whatsappClient.sendMessage(from, '❤️');
+                logger.info(`❤️ Sent heart emoji as message to ${from} (no messageId available)`);
+              }
             }
             
             // Сбрасываем флаг "спрашивали ли мы уже"

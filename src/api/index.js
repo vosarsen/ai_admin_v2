@@ -198,6 +198,44 @@ app.post('/api/sync/schedules', rateLimiter, validateApiKey, async (req, res) =>
   }
 });
 
+// WhatsApp reaction endpoint
+app.post('/api/whatsapp/reaction', rateLimiter, async (req, res) => {
+  const { to, emoji, messageId, companyId } = req.body;
+  
+  if (!to || !emoji || !messageId || !companyId) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields: to, emoji, messageId, companyId'
+    });
+  }
+  
+  try {
+    const { getBaileysProvider } = require('../integrations/whatsapp/providers/baileys-provider');
+    const provider = getBaileysProvider();
+    
+    // Проверяем, есть ли активная сессия для компании
+    if (!provider.sessions.has(companyId)) {
+      return res.status(404).json({
+        success: false,
+        error: `No active WhatsApp session for company ${companyId}`
+      });
+    }
+    
+    // Отправляем реакцию через Baileys
+    await provider.sendReaction(companyId, to, messageId, emoji);
+    
+    logger.info(`✅ Reaction ${emoji} sent to ${to} via API`);
+    res.json({ success: true });
+    
+  } catch (error) {
+    logger.error('Failed to send reaction:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Full sync (use with caution)
 app.post('/api/sync/full', rateLimiter, validateApiKey, async (req, res) => {
   try {
