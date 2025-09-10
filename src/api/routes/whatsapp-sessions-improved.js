@@ -347,37 +347,13 @@ router.ws('/events', (ws, req) => {
 });
 */
 
-// Handle incoming messages from WhatsApp
+// Message handling moved to whatsapp-baileys.js webhook to avoid duplication
+// The webhook provides better message processing with client name extraction and validation
+/*
 sessionPool.on('message', async ({ companyId, message }) => {
-    try {
-        logger.info(`📱 New message for company ${companyId} from ${message.key.remoteJid}`);
-        
-        // Extract message content
-        const messageContent = message.message?.conversation || 
-                             message.message?.extendedTextMessage?.text || 
-                             '';
-        
-        if (messageContent) {
-            // Add to message queue for AI processing
-            await messageQueue.addMessage(companyId, {
-                from: message.key.remoteJid.replace('@s.whatsapp.net', ''),
-                message: messageContent,
-                timestamp: message.messageTimestamp,
-                messageId: message.key.id
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 2000
-                }
-            });
-            
-            logger.info(`Message queued for processing: ${message.key.id}`);
-        }
-    } catch (error) {
-        logger.error('Failed to process incoming message:', error);
-    }
+    // Disabled - handled in whatsapp-baileys.js
 });
+*/
 
 // Handle QR codes
 sessionPool.on('qr', ({ companyId, qr }) => {
