@@ -3,8 +3,8 @@ const express = require('express');
 const router = express.Router();
 const logger = require('../../utils/logger');
 // MIGRATION: Disabled old session manager in favor of new Session Pool architecture
-// const sessionPool = require('../../integrations/whatsapp/session-manager');
-const WhatsAppSessionPool = require('../../integrations/whatsapp/session-pool-improved');
+// const sessionManager = require('../../integrations/whatsapp/session-manager');
+const { getSessionPool } = require('../../integrations/whatsapp/session-pool-improved');
 const healthMonitor = require('../../services/whatsapp/health-monitor');
 const sessionStateManager = require('../../services/whatsapp/session-state-manager');
 const messageQueue = require('../../queue/message-queue');
@@ -12,7 +12,7 @@ const { validateWebhookSignature } = require('../../middlewares/webhook-auth');
 const rateLimiter = require('../../middlewares/rate-limiter');
 
 // Get singleton instance of Session Pool
-const sessionPool = WhatsAppSessionPool.getInstance();
+const sessionPool = getSessionPool();
 
 // Initialize session pool message handler on startup
 let sessionPoolInitialized = false;
