@@ -258,10 +258,30 @@ class BaileysProvider extends EventEmitter {
       // Skip if from ourselves
       if (msg.key.fromMe) continue;
 
+      // Extract clean phone number from remoteJid
+      // remoteJid format: 79686484488@s.whatsapp.net or group id
+      let phoneNumber = '';
+      if (msg.key.remoteJid) {
+        // Remove @s.whatsapp.net or @g.us suffix
+        phoneNumber = msg.key.remoteJid.replace(/@[sg]\.(?:whatsapp\.net|us)/, '');
+        
+        // Skip if it's a group message (contains hyphen)
+        if (phoneNumber.includes('-')) {
+          logger.debug(`Skipping group message from ${msg.key.remoteJid}`);
+          continue;
+        }
+      }
+      
+      // Skip if no valid phone number
+      if (!phoneNumber || phoneNumber.length < 5) {
+        logger.warn(`Skipping message with invalid phone: ${msg.key.remoteJid}`);
+        continue;
+      }
+
       const messageInfo = {
         companyId,
         messageId: msg.key.id,
-        from: msg.key.remoteJid,
+        from: phoneNumber, // Clean phone number without @s.whatsapp.net
         pushName: msg.pushName,
         timestamp: msg.messageTimestamp,
         message: this.extractMessageContent(msg.message)
