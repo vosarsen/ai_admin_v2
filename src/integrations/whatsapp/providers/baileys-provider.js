@@ -12,6 +12,7 @@ const sessionStateManager = require('../../../services/whatsapp/session-state-ma
 class BaileysProvider extends EventEmitter {
   constructor() {
     super();
+    this.setMaxListeners(20); // Prevent memory leak warnings
     this.sessions = new Map(); // companyId -> socket instance
     this.stores = new Map(); // companyId -> store instance
     this.authStates = new Map(); // companyId -> auth state
@@ -199,6 +200,12 @@ class BaileysProvider extends EventEmitter {
    * Handle reconnection with exponential backoff
    */
   async handleReconnection(companyId) {
+    // Check if already reconnecting
+    if (this.connectionStates.get(companyId) === 'reconnecting') {
+      logger.info(`Already reconnecting company ${companyId}`);
+      return;
+    }
+    
     const attempts = this.reconnectAttempts.get(companyId) || 0;
     const lastReason = this.lastDisconnectReasons.get(companyId);
     
@@ -223,6 +230,7 @@ class BaileysProvider extends EventEmitter {
     
     logger.info(`🔄 Reconnecting company ${companyId} in ${delay}ms (attempt ${attempts + 1}/${this.maxReconnectAttempts})`);
     
+    this.connectionStates.set(companyId, 'reconnecting');
     this.reconnectAttempts.set(companyId, attempts + 1);
     
     setTimeout(async () => {
@@ -353,17 +361,20 @@ class BaileysProvider extends EventEmitter {
       throw new Error(`No active session for company ${companyId}`);
     }
 
-    // Check if socket is connected
-    if (!socket.user) {
-      logger.warn(`Socket not connected for company ${companyId}, waiting for connection...`);
-      // Wait for connection (max 10 seconds)
-      let waitTime = 0;
-      while (!socket.user && waitTime < 10000) {
+    // Check connection state instead of just socket.user
+    const state = this.connectionStates.get(companyId);
+    if (state !== 'connected') {
+      logger.warn(`Socket not connected for company ${companyId}, state: ${state}`);
+      
+      // Wait for connection with proper timeout
+      const maxWait = 10000;
+      const startTime = Date.now();
+      
+      while (this.connectionStates.get(companyId) !== 'connected') {
+        if (Date.now() - startTime > maxWait) {
+          throw new Error(`Connection timeout for company ${companyId}`);
+        }
         await new Promise(resolve => setTimeout(resolve, 1000));
-        waitTime += 1000;
-      }
-      if (!socket.user) {
-        throw new Error(`Socket not connected after waiting for company ${companyId}`);
       }
     }
 
@@ -648,15 +659,19 @@ class BaileysProvider extends EventEmitter {
     // Force disconnect existing session to get new QR
     if (this.hasSession(companyId)) {
       const session = this.sessions.get(companyId);
-      if (session && session.sock) {
-        await session.sock.logout();
-        session.sock.end();
+      if (session) {
+        try {
+          await session.logout();
+        } catch (err) {
+          logger.warn(`Failed to logout session ${companyId}:`, err.message);
+        }
+        session.end();
       }
       this.sessions.delete(companyId);
     }
 
-    // Clear old auth
-    const authPath = path.join(__dirname, '../../../../baileys_auth_info', companyId);
+    // Clear old auth using consistent path
+    const authPath = path.join(this.sessionsPath, `company_${companyId}`);
     if (fs.existsSync(authPath)) {
       fs.rmSync(authPath, { recursive: true, force: true });
     }
@@ -664,6 +679,7 @@ class BaileysProvider extends EventEmitter {
     // This will be populated when QR event is emitted
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
+        this.removeListener('qr', qrHandler);
         reject(new Error('QR code generation timeout'));
       }, 30000);
 
