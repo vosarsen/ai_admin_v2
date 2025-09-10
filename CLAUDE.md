@@ -211,6 +211,20 @@ AI Admin v2 is a production-ready WhatsApp AI Assistant for beauty salons. It us
   - Batch processor runs as separate PM2 process
   - See: `docs/development-diary/2025-07-23-redis-batching-implementation.md`
 
+### ✅ FIXED: WhatsApp Stability Issues (September 10, 2025)
+- **Problems Fixed**:
+  - Connection cycling every 5-6 seconds (error 440: Connection replaced)
+  - Message duplication (each message processed twice)
+  - Invalid phone number extraction from WhatsApp JID
+  - Incorrect session validation for Baileys
+- **Solutions**:
+  - Close old session before creating new one
+  - Remove duplicate message handler from API routes
+  - Fix phone extraction from JID format (`number@s.whatsapp.net`)
+  - Use `sock.user` instead of `ws.readyState` for Baileys
+- **Status**: Production stable - no reconnections, no duplicates
+- **Details**: `docs/development-diary/2025-09-10-whatsapp-stability-fixes.md`
+
 ## Architecture (v2)
 
 ### Old Architecture (v1):
