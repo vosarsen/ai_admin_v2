@@ -66,6 +66,7 @@ server.registerTool("send_message",
     const webhookPayload = {
       from: phone,
       message: message,
+      messageId: `MCP_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Generate unique messageId
       timestamp: Date.now()
     };
 
