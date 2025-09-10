@@ -23,8 +23,17 @@ let sessionPoolInitialized = false;
     logger.info('✅ WhatsApp Session Pool ready in webhook');
     
     // Set up message handler for webhook processing
-    sessionPool.on('message', async (companyId, messageData) => {
-      await processIncomingMessage({ companyId, ...messageData });
+    sessionPool.on('message', async (data) => {
+      // Extract phone number from WhatsApp JID (e.g., "79686484488@s.whatsapp.net")
+      const phone = data.message?.key?.remoteJid?.split('@')[0] || '';
+      const messageData = {
+        companyId: data.companyId,
+        phone: phone,
+        message: data.message?.message || {},
+        messageId: data.message?.key?.id,
+        pushName: data.message?.pushName || 'Client'
+      };
+      await processIncomingMessage(messageData);
     });
   } catch (error) {
     logger.error('Failed to initialize session pool:', error);
@@ -54,8 +63,8 @@ async function processIncomingMessage(messageData) {
       companyId,
       from: cleanPhone, // Clean phone number (worker expects 'from' field)
       phone: cleanPhone, // Keep for backward compatibility
-      message: message.text || message.caption || '[media]',
-      messageType: message.type,
+      message: message.conversation || message.extendedTextMessage?.text || message.imageMessage?.caption || '[media]',
+      messageType: message.conversation ? 'text' : (message.imageMessage ? 'image' : 'other'),
       messageId,
       clientName: pushName,
       timestamp: Date.now()
