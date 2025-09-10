@@ -2,7 +2,8 @@
 const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys');
 const P = require('pino');
 const path = require('path');
-const fs = require('fs').promises;
+const fs = require('fs');
+const fsPromises = require('fs').promises;
 const qrcode = require('qrcode-terminal');
 const logger = require('../../../utils/logger');
 const EventEmitter = require('events');
@@ -38,9 +39,9 @@ class BaileysProvider extends EventEmitter {
   async initialize() {
     // Create sessions directory if not exists
     try {
-      await fs.access(this.sessionsPath);
+      await fsPromises.access(this.sessionsPath);
     } catch {
-      await fs.mkdir(this.sessionsPath, { recursive: true });
+      await fsPromises.mkdir(this.sessionsPath, { recursive: true });
     }
     logger.info('🚀 Baileys provider initialized');
   }
@@ -564,7 +565,7 @@ class BaileysProvider extends EventEmitter {
     // Delete auth folder
     const authFolder = path.join(this.sessionsPath, `company_${companyId}`);
     try {
-      await fs.rmdir(authFolder, { recursive: true });
+      await fsPromises.rmdir(authFolder, { recursive: true });
       logger.info(`Session data deleted for company ${companyId}`);
     } catch (error) {
       logger.error(`Failed to delete session data for company ${companyId}:`, error);
@@ -644,23 +645,44 @@ class BaileysProvider extends EventEmitter {
    * Get QR code for authentication
    */
   async getQRCode(companyId) {
+    // Force disconnect existing session to get new QR
+    if (this.hasSession(companyId)) {
+      const session = this.sessions.get(companyId);
+      if (session && session.sock) {
+        await session.sock.logout();
+        session.sock.end();
+      }
+      this.sessions.delete(companyId);
+    }
+
+    // Clear old auth
+    const authPath = path.join(__dirname, '../../../../baileys_auth_info', companyId);
+    if (fs.existsSync(authPath)) {
+      fs.rmSync(authPath, { recursive: true, force: true });
+    }
+
     // This will be populated when QR event is emitted
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('QR code generation timeout'));
       }, 30000);
 
-      this.once('qr', (data) => {
+      const qrHandler = (data) => {
         if (data.companyId === companyId) {
           clearTimeout(timeout);
+          this.removeListener('qr', qrHandler);
           resolve(data.qr);
         }
-      });
+      };
 
-      // Try to connect if not already
-      if (!this.hasSession(companyId)) {
-        this.connectSession(companyId).catch(reject);
-      }
+      this.on('qr', qrHandler);
+
+      // Connect to get new QR
+      this.connectSession(companyId).catch((err) => {
+        clearTimeout(timeout);
+        this.removeListener('qr', qrHandler);
+        reject(err);
+      });
     });
   }
 }

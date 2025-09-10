@@ -20,10 +20,8 @@ class WhatsAppClient {
       resetTimeout: 60000 // 1 minute
     });
     
-    // Validate required auth config
-    if (!this.apiKey || !this.secretKey) {
-      logger.warn('WhatsApp client authentication not configured. VENOM_API_KEY and VENOM_SECRET_KEY must be set.');
-    }
+    // Authentication is now handled by Baileys provider
+    // No need for VENOM_API_KEY and VENOM_SECRET_KEY anymore
     
     // Create axios instance
     this.client = axios.create({
