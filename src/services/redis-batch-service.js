@@ -315,6 +315,9 @@ class RedisBatchService {
       // Берем companyId и metadata из первого сообщения
       const { companyId, metadata } = messages[0];
       
+      // Берем messageId из последнего сообщения (на него будем реагировать)
+      const lastMessageId = messages[messages.length - 1].metadata?.messageId || null;
+      
       // Валидация companyId - должен быть строкой или числом
       const validCompanyId = typeof companyId === 'object' 
         ? (companyId?.id || companyId?.companyId || String(companyId))
@@ -341,6 +344,7 @@ class RedisBatchService {
         message: combinedMessage,
         metadata: {
           ...metadata,
+          messageId: lastMessageId, // Добавляем messageId последнего сообщения
           isRapidFireBatch: true,
           batchSize: messages.length,
           batchTimeSpan: lastTimestamp - firstTimestamp,

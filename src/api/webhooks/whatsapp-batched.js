@@ -52,17 +52,19 @@ router.post('/webhook/whatsapp/batched', rateLimiter, validateWebhookSignature, 
     let from = null;
     let companyId = config.yclients.companyId;
     
-    // Формат 1: { from, message, timestamp }
+    // Формат 1: { from, message, timestamp, messageId }
     if (req.body.from && req.body.message) {
       messages = [{
         from: req.body.from,
         body: req.body.message,
         type: 'chat',
+        messageId: req.body.messageId || req.body.id || null, // Поддержка разных форматов
         timestamp: req.body.timestamp || new Date().toISOString()
       }];
       from = req.body.from;
       logger.info('📝 Format 1 detected - single message:', {
         from,
+        messageId: req.body.messageId || req.body.id,
         messagePreview: req.body.message?.substring(0, 50)
       });
     }
@@ -113,6 +115,7 @@ router.post('/webhook/whatsapp/batched', rateLimiter, validateWebhookSignature, 
           {
             timestamp: message.timestamp || new Date().toISOString(),
             type: message.type || 'chat',
+            messageId: message.messageId || null, // Добавляем messageId
             originalWebhook: 'whatsapp-batched'
           }
         );

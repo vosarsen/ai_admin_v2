@@ -87,11 +87,36 @@ class WhatsAppAPIClient {
   }
 
   /**
-   * Send reaction (not implemented for API client)
+   * Send reaction via API
    */
-  async sendReaction(to, emoji) {
-    logger.debug('Reaction sending not implemented for API client');
-    return { success: true };
+  async sendReaction(to, emoji, messageId) {
+    if (!messageId) {
+      logger.warn('Cannot send reaction without messageId');
+      return { success: false, error: 'messageId is required for reactions' };
+    }
+    
+    try {
+      const response = await axios.post(
+        `${this.apiUrl}/api/whatsapp/reaction`,
+        {
+          to,
+          emoji,
+          messageId,
+          companyId: this.companyId
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      logger.info(`✅ Reaction sent via API to ${to}`);
+      return { success: true, data: response.data };
+    } catch (error) {
+      logger.error('Failed to send reaction via API:', error);
+      return { success: false, error: error.message };
+    }
   }
 
   /**
