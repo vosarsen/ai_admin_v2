@@ -138,6 +138,24 @@ class ContextServiceV2 {
         return null;
       }
       
+      // Получаем последние сообщения для контекста
+      let previousUserMessage = '';
+      try {
+        const messagesKey = this._getKey('messages', companyId, phone);
+        const messages = await this.redis.lrange(messagesKey, -10, -1); // Последние 10 сообщений
+        
+        // Ищем последнее сообщение от пользователя
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const msg = JSON.parse(messages[i]);
+          if (msg.sender === 'user') {
+            previousUserMessage = msg.text;
+            break;
+          }
+        }
+      } catch (msgError) {
+        logger.debug('Could not load previous messages:', msgError.message);
+      }
+      
       // Парсим JSON поля
       return {
         ...data,
@@ -147,7 +165,9 @@ class ContextServiceV2 {
         // Добавляем флаги вопросов
         askedForTimeSelection: data.askedForTimeSelection === 'true',
         askedForTimeAt: data.askedForTimeAt || null,
-        shownSlotsAt: data.shownSlotsAt || null
+        shownSlotsAt: data.shownSlotsAt || null,
+        // Добавляем предыдущее сообщение пользователя
+        userMessage: previousUserMessage
       };
     } catch (error) {
       logger.error('Error getting dialog context:', error);
