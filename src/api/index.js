@@ -60,9 +60,8 @@ const aiManagementRoutes = require('./routes/ai-management');
 app.use('/api/ai', aiManagementRoutes);
 
 // WhatsApp session management routes (NEW ARCHITECTURE)
-// Temporarily disabled until all dependencies are installed
-// const whatsappSessionsRoutes = require('./routes/whatsapp-sessions-improved');
-// app.use('/api/whatsapp', whatsappSessionsRoutes);
+const whatsappSessionsRoutes = require('./routes/whatsapp-sessions-improved');
+app.use('/api/whatsapp', whatsappSessionsRoutes);
 
 // Health check (with relaxed rate limit)
 app.get('/health', rateLimiter, async (req, res) => {
