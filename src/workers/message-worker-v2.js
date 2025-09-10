@@ -196,8 +196,10 @@ class MessageWorkerV2 {
           try {
             // Отправляем реакцию сердечком на благодарность
             if (isThankYou) {
-              await whatsappClient.sendReaction(from, '❤️');
-              logger.info(`❤️ Sent heart reaction to ${from} for thank you message`);
+              // ВРЕМЕННОЕ РЕШЕНИЕ: отправляем эмодзи как сообщение, так как для реакции нужен messageId
+              // TODO: Сохранять messageId входящих сообщений для корректной отправки реакций
+              await whatsappClient.sendMessage(from, '❤️');
+              logger.info(`❤️ Sent heart emoji to ${from} for thank you message`);
             }
             
             // Сбрасываем флаг "спрашивали ли мы уже"
