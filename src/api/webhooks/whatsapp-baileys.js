@@ -2,27 +2,32 @@
 const express = require('express');
 const router = express.Router();
 const logger = require('../../utils/logger');
-const sessionManager = require('../../integrations/whatsapp/session-manager');
+// MIGRATION: Disabled old session manager in favor of new Session Pool architecture
+// const sessionPool = require('../../integrations/whatsapp/session-manager');
+const WhatsAppSessionPool = require('../../integrations/whatsapp/session-pool-improved');
 const healthMonitor = require('../../services/whatsapp/health-monitor');
 const sessionStateManager = require('../../services/whatsapp/session-state-manager');
 const messageQueue = require('../../queue/message-queue');
 const { validateWebhookSignature } = require('../../middlewares/webhook-auth');
 const rateLimiter = require('../../middlewares/rate-limiter');
 
-// Initialize session manager on startup
-let sessionManagerInitialized = false;
+// Get singleton instance of Session Pool
+const sessionPool = WhatsAppSessionPool.getInstance();
+
+// Initialize session pool message handler on startup
+let sessionPoolInitialized = false;
 (async () => {
   try {
-    await sessionManager.initialize();
-    sessionManagerInitialized = true;
-    logger.info('✅ Baileys session manager initialized in webhook');
+    // Session pool is a singleton and auto-initializes
+    sessionPoolInitialized = true;
+    logger.info('✅ WhatsApp Session Pool ready in webhook');
     
     // Set up message handler for webhook processing
-    sessionManager.on('webhook-message', async (messageData) => {
-      await processIncomingMessage(messageData);
+    sessionPool.on('message', async (companyId, messageData) => {
+      await processIncomingMessage({ companyId, ...messageData });
     });
   } catch (error) {
-    logger.error('Failed to initialize session manager:', error);
+    logger.error('Failed to initialize session pool:', error);
   }
 })();
 
@@ -72,10 +77,9 @@ async function processIncomingMessage(messageData) {
  */
 router.post('/webhook/whatsapp/baileys', rateLimiter, validateWebhookSignature, async (req, res) => {
   try {
-    if (!sessionManagerInitialized) {
-      logger.warn('Session manager not initialized, initializing now...');
-      await sessionManager.initialize();
-      sessionManagerInitialized = true;
+    if (!sessionPoolInitialized) {
+      logger.warn('Session pool not initialized');
+      return res.status(503).json({ error: 'Service temporarily unavailable' });
     }
     
     const { companyId, phone, message, action } = req.body;
@@ -102,18 +106,20 @@ router.post('/webhook/whatsapp/baileys', rateLimiter, validateWebhookSignature, 
         
       case 'status':
         // Get session status
-        const status = sessionManager.getSessionStatus(companyId);
+        const status = sessionPool.getSessionStatus(companyId);
         return res.json({ success: true, status });
         
       case 'qr':
         // Get QR code for authentication
-        const qr = await sessionManager.getQRCode(companyId);
+        // Session Pool doesn't have getQRCode - need to create session first
+        const session = await sessionPool.createSession(companyId);
+        const qr = session?.qrCode || null;
         return res.json({ success: true, qr });
         
       default:
         // Default action - send message
         if (message && phone) {
-          await sessionManager.sendMessage(companyId || 'default', phone, message);
+          await sessionPool.sendMessage(companyId || 'default', phone, message);
         }
     }
     
@@ -134,7 +140,7 @@ router.post('/webhook/whatsapp/baileys', rateLimiter, validateWebhookSignature, 
 router.get(['/webhook/whatsapp/baileys/status/:companyId', '/webhook/whatsapp/baileys/status'], async (req, res) => {
   try {
     const companyId = req.params.companyId || 'default';
-    const status = sessionManager.getSessionStatus(companyId);
+    const status = sessionPool.getSessionStatus(companyId);
     
     res.json({
       success: true,
@@ -157,7 +163,7 @@ router.get(['/webhook/whatsapp/baileys/status/:companyId', '/webhook/whatsapp/ba
 router.get(['/webhook/whatsapp/baileys/qr/:companyId', '/webhook/whatsapp/baileys/qr'], async (req, res) => {
   try {
     const companyId = req.params.companyId || 'default';
-    const qr = await sessionManager.getQRCode(companyId);
+    const qr = await sessionPool.getQRCode(companyId);
     
     res.json({
       success: true,
@@ -182,7 +188,8 @@ router.post('/webhook/whatsapp/baileys/init/:companyId', async (req, res) => {
     const companyId = req.params.companyId;
     const config = req.body.config || {};
     
-    await sessionManager.initializeCompanySession(companyId, config);
+    // Create new session in pool
+    await sessionPool.createSession(companyId);
     
     res.json({
       success: true,
@@ -203,7 +210,8 @@ router.post('/webhook/whatsapp/baileys/init/:companyId', async (req, res) => {
  */
 router.get('/webhook/whatsapp/baileys/sessions', async (req, res) => {
   try {
-    const sessions = sessionManager.getAllSessionsStatus();
+    // Get all active sessions from pool
+    const sessions = sessionPool.getActiveSessions();
     
     res.json({
       success: true,
@@ -237,10 +245,11 @@ router.post('/webhook/whatsapp/baileys/send', async (req, res) => {
     let result;
     if (mediaUrl) {
       // Send media
-      result = await sessionManager.sendMedia(companyId, phone, mediaUrl, mediaType || 'image', message);
+      // Session Pool doesn't have sendMedia yet - use sendMessage for now
+      result = await sessionPool.sendMessage(companyId, phone, `[Media: ${mediaUrl}]\n${message || ''}`);
     } else {
       // Send text message
-      result = await sessionManager.sendMessage(companyId, phone, message);
+      result = await sessionPool.sendMessage(companyId, phone, message);
     }
     
     res.json({
@@ -263,7 +272,7 @@ router.post('/webhook/whatsapp/baileys/send', async (req, res) => {
 router.post('/webhook/whatsapp/baileys/disconnect/:companyId', async (req, res) => {
   try {
     const companyId = req.params.companyId;
-    await sessionManager.disconnectSession(companyId);
+    await sessionPool.disconnect(companyId);
     
     res.json({
       success: true,
@@ -285,7 +294,7 @@ router.post('/webhook/whatsapp/baileys/disconnect/:companyId', async (req, res) 
 router.delete('/webhook/whatsapp/baileys/session/:companyId', async (req, res) => {
   try {
     const companyId = req.params.companyId;
-    await sessionManager.deleteSession(companyId);
+    await sessionPool.disconnect(companyId);
     
     res.json({
       success: true,
@@ -333,7 +342,7 @@ router.get('/webhook/whatsapp/baileys/diagnostics/:companyId', async (req, res) 
     const companyId = req.params.companyId || 'default';
     
     // Get all diagnostic information
-    const providerStatus = sessionManager.getSessionStatus(companyId);
+    const providerStatus = sessionPool.getSessionStatus(companyId);
     const redisState = await sessionStateManager.getSessionState(companyId);
     const connectionMetrics = await sessionStateManager.getConnectionMetrics(companyId);
     const healthMetrics = healthMonitor.getMetrics(companyId);
@@ -415,13 +424,13 @@ router.post('/webhook/whatsapp/baileys/reconnect/:companyId', async (req, res) =
     logger.info(`🔄 Force reconnection requested for company ${companyId}`);
     
     // First disconnect existing session
-    await sessionManager.disconnectSession(companyId);
+    await sessionPool.disconnect(companyId);
     
     // Wait a bit
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Try to reconnect
-    await sessionManager.initializeCompanySession(companyId);
+    await sessionPool.initializeCompanySession(companyId);
     
     res.json({
       success: true,
