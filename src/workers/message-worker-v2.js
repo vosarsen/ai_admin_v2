@@ -30,10 +30,11 @@ class MessageWorkerV2 {
     this.conversationTracker = null; // Инициализируем в start()
     
     // Паттерны благодарности (для мгновенной реакции ❤️)
-    this.thanksPatterns = /\b(спасибо|спасиб|спс|благодар|пасиб|пасибо|сенкс|thanks?|thx|ty)\b/i;
+    // Не используем \b с кириллицей - он не работает правильно
+    this.thanksPatterns = /(спасибо|спасиб|спс|благодар|пасиб|пасибо|сенкс|thanks|thank you|thx|ty)/i;
     
     // Паттерны завершения диалога
-    this.closingPatterns = /\b(это\s+всё|всё|больше\s+(ничего|не\s+надо|ничем)|не\s+нужно|достаточно)\b/i;
+    this.closingPatterns = /(это\s+всё|^всё$|больше\s+(ничего|не\s+надо|ничем)|не\s+нужно|достаточно)/i;
     
     logger.debug('MessageWorkerV2 Redis config:', {
       host: this.connection.host,
