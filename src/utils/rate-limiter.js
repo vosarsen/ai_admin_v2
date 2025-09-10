@@ -3,7 +3,7 @@
  * Provides rate limiting functionality with Redis backend
  */
 
-const redis = require('./redis-factory');
+const { createRedisClient } = require('./redis-factory');
 const logger = require('./logger');
 
 class RateLimiter {
@@ -22,7 +22,7 @@ class RateLimiter {
      */
     async initializeRedis() {
         try {
-            this.redisClient = redis.getClient('rate-limiter');
+            this.redisClient = createRedisClient('rate-limiter');
             logger.debug('Rate limiter initialized with Redis');
         } catch (error) {
             logger.warn('Rate limiter falling back to in-memory store:', error.message);
