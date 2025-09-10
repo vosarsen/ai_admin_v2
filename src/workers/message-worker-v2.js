@@ -161,19 +161,21 @@ class MessageWorkerV2 {
           
           // Отправляем ответ (разделяем на несколько сообщений)
           if (result.response) {
+            // Фильтруем [THINK] блоки - они не должны отправляться пользователю
+            const cleanResponse = result.response.replace(/\[THINK\][\s\S]*?\[\/THINK\]/g, '').trim();
+            
             // Разделяем ответ на отдельные сообщения по двойному переносу строки
             // Это стандартный способ разделения абзацев/сообщений
-            const messages = result.response.split('\n\n').map(msg => msg.trim()).filter(msg => msg);
+            const messages = cleanResponse.split('\n\n').map(msg => msg.trim()).filter(msg => msg);
             
             if (messages.length === 0) {
-              // Если нет разделителя, отправляем как одно сообщение
-              messages.push(result.response);
-            }
-            
-            logger.info(`🤖 Bot sending ${messages.length} messages to ${from}`);
-            
-            // Отправляем каждое сообщение с небольшой задержкой
-            for (let i = 0; i < messages.length; i++) {
+              // Если после фильтрации не осталось сообщений, пропускаем отправку
+              logger.warn(`No messages to send after filtering [THINK] blocks from response`);
+            } else {
+              logger.info(`🤖 Bot sending ${messages.length} messages to ${from}`);
+              
+              // Отправляем каждое сообщение с небольшой задержкой
+              for (let i = 0; i < messages.length; i++) {
               const message = messages[i];
               logger.info(`🤖 Message ${i + 1}/${messages.length} to ${from}: "${message}"`);
               
@@ -186,6 +188,7 @@ class MessageWorkerV2 {
               if (i < messages.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, 500)); // 500ms задержка
               }
+            }
             }
           }
           

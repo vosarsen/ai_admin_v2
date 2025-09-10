@@ -33,13 +33,22 @@ async function processIncomingMessage(messageData) {
   try {
     const { companyId, phone, message, messageId, pushName } = messageData;
     
+    // Validate phone number
+    if (!phone || phone.length < 5) {
+      logger.error(`Invalid phone number in messageData:`, messageData);
+      return;
+    }
+    
     logger.info(`📨 Processing WhatsApp message for company ${companyId} from ${phone}`);
+    
+    // Clean phone number - remove all non-digits
+    const cleanPhone = phone.replace(/\D/g, '');
     
     // Format message for queue
     const queueData = {
       companyId,
-      from: phone.replace(/\D/g, ''), // Clean phone number (worker expects 'from' field)
-      phone: phone.replace(/\D/g, ''), // Keep for backward compatibility
+      from: cleanPhone, // Clean phone number (worker expects 'from' field)
+      phone: cleanPhone, // Keep for backward compatibility
       message: message.text || message.caption || '[media]',
       messageType: message.type,
       messageId,
