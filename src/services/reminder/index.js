@@ -110,21 +110,42 @@ class ReminderService {
   /**
    * Отправить напоминание клиенту
    */
-  async sendReminder(phone, booking, message) {
+  async sendReminder(phone, booking, reminderType) {
     try {
       const whatsappClient = require('../../integrations/whatsapp/client');
+      const { generateDayBeforeReminder, generateTwoHoursReminder } = require('./templates');
       
-      // Формируем сообщение напоминания
-      let reminderText = message || this.formatReminderMessage(booking);
+      // Подготавливаем данные для шаблона
+      const date = new Date(booking.datetime);
+      const timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      
+      const templateData = {
+        clientName: booking.client_name || '',
+        time: timeStr,
+        service: booking.service_name || 'услуга',
+        staff: booking.staff_name || 'мастер',
+        price: booking.cost || 0,
+        address: 'ул. Культуры 15/11' // TODO: Получать из базы данных компании
+      };
+      
+      // Генерируем сообщение в зависимости от типа напоминания
+      let reminderText;
+      if (reminderType === 'day_before') {
+        reminderText = generateDayBeforeReminder(templateData);
+      } else if (reminderType === 'hours_before' || reminderType === 'two_hours') {
+        reminderText = generateTwoHoursReminder(templateData);
+      } else {
+        // Fallback на простое сообщение
+        reminderText = this.formatSimpleReminder(booking);
+      }
       
       // Отправляем через WhatsApp
       await whatsappClient.sendMessage(phone, reminderText);
       
-      logger.info(`✅ Reminder sent to ${phone}`);
+      logger.info(`✅ Reminder sent to ${phone} (type: ${reminderType})`);
       
       // Отмечаем напоминание как отправленное
       if (booking.id) {
-        const reminderType = message?.includes('завтра') ? 'day_before' : 'hours_before';
         await this.markReminderSent(booking.id, reminderType);
       }
       
@@ -135,18 +156,18 @@ class ReminderService {
   }
   
   /**
-   * Форматировать сообщение напоминания
+   * Простое форматирование напоминания (fallback)
    */
-  formatReminderMessage(booking) {
+  formatSimpleReminder(booking) {
     const date = new Date(booking.datetime);
     const timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
     const dateStr = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
     
-    return `🔔 Напоминание о записи!\n\n` +
+    return `Напоминание о записи!\n\n` +
            `📅 ${dateStr} в ${timeStr}\n` +
-           `💈 Услуга: ${booking.service_name}\n` +
-           `👤 Мастер: ${booking.staff_name}\n\n` +
-           `Ждем вас! Если планы изменились, пожалуйста, сообщите нам.`;
+           `Услуга: ${booking.service_name}\n` +
+           `Мастер: ${booking.staff_name}\n\n` +
+           `Ждем вас!`;
   }
   
   /**

@@ -30,17 +30,17 @@ class ReminderWorkerV2 {
     this.worker = new Worker(
       'reminders',
       async (job) => {
-        const { phone, booking, message } = job.data;
+        const { phone, booking, type } = job.data;
         
         logger.info(`📨 Processing reminder for ${phone}:`, {
           jobId: job.id,
           bookingId: booking.id,
-          type: job.name
+          type: type || job.name
         });
         
         try {
           // Process reminder through reminder service
-          await reminderService.sendReminder(phone, booking, message);
+          await reminderService.sendReminder(phone, booking, type || job.name);
           
           this.processedCount++;
           logger.info(`✅ Reminder sent successfully to ${phone}`);
