@@ -202,11 +202,11 @@ class MessageWorkerV2 {
             if (isThankYou) {
               if (messageId) {
                 // Если есть messageId - отправляем настоящую реакцию
-                await whatsappClient.sendReaction(from, '❤️', messageId);
+                await whatsappClient.sendReaction(from, '❤️', messageId, companyId);
                 logger.info(`❤️ Sent heart reaction to ${from} for thank you message (messageId: ${messageId})`);
               } else {
                 // Fallback: отправляем эмодзи как сообщение
-                await whatsappClient.sendMessage(from, '❤️');
+                await whatsappClient.sendMessage(from, '❤️', { companyId });
                 logger.info(`❤️ Sent heart emoji as message to ${from} (no messageId available)`);
               }
             }

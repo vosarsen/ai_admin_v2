@@ -89,10 +89,15 @@ class WhatsAppAPIClient {
   /**
    * Send reaction via API
    */
-  async sendReaction(to, emoji, messageId) {
+  async sendReaction(to, emoji, messageId, companyId) {
     if (!messageId) {
       logger.warn('Cannot send reaction without messageId');
       return { success: false, error: 'messageId is required for reactions' };
+    }
+    
+    if (!companyId) {
+      logger.warn('Cannot send reaction without companyId');
+      return { success: false, error: 'companyId is required for reactions' };
     }
     
     try {
@@ -102,7 +107,7 @@ class WhatsAppAPIClient {
           to,
           emoji,
           messageId,
-          companyId: this.companyId
+          companyId: String(companyId)
         },
         {
           headers: {
