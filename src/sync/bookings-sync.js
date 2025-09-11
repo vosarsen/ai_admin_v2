@@ -5,10 +5,19 @@ const { format, addDays } = require('date-fns');
 const { 
   normalizePhone, 
   YCLIENTS_CONFIG, 
-  createYclientsHeaders,
-  processBatch,
-  BATCH_CONFIG
+  createYclientsHeaders
 } = require('./sync-utils');
+
+// Константы для пакетной обработки
+const BOOKINGS_BATCH_SIZE = 50;
+
+// Функция для пакетной обработки
+async function processBatch(items, processor, batchSize = 50) {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    await processor(batch);
+  }
+}
 
 /**
  * Синхронизация активных записей (bookings) из YClients в Supabase
@@ -132,7 +141,7 @@ class BookingsSync {
       async (batch) => {
         await this.upsertBookings(batch);
       },
-      BATCH_CONFIG.BOOKINGS_BATCH_SIZE
+      BOOKINGS_BATCH_SIZE
     );
   }
 
