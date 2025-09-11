@@ -24,9 +24,9 @@ class ReminderService {
       const { data: bookings, error } = await supabase
         .from('bookings')
         .select('*')
-        .gte('appointment_datetime', tomorrow.toISOString())
-        .lte('appointment_datetime', weekLater.toISOString())
-        .eq('status', 'pending');
+        .gte('datetime', tomorrow.toISOString())
+        .lte('datetime', weekLater.toISOString())
+        .eq('status', 'active');
         
       if (error) {
         logger.error('Failed to load bookings:', error);
@@ -57,16 +57,15 @@ class ReminderService {
    */
   async scheduleRemindersForBooking(booking) {
     try {
-      const bookingTime = new Date(booking.appointment_datetime);
+      const bookingTime = new Date(booking.datetime);
       const now = new Date();
       
-      // Извлекаем данные из metadata
-      const metadata = booking.metadata || {};
+      // Извлекаем данные из booking
       const bookingData = {
-        datetime: booking.appointment_datetime,
-        service_name: metadata.service_name || 'услуга',
-        staff_name: metadata.staff_name || 'мастер',
-        record_id: booking.record_id
+        datetime: booking.datetime,
+        service_name: booking.services?.join(', ') || 'услуга',
+        staff_name: booking.staff_name || 'мастер',
+        record_id: booking.yclients_record_id
       };
       
       // Напоминание за день в случайное время между 19:00 и 21:00
@@ -83,10 +82,10 @@ class ReminderService {
         await messageQueue.addReminder({
           type: 'day_before',
           booking: bookingData,
-          phone: booking.user_id + '@c.us',
+          phone: booking.client_phone,
           bookingId: booking.id
         }, dayBefore);
-        logger.info(`📅 Scheduled day-before reminder for booking ${booking.record_id}`);
+        logger.info(`📅 Scheduled day-before reminder for booking ${booking.yclients_record_id}`);
       }
       
       // Напоминание за 2 часа
@@ -96,16 +95,58 @@ class ReminderService {
         await messageQueue.addReminder({
           type: 'hours_before',
           booking: bookingData,
-          phone: booking.user_id + '@c.us',
+          phone: booking.client_phone,
           hours: 2,
           bookingId: booking.id
         }, twoHoursBefore);
-        logger.info(`⏰ Scheduled 2-hour reminder for booking ${booking.record_id}`);
+        logger.info(`⏰ Scheduled 2-hour reminder for booking ${booking.yclients_record_id}`);
       }
       
     } catch (error) {
-      logger.error(`Failed to schedule reminders for booking ${booking.record_id}:`, error);
+      logger.error(`Failed to schedule reminders for booking ${booking.yclients_record_id}:`, error);
     }
+  }
+  
+  /**
+   * Отправить напоминание клиенту
+   */
+  async sendReminder(phone, booking, message) {
+    try {
+      const whatsappClient = require('../../integrations/whatsapp/client');
+      
+      // Формируем сообщение напоминания
+      let reminderText = message || this.formatReminderMessage(booking);
+      
+      // Отправляем через WhatsApp
+      await whatsappClient.sendMessage(phone, reminderText);
+      
+      logger.info(`✅ Reminder sent to ${phone}`);
+      
+      // Отмечаем напоминание как отправленное
+      if (booking.id) {
+        const reminderType = message?.includes('завтра') ? 'day_before' : 'hours_before';
+        await this.markReminderSent(booking.id, reminderType);
+      }
+      
+    } catch (error) {
+      logger.error(`Failed to send reminder to ${phone}:`, error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Форматировать сообщение напоминания
+   */
+  formatReminderMessage(booking) {
+    const date = new Date(booking.datetime);
+    const timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+    
+    return `🔔 Напоминание о записи!\n\n` +
+           `📅 ${dateStr} в ${timeStr}\n` +
+           `💈 Услуга: ${booking.service_name}\n` +
+           `👤 Мастер: ${booking.staff_name}\n\n` +
+           `Ждем вас! Если планы изменились, пожалуйста, сообщите нам.`;
   }
   
   /**
