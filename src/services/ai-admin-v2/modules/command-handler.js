@@ -449,12 +449,30 @@ class CommandHandler {
         const slots = result.data?.data || result.data || [];
         
         if (Array.isArray(slots) && slots.length > 0) {
+          // Фильтруем слоты по длительности услуги
+          // Услуга требует минимум service.duration времени
+          const serviceDuration = service?.raw_data?.duration || 3600; // По умолчанию 60 минут
+          
+          const validSlots = slots.filter(slot => {
+            // sum_length - общая доступная длительность слота
+            // Слот должен иметь достаточно времени для услуги
+            const slotDuration = slot.sum_length || slot.seance_length || 0;
+            const isValid = slotDuration >= serviceDuration;
+            
+            if (!isValid) {
+              logger.debug(`Filtering out slot ${slot.time}: duration ${slotDuration}s < required ${serviceDuration}s`);
+            }
+            
+            return isValid;
+          });
+          
           // Добавляем имя мастера к каждому слоту
-          slots.forEach(slot => {
+          validSlots.forEach(slot => {
             slot.staff_name = staff.name;
             slot.staff_id = staff.yclients_id;
+            slot.required_duration = serviceDuration;
           });
-          allSlots.push(...slots);
+          allSlots.push(...validSlots);
         }
       } catch (error) {
         logger.debug(`Ошибка получения слотов для ${staff.name}:`, error.message);
@@ -498,9 +516,9 @@ class CommandHandler {
     if (!slots.length) return [];
     
     const timeZones = {
-      morning: { start: 9, end: 12, slots: [] },
-      afternoon: { start: 12, end: 17, slots: [] },
-      evening: { start: 17, end: 21, slots: [] }
+      morning: { start: 0, end: 12, slots: [] },   // Утро: с начала дня до 12:00
+      afternoon: { start: 12, end: 18, slots: [] }, // День: с 12:00 до 18:00
+      evening: { start: 18, end: 24, slots: [] }    // Вечер: с 18:00 до конца дня
     };
     
     slots.forEach(slot => {
