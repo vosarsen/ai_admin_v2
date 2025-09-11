@@ -7,14 +7,22 @@ class SlotValidator {
    * @param {Array} slots - Массив слотов от YClients API
    * @param {Array} existingBookings - Существующие записи мастера
    * @param {number} serviceDuration - Длительность услуги в секундах
+   * @param {Object} workingHours - Рабочие часы {start: 'HH:mm', end: 'HH:mm'}
    * @returns {Array} Отфильтрованные действительно доступные слоты
    */
-  validateSlots(slots, existingBookings = [], serviceDuration = null) {
+  validateSlots(slots, existingBookings = [], serviceDuration = null, workingHours = null) {
     if (!slots || !Array.isArray(slots) || slots.length === 0) {
       return [];
     }
 
     logger.info(`Validating ${slots.length} slots against ${existingBookings.length} existing bookings`);
+
+    // Сортируем записи по времени для проверки следующей записи
+    const sortedBookings = [...existingBookings].sort((a, b) => {
+      const timeA = typeof a.datetime === 'string' ? parseISO(a.datetime) : new Date(a.datetime * 1000);
+      const timeB = typeof b.datetime === 'string' ? parseISO(b.datetime) : new Date(b.datetime * 1000);
+      return timeA - timeB;
+    });
 
     return slots.filter(slot => {
       // Используем длительность из слота или переданную
@@ -32,7 +40,48 @@ class SlotValidator {
         duration: duration / 60 + ' min'
       });
 
-      // Проверяем пересечение с существующими записями
+      // Проверка 1: Хватает ли времени до конца рабочего дня
+      if (workingHours && workingHours.end) {
+        const workEndTime = workingHours.end; // Формат "22:00"
+        const [endHour, endMinute] = workEndTime.split(':').map(Number);
+        const workEndDate = new Date(slotStart);
+        workEndDate.setHours(endHour, endMinute, 0, 0);
+        
+        if (isAfter(slotEnd, workEndDate)) {
+          logger.warn(`Slot ${slot.time} extends beyond working hours:`, {
+            slotEnd: format(slotEnd, 'HH:mm'),
+            workEnd: workEndTime
+          });
+          return false;
+        }
+      }
+
+      // Проверка 2: Достаточно ли времени до следующей записи
+      for (const booking of sortedBookings) {
+        const bookingStart = typeof booking.datetime === 'string'
+          ? parseISO(booking.datetime)
+          : new Date(booking.datetime * 1000);
+        
+        // Если запись начинается после нашего слота
+        if (isAfter(bookingStart, slotStart)) {
+          // Проверяем, достаточно ли времени между началом слота и началом следующей записи
+          const availableTime = Math.floor((bookingStart - slotStart) / 1000); // в секундах
+          
+          if (availableTime < duration) {
+            logger.warn(`Slot ${slot.time} has insufficient time before next booking:`, {
+              slotTime: format(slotStart, 'HH:mm'),
+              nextBookingTime: format(bookingStart, 'HH:mm'),
+              availableMinutes: availableTime / 60,
+              requiredMinutes: duration / 60
+            });
+            return false;
+          }
+          // Нашли первую запись после слота, дальше проверять не нужно
+          break;
+        }
+      }
+
+      // Проверка 3: Пересечение с существующими записями (оригинальная логика)
       for (const booking of existingBookings) {
         const bookingStart = typeof booking.datetime === 'string'
           ? parseISO(booking.datetime)
@@ -61,9 +110,6 @@ class SlotValidator {
           return false;
         }
       }
-
-      // Дополнительная проверка: достаточно ли времени до конца рабочего дня
-      // (можно добавить проверку расписания мастера)
 
       logger.debug(`Slot ${slot.time} is valid`);
       return true;
@@ -121,7 +167,7 @@ class SlotValidator {
   /**
    * Валидирует и фильтрует слоты с учетом реальной доступности
    */
-  async validateSlotsWithBookings(slots, yclientsClient, companyId, staffId, date) {
+  async validateSlotsWithBookings(slots, yclientsClient, companyId, staffId, date, serviceDuration = null, workingHours = null) {
     // Получаем существующие записи
     const existingBookings = await this.getStaffBookings(
       yclientsClient, 
@@ -130,8 +176,8 @@ class SlotValidator {
       date
     );
 
-    // Валидируем слоты
-    const validSlots = this.validateSlots(slots, existingBookings);
+    // Валидируем слоты с учетом длительности услуги и рабочих часов
+    const validSlots = this.validateSlots(slots, existingBookings, serviceDuration, workingHours);
 
     logger.info(`Validation result: ${validSlots.length}/${slots.length} slots are actually available`);
 

@@ -114,7 +114,7 @@ class BookingService {
     }
   }
 
-  async getAvailableSlots(staffId, date, serviceId, companyId = config.yclients.companyId, validateSlots = false) {
+  async getAvailableSlots(staffId, date, serviceId, companyId = config.yclients.companyId, validateSlots = false, serviceDuration = null) {
     try {
       // Слоты всегда получаем из YClients (они динамические)
       const result = await this.getYclientsClient().getAvailableSlots(staffId, date, { service_id: serviceId }, companyId);
@@ -127,13 +127,19 @@ class BookingService {
         if (slots.length > 0) {
           logger.info(`Validating ${slots.length} slots for staff ${staffId} on ${date}`);
           
-          // Валидируем слоты с учетом существующих записей
+          // Получаем информацию о рабочих часах компании (упрощенно используем стандартные)
+          // TODO: Получить из базы данных или API реальные рабочие часы
+          const workingHours = { start: '09:00', end: '22:00' };
+          
+          // Валидируем слоты с учетом существующих записей, длительности услуги и рабочих часов
           const validSlots = await slotValidator.validateSlotsWithBookings(
             slots,
             this.getYclientsClient(),
             companyId,
             staffId,
-            date
+            date,
+            serviceDuration,
+            workingHours
           );
           
           // Возвращаем результат с валидированными слотами
@@ -180,6 +186,22 @@ class BookingService {
       
       logger.info(`🎯 Searching slots for service ${actualServiceId} on ${targetDate}`);
       
+      // Получаем информацию об услуге для определения её длительности
+      let serviceDuration = 3600; // По умолчанию 60 минут
+      try {
+        const serviceResult = await this.getServices({ service_id: actualServiceId }, companyId);
+        if (serviceResult.success && serviceResult.data && serviceResult.data.length > 0) {
+          const service = serviceResult.data.find(s => s.yclients_id === actualServiceId || s.id === actualServiceId);
+          if (service) {
+            // Получаем длительность из raw_data или основного поля
+            serviceDuration = service.raw_data?.duration || service.duration || service.seance_length || 3600;
+            logger.info(`📏 Service duration for ${actualServiceId}: ${serviceDuration / 60} minutes`);
+          }
+        }
+      } catch (error) {
+        logger.warn(`Failed to get service duration, using default: ${error.message}`);
+      }
+      
       // Если нет staffId, ищем слоты у всех мастеров
       if (!staffId) {
         logger.info(`👥 No specific staff requested, searching all available staff`);
@@ -210,7 +232,8 @@ class BookingService {
               targetDate,
               actualServiceId,
               companyId,
-              true // Включаем валидацию слотов
+              true, // Включаем валидацию слотов
+              serviceDuration // Передаем длительность услуги
             );
             
             if (staffSlots.success && staffSlots.data) {
@@ -288,7 +311,8 @@ class BookingService {
             targetDate,
             actualServiceId,
             companyId,
-            true // Включаем валидацию слотов
+            true, // Включаем валидацию слотов
+            serviceDuration // Передаем длительность услуги
           );
           
           if (!result.success) {
