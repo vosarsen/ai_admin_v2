@@ -60,12 +60,24 @@ class ReminderService {
       const bookingTime = new Date(booking.datetime);
       const now = new Date();
       
-      // Извлекаем данные из booking
+      // Загружаем склонения для мастера и услуг
+      const [staffData, servicesData, companyData] = await Promise.all([
+        this.getStaffWithDeclensions(booking.staff_id),
+        this.getServicesWithDeclensions(booking.service_ids),
+        this.getCompanyInfo(booking.company_id)
+      ]);
+      
+      // Извлекаем данные из booking с расширенной информацией
       const bookingData = {
         datetime: booking.datetime,
         service_name: booking.services?.join(', ') || 'услуга',
         staff_name: booking.staff_name || 'мастер',
-        record_id: booking.yclients_record_id
+        record_id: booking.yclients_record_id,
+        client_name: booking.client_name,
+        cost: booking.cost,
+        staff_declensions: staffData?.declensions,
+        service_declensions: servicesData?.[0]?.declensions, // Берем склонения первой услуги
+        address: companyData?.address || 'ул. Культуры 15/11'
       };
       
       // Напоминание за день в случайное время между 19:00 и 21:00
@@ -125,7 +137,9 @@ class ReminderService {
         service: booking.service_name || 'услуга',
         staff: booking.staff_name || 'мастер',
         price: booking.cost || 0,
-        address: 'ул. Культуры 15/11' // TODO: Получать из базы данных компании
+        address: booking.address || 'ул. Культуры 15/11',
+        staffDeclensions: booking.staff_declensions,
+        serviceDeclensions: booking.service_declensions
       };
       
       // Генерируем сообщение в зависимости от типа напоминания
@@ -196,6 +210,80 @@ class ReminderService {
       
     } catch (error) {
       logger.error('Error marking reminder as sent:', error);
+    }
+  }
+  
+  /**
+   * Получить информацию о мастере со склонениями
+   */
+  async getStaffWithDeclensions(staffId) {
+    if (!staffId) return null;
+    
+    try {
+      const { data, error } = await supabase
+        .from('staff')
+        .select('name, declensions')
+        .eq('id', staffId)
+        .single();
+        
+      if (error) {
+        logger.error('Failed to load staff declensions:', error);
+        return null;
+      }
+      
+      return data;
+    } catch (error) {
+      logger.error('Error loading staff declensions:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Получить информацию об услугах со склонениями
+   */
+  async getServicesWithDeclensions(serviceIds) {
+    if (!serviceIds || serviceIds.length === 0) return null;
+    
+    try {
+      const { data, error } = await supabase
+        .from('services')
+        .select('title, declensions')
+        .in('id', serviceIds);
+        
+      if (error) {
+        logger.error('Failed to load services declensions:', error);
+        return null;
+      }
+      
+      return data;
+    } catch (error) {
+      logger.error('Error loading services declensions:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Получить информацию о компании
+   */
+  async getCompanyInfo(companyId) {
+    if (!companyId) return null;
+    
+    try {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('title, address, phone')
+        .eq('id', companyId)
+        .single();
+        
+      if (error) {
+        logger.error('Failed to load company info:', error);
+        return null;
+      }
+      
+      return data;
+    } catch (error) {
+      logger.error('Error loading company info:', error);
+      return null;
     }
   }
 }
