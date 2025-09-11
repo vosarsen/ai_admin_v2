@@ -287,11 +287,33 @@ class AIAdminV2 {
         logger.info('📝 Detected time selection question in response');
       }
       
-      // Отслеживаем показ слотов
+      // Отслеживаем показ слотов и сохраняем предложенные слоты
       if (result.executedCommands && result.executedCommands.some(cmd => 
         cmd.command === 'SEARCH_SLOTS' && cmd.success
       )) {
         contextUpdates.shownSlotsAt = new Date().toISOString();
+        
+        // Извлекаем и сохраняем предложенные слоты
+        const searchSlotsCommand = result.executedCommands.find(cmd => 
+          cmd.command === 'SEARCH_SLOTS' && cmd.success
+        );
+        
+        if (searchSlotsCommand && searchSlotsCommand.result && searchSlotsCommand.result.data) {
+          // Извлекаем время из ответа бота (это более надежно, чем брать все слоты)
+          const timePattern = /(\d{1,2}:\d{2})/g;
+          const mentionedTimes = result.response ? result.response.match(timePattern) : [];
+          
+          if (mentionedTimes && mentionedTimes.length > 0) {
+            contextUpdates.proposedSlots = mentionedTimes.map(time => ({
+              time,
+              date: contextUpdates.lastDate || searchSlotsCommand.params?.date || 'сегодня',
+              staff: searchSlotsCommand.params?.staff_name || contextUpdates.selection?.staff,
+              service: searchSlotsCommand.params?.service_name || contextUpdates.selection?.service
+            }));
+            logger.info('📝 Saved proposed slots:', contextUpdates.proposedSlots);
+          }
+        }
+        
         logger.info('📝 Marked slots shown at', contextUpdates.shownSlotsAt);
       }
       
@@ -302,6 +324,7 @@ class AIAdminV2 {
         contextUpdates.askedForTimeSelection = false;
         contextUpdates.askedForTimeAt = null;
         contextUpdates.shownSlotsAt = null;
+        contextUpdates.proposedSlots = null; // Очищаем предложенные слоты
         logger.info('📝 Reset question flags after successful booking');
       }
       

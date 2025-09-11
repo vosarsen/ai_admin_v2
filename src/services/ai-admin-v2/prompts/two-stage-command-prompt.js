@@ -46,7 +46,9 @@ module.exports = {
       lastStaff: currentSelection.staff || parsedRedisData.lastStaff || parsedRedisData.selectedStaff,
       lastDate: currentSelection.date || parsedRedisData.lastDate || parsedRedisData.selectedDate,
       lastCommand: currentSelection.lastCommand || parsedRedisData.lastCommand || redisContext?.selection?.lastCommand,
-      previousUserMessage: parsedRedisData.userMessage || redisContext?.userMessage || ''
+      previousUserMessage: parsedRedisData.userMessage || redisContext?.userMessage || '',
+      // Добавляем предложенные слоты
+      proposedSlots: redisContext?.proposedSlots || parsedRedisData.proposedSlots || null
     };
     
     console.log('📝 Previous context for Stage 1:', previousContext);
@@ -63,8 +65,13 @@ module.exports = {
 - Клиент: ${client?.name || 'неизвестен'} (${phone})
 - Доступные услуги: ${servicesList}
 - Мастера: ${staffList}
+${previousContext.proposedSlots && previousContext.proposedSlots.length > 0 ? `
+🔴 ВАЖНО! Клиенту были предложены следующие слоты:
+${previousContext.proposedSlots.map(slot => `  - ${slot.time} (${slot.date}, ${slot.staff}, ${slot.service})`).join('\n')}
+Если клиент соглашается (говорит "да", "давай", "подходит" и т.п.), используй ОДИН ИЗ ЭТИХ слотов, а НЕ lastTime!
+` : ''}
 ${previousContext.lastService ? `- Ранее выбрана услуга: ${previousContext.lastService}` : ''}
-${previousContext.lastTime ? `- Ранее выбрано время: ${previousContext.lastTime}` : ''}
+${previousContext.lastTime ? `- Ранее выбрано время: ${previousContext.lastTime} (НЕ используй, если есть proposedSlots!)` : ''}
 ${previousContext.lastStaff ? `- Ранее выбран мастер: ${previousContext.lastStaff}` : ''}
 ${previousContext.lastDate ? `- Ранее выбрана дата: ${previousContext.lastDate}` : ''}
 ${previousContext.lastCommand ? `- Последняя команда: ${previousContext.lastCommand}` : ''}
@@ -238,7 +245,24 @@ ${client?.favorite_staff_ids?.length ? `- Любимые мастера клие
   ]
 }
 
-Пример 5: Клиент продолжает диалог
+Пример 5: Клиент соглашается с предложенным временем
+Контекст: proposedSlots=[{time: "21:00", date: "сегодня", staff: "Бари", service: "стрижка"}]
+Сообщение: "давай, да"
+{
+  "commands": [
+    {
+      "name": "CREATE_BOOKING",
+      "params": {
+        "service_name": "стрижка",
+        "date": "сегодня",
+        "time": "21:00",
+        "staff_name": "Бари"
+      }
+    }
+  ]
+}
+
+Пример 6: Клиент продолжает диалог БЕЗ предложенных слотов
 Контекст: lastService="стрижка", lastDate="завтра"
 Сообщение: "давайте в 15:00"
 {

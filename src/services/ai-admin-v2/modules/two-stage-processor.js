@@ -112,7 +112,9 @@ class TwoStageProcessor {
         // Передаем флаги вопросов
         askedForTimeSelection: context.redisContext?.askedForTimeSelection || false,
         askedForTimeAt: context.redisContext?.askedForTimeAt || null,
-        shownSlotsAt: context.redisContext?.shownSlotsAt || null
+        shownSlotsAt: context.redisContext?.shownSlotsAt || null,
+        // Передаем предложенные слоты
+        proposedSlots: context.redisContext?.proposedSlots || null
       });
       
       // Вызываем AI для генерации ответа
