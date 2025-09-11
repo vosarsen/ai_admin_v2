@@ -210,19 +210,42 @@ app.post('/api/whatsapp/reaction', rateLimiter, async (req, res) => {
   }
   
   try {
-    const { getBaileysProvider } = require('../integrations/whatsapp/providers/baileys-provider');
-    const provider = getBaileysProvider();
+    const { getSessionPool } = require('../integrations/whatsapp/session-pool-improved');
+    const sessionPool = getSessionPool();
     
-    // Проверяем, есть ли активная сессия для компании
-    if (!provider.sessions.has(companyId)) {
+    // Проверяем статус сессии
+    const status = sessionPool.getSessionStatus(companyId);
+    if (!status || !status.connected) {
       return res.status(404).json({
         success: false,
         error: `No active WhatsApp session for company ${companyId}`
       });
     }
     
-    // Отправляем реакцию через Baileys
-    await provider.sendReaction(companyId, to, messageId, emoji);
+    // Получаем сессию из пула
+    const session = sessionPool.sessions.get(companyId);
+    if (!session || !session.sock) {
+      return res.status(500).json({
+        success: false,
+        error: `Session not properly initialized for company ${companyId}`
+      });
+    }
+    
+    // Отправляем реакцию через Baileys socket
+    const reactionMessage = {
+      react: {
+        text: emoji,
+        key: {
+          remoteJid: to.includes('@') ? to : `${to}@s.whatsapp.net`,
+          id: messageId
+        }
+      }
+    };
+    
+    await session.sock.sendMessage(
+      to.includes('@') ? to : `${to}@s.whatsapp.net`,
+      reactionMessage
+    );
     
     logger.info(`✅ Reaction ${emoji} sent to ${to} via API`);
     res.json({ success: true });
