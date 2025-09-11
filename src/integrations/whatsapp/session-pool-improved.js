@@ -354,6 +354,44 @@ class WhatsAppSessionPool extends EventEmitter {
     }
 
     /**
+     * Send reaction to a message
+     */
+    async sendReaction(companyId, phone, emoji, messageId) {
+        const validatedId = this.validateCompanyId(companyId);
+        
+        // Get or create session (same as sendMessage)
+        const sock = await this.getOrCreateSession(validatedId);
+        
+        if (!sock || !sock.user) {
+            throw new Error(`No active session for company ${validatedId}`);
+        }
+
+        const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
+        
+        try {
+            const reactionMessage = {
+                react: {
+                    text: emoji,
+                    key: {
+                        remoteJid: jid,
+                        fromMe: false,
+                        id: messageId
+                    }
+                }
+            };
+            
+            const result = await sock.sendMessage(jid, reactionMessage);
+            
+            logger.info(`✅ Reaction ${emoji} sent for company ${validatedId} to ${phone}`);
+            
+            return result;
+        } catch (error) {
+            logger.error(`Failed to send reaction for company ${validatedId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
      * Gets session status with health info
      */
     getSessionStatus(companyId) {

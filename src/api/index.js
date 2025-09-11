@@ -215,45 +215,8 @@ app.post('/api/whatsapp/reaction', rateLimiter, async (req, res) => {
     const { getSessionPool } = require('../integrations/whatsapp/session-pool-improved');
     const sessionPool = getSessionPool();
     
-    // Проверяем статус сессии
-    const status = sessionPool.getSessionStatus(companyId);
-    logger.info(`🔵 Session status for company ${companyId}:`, status);
-    
-    if (!status || !status.connected) {
-      return res.status(404).json({
-        success: false,
-        error: `No active WhatsApp session for company ${companyId}`
-      });
-    }
-    
-    // Получаем сессию из пула
-    const session = sessionPool.sessions.get(companyId);
-    if (!session || !session.sock) {
-      logger.error(`🔴 Session not found in pool for company ${companyId}`);
-      return res.status(500).json({
-        success: false,
-        error: `Session not properly initialized for company ${companyId}`
-      });
-    }
-    
-    // Форматируем JID
-    const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
-    logger.info(`🔵 Sending reaction to JID: ${jid}, messageId: ${messageId}, emoji: ${emoji}`);
-    
-    // Отправляем реакцию через Baileys socket
-    const reactionMessage = {
-      react: {
-        text: emoji,
-        key: {
-          remoteJid: jid,
-          id: messageId,
-          fromMe: false, // Добавим это поле, так как реагируем на чужое сообщение
-          participant: undefined // Для личных чатов не нужен participant
-        }
-      }
-    };
-    
-    await session.sock.sendMessage(jid, reactionMessage);
+    // Use the new sendReaction method that handles session creation automatically
+    const result = await sessionPool.sendReaction(companyId, to, emoji, messageId);
     
     logger.info(`✅ Reaction ${emoji} sent to ${to} via API`);
     res.json({ success: true });
