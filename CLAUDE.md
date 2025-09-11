@@ -636,6 +636,34 @@ node check-client-stats.js
 2. Check logs for errors
 3. If error - fix locally, commit, push, pull on server, restart worker
 
+### PM2 Process Monitoring
+Monitor the health and stability of PM2 processes:
+
+```bash
+# Check process status and restart counts
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 status"
+
+# Reset restart counters (useful after fixing issues)
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 reset all"        # Reset all processes
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 reset ai-admin-worker-v2"  # Reset specific process
+
+# View logs for specific process
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 logs ai-admin-worker-v2 --lines 50"
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 logs ai-admin-booking-monitor --lines 50"
+
+# Real-time monitoring
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 monit"
+
+# Check for errors in logs
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 logs --err --lines 100"
+```
+
+**Important Notes:**
+- High restart counts may be historical - use `pm2 reset` to establish baseline
+- Some processes self-recover from errors (e.g., booking-monitor)
+- Monitor after deployments to catch issues early
+- Check `pm2 status` periodically for stability tracking
+
 ## Development Guidelines
 
 ## No Hardcoding Policy
