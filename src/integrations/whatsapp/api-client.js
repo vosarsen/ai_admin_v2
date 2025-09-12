@@ -43,9 +43,8 @@ class WhatsAppAPIClient {
       logger.info(`📤 Sending message via API to ${phone} for company ${companyId}`);
       
       const response = await axios.post(
-        `${this.apiUrl}/webhook/whatsapp/baileys/send`,
+        `${this.apiUrl}/api/whatsapp/sessions/${companyId}/send`,
         {
-          companyId,
           phone,
           message
         },
