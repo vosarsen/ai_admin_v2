@@ -86,13 +86,15 @@ class BaileysManager extends EventEmitter {
       // Ждем QR-код
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
+          sock.ev.off('connection.update', qrHandler);
           reject(new Error('Timeout waiting for QR code'));
         }, 30000); // 30 секунд таймаут
 
         const qrHandler = async (update) => {
           if (update.qr) {
             clearTimeout(timeout);
-            
+            sock.ev.off('connection.update', qrHandler); // Удаляем listener
+
             // Генерируем QR-код как base64 изображение
             const qrDataURL = await QRCode.toDataURL(update.qr, {
               width: 300,
@@ -115,7 +117,7 @@ class BaileysManager extends EventEmitter {
           }
         };
 
-        sock.ev.once('connection.update', qrHandler);
+        sock.ev.on('connection.update', qrHandler); // Используем on вместо once
       });
 
     } catch (error) {
@@ -170,7 +172,16 @@ class BaileysManager extends EventEmitter {
           logger.info(`🔄 Попытка переподключения для компании ${companyId}`);
           setTimeout(() => this.createNewSession(companyId), 5000);
         } else {
-          // Пользователь вышел из системы
+          // Пользователь вышел из системы - очищаем сессию
+          const sessionToRemove = this.sessions.get(companyId);
+          if (sessionToRemove) {
+            // Очищаем все listeners
+            sessionToRemove.sock.ev.removeAllListeners();
+            // Закрываем socket если открыт
+            if (sessionToRemove.sock.ws && sessionToRemove.sock.ws.readyState === 1) {
+              sessionToRemove.sock.ws.close();
+            }
+          }
           this.sessions.delete(companyId);
           this.emit(`logged-out-${companyId}`);
         }
@@ -310,19 +321,34 @@ class BaileysManager extends EventEmitter {
    */
   async disconnectSession(companyId) {
     const session = this.sessions.get(companyId);
-    
+
     if (!session) {
       return false;
     }
 
     try {
-      await session.sock.logout();
+      // Очищаем все listeners
+      session.sock.ev.removeAllListeners();
+
+      // Пытаемся выйти из системы
+      if (session.sock.logout) {
+        await session.sock.logout();
+      }
+
+      // Закрываем WebSocket если открыт
+      if (session.sock.ws && session.sock.ws.readyState === 1) {
+        session.sock.ws.close();
+      }
+
+      // Удаляем сессию из Map
       this.sessions.delete(companyId);
-      
+
       logger.info(`🔌 Сессия отключена для компании ${companyId}`);
       return true;
     } catch (error) {
       logger.error('Ошибка отключения сессии:', error);
+      // Все равно удаляем сессию
+      this.sessions.delete(companyId);
       return false;
     }
   }
