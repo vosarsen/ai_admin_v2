@@ -36,7 +36,7 @@ class MarketplaceService {
       const { data: existingCompany, error: fetchError } = await this.supabase
         .from('companies')
         .select('*')
-        .eq('yclients_salon_id', salonId)
+        .eq('yclients_id', parseInt(salonId))
         .single();
 
       if (existingCompany && !fetchError) {
@@ -52,19 +52,17 @@ class MarketplaceService {
 
       // Создаем новую компанию
       const newCompany = {
-        yclients_salon_id: salonId,
-        name: salonInfo.title || `Салон ${salonId}`,
+        yclients_id: parseInt(salonId),
+        company_id: parseInt(salonId),
+        title: salonInfo.title || `Салон ${salonId}`,
         phone: salonInfo.phone || '',
         email: salonInfo.email || '',
         address: salonInfo.address || '',
-        city: salonInfo.city || '',
-        api_key: this.generateAPIKey(),
-        whatsapp_connected: false,
-        settings: {
-          business_type: this.detectBusinessType(salonInfo),
-          timezone: salonInfo.timezone || 'Europe/Moscow',
-          working_hours: salonInfo.schedule || {}
-        },
+        timezone: salonInfo.timezone || 'Europe/Moscow',
+        whatsapp_enabled: false,
+        ai_enabled: true,
+        sync_enabled: true,
+        raw_data: salonInfo,
         created_at: new Date().toISOString()
       };
 
