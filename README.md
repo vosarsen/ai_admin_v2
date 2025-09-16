@@ -49,6 +49,35 @@ The v2 architecture includes a sophisticated context management system that main
 
 [Learn more about context system →](docs/CONTEXT_SYSTEM.md)
 
+## 🛍️ YClients Marketplace Integration
+
+AI Admin v2 now features full integration with YClients Marketplace, allowing beauty salons to seamlessly connect their WhatsApp bot:
+
+### ✨ Marketplace Features
+
+- **🚀 Quick Setup**: One-click installation from YClients marketplace
+- **📱 QR Code Connection**: Simple WhatsApp connection via web interface
+- **🔄 Auto-Sync**: Automatic synchronization of services, staff, and bookings
+- **🔐 Secure**: JWT authentication, rate limiting, validated data
+- **📊 Real-time**: WebSocket updates for instant feedback
+- **🌐 Multi-tenant**: Supports unlimited salons simultaneously
+
+### 📚 Marketplace Documentation
+
+- [**Full Implementation Guide**](docs/MARKETPLACE_IMPLEMENTATION.md) - Complete technical documentation
+- [**Security Guide**](docs/MARKETPLACE_SECURITY.md) - Security best practices and configurations
+- [**API Reference**](docs/MARKETPLACE_IMPLEMENTATION.md#api-reference) - All marketplace endpoints
+- [**Integration Guide for YClients**](docs/YCLIENTS_INTEGRATION_GUIDE.md) - For YClients developers
+
+### 🔗 Quick Connect
+
+Salons can connect their WhatsApp in 3 simple steps:
+1. Install AI Admin from YClients marketplace
+2. Scan QR code with WhatsApp
+3. Start receiving bookings automatically!
+
+**Production URL**: https://ai-admin.app/marketplace/connect
+
 ## 📁 Project Structure
 
 ```
