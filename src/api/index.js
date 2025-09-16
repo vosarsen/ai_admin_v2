@@ -20,6 +20,11 @@ const { setupSwagger } = require('./swagger');
 
 const app = express();
 
+// View engine setup
+app.set('views', __dirname + '/views');
+app.set('view engine', 'ejs');
+app.engine('html', require('ejs').renderFile);
+
 // Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -62,6 +67,10 @@ app.use('/api/ai', aiManagementRoutes);
 // WhatsApp session management routes (NEW ARCHITECTURE)
 const whatsappSessionsRoutes = require('./routes/whatsapp-sessions-improved');
 app.use('/api/whatsapp', whatsappSessionsRoutes);
+
+// Marketplace integration routes
+const marketplaceRoutes = require('./routes/marketplace');
+app.use('/marketplace', marketplaceRoutes);
 
 // Health check (with relaxed rate limit)
 app.get('/health', rateLimiter, async (req, res) => {
