@@ -4,7 +4,7 @@
 const { supabase } = require('../../database/supabase');
 const { createRedisClient } = require('../../utils/redis-factory');
 const logger = require('../../utils/logger');
-const { YclientsClient } = require('../../integrations/yclients/client');
+const YclientsClient = require('../../integrations/yclients/client');
 const BaileysManager = require('../../integrations/whatsapp/baileys-manager');
 const crypto = require('crypto');
 const axios = require('axios');
