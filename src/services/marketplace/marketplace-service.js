@@ -2,7 +2,7 @@
 // Сервис для работы с маркетплейсом YClients и управления подключениями
 
 const { supabase } = require('../../database/supabase');
-const { getRedisClient } = require('../../utils/redis-factory');
+const { createRedisClient } = require('../../utils/redis-factory');
 const logger = require('../../utils/logger');
 const YClientsAPI = require('../../integrations/yclients/client');
 const BaileysManager = require('../../integrations/whatsapp/baileys-manager');
@@ -12,9 +12,19 @@ const axios = require('axios');
 class MarketplaceService {
   constructor() {
     this.supabase = supabase;
-    this.redis = getRedisClient();
+    this.redis = null; // Will be initialized in init()
     this.yclients = new YClientsAPI();
     this.baileysManager = new BaileysManager();
+    this.isInitialized = false;
+  }
+
+  async init() {
+    if (!this.isInitialized) {
+      this.redis = createRedisClient('marketplace');
+      await this.redis.connect();
+      this.isInitialized = true;
+      logger.info('MarketplaceService initialized with Redis connection');
+    }
   }
 
   /**
@@ -153,6 +163,7 @@ class MarketplaceService {
    * Сохраняет токен в Redis
    */
   async saveToken(token, companyId) {
+    await this.init(); // Ensure Redis is connected
     const key = `marketplace:token:${token}`;
     await this.redis.setex(key, 86400, companyId.toString()); // 24 часа
     
@@ -165,6 +176,7 @@ class MarketplaceService {
    * Проверяет валидность токена
    */
   async validateToken(token, companyId) {
+    await this.init(); // Ensure Redis is connected
     const key = `marketplace:token:${token}`;
     const storedCompanyId = await this.redis.get(key);
     return storedCompanyId === companyId.toString();
@@ -175,9 +187,11 @@ class MarketplaceService {
    */
   async generateQR(companyId) {
     try {
+      await this.init(); // Ensure Redis is connected
+
       // Используем Baileys для генерации QR
       const qrData = await this.baileysManager.generateQRForCompany(companyId);
-      
+
       // Сохраняем информацию о текущей сессии
       await this.redis.setex(
         `marketplace:qr:${companyId}`,

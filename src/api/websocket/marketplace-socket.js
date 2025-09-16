@@ -159,7 +159,6 @@ class MarketplaceSocket {
 
       // Обновляем статус в БД
       const { supabase } = require('../../database/supabase');
-      const supabase = supabase;
 
       await supabase
         .from('companies')
