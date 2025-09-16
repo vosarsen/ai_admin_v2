@@ -168,8 +168,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# Legacy files
-legacy/
 
 # MCP logs and local data
 mcp/*/node_modules/
@@ -191,3 +189,19 @@ scripts/deployment/start-local.sh
 
 # Kultura analytics (local only)
 kultura-analytics/
+
+# Archive directories
+archive/logs/
+archive/old-tests/
+archive/old-scripts/
+archive/legacy-code/
+
+# Session files
+sessions/
+*.session
+*.auth
+
+# Sync and log files
+sync-log.txt
+*.sync.log
+*-sync.log
