@@ -69,8 +69,8 @@ const whatsappSessionsRoutes = require('./routes/whatsapp-sessions-improved');
 app.use('/api/whatsapp', whatsappSessionsRoutes);
 
 // Marketplace integration routes
-// const marketplaceRoutes = require('./routes/marketplace');
-// app.use('/marketplace', marketplaceRoutes);
+const marketplaceRoutes = require('./routes/marketplace');
+app.use('/marketplace', marketplaceRoutes);
 
 // Health check (with relaxed rate limit)
 app.get('/health', rateLimiter, async (req, res) => {
