@@ -10,6 +10,19 @@ const { validateApiKey } = require('../../middlewares/webhook-auth');
 const marketplaceService = new MarketplaceService();
 
 /**
+ * GET /marketplace
+ * Главная страница интеграции YClients
+ */
+router.get('/', (req, res) => {
+  try {
+    res.sendFile(path.join(__dirname, '../../../public/marketplace/index.html'));
+  } catch (error) {
+    logger.error('Ошибка отправки страницы интеграции:', error);
+    res.status(500).send('Ошибка загрузки страницы');
+  }
+});
+
+/**
  * GET /marketplace/connect
  * Страница подключения WhatsApp для маркетплейса
  */
