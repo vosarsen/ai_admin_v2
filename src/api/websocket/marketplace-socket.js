@@ -158,8 +158,8 @@ class MarketplaceSocket {
       });
 
       // Обновляем статус в БД
-      const { createClient } = require('../../database/supabase');
-      const supabase = createClient();
+      const { supabase } = require('../../database/supabase');
+      const supabase = supabase;
 
       await supabase
         .from('companies')
@@ -172,8 +172,8 @@ class MarketplaceSocket {
         .eq('id', companyId);
 
       // Запускаем синхронизацию данных из YClients
-      const SyncManager = require('../../sync/sync-manager');
-      const syncManager = SyncManager.getSyncManager();
+      const { getSyncManager } = require('../../sync/sync-manager');
+      const syncManager = getSyncManager();
 
       await syncManager.syncCompanyData(companyId);
 
