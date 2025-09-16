@@ -8,6 +8,7 @@ const { YclientsClient } = require('../../integrations/yclients/client');
 const BaileysManager = require('../../integrations/whatsapp/baileys-manager');
 const crypto = require('crypto');
 const axios = require('axios');
+const { validateId, sanitizeCompanyData, normalizePhone, validateEmail } = require('../../utils/validators');
 
 class MarketplaceService {
   constructor() {
@@ -32,29 +33,35 @@ class MarketplaceService {
    */
   async createOrGetCompany(salonId) {
     try {
-      // Сначала проверяем, есть ли уже такая компания
+      // Валидация ID салона
+      const validSalonId = validateId(salonId);
+      if (!validSalonId) {
+        throw new Error(`Некорректный salon_id: ${salonId}`);
+      }
+
+      // Сначала проверяем, есть ли уже такая компания (используем параметризованный запрос)
       const { data: existingCompany, error: fetchError } = await this.supabase
         .from('companies')
         .select('*')
-        .eq('yclients_id', parseInt(salonId))
+        .eq('yclients_id', validSalonId)
         .single();
 
       if (existingCompany && !fetchError) {
-        logger.info(`Компания уже существует`, { 
+        logger.info(`Компания уже существует`, {
           company_id: existingCompany.id,
-          salon_id: salonId 
+          salon_id: validSalonId
         });
         return existingCompany;
       }
 
       // Получаем информацию о салоне из YClients
-      const salonInfo = await this.fetchSalonInfo(salonId);
+      const salonInfo = await this.fetchSalonInfo(validSalonId);
 
-      // Создаем новую компанию
-      const newCompany = {
-        yclients_id: parseInt(salonId),
-        company_id: parseInt(salonId),
-        title: salonInfo.title || `Салон ${salonId}`,
+      // Подготавливаем и валидируем данные компании
+      const companyData = {
+        yclients_id: validSalonId,
+        company_id: validSalonId,
+        title: salonInfo.title || `Салон ${validSalonId}`,
         phone: salonInfo.phone || '',
         email: salonInfo.email || '',
         address: salonInfo.address || '',
@@ -66,9 +73,12 @@ class MarketplaceService {
         created_at: new Date().toISOString()
       };
 
+      // Санитизируем данные перед вставкой
+      const sanitizedData = sanitizeCompanyData(companyData);
+
       const { data: createdCompany, error: createError } = await this.supabase
         .from('companies')
-        .insert([newCompany])
+        .insert([sanitizedData])
         .select()
         .single();
 
@@ -79,7 +89,7 @@ class MarketplaceService {
 
       logger.info(`✅ Новая компания создана`, {
         company_id: createdCompany.id,
-        name: createdCompany.name
+        title: createdCompany.title
       });
 
       return createdCompany;
@@ -284,19 +294,26 @@ class MarketplaceService {
    * Обновляет статус WhatsApp подключения
    */
   async updateWhatsAppStatus(companyId, connected, phoneNumber = null) {
+    // Валидация company ID
+    const validCompanyId = validateId(companyId);
+    if (!validCompanyId) {
+      throw new Error(`Некорректный company_id: ${companyId}`);
+    }
+
     const updateData = {
-      whatsapp_connected: connected,
+      whatsapp_connected: Boolean(connected),
       whatsapp_connected_at: connected ? new Date().toISOString() : null
     };
 
+    // Если передан номер телефона, нормализуем и добавляем
     if (phoneNumber) {
-      updateData.whatsapp_phone = phoneNumber;
+      updateData.whatsapp_phone = normalizePhone(phoneNumber);
     }
 
     const { error } = await this.supabase
       .from('companies')
       .update(updateData)
-      .eq('id', companyId);
+      .eq('id', validCompanyId);
 
     if (error) {
       logger.error('Ошибка обновления статуса WhatsApp:', error);
@@ -304,7 +321,7 @@ class MarketplaceService {
     }
 
     logger.info(`✅ Статус WhatsApp обновлен`, {
-      company_id: companyId,
+      company_id: validCompanyId,
       connected,
       phone: phoneNumber
     });
