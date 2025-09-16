@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Подключение AI Admin - WhatsApp бот для салона</title>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+      max-width: 480px;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .header p {
+      font-size: 16px;
+      opacity: 0.9;
+    }
+
+    .company-info {
+      background: #f8f9fa;
+      padding: 20px 30px;
+      border-bottom: 1px solid #e9ecef;
+    }
+
+    .company-info h2 {
+      font-size: 20px;
+      color: #333;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .company-info p {
+      color: #6c757d;
+      font-size: 14px;
+      margin: 5px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .main-content {
+      padding: 30px;
+    }
+
+    .qr-section {
+      text-align: center;
+    }
+
+    .qr-section h3 {
+      font-size: 20px;
+      color: #333;
+      margin-bottom: 20px;
+      font-weight: 600;
+    }
+
+    .qr-container {
+      background: white;
+      border: 3px solid #e9ecef;
+      border-radius: 20px;
+      padding: 20px;
+      display: inline-block;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .qr-container.scanning {
+      border-color: #667eea;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.4); }
+      70% { box-shadow: 0 0 0 15px rgba(102, 126, 234, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0); }
+    }
+
+    #qr-canvas {
+      display: block;
+    }
+
+    .qr-placeholder {
+      width: 280px;
+      height: 280px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #adb5bd;
+    }
+
+    .spinner {
+      width: 60px;
+      height: 60px;
+      border: 4px solid #f3f4f6;
+      border-top-color: #667eea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .status {
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-weight: 500;
+      font-size: 14px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .status.waiting {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .status.connected {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .timer {
+      color: #6b7280;
+      font-size: 13px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .instructions {
+      background: #f8f9fa;
+      border-radius: 16px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+
+    .instructions h4 {
+      font-size: 16px;
+      color: #333;
+      margin-bottom: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .instructions ol {
+      list-style: none;
+      counter-reset: step-counter;
+      padding: 0;
+    }
+
+    .instructions li {
+      counter-increment: step-counter;
+      position: relative;
+      padding-left: 40px;
+      margin-bottom: 12px;
+      color: #495057;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .instructions li::before {
+      content: counter(step-counter);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 28px;
+      height: 28px;
+      background: #667eea;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 12px;
+    }
+
+    .instructions li strong {
+      color: #333;
+      font-weight: 600;
+    }
+
+    .success-container {
+      text-align: center;
+      padding: 40px;
+      animation: fadeIn 0.5s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .success-icon {
+      width: 80px;
+      height: 80px;
+      background: #10b981;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 40px;
+    }
+
+    .success-title {
+      font-size: 24px;
+      color: #333;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+
+    .success-description {
+      color: #6b7280;
+      font-size: 16px;
+      margin-bottom: 20px;
+    }
+
+    .success-details {
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 15px;
+      margin: 20px 0;
+      text-align: left;
+    }
+
+    .success-details p {
+      color: #495057;
+      font-size: 14px;
+      margin: 8px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .redirect-message {
+      color: #6b7280;
+      font-size: 14px;
+      margin-top: 20px;
+    }
+
+    /* Адаптивность */
+    @media (max-width: 480px) {
+      .header h1 {
+        font-size: 24px;
+      }
+
+      .container {
+        border-radius: 0;
+        max-width: 100%;
+        margin: 0;
+      }
+
+      body {
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>
+        <span>🤖</span>
+        <span>AI Admin</span>
+      </h1>
+      <p>WhatsApp бот для вашего салона</p>
+    </div>
+
+    <div class="company-info">
+      <h2 id="company-name">Загрузка...</h2>
+      <p><span>📱</span> <span id="company-phone">—</span></p>
+      <p><span>📧</span> <span id="company-email">—</span></p>
+      <p><span>📍</span> <span id="company-address">—</span></p>
+    </div>
+
+    <div class="main-content" id="main-content">
+      <div class="qr-section">
+        <h3>Подключите WhatsApp</h3>
+        
+        <div class="qr-container" id="qr-container">
+          <canvas id="qr-canvas" style="display: none;"></canvas>
+          <div class="qr-placeholder" id="qr-placeholder">
+            <div class="spinner"></div>
+          </div>
+        </div>
+
+        <div class="status waiting" id="status">
+          <span>⏳</span>
+          <span>Генерация QR-кода...</span>
+        </div>
+
+        <div class="timer" id="timer" style="display: none;">
+          QR-код обновится через: <span id="countdown">20</span> сек
+        </div>
+      </div>
+
+      <div class="instructions">
+        <h4>
+          <span>📱</span>
+          <span>Как подключить:</span>
+        </h4>
+        <ol>
+          <li>Откройте <strong>WhatsApp</strong> на телефоне</li>
+          <li>Зайдите в <strong>Настройки</strong> (три точки справа сверху)</li>
+          <li>Выберите <strong>Связанные устройства</strong></li>
+          <li>Нажмите <strong>Привязать устройство</strong></li>
+          <li>Отсканируйте <strong>QR-код</strong> выше</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <!-- Форма для отправки callback в YClients (скрытая) -->
+  <form id="callback-form" method="POST" action="" style="display: none;">
+    <input type="hidden" name="salon_id" id="form-salon-id">
+    <input type="hidden" name="application_id" id="form-app-id">
+    <input type="hidden" name="api_key" id="form-api-key">
+    <input type="hidden" name="webhook_urls[]" id="form-webhook-url">
+  </form>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  
+  <script>
+    // Получаем данные из URL параметров
+    const urlParams = new URLSearchParams(window.location.search);
+    const config = {
+      token: urlParams.get('token'),
+      companyId: urlParams.get('company'),
+      salonId: urlParams.get('salon'),
+      companyName: 'Загружается...',
+      companyPhone: '',
+      companyEmail: '',
+      companyAddress: '',
+      applicationId: 'ai-admin-app',
+      wsUrl: 'wss://ai-admin.app'
+    };
+
+    let socket;
+    let countdownInterval;
+    let countdown = 20;
+    let isConnected = false;
+
+    // Функция показа ошибки
+    function showError(message) {
+      const qrContainer = document.getElementById('qr-container');
+      if (qrContainer) {
+        qrContainer.innerHTML = `
+          <div class="error">
+            <p style="color: red; font-weight: bold;">❌ ${message}</p>
+          </div>
+        `;
+      }
+      console.error(message);
+    }
+
+    // Функция для загрузки информации о компании
+    async function loadCompanyInfo() {
+      if (!config.token) {
+        showError('Отсутствует токен авторизации');
+        return;
+      }
+
+      try {
+        // Загружаем данные компании через API
+        const response = await fetch(`/api/companies/${config.companyId}`);
+        if (response.ok) {
+          const data = await response.json();
+          config.companyName = data.title || `Салон ${config.salonId}`;
+          config.companyPhone = data.phone || '';
+          config.companyEmail = data.email || '';
+          config.companyAddress = data.address || '';
+        }
+      } catch (error) {
+        console.error('Ошибка загрузки данных компании:', error);
+      }
+
+      // Заполняем информацию о компании
+      document.getElementById('company-name').textContent = config.companyName;
+      document.getElementById('company-phone').textContent = config.companyPhone || '—';
+      document.getElementById('company-email').textContent = config.companyEmail || '—';
+      document.getElementById('company-address').textContent = config.companyAddress || '—';
+    }
+
+    // Функция генерации QR-кода
+    async function generateQR() {
+      try {
+        const response = await fetch(`/marketplace/qr/${config.token}`);
+        const data = await response.json();
+
+        if (data.success && data.qr) {
+          // Показываем canvas и скрываем placeholder
+          document.getElementById('qr-placeholder').style.display = 'none';
+          const canvas = document.getElementById('qr-canvas');
+          canvas.style.display = 'block';
+
+          // Генерируем QR-код на canvas
+          await QRCode.toCanvas(canvas, data.qr, {
+            width: 280,
+            margin: 1,
+            color: {
+              dark: '#000000',
+              light: '#FFFFFF'
+            }
+          });
+
+          // Обновляем статус
+          updateStatus('waiting', '⏳', 'Ожидание сканирования...');
+          
+          // Показываем таймер
+          document.getElementById('timer').style.display = 'block';
+          
+          // Добавляем анимацию
+          document.getElementById('qr-container').classList.add('scanning');
+          
+          // Сбрасываем таймер
+          countdown = 20;
+        } else {
+          throw new Error(data.error || 'Не удалось получить QR-код');
+        }
+      } catch (error) {
+        console.error('Ошибка получения QR-кода:', error);
+        updateStatus('error', '❌', 'Ошибка генерации QR-кода');
+      }
+    }
+
+    // Функция обновления статуса
+    function updateStatus(type, icon, text) {
+      const statusEl = document.getElementById('status');
+      statusEl.className = `status ${type}`;
+      statusEl.innerHTML = `<span>${icon}</span><span>${text}</span>`;
+    }
+
+    // Функция обновления таймера
+    function updateTimer() {
+      countdown--;
+      document.getElementById('countdown').textContent = countdown;
+
+      if (countdown <= 0 && !isConnected) {
+        generateQR();
+        countdown = 20;
+      }
+    }
+
+    // Функция показа успешного подключения
+    function showSuccess(data) {
+      isConnected = true;
+      clearInterval(countdownInterval);
+
+      const mainContent = document.getElementById('main-content');
+      mainContent.innerHTML = `
+        <div class="success-container">
+          <div class="success-icon">✓</div>
+          <div class="success-title">WhatsApp подключен!</div>
+          <div class="success-description">
+            Ваш бот готов принимать сообщения от клиентов
+          </div>
+          <div class="success-details">
+            <p><span>📱</span> Номер: <strong>+${data.phone}</strong></p>
+            <p><span>👤</span> Имя: <strong>${data.name || 'AI Admin Bot'}</strong></p>
+            <p><span>🔗</span> Статус: <strong>Активен</strong></p>
+          </div>
+          <div class="redirect-message">
+            <div class="spinner"></div>
+            <p>Завершение настройки...</p>
+          </div>
+        </div>
+      `;
+
+      // Отправляем callback в YClients через 2 секунды
+      setTimeout(() => {
+        sendCallbackToYClients(data);
+      }, 2000);
+    }
+
+    // Функция отправки callback в YClients
+    function sendCallbackToYClients(data) {
+      // Заполняем форму
+      document.getElementById('form-salon-id').value = config.salonId;
+      document.getElementById('form-app-id').value = config.applicationId;
+      document.getElementById('form-api-key').value = data.api_key || '';
+      document.getElementById('form-webhook-url').value = data.webhook_url || '';
+
+      // Устанавливаем action формы
+      const form = document.getElementById('callback-form');
+      form.action = 'https://api.yclients.com/marketplace/partner/callback/redirect';
+      
+      // Отправляем форму
+      form.submit();
+    }
+
+    // Инициализация WebSocket
+    function initWebSocket() {
+      // Подключаемся к WebSocket
+      socket = io('/marketplace', {
+        query: {
+          token: config.token,
+          companyId: config.companyId
+        }
+      });
+
+      // Обработчик подключения
+      socket.on('connect', () => {
+        console.log('WebSocket подключен');
+      });
+
+      // Обработчик обновления QR-кода
+      socket.on('qr-update', (data) => {
+        if (!isConnected) {
+          generateQR();
+        }
+      });
+
+      // Обработчик успешного подключения WhatsApp
+      socket.on('whatsapp-connected', (data) => {
+        console.log('WhatsApp подключен!', data);
+        showSuccess(data);
+      });
+
+      // Обработчик ошибок
+      socket.on('error', (error) => {
+        console.error('Ошибка WebSocket:', error);
+        updateStatus('error', '❌', error.message || 'Ошибка подключения');
+      });
+
+      // Обработчик отключения
+      socket.on('disconnect', () => {
+        console.log('WebSocket отключен');
+      });
+    }
+
+    // Запуск при загрузке страницы
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Проверяем наличие обязательных параметров
+      if (!config.token || !config.companyId) {
+        showError('Отсутствуют обязательные параметры. Проверьте ссылку.');
+        return;
+      }
+
+      // Загружаем информацию о компании
+      await loadCompanyInfo();
+
+      // Генерируем первый QR-код
+      generateQR();
+
+      // Запускаем таймер
+      countdownInterval = setInterval(updateTimer, 1000);
+
+      // Инициализируем WebSocket
+      initWebSocket();
+    });
+  </script>
+</body>
+</html>

@@ -23,8 +23,9 @@ router.get('/register', async (req, res) => {
   
   if (!salon_id) {
     logger.error('Отсутствует salon_id в запросе');
-    return res.status(400).render('error', {
-      message: 'Ошибка: отсутствует идентификатор салона'
+    return res.status(400).json({
+      success: false,
+      error: 'Отсутствует идентификатор салона'
     });
   }
   
@@ -48,22 +49,31 @@ router.get('/register', async (req, res) => {
     
     logger.info(`✅ Компания создана/найдена`, {
       company_id: company.id,
-      name: company.name
+      name: company.title
     });
-    
-    // Рендерим страницу с QR-кодом
-    res.render('marketplace/connect', {
-      company,
-      salon_id,
-      whatsapp_token: whatsappToken,
-      application_id: process.env.YCLIENTS_APPLICATION_ID || 'test-app-id',
-      ws_url: process.env.WS_URL || 'ws://localhost:3000'
+
+    // Формируем URL для подключения WhatsApp
+    const baseUrl = process.env.BASE_URL || 'https://ai-admin.app';
+    const connectUrl = `${baseUrl}/marketplace/connect.html?token=${whatsappToken}&company=${company.id}&salon=${salon_id}`;
+
+    // Возвращаем JSON с данными для подключения
+    res.json({
+      success: true,
+      company: {
+        id: company.id,
+        title: company.title,
+        salon_id: salon_id
+      },
+      connectUrl: connectUrl,
+      token: whatsappToken,
+      wsUrl: process.env.WS_URL || 'wss://ai-admin.app'
     });
-    
+
   } catch (error) {
     logger.error('Ошибка при регистрации из маркетплейса:', error);
-    res.status(500).render('error', {
-      message: 'Произошла ошибка при регистрации. Попробуйте позже.'
+    res.status(500).json({
+      success: false,
+      error: 'Произошла ошибка при регистрации. Попробуйте позже.'
     });
   }
 });
