@@ -1,8 +1,8 @@
 // src/services/marketplace/marketplace-service.js
 // Сервис для работы с маркетплейсом YClients и управления подключениями
 
-const { createClient } = require('../../database/supabase');
-const redis = require('../../config/redis');
+const { supabase } = require('../../database/supabase');
+const { getRedisClient } = require('../../utils/redis-factory');
 const logger = require('../../utils/logger');
 const YClientsAPI = require('../../integrations/yclients/client');
 const BaileysManager = require('../../integrations/whatsapp/baileys-manager');
@@ -11,8 +11,8 @@ const axios = require('axios');
 
 class MarketplaceService {
   constructor() {
-    this.supabase = createClient();
-    this.redis = redis;
+    this.supabase = supabase;
+    this.redis = getRedisClient();
     this.yclients = new YClientsAPI();
     this.baileysManager = new BaileysManager();
   }
