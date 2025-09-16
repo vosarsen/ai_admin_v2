@@ -2,10 +2,10 @@
 
 **Production-ready WhatsApp AI Assistant for Beauty Salons**
 
-[![MVP Status](https://img.shields.io/badge/MVP-Production%20Ready-green)](https://github.com/your-repo/ai_admin_v2)
-[![Architecture](https://img.shields.io/badge/Architecture-AI--First-blue)](https://github.com/your-repo/ai_admin_v2)
-[![Performance](https://img.shields.io/badge/Performance-Optimized-brightgreen)](https://github.com/your-repo/ai_admin_v2)
-[![Pilot](https://img.shields.io/badge/Pilot-Live%20Since%2025.07.2025-success)](https://github.com/your-repo/ai_admin_v2)
+[![MVP Status](https://img.shields.io/badge/MVP-Production%20Ready-green)](https://github.com/vosarsen/ai_admin_v2)
+[![Architecture](https://img.shields.io/badge/Architecture-AI--First-blue)](https://github.com/vosarsen/ai_admin_v2)
+[![Performance](https://img.shields.io/badge/Performance-Optimized-brightgreen)](https://github.com/vosarsen/ai_admin_v2)
+[![Pilot](https://img.shields.io/badge/Pilot-Live%20Since%2007.2024-success)](https://github.com/vosarsen/ai_admin_v2)
 
 ## 🎯 Overview
 
@@ -64,10 +64,11 @@ AI Admin v2 now features full integration with YClients Marketplace, allowing be
 
 ### 📚 Marketplace Documentation
 
-- [**Full Implementation Guide**](docs/MARKETPLACE_IMPLEMENTATION.md) - Complete technical documentation
-- [**Security Guide**](docs/MARKETPLACE_SECURITY.md) - Security best practices and configurations
-- [**API Reference**](docs/MARKETPLACE_IMPLEMENTATION.md#api-reference) - All marketplace endpoints
-- [**Integration Guide for YClients**](docs/YCLIENTS_INTEGRATION_GUIDE.md) - For YClients developers
+- [**Integration Overview**](docs/marketplace/MARKETPLACE_INTEGRATION.md) - Complete integration guide
+- [**Technical Documentation**](docs/marketplace/MARKETPLACE_TECHNICAL.md) - Technical implementation details
+- [**Setup Guide**](docs/marketplace/MARKETPLACE_SETUP.md) - Step-by-step installation
+- [**API Reference**](docs/marketplace/MARKETPLACE_API.md) - Complete API documentation
+- [**Troubleshooting**](docs/marketplace/MARKETPLACE_TROUBLESHOOTING.md) - Problem solving guide
 
 ### 🔗 Quick Connect
 
@@ -76,7 +77,7 @@ Salons can connect their WhatsApp in 3 simple steps:
 2. Scan QR code with WhatsApp
 3. Start receiving bookings automatically!
 
-**Production URL**: https://ai-admin.app/marketplace/connect
+**Production URL**: https://ai-admin.app/marketplace/
 
 ## 📁 Project Structure
 
@@ -90,32 +91,29 @@ ai_admin_v2/
 │   ├── queue/             # Message queue management (BullMQ)
 │   ├── services/          # Core services
 │   │   ├── ai-admin-v2/   # Main AI service
-│   │   │   └── modules/   # Context manager, processors, handlers
-│   │   ├── context/       # Context services (v1 & v2)
 │   │   ├── booking/       # Booking operations
-│   │   └── context/       # Context management
+│   │   ├── context/       # Context management
+│   │   └── marketplace/   # YClients Marketplace integration
 │   └── workers/           # Background workers
-├── docs/                  # Documentation
-│   ├── development-diary/ # Daily development logs
+├── docs/                  # Documentation (300+ files)
+│   ├── development-diary/ # Daily development logs (150+ entries)
+│   ├── marketplace/       # Marketplace integration docs
 │   ├── features/          # Feature documentation
+│   ├── technical/         # Technical documentation
 │   ├── guides/            # Setup and usage guides
-│   └── sessions/          # Session summaries
+│   └── archive/           # Archived documentation
 ├── scripts/               # Utility scripts
-│   ├── database/          # Database management
-│   └── deployment/        # Deployment scripts
 ├── tests/                 # Test suites
-│   ├── manual/            # Manual test scripts
-│   │   ├── booking/       # Booking related tests
-│   │   ├── context/       # Context management tests
-│   │   ├── redis/         # Redis and batching tests
-│   │   ├── whatsapp/      # WhatsApp integration tests
-│   │   ├── yclients/      # YClients API tests
-│   │   └── misc/          # Other test scripts
-│   └── integration/       # Integration tests
+├── public/                # Static files & marketplace UI
+│   └── marketplace/       # Marketplace web interface
 ├── mcp/                   # MCP servers for testing
 ├── examples/              # Code examples and patterns
-├── legacy/                # Legacy v1 code (archived)
-└── public/                # Static files
+├── config/                # Project configuration
+├── archive/               # Archived code and documentation
+│   ├── legacy-code/       # Old v1 implementation
+│   ├── logs/              # Archived logs
+│   └── old-tests/         # Archived test files
+└── OFFER/                 # Business proposals
 ```
 
 ## 🚀 Quick Start
@@ -158,7 +156,7 @@ AI Admin v2 includes a sophisticated personalization system that tailors convers
 
 ```bash
 # Clone repository
-git clone https://github.com/your-repo/ai_admin_v2.git
+git clone https://github.com/vosarsen/ai_admin_v2.git
 cd ai_admin_v2
 
 # Install dependencies
@@ -234,29 +232,42 @@ Configure in `src/config/business-types.js`:
 
 ## 📚 Documentation
 
+### Core Documentation
 - [CLAUDE.md](CLAUDE.md) - AI assistant instructions
-- [PLANNING.md](PLANNING.md) - Architecture overview
-- [TASK.md](TASK.md) - Current tasks and progress
-- [docs/CONTEXT_SYSTEM.md](docs/CONTEXT_SYSTEM.md) - Context management system
-- [docs/CONTEXT_API.md](docs/CONTEXT_API.md) - Context API reference
-- [docs/CONTEXT_TROUBLESHOOTING.md](docs/CONTEXT_TROUBLESHOOTING.md) - Context troubleshooting guide
-- [docs/guides/](docs/guides/) - Setup and deployment guides
+- [CHANGELOG.md](CHANGELOG.md) - Version history
+- [YCLIENTS_API.md](YCLIENTS_API.md) - YClients API reference
+
+### Project Documentation
+- [docs/README.md](docs/README.md) - Documentation index
+- [docs/marketplace/](docs/marketplace/) - YClients Marketplace integration
+- [docs/technical/](docs/technical/) - Technical documentation
 - [docs/features/](docs/features/) - Feature documentation
+- [docs/guides/](docs/guides/) - Setup and deployment guides
+- [docs/development-diary/](docs/development-diary/) - Development history (150+ entries)
 
 ## 🤝 Contributing
 
 1. Read [CLAUDE.md](CLAUDE.md) for development guidelines
-2. Check [TASK.md](TASK.md) for current priorities
-3. Follow existing code patterns
-4. Write tests for new features
-5. Update documentation
+2. Check [docs/development-diary/](docs/development-diary/) for recent changes
+3. Follow existing code patterns in [examples/](examples/)
+4. Write tests for new features in [tests/](tests/)
+5. Update documentation in [docs/](docs/)
 
 ## 📈 Status
 
-- **Production**: Live pilot since July 25, 2025
+- **Production**: Live since July 2024
 - **Architecture**: v2 (AI-First)
-- **Current Phase**: Phase 3 - Edge cases & reliability
-- **Next**: Phase 4 - Advanced features
+- **Latest Update**: September 16, 2024 - YClients Marketplace Integration
+- **Documentation**: 300+ files, fully organized
+- **Active Clients**: 1096+ synced
+
+## 🔄 Recent Updates (September 2024)
+
+- ✅ **YClients Marketplace Integration** - Full integration with marketplace
+- ✅ **Documentation Reorganization** - 300+ docs organized into categories
+- ✅ **WhatsApp Stability Fixes** - No more reconnections or duplicates
+- ✅ **Context System v2** - Multi-level caching with atomic operations
+- ✅ **Redis Batching** - Message batching for rapid-fire protection
 
 ## 📜 License
 
