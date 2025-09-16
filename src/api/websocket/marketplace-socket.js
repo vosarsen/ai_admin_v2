@@ -17,6 +17,9 @@ class MarketplaceSocket {
     // Создаем namespace для маркетплейса
     this.namespace = io.of('/marketplace');
     this.setupHandlers();
+
+    // Запускаем периодическую очистку rate limiter
+    this.startCleanupTimer();
   }
 
   setupHandlers() {
@@ -117,9 +120,9 @@ class MarketplaceSocket {
 
           // Очистка Baileys сессии если она не подключена
           try {
-            const session = this.baileysManager.sessions.get(companyId);
-            if (session && session.status !== 'connected') {
-              await this.baileysManager.removeSession(companyId);
+            const status = this.baileysManager.getSessionStatus(companyId);
+            if (status.status !== 'connected' && status.status !== 'not_initialized') {
+              await this.baileysManager.disconnectSession(companyId);
               logger.info('Неподключенная Baileys сессия удалена', { companyId });
             }
           } catch (error) {
@@ -149,18 +152,26 @@ class MarketplaceSocket {
       logger.info('🚀 Начинаем подключение WhatsApp', { companyId });
 
       // Инициализируем сессию Baileys
-      const session = await this.baileysManager.createSession(companyId);
+      const qr = await this.baileysManager.generateQRForCompany(companyId);
 
-      // Слушаем события от Baileys
-      session.on('qr', (qr) => {
-        logger.info('📱 Получен QR-код', { companyId });
+      // Если QR уже есть, отправляем его
+      if (qr) {
         socket.emit('qr-update', {
           qr,
           expiresIn: 20
         });
+      }
+
+      // Слушаем события от Baileys через EventEmitter
+      this.baileysManager.on(`qr-${companyId}`, (qrDataURL) => {
+        logger.info('📱 Получен QR-код', { companyId });
+        socket.emit('qr-update', {
+          qr: qrDataURL,
+          expiresIn: 20
+        });
       });
 
-      session.on('connected', async (data) => {
+      this.baileysManager.on(`connected-${companyId}`, async (data) => {
         logger.info('✅ WhatsApp подключен!', {
           companyId,
           phone: data.phone
@@ -178,15 +189,12 @@ class MarketplaceSocket {
         this.startOnboarding(companyId, data.phone);
       });
 
-      session.on('error', (error) => {
-        logger.error('Ошибка Baileys:', error);
+      this.baileysManager.on(`logged-out-${companyId}`, () => {
+        logger.warn('WhatsApp отключен пользователем', { companyId });
         socket.emit('error', {
-          message: error.message || 'Ошибка подключения WhatsApp'
+          message: 'WhatsApp отключен. Требуется повторное подключение.'
         });
       });
-
-      // Запускаем подключение
-      await session.initialize();
 
     } catch (error) {
       logger.error('Ошибка инициализации WhatsApp:', error);
@@ -198,14 +206,27 @@ class MarketplaceSocket {
 
   async sendQRCode(socket, companyId) {
     try {
-      const session = await this.baileysManager.getSession(companyId);
+      const status = this.baileysManager.getSessionStatus(companyId);
 
-      if (!session) {
+      if (status.status === 'not_initialized') {
         // Создаем новую сессию
         await this.startWhatsAppConnection(socket, companyId);
+      } else if (status.status === 'connected') {
+        socket.emit('whatsapp-connected', {
+          success: true,
+          phone: status.phone,
+          companyId,
+          message: 'WhatsApp уже подключен!'
+        });
       } else {
-        // Запрашиваем новый QR
-        await session.requestNewQR();
+        // Генерируем новый QR
+        const qr = await this.baileysManager.generateQRForCompany(companyId);
+        if (qr) {
+          socket.emit('qr-update', {
+            qr,
+            expiresIn: 20
+          });
+        }
       }
     } catch (error) {
       logger.error('Ошибка отправки QR-кода:', error);
@@ -244,20 +265,19 @@ class MarketplaceSocket {
       // Отправляем приветственное сообщение
       setTimeout(async () => {
         try {
-          const session = await this.baileysManager.getSession(companyId);
-          if (session) {
-            await session.sendMessage(whatsappPhone, {
-              text: `🎉 Поздравляем! AI Admin успешно подключен!\n\n` +
-                    `Я готов помогать вашим клиентам:\n` +
-                    `✅ Записывать на услуги\n` +
-                    `✅ Отвечать на вопросы\n` +
-                    `✅ Напоминать о визитах\n\n` +
-                    `Для теста отправьте мне сообщение:\n` +
-                    `"Хочу записаться на стрижку"\n\n` +
-                    `📱 Ваш номер для клиентов: ${whatsappPhone}\n` +
-                    `💡 Инструкция: https://ai-admin.app/guide`
-            });
-          }
+          await this.baileysManager.sendMessage(
+            companyId,
+            whatsappPhone,
+            `🎉 Поздравляем! AI Admin успешно подключен!\n\n` +
+            `Я готов помогать вашим клиентам:\n` +
+            `✅ Записывать на услуги\n` +
+            `✅ Отвечать на вопросы\n` +
+            `✅ Напоминать о визитах\n\n` +
+            `Для теста отправьте мне сообщение:\n` +
+            `"Хочу записаться на стрижку"\n\n` +
+            `📱 Ваш номер для клиентов: ${whatsappPhone}\n` +
+            `💡 Инструкция: https://ai-admin.app/guide`
+          );
         } catch (error) {
           logger.error('Ошибка отправки приветственного сообщения:', error);
         }
@@ -297,12 +317,17 @@ class MarketplaceSocket {
 
   // Периодическая очистка rate limiter (каждые 5 минут)
   startCleanupTimer() {
-    setInterval(() => {
+    this.cleanupInterval = setInterval(() => {
       const now = Date.now();
+      let cleaned = 0;
       for (const [ip, limit] of this.rateLimiter.entries()) {
         if (now - limit.lastReset > this.RATE_LIMIT_WINDOW * 2) {
           this.rateLimiter.delete(ip);
+          cleaned++;
         }
+      }
+      if (cleaned > 0) {
+        logger.debug(`Очищено ${cleaned} записей из rate limiter`);
       }
     }, 300000); // 5 минут
   }

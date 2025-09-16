@@ -71,9 +71,11 @@ function sanitizeString(input, maxLength = 255) {
   if (!input) return '';
   if (typeof input !== 'string') return String(input);
 
-  // Удаляем управляющие символы и обрезаем
+  // Удаляем управляющие символы и HTML теги
   let clean = input
     .replace(/[\x00-\x1F\x7F]/g, '') // Удаляем управляющие символы
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Удаляем script теги
+    .replace(/<[^>]*>/g, '') // Удаляем все остальные HTML теги
     .trim()
     .substring(0, maxLength);
 

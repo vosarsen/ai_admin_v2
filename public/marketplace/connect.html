@@ -407,6 +407,13 @@
       console.error(message);
     }
 
+    // Функция для санитизации текста (защита от XSS)
+    function sanitizeText(text) {
+      const div = document.createElement('div');
+      div.textContent = text || '';
+      return div.innerHTML;
+    }
+
     // Функция для загрузки информации о компании
     async function loadCompanyInfo() {
       if (!config.token) {
@@ -428,11 +435,11 @@
         console.error('Ошибка загрузки данных компании:', error);
       }
 
-      // Заполняем информацию о компании
-      document.getElementById('company-name').textContent = config.companyName;
-      document.getElementById('company-phone').textContent = config.companyPhone || '—';
-      document.getElementById('company-email').textContent = config.companyEmail || '—';
-      document.getElementById('company-address').textContent = config.companyAddress || '—';
+      // Заполняем информацию о компании с санитизацией
+      document.getElementById('company-name').textContent = sanitizeText(config.companyName);
+      document.getElementById('company-phone').textContent = sanitizeText(config.companyPhone) || '—';
+      document.getElementById('company-email').textContent = sanitizeText(config.companyEmail) || '—';
+      document.getElementById('company-address').textContent = sanitizeText(config.companyAddress) || '—';
     }
 
     // Функция генерации QR-кода
@@ -509,8 +516,8 @@
             Ваш бот готов принимать сообщения от клиентов
           </div>
           <div class="success-details">
-            <p><span>📱</span> Номер: <strong>+${data.phone}</strong></p>
-            <p><span>👤</span> Имя: <strong>${data.name || 'AI Admin Bot'}</strong></p>
+            <p><span>📱</span> Номер: <strong>+${sanitizeText(data.phone)}</strong></p>
+            <p><span>👤</span> Имя: <strong>${sanitizeText(data.name || 'AI Admin Bot')}</strong></p>
             <p><span>🔗</span> Статус: <strong>Активен</strong></p>
           </div>
           <div class="redirect-message">
@@ -544,20 +551,23 @@
 
     // Инициализация WebSocket
     function initWebSocket() {
-      // Подключаемся к WebSocket с токеном в headers
+      // Подключаемся к WebSocket с токеном в headers (не в auth!)
       socket = io('/marketplace', {
-        auth: {
-          token: config.token
-        },
         transportOptions: {
           polling: {
+            extraHeaders: {
+              'Authorization': `Bearer ${config.token}`
+            }
+          },
+          websocket: {
             extraHeaders: {
               'Authorization': `Bearer ${config.token}`
             }
           }
         },
         query: {
-          companyId: config.companyId
+          companyId: config.companyId,
+          token: config.token // fallback для обратной совместимости
         }
       });
 

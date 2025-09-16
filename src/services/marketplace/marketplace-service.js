@@ -21,10 +21,16 @@ class MarketplaceService {
 
   async init() {
     if (!this.isInitialized) {
-      this.redis = createRedisClient('marketplace');
-      // Redis client auto-connects, no need to call connect()
-      this.isInitialized = true;
-      logger.info('MarketplaceService initialized with Redis client');
+      try {
+        this.redis = createRedisClient('marketplace');
+        // Test Redis connection
+        await this.redis.ping();
+        this.isInitialized = true;
+        logger.info('MarketplaceService initialized with Redis client');
+      } catch (error) {
+        logger.error('Ошибка подключения к Redis:', error);
+        throw new Error('Failed to connect to Redis');
+      }
     }
   }
 
@@ -39,14 +45,20 @@ class MarketplaceService {
         throw new Error(`Некорректный salon_id: ${salonId}`);
       }
 
-      // Сначала проверяем, есть ли уже такая компания (используем параметризованный запрос)
-      const { data: existingCompany, error: fetchError } = await this.supabase
+      // Сначала проверяем, есть ли уже такая компания
+      const { data: companies, error: fetchError } = await this.supabase
         .from('companies')
         .select('*')
-        .eq('yclients_id', validSalonId)
-        .single();
+        .eq('yclients_id', validSalonId);
 
-      if (existingCompany && !fetchError) {
+      if (fetchError) {
+        logger.error('Ошибка проверки существующей компании:', fetchError);
+        throw fetchError;
+      }
+
+      // Если компания существует, возвращаем ее
+      if (companies && companies.length > 0) {
+        const existingCompany = companies[0];
         logger.info(`Компания уже существует`, {
           company_id: existingCompany.id,
           salon_id: validSalonId
@@ -331,24 +343,34 @@ class MarketplaceService {
    * Получает статистику подключений
    */
   async getConnectionStats() {
-    const { data, error } = await this.supabase
-      .from('companies')
-      .select('whatsapp_connected')
-      .eq('whatsapp_connected', true);
+    try {
+      // Получаем подключенные компании
+      const { data: connectedCompanies, error: connectedError } = await this.supabase
+        .from('companies')
+        .select('id')
+        .eq('whatsapp_connected', true);
 
-    if (error) {
+      if (connectedError) {
+        logger.error('Ошибка получения подключенных компаний:', connectedError);
+      }
+
+      // Получаем общее количество компаний
+      const { count: totalCount, error: totalError } = await this.supabase
+        .from('companies')
+        .select('*', { count: 'exact', head: true });
+
+      if (totalError) {
+        logger.error('Ошибка получения общего количества:', totalError);
+      }
+
+      return {
+        total: totalCount || 0,
+        connected: connectedCompanies?.length || 0
+      };
+    } catch (error) {
       logger.error('Ошибка получения статистики:', error);
       return { total: 0, connected: 0 };
     }
-
-    const totalCompanies = await this.supabase
-      .from('companies')
-      .select('count', { count: 'exact' });
-
-    return {
-      total: totalCompanies.count || 0,
-      connected: data.length || 0
-    };
   }
 }
 
