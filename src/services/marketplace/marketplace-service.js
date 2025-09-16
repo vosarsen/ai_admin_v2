@@ -21,9 +21,9 @@ class MarketplaceService {
   async init() {
     if (!this.isInitialized) {
       this.redis = createRedisClient('marketplace');
-      await this.redis.connect();
+      // Redis client auto-connects, no need to call connect()
       this.isInitialized = true;
-      logger.info('MarketplaceService initialized with Redis connection');
+      logger.info('MarketplaceService initialized with Redis client');
     }
   }
 
