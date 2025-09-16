@@ -10,6 +10,9 @@ class MarketplaceSocket {
     this.io = io;
     this.baileysManager = new BaileysManager();
     this.connections = new Map(); // companyId -> socket
+    this.rateLimiter = new Map(); // IP -> { count, lastReset }
+    this.RATE_LIMIT_MAX = 5; // Максимум 5 подключений
+    this.RATE_LIMIT_WINDOW = 60000; // За 60 секунд
 
     // Создаем namespace для маркетплейса
     this.namespace = io.of('/marketplace');
@@ -23,9 +26,47 @@ class MarketplaceSocket {
         query: socket.handshake.query
       });
 
-      // Проверяем токен
-      const { token, companyId } = socket.handshake.query;
+      // Rate limiting по IP
+      const clientIp = socket.handshake.address;
+      if (!this.checkRateLimit(clientIp)) {
+        logger.warn('Rate limit превышен для IP:', clientIp);
+        socket.emit('error', { message: 'Слишком много подключений, попробуйте позже' });
+        socket.disconnect();
+        return;
+      }
 
+      // Проверка origin (только в production)
+      if (process.env.NODE_ENV === 'production') {
+        const allowedOrigins = [
+          'https://ai-admin.app',
+          'https://yclients.com',
+          'https://n962302.yclients.com'
+        ];
+        const origin = socket.handshake.headers.origin;
+
+        if (origin && !allowedOrigins.some(allowed => origin.startsWith(allowed))) {
+          logger.warn('Недопустимый origin:', origin);
+          socket.emit('error', { message: 'Недопустимый источник запроса' });
+          socket.disconnect();
+          return;
+        }
+      }
+
+      // Получаем токен из headers или query (для обратной совместимости)
+      const authHeader = socket.handshake.headers.authorization;
+      let token = null;
+      let companyId = socket.handshake.query.companyId;
+
+      // Приоритет отдаем токену из headers
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      } else if (socket.handshake.query.token) {
+        // Fallback на query параметр (будет удален в будущем)
+        token = socket.handshake.query.token;
+        logger.warn('Токен передан через query параметры - небезопасно! Используйте Authorization header.');
+      }
+
+      // Проверяем наличие токена после извлечения
       if (!token || !companyId) {
         logger.error('WebSocket: отсутствует токен или companyId');
         socket.emit('error', { message: 'Требуется авторизация' });
@@ -35,7 +76,15 @@ class MarketplaceSocket {
 
       // Валидируем токен
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret-key');
+        // Проверяем наличие JWT_SECRET
+        if (!process.env.JWT_SECRET) {
+          logger.error('JWT_SECRET не установлен в переменных окружения');
+          socket.emit('error', { message: 'Ошибка конфигурации сервера' });
+          socket.disconnect();
+          return;
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         if (decoded.company_id !== parseInt(companyId)) {
           throw new Error('Неверный токен для компании');
@@ -57,12 +106,28 @@ class MarketplaceSocket {
         this.startWhatsAppConnection(socket, companyId);
 
         // Обработчик отключения
-        socket.on('disconnect', () => {
+        socket.on('disconnect', async () => {
           logger.info('WebSocket отключен', {
             companyId,
             socketId: socket.id
           });
+
+          // Очистка соединения из Map
           this.connections.delete(companyId);
+
+          // Очистка Baileys сессии если она не подключена
+          try {
+            const session = this.baileysManager.sessions.get(companyId);
+            if (session && session.status !== 'connected') {
+              await this.baileysManager.removeSession(companyId);
+              logger.info('Неподключенная Baileys сессия удалена', { companyId });
+            }
+          } catch (error) {
+            logger.error('Ошибка при очистке сессии:', error);
+          }
+
+          // Удаление всех event listeners
+          socket.removeAllListeners();
         });
 
         // Обработчик запроса нового QR-кода
@@ -201,6 +266,45 @@ class MarketplaceSocket {
     } catch (error) {
       logger.error('Ошибка онбординга:', error);
     }
+  }
+
+  // Метод проверки rate limit
+  checkRateLimit(ip) {
+    const now = Date.now();
+    const limit = this.rateLimiter.get(ip);
+
+    if (!limit) {
+      // Первое подключение с этого IP
+      this.rateLimiter.set(ip, { count: 1, lastReset: now });
+      return true;
+    }
+
+    // Проверяем, нужно ли сбросить счетчик
+    if (now - limit.lastReset > this.RATE_LIMIT_WINDOW) {
+      limit.count = 1;
+      limit.lastReset = now;
+      return true;
+    }
+
+    // Проверяем лимит
+    if (limit.count >= this.RATE_LIMIT_MAX) {
+      return false;
+    }
+
+    limit.count++;
+    return true;
+  }
+
+  // Периодическая очистка rate limiter (каждые 5 минут)
+  startCleanupTimer() {
+    setInterval(() => {
+      const now = Date.now();
+      for (const [ip, limit] of this.rateLimiter.entries()) {
+        if (now - limit.lastReset > this.RATE_LIMIT_WINDOW * 2) {
+          this.rateLimiter.delete(ip);
+        }
+      }
+    }, 300000); // 5 минут
   }
 
   // Метод для отправки событий конкретной компании

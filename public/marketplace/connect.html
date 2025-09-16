@@ -544,10 +544,19 @@
 
     // Инициализация WebSocket
     function initWebSocket() {
-      // Подключаемся к WebSocket
+      // Подключаемся к WebSocket с токеном в headers
       socket = io('/marketplace', {
+        auth: {
+          token: config.token
+        },
+        transportOptions: {
+          polling: {
+            extraHeaders: {
+              'Authorization': `Bearer ${config.token}`
+            }
+          }
+        },
         query: {
-          token: config.token,
           companyId: config.companyId
         }
       });
