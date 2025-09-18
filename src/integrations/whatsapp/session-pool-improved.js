@@ -142,6 +142,17 @@ class WhatsAppSessionPool extends EventEmitter {
                     logger.debug(`Logout error for ${validatedId}:`, err.message);
                 }
                 this.sessions.delete(validatedId);
+
+                // Force cleanup auth directory to prevent stale sessions
+                const authPath = this.authPaths.get(validatedId);
+                if (authPath) {
+                    try {
+                        await fs.remove(authPath);
+                        logger.info(`🧹 Cleaned up auth directory for ${validatedId}`);
+                    } catch (cleanupErr) {
+                        logger.warn(`Failed to cleanup auth directory: ${cleanupErr.message}`);
+                    }
+                }
             }
             
             // Auth data path for company
@@ -244,6 +255,29 @@ class WhatsAppSessionPool extends EventEmitter {
             this.metrics.lastError = error.message;
             this.emit('error', { companyId, error });
         });
+    }
+
+    /**
+     * Monitors session health and cleans up if needed
+     */
+    async monitorSessionHealth(companyId) {
+        const authPath = this.authPaths.get(companyId);
+        if (!authPath) return;
+
+        try {
+            // Check auth directory size
+            const files = await fs.readdir(authPath);
+            const totalSize = files.length;
+
+            // If too many files (indicating key accumulation), force cleanup
+            if (totalSize > 100) {
+                logger.warn(`⚠️ Session for ${companyId} has ${totalSize} files - forcing cleanup`);
+                await this.removeSession(companyId);
+                await this.createSession(companyId);
+            }
+        } catch (err) {
+            logger.debug(`Health check failed for ${companyId}: ${err.message}`);
+        }
     }
 
     /**
@@ -531,6 +565,9 @@ class WhatsAppSessionPool extends EventEmitter {
                     logger.warn(`Health check failed for company ${companyId}:`, health.reason);
                     this.emit('health_check_failed', health);
                 }
+
+                // Also monitor for key accumulation
+                await this.monitorSessionHealth(companyId);
             }
         }, this.healthCheckInterval);
     }
