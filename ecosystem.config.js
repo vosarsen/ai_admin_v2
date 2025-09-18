@@ -91,6 +91,20 @@ module.exports = {
       max_memory_restart: '200M',
       kill_timeout: 5000,
       autorestart: true
+    },
+    {
+      name: 'ai-admin-telegram-bot',
+      script: './scripts/telegram-bot.js',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        NODE_ENV: 'production'
+      },
+      error_file: './logs/telegram-bot-error.log',
+      out_file: './logs/telegram-bot-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      max_memory_restart: '100M',
+      autorestart: true
     }
   ]
 };
