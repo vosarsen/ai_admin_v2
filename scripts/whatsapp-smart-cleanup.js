@@ -18,13 +18,17 @@
 
 const fs = require('fs-extra');
 const path = require('path');
+const axios = require('axios');
 const logger = require('../src/utils/logger');
 
 // Configuration
 const AUTH_PATH = process.env.AUTH_PATH || '/opt/ai-admin/baileys_sessions/company_962302';
-const MAX_PRE_KEYS = 30; // WhatsApp needs some pre-keys for new connections
-const SESSION_MAX_AGE_DAYS = 7; // Remove sessions older than 7 days
+const MAX_PRE_KEYS = 50; // Signal Protocol recommends keeping at least 50 pre-keys
+const MIN_PRE_KEYS = 30; // Never go below this number
+const SESSION_MAX_AGE_DAYS = 14; // Remove sessions older than 14 days (safer threshold)
+const SENDER_KEY_MAX_AGE_DAYS = 3; // Remove sender keys older than 3 days
 const DRY_RUN = process.argv.includes('--dry-run');
+const FORCE_CLEANUP = process.argv.includes('--force'); // Force cleanup even if risky
 
 class SmartCleanup {
     constructor() {
@@ -68,12 +72,15 @@ class SmartCleanup {
             return null; // Special handling
         }
 
-        // Remove sender-key files (they regenerate as needed)
+        // Remove old sender-key files (they regenerate as needed)
         if (filename.startsWith('sender-key-')) {
             const ageInDays = (Date.now() - stats.mtime) / (1000 * 60 * 60 * 24);
-            if (ageInDays > 1) {
-                console.log(`❌ REMOVE: ${filename} (old sender key)`);
+            if (ageInDays > SENDER_KEY_MAX_AGE_DAYS) {
+                console.log(`❌ REMOVE: ${filename} (old sender key, ${ageInDays.toFixed(1)} days old)`);
                 return false;
+            } else {
+                console.log(`✅ PRESERVE: ${filename} (active sender key, ${ageInDays.toFixed(1)} days old)`);
+                return true;
             }
         }
 
@@ -96,15 +103,29 @@ class SmartCleanup {
             });
 
         console.log(`\n📊 Found ${preKeys.length} pre-key files`);
+        console.log(`   Recommended: 50-100, Minimum: ${MIN_PRE_KEYS}`);
 
         if (preKeys.length <= MAX_PRE_KEYS) {
-            console.log(`✅ Pre-keys within limit (${preKeys.length}/${MAX_PRE_KEYS})`);
+            console.log(`✅ Pre-keys within safe range (${preKeys.length}/${MAX_PRE_KEYS})`);
             return 0;
         }
 
-        // Keep newest MAX_PRE_KEYS, remove the rest
-        const toRemove = preKeys.slice(MAX_PRE_KEYS);
-        console.log(`⚠️  Removing ${toRemove.length} old pre-keys (keeping newest ${MAX_PRE_KEYS})`);
+        if (preKeys.length > 100) {
+            console.log(`⚠️  Too many pre-keys (${preKeys.length}). This may indicate connection issues.`);
+        }
+
+        // Calculate how many to remove (never go below MIN_PRE_KEYS)
+        const targetCount = Math.max(MAX_PRE_KEYS, MIN_PRE_KEYS);
+        const toRemoveCount = Math.max(0, preKeys.length - targetCount);
+
+        if (toRemoveCount === 0) {
+            console.log(`✅ No pre-keys need removal`);
+            return 0;
+        }
+
+        // Keep newest targetCount, remove the rest
+        const toRemove = preKeys.slice(targetCount);
+        console.log(`⚠️  Removing ${toRemove.length} old pre-keys (keeping newest ${targetCount})`);
 
         let removed = 0;
         for (const file of toRemove) {
@@ -126,12 +147,44 @@ class SmartCleanup {
     }
 
     /**
+     * Check if WhatsApp is connected
+     */
+    async isWhatsAppConnected() {
+        try {
+            const response = await axios.get('http://localhost:3000/webhook/whatsapp/baileys/status/962302');
+            return response.data?.status?.connected || false;
+        } catch (error) {
+            console.warn('⚠️  Could not check WhatsApp status:', error.message);
+            return null; // Unknown status
+        }
+    }
+
+    /**
      * Main cleanup function
      */
     async cleanup() {
         console.log('🧹 WhatsApp Smart Cleanup Started');
         console.log(`📁 Auth path: ${AUTH_PATH}`);
         console.log(`🔍 Mode: ${DRY_RUN ? 'DRY RUN (no files will be deleted)' : 'LIVE'}\n`);
+
+        // Safety check: Don't cleanup while connected (unless forced)
+        if (!DRY_RUN && !FORCE_CLEANUP) {
+            const isConnected = await this.isWhatsAppConnected();
+            if (isConnected === true) {
+                console.error('❌ WhatsApp is currently connected!');
+                console.error('   Cleaning files while connected can break active sessions.');
+                console.error('   Options:');
+                console.error('   1. Stop WhatsApp first: pm2 stop ai-admin-api');
+                console.error('   2. Use --dry-run to preview what would be deleted');
+                console.error('   3. Use --force to cleanup anyway (NOT RECOMMENDED)');
+                throw new Error('Cannot cleanup while WhatsApp is connected');
+            } else if (isConnected === null) {
+                console.warn('⚠️  Could not verify WhatsApp connection status');
+                console.warn('   Proceeding with caution...');
+            } else {
+                console.log('✅ WhatsApp is not connected, safe to cleanup');
+            }
+        }
 
         try {
             // Check if directory exists
@@ -189,16 +242,24 @@ class SmartCleanup {
             console.log(`  Errors: ${this.stats.errors}`);
             console.log(`  Final count: ${this.stats.totalFiles - this.stats.removed} files`);
 
-            // Alert if still too many files
+            // Alert based on final file count
             const finalCount = this.stats.totalFiles - this.stats.removed;
-            if (finalCount > 80) {
-                console.log('\n⚠️  WARNING: Still have many files after cleanup.');
-                console.log('  This might indicate active issues with connection cycling.');
-            } else if (finalCount < 10) {
-                console.log('\n⚠️  WARNING: Very few files remaining.');
-                console.log('  Monitor for connection issues.');
+            console.log('\n📈 File Count Assessment:');
+
+            if (finalCount < 50) {
+                console.log(`  ✅ Excellent (${finalCount} files) - Well below safe threshold`);
+            } else if (finalCount < 100) {
+                console.log(`  ✅ Healthy (${finalCount} files) - Within normal range`);
+            } else if (finalCount < 150) {
+                console.log(`  ⚠️  Monitor (${finalCount} files) - Approaching cleanup threshold`);
+                console.log('     Consider scheduling cleanup soon');
+            } else if (finalCount < 180) {
+                console.log(`  🔴 Warning (${finalCount} files) - Need cleanup urgently`);
+                console.log('     Schedule cleanup within 24 hours');
             } else {
-                console.log('\n✅ File count is healthy');
+                console.log(`  💀 CRITICAL (${finalCount} files) - Risk of device_removed!`);
+                console.log('     IMMEDIATE ACTION REQUIRED');
+                console.log('     Stop WhatsApp and run full cleanup NOW');
             }
 
             return this.stats;
