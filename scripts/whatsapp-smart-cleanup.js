@@ -23,6 +23,10 @@ const logger = require('../src/utils/logger');
 
 // Configuration
 const AUTH_PATH = process.env.AUTH_PATH || '/opt/ai-admin/baileys_sessions/company_962302';
+// Extract company ID from AUTH_PATH or environment
+const COMPANY_ID = process.env.COMPANY_ID ||
+    AUTH_PATH.match(/company_(\d+)/)?.[1] ||
+    '962302';
 const MAX_PRE_KEYS = 50; // Signal Protocol recommends keeping at least 50 pre-keys
 const MIN_PRE_KEYS = 30; // Never go below this number
 const SESSION_MAX_AGE_DAYS = 14; // Remove sessions older than 14 days (safer threshold)
@@ -151,10 +155,10 @@ class SmartCleanup {
      */
     async isWhatsAppConnected() {
         try {
-            const response = await axios.get('http://localhost:3000/webhook/whatsapp/baileys/status/962302');
+            const response = await axios.get(`http://localhost:3000/webhook/whatsapp/baileys/status/${COMPANY_ID}`);
             return response.data?.status?.connected || false;
         } catch (error) {
-            console.warn('⚠️  Could not check WhatsApp status:', error.message);
+            console.warn(`⚠️  Could not check WhatsApp status for company ${COMPANY_ID}:`, error.message);
             return null; // Unknown status
         }
     }

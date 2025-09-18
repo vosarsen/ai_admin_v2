@@ -24,6 +24,40 @@ class MultiCompanyMonitor {
     constructor() {
         this.companies = new Map();
         this.retryCount = new Map();
+        this.thresholds = this.loadThresholds();
+    }
+
+    /**
+     * Load company-specific thresholds
+     */
+    loadThresholds() {
+        try {
+            const configPath = path.join(__dirname, '../config/company-thresholds.json');
+            if (fs.existsSync(configPath)) {
+                return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            }
+        } catch (error) {
+            console.warn('Could not load company thresholds, using defaults:', error.message);
+        }
+
+        // Default thresholds
+        return {
+            default: {
+                monitor: 100,
+                warning: 120,
+                cleanup: 150,
+                critical: 180,
+                fatal: 200
+            },
+            companies: {}
+        };
+    }
+
+    /**
+     * Get thresholds for specific company
+     */
+    getCompanyThresholds(companyId) {
+        return this.thresholds.companies[companyId] || this.thresholds.default;
     }
 
     /**
@@ -137,48 +171,55 @@ class MultiCompanyMonitor {
             lastCheck: Date.now()
         });
 
-        // Evaluate health
-        const health = this.evaluateHealth(stats);
+        // Evaluate health with company-specific thresholds
+        const health = this.evaluateHealth(stats, company.id);
 
         // Log status
         console.log(`Company ${company.id}: ${stats.total} files, ${isConnected ? '✅ Connected' : '❌ Disconnected'}, Health: ${health.status}`);
 
-        // Send alerts based on thresholds
-        if (stats.total >= 180) {
+        // Get company-specific thresholds
+        const thresholds = this.getCompanyThresholds(company.id);
+        const companyName = thresholds.name || `Company ${company.id}`;
+
+        // Send alerts based on company-specific thresholds
+        if (stats.total >= thresholds.critical) {
             await this.sendAlert(
-                `CRITICAL: Company ${company.id}\n` +
-                `Files: ${stats.total} (${stats.preKeys} pre-keys, ${stats.sessions} sessions)\n` +
+                `CRITICAL: ${companyName} (${company.id})\n` +
+                `Files: ${stats.total} (threshold: ${thresholds.critical})\n` +
+                `Breakdown: ${stats.preKeys} pre-keys, ${stats.sessions} sessions\n` +
                 `Status: ${isConnected ? 'Connected' : 'Disconnected'}\n` +
                 `Risk of device_removed! Immediate action required!`,
                 'critical'
             );
-        } else if (stats.total >= 150) {
+        } else if (stats.total >= thresholds.cleanup) {
             await this.sendAlert(
-                `Warning: Company ${company.id}\n` +
-                `Files: ${stats.total} (${stats.preKeys} pre-keys, ${stats.sessions} sessions)\n` +
+                `Warning: ${companyName} (${company.id})\n` +
+                `Files: ${stats.total} (threshold: ${thresholds.cleanup})\n` +
                 `Cleanup needed within 24 hours`
             );
-        } else if (stats.total >= 120) {
+        } else if (stats.total >= thresholds.warning) {
             // Log but don't alert yet
-            console.warn(`⚠️  Company ${company.id} approaching threshold: ${stats.total} files`);
+            console.warn(`⚠️  ${companyName} approaching threshold: ${stats.total} files (warning at ${thresholds.warning})`);
         }
 
         return health;
     }
 
     /**
-     * Evaluate health status based on file stats
+     * Evaluate health status based on file stats and company thresholds
      */
-    evaluateHealth(stats) {
-        if (stats.total < 50) {
+    evaluateHealth(stats, companyId = null) {
+        const thresholds = companyId ? this.getCompanyThresholds(companyId) : this.thresholds.default;
+
+        if (stats.total < thresholds.monitor * 0.5) {
             return { status: '✅ Excellent', risk: 'minimal' };
-        } else if (stats.total < 100) {
+        } else if (stats.total < thresholds.monitor) {
             return { status: '✅ Healthy', risk: 'low' };
-        } else if (stats.total < 120) {
+        } else if (stats.total < thresholds.warning) {
             return { status: '⚠️  Monitor', risk: 'moderate' };
-        } else if (stats.total < 150) {
+        } else if (stats.total < thresholds.cleanup) {
             return { status: '⚠️  Warning', risk: 'elevated' };
-        } else if (stats.total < 180) {
+        } else if (stats.total < thresholds.critical) {
             return { status: '🔴 Critical', risk: 'high' };
         } else {
             return { status: '💀 DANGER', risk: 'extreme' };
@@ -204,8 +245,11 @@ class MultiCompanyMonitor {
         companies.sort((a, b) => b.stats.total - a.stats.total);
 
         for (const company of companies) {
-            const health = this.evaluateHealth(company.stats);
-            console.log(`\nCompany: ${company.id}`);
+            const health = this.evaluateHealth(company.stats, company.id);
+            const thresholds = this.getCompanyThresholds(company.id);
+            const companyName = thresholds.name || `Company ${company.id}`;
+
+            console.log(`\n${companyName} (${company.id})`);
             console.log(`  Status: ${company.isConnected ? '✅ Connected' : '❌ Disconnected'}`);
             console.log(`  Health: ${health.status}`);
             console.log(`  Files: ${company.stats.total} total`);
@@ -285,9 +329,18 @@ class MultiCompanyMonitor {
         // Initial discovery and check
         const companies = await this.discoverCompanies();
 
-        for (const company of companies) {
-            await this.monitorCompany(company);
-        }
+        // Monitor all companies in parallel for better performance
+        console.log('⚡ Running initial check in parallel...');
+        const results = await Promise.allSettled(
+            companies.map(company => this.monitorCompany(company))
+        );
+
+        // Log any failures
+        results.forEach((result, index) => {
+            if (result.status === 'rejected') {
+                console.error(`❌ Failed to monitor ${companies[index].id}:`, result.reason);
+            }
+        });
 
         this.generateReport();
 
@@ -298,13 +351,26 @@ class MultiCompanyMonitor {
             // Re-discover companies (in case new ones added)
             const companies = await this.discoverCompanies();
 
+            // Monitor all in parallel
+            const monitoringResults = await Promise.allSettled(
+                companies.map(async (company) => {
+                    const health = await this.monitorCompany(company);
+                    return { company, health };
+                })
+            );
+
+            // Collect alerts
             const alerts = [];
-            for (const company of companies) {
-                const health = await this.monitorCompany(company);
-                if (health.risk === 'high' || health.risk === 'extreme') {
-                    alerts.push(company);
+            monitoringResults.forEach(result => {
+                if (result.status === 'fulfilled' && result.value.health) {
+                    const { company, health } = result.value;
+                    if (health.risk === 'high' || health.risk === 'extreme') {
+                        alerts.push(company);
+                    }
+                } else if (result.status === 'rejected') {
+                    console.error('Monitoring failed:', result.reason);
                 }
-            }
+            });
 
             // Generate report every hour
             if (new Date().getMinutes() === 0) {

@@ -19,7 +19,10 @@ const CONFIG = {
     companyId: process.env.COMPANY_ID || '962302',
     checkInterval: 60000, // Check every minute
     maxRetries: 3,
-    authPath: '/opt/ai-admin/baileys_sessions/company_962302'
+    // Dynamic auth path based on company ID
+    get authPath() {
+        return `/opt/ai-admin/baileys_sessions/company_${this.companyId}`;
+    }
 };
 
 class WhatsAppRecovery {
