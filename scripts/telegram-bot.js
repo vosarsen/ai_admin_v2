@@ -10,12 +10,17 @@ const { promisify } = require('util');
 const execAsync = promisify(exec);
 const logger = require('../src/utils/logger');
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const ADMIN_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+// Загружаем переменные из .env файла
+require('dotenv').config();
+
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8301218575:AAFRhNPuARDnkiKY2aQKbDkUWPbaSiINPpc';
+const ADMIN_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '601999';
 const HEALTH_URL = 'http://localhost:3000/health';
 
 if (!BOT_TOKEN || !ADMIN_CHAT_ID) {
   console.error('Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID');
+  console.error('BOT_TOKEN:', BOT_TOKEN ? 'present' : 'missing');
+  console.error('ADMIN_CHAT_ID:', ADMIN_CHAT_ID ? 'present' : 'missing');
   process.exit(1);
 }
 
@@ -357,6 +362,9 @@ class TelegramBot {
 
   async run() {
     logger.info('Telegram bot started');
+    logger.info(`Bot token: ${BOT_TOKEN.substring(0, 10)}...`);
+    logger.info(`Admin chat ID: ${ADMIN_CHAT_ID}`);
+
     await this.sendMessage(ADMIN_CHAT_ID, '🤖 AI Admin Bot запущен и готов к работе!\nИспользуйте /help для списка команд');
 
     while (this.isRunning) {
@@ -365,6 +373,7 @@ class TelegramBot {
 
         for (const update of updates) {
           if (update.message) {
+            logger.info(`Received message from ${update.message.from.id}: ${update.message.text}`);
             await this.handleCommand(update.message);
           }
           // Обновляем offset
@@ -389,8 +398,6 @@ class TelegramBot {
 
 // Запускаем бота
 if (require.main === module) {
-  require('dotenv').config();
-
   const bot = new TelegramBot();
 
   // Graceful shutdown
