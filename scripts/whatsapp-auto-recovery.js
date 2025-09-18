@@ -6,6 +6,9 @@
  * Monitors WhatsApp connection and automatically recovers if disconnected
  */
 
+// Load environment variables from .env file
+require('dotenv').config();
+
 const axios = require('axios');
 const { exec } = require('child_process');
 const { promisify } = require('util');
@@ -113,19 +116,30 @@ class WhatsAppRecovery {
     }
 
     async sendAlert(message) {
-        // You can implement Telegram/email alerts here
         console.log(`🚨 ALERT: ${message}`);
 
-        // If Telegram bot is configured
-        if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+        // Check if Telegram bot is configured
+        const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+        const telegramChatId = process.env.TELEGRAM_CHAT_ID;
+
+        console.log(`📱 Telegram config: Token=${telegramToken ? 'present' : 'missing'}, ChatID=${telegramChatId || 'missing'}`);
+
+        if (telegramToken && telegramChatId) {
             try {
-                await axios.post(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-                    chat_id: process.env.TELEGRAM_CHAT_ID,
-                    text: `🚨 WhatsApp Alert: ${message}`
+                const response = await axios.post(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+                    chat_id: telegramChatId,
+                    text: `🚨 WhatsApp Alert\n\n${message}\n\nTime: ${new Date().toLocaleString('ru-RU', {timeZone: 'Europe/Moscow'})}`,
+                    parse_mode: 'HTML'
                 });
+                console.log('✅ Telegram alert sent successfully');
             } catch (error) {
-                console.error('Failed to send Telegram alert:', error.message);
+                console.error('❌ Failed to send Telegram alert:', error.message);
+                if (error.response) {
+                    console.error('Telegram API response:', error.response.data);
+                }
             }
+        } else {
+            console.log('⚠️  Telegram notifications not configured');
         }
     }
 
