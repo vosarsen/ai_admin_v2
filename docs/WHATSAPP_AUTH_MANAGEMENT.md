@@ -256,11 +256,55 @@ pm2 restart ai-admin-api
 pm2 logs ai-admin-api --lines 100 | grep -E "(Closing stale|device_removed|waiting)"
 ```
 
+## Multi-Company Support
+
+### Important: Multi-Tenant Monitoring
+
+Each connected company/salon has its own WhatsApp session and auth files:
+```
+/opt/ai-admin/baileys_sessions/
+├── company_962302/  (Salon A)
+├── company_123456/  (Salon B)
+└── company_789012/  (Salon C)
+```
+
+**Each company needs individual monitoring!** One company can reach 200+ files while others are healthy.
+
+### Multi-Company Monitoring
+
+Use the multi-company monitor for all companies:
+```bash
+# Start multi-company monitor
+node scripts/whatsapp-multi-company-monitor.js
+
+# Or as PM2 service
+pm2 start scripts/whatsapp-multi-company-monitor.js --name whatsapp-multi-monitor
+```
+
+### Per-Company Cleanup
+
+Clean specific company when needed:
+```bash
+# Check specific company
+ls -la /opt/ai-admin/baileys_sessions/company_XXXXXX | wc -l
+
+# Cleanup specific company (when disconnected)
+AUTH_PATH=/opt/ai-admin/baileys_sessions/company_XXXXXX \
+  node scripts/whatsapp-smart-cleanup.js
+```
+
+### Scaling Considerations
+
+- Each company = separate monitoring
+- Each company = separate cleanup schedule
+- Each company = separate QR code if needed
+- One company's issues don't affect others
+
 ## Support Contacts
 
 - **Telegram Alerts**: Configured in TELEGRAM_BOT_TOKEN
-- **Manual Monitoring**: Check every morning at 9 AM
-- **Emergency Cleanup**: If >180 files, act immediately
+- **Manual Monitoring**: Check every morning at 9 AM for ALL companies
+- **Emergency Cleanup**: If ANY company >180 files, act immediately
 
 ---
 
