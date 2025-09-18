@@ -43,12 +43,34 @@ class WhatsAppRecovery {
 
     async cleanupAuth() {
         try {
-            console.log('🧹 Cleaning up old auth data...');
-            await execAsync(`rm -rf ${CONFIG.authPath}/*`);
-            console.log('✅ Auth data cleaned');
+            console.log('🧹 Running smart cleanup instead of full deletion...');
+
+            // Use smart cleanup that preserves creds.json
+            const SmartCleanup = require('./whatsapp-smart-cleanup');
+            const cleanup = new SmartCleanup();
+
+            // Set environment for cleanup
+            process.env.COMPANY_ID = CONFIG.companyId;
+            process.env.AUTH_PATH = CONFIG.authPath;
+
+            const stats = await cleanup.cleanup();
+            console.log(`✅ Smart cleanup completed. Removed ${stats.removed} files`);
             return true;
         } catch (error) {
             console.error('Failed to cleanup auth:', error.message);
+            return false;
+        }
+    }
+
+    async fullCleanupAuth() {
+        // Only for emergency - requires QR rescan
+        try {
+            console.log('🚨 FULL cleanup - will require QR rescan!');
+            await execAsync(`rm -rf ${CONFIG.authPath}/*`);
+            console.log('✅ Full auth data cleaned');
+            return true;
+        } catch (error) {
+            console.error('Failed to full cleanup:', error.message);
             return false;
         }
     }
@@ -91,31 +113,76 @@ class WhatsAppRecovery {
 
         if (this.retryCount > CONFIG.maxRetries) {
             console.error('❌ Max retries exceeded. Manual intervention needed.');
-            await this.sendAlert('WhatsApp recovery failed. Manual intervention required.');
+
+            // Check file count before deciding on full cleanup
+            const fileCount = await this.getFileCount();
+            if (fileCount > 200) {
+                console.error('💀 File count exceeds 200 - full cleanup required');
+                await this.sendAlert(
+                    `🚨 CRITICAL: WhatsApp recovery failed!\n\n` +
+                    `Files: ${fileCount}\n` +
+                    `Full cleanup required - QR rescan needed!\n\n` +
+                    `Running emergency cleanup...`
+                );
+                await this.fullCleanupAuth();
+                await this.initializeSession();
+                await this.generateQRCode();
+            } else {
+                await this.sendAlert(
+                    `⚠️ WhatsApp recovery failed after ${CONFIG.maxRetries} attempts.\n\n` +
+                    `Files: ${fileCount}\n` +
+                    `Please check connection manually.`
+                );
+            }
             return false;
         }
 
-        // Step 1: Clean up auth data
-        await this.cleanupAuth();
+        try {
+            // Step 1: Try to reconnect first WITHOUT cleanup
+            console.log('Attempting to reconnect without cleanup...');
+            const reconnected = await this.initializeSession();
 
-        // Step 2: Restart API
-        await this.restartAPI();
+            if (reconnected) {
+                console.log('✅ Reconnected successfully without cleanup');
+                this.retryCount = 0;
+                return true;
+            }
 
-        // Step 3: Initialize new session
-        const init = await this.initializeSession();
-        if (!init) {
-            console.error('Failed to initialize session');
+            // Step 2: If that fails, do smart cleanup (preserves creds.json)
+            console.log('Reconnection failed, trying with smart cleanup...');
+            const fileCount = await this.getFileCount();
+
+            if (fileCount > 150) {
+                console.log(`High file count (${fileCount}), running smart cleanup...`);
+                await this.cleanupAuth(); // Smart cleanup, preserves creds.json
+            }
+
+            // Step 3: Try to reconnect again
+            await this.restartAPI();
+            const init = await this.initializeSession();
+
+            if (init) {
+                console.log('✅ Recovered successfully after cleanup');
+                this.retryCount = 0;
+                return true;
+            }
+
+            console.error('Recovery failed, may need manual intervention');
+            return false;
+
+        } catch (error) {
+            console.error('Recovery error:', error);
             return false;
         }
+    }
 
-        // Step 4: Wait for QR code generation
-        console.log('Waiting for QR code...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Step 5: Notify about QR code
-        await this.generateQRCode();
-
-        return true;
+    async getFileCount() {
+        try {
+            const { stdout } = await execAsync(`ls -la ${CONFIG.authPath} 2>/dev/null | wc -l`);
+            return parseInt(stdout.trim()) - 3; // Subtract . and .. and total line
+        } catch (error) {
+            return 0;
+        }
     }
 
     async sendAlert(message) {
@@ -150,6 +217,16 @@ class WhatsAppRecovery {
         console.log('👁️  Starting WhatsApp connection monitor...');
 
         setInterval(async () => {
+            // Check if cleanup is in progress (flag file exists)
+            const flagFile = `/tmp/whatsapp-cleanup-${CONFIG.companyId}.flag`;
+            try {
+                await execAsync(`[ -f ${flagFile} ]`);
+                console.log('🧹 Cleanup in progress, skipping recovery check...');
+                return;
+            } catch (err) {
+                // Flag file doesn't exist, proceed with normal check
+            }
+
             const status = await this.checkStatus();
 
             if (!status.status || !status.status.connected) {

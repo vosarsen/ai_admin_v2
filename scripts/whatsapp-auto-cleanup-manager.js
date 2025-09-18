@@ -215,6 +215,10 @@ class AutoCleanupManager {
             return;
         }
 
+        // Create flag file to signal auto-recovery to skip
+        const flagFile = `/tmp/whatsapp-cleanup-${companyId}.flag`;
+        await fs.writeFile(flagFile, Date.now().toString());
+
         // Check cooldown (don't clean same company more than once per hour)
         const lastCleanup = this.lastCleanupTime.get(companyId) || 0;
         if (Date.now() - lastCleanup < 3600000) {
@@ -297,6 +301,13 @@ class AutoCleanupManager {
 
         } finally {
             this.isCleaningInProgress.set(companyId, false);
+            // Remove flag file
+            const flagFile = `/tmp/whatsapp-cleanup-${companyId}.flag`;
+            try {
+                await fs.unlink(flagFile);
+            } catch (err) {
+                // Ignore if file doesn't exist
+            }
         }
     }
 
