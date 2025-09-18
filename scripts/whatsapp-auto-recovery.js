@@ -175,10 +175,37 @@ class WhatsAppRecovery {
             const fileCount = parseInt(stdout.trim()) - 3; // Subtract . and .. and total line
 
             if (fileCount > 100) {
-                console.warn(`⚠️  Too many auth files (${fileCount}). Cleanup recommended.`);
-                await this.sendAlert(`Auth directory has ${fileCount} files. Automatic cleanup initiated.`);
-                await this.cleanupAuth();
-                await this.recover();
+                console.warn(`⚠️  Too many auth files (${fileCount}). Running smart cleanup...`);
+
+                // Try smart cleanup first
+                try {
+                    const SmartCleanup = require('./whatsapp-smart-cleanup');
+                    const cleanup = new SmartCleanup();
+                    const stats = await cleanup.cleanup();
+
+                    const newCount = fileCount - stats.removed;
+                    console.log(`✅ Smart cleanup completed. Files: ${fileCount} → ${newCount}`);
+
+                    // If still too many files after smart cleanup, do full recovery
+                    if (newCount > 100) {
+                        console.warn(`⚠️  Still too many files (${newCount}). Full recovery needed.`);
+                        await this.sendAlert(`WhatsApp auth cleanup: ${fileCount} files → ${newCount} files. Still high, may need attention.`);
+
+                        // Only do full recovery if really needed
+                        if (newCount > 150) {
+                            await this.cleanupAuth();
+                            await this.recover();
+                        }
+                    } else {
+                        await this.sendAlert(`✅ WhatsApp auth cleaned: ${fileCount} → ${newCount} files. System healthy.`);
+                    }
+                } catch (cleanupError) {
+                    console.error('Smart cleanup failed, using full cleanup:', cleanupError.message);
+                    await this.cleanupAuth();
+                    await this.recover();
+                }
+            } else if (fileCount > 80) {
+                console.log(`📊 Auth files: ${fileCount} (approaching limit)`);
             }
         } catch (error) {
             // Directory doesn't exist, which is fine
