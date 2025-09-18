@@ -174,11 +174,32 @@ class WhatsAppRecovery {
             const { stdout } = await execAsync(`ls -la ${CONFIG.authPath} 2>/dev/null | wc -l`);
             const fileCount = parseInt(stdout.trim()) - 3; // Subtract . and .. and total line
 
-            if (fileCount > 100) {
-                console.warn(`⚠️  Too many auth files (${fileCount}). Running smart cleanup...`);
+            // New safer thresholds based on Signal Protocol research
+            if (fileCount < 100) {
+                // Everything is fine, just log for monitoring
+                if (fileCount > 80) {
+                    console.log(`📊 Auth files: ${fileCount} (healthy but monitoring)`);
+                }
+            } else if (fileCount < 150) {
+                // Monitoring zone - alert but don't act yet
+                console.warn(`⚠️  Auth files: ${fileCount} - Approaching threshold`);
+                if (fileCount > 120) {
+                    await this.sendAlert(`⚠️ WhatsApp auth files: ${fileCount}\nApproaching cleanup threshold (150).\nConsider manual cleanup soon.`);
+                }
+            } else if (fileCount < 180) {
+                // Warning zone - try smart cleanup
+                console.warn(`🔴 Auth files: ${fileCount} - Cleanup needed!`);
+                await this.sendAlert(`🔴 WhatsApp auth files: ${fileCount}\nAttempting smart cleanup to prevent issues...`);
 
-                // Try smart cleanup first
                 try {
+                    // IMPORTANT: Only cleanup if WhatsApp is disconnected
+                    const status = await this.checkStatus();
+                    if (status.status && status.status.connected) {
+                        console.error('Cannot cleanup while connected! Will retry when disconnected.');
+                        await this.sendAlert(`⚠️ Cannot cleanup while WhatsApp is connected.\nFiles: ${fileCount}\nWill retry when disconnected.`);
+                        return;
+                    }
+
                     const SmartCleanup = require('./whatsapp-smart-cleanup');
                     const cleanup = new SmartCleanup();
                     const stats = await cleanup.cleanup();
@@ -186,26 +207,27 @@ class WhatsAppRecovery {
                     const newCount = fileCount - stats.removed;
                     console.log(`✅ Smart cleanup completed. Files: ${fileCount} → ${newCount}`);
 
-                    // If still too many files after smart cleanup, do full recovery
-                    if (newCount > 100) {
-                        console.warn(`⚠️  Still too many files (${newCount}). Full recovery needed.`);
-                        await this.sendAlert(`WhatsApp auth cleanup: ${fileCount} files → ${newCount} files. Still high, may need attention.`);
-
-                        // Only do full recovery if really needed
-                        if (newCount > 150) {
-                            await this.cleanupAuth();
-                            await this.recover();
-                        }
+                    if (newCount < 150) {
+                        await this.sendAlert(`✅ WhatsApp cleanup successful!\nFiles: ${fileCount} → ${newCount}\nSystem healthy again.`);
                     } else {
-                        await this.sendAlert(`✅ WhatsApp auth cleaned: ${fileCount} → ${newCount} files. System healthy.`);
+                        await this.sendAlert(`⚠️ Cleanup partial success.\nFiles: ${fileCount} → ${newCount}\nStill above safe threshold. Manual intervention may be needed.`);
                     }
                 } catch (cleanupError) {
-                    console.error('Smart cleanup failed, using full cleanup:', cleanupError.message);
+                    console.error('Smart cleanup failed:', cleanupError.message);
+                    await this.sendAlert(`❌ Smart cleanup failed: ${cleanupError.message}\nFiles: ${fileCount}\nManual intervention required!`);
+                }
+            } else {
+                // CRITICAL - Risk of device_removed
+                console.error(`💀 CRITICAL: ${fileCount} files! Risk of device_removed!`);
+                await this.sendAlert(`🚨 CRITICAL WhatsApp Issue!\n\nFiles: ${fileCount}\nRisk of device_removed error!\n\nIMMediate action required:\n1. Stop WhatsApp\n2. Run manual cleanup\n3. Restart\n\nDo NOT wait or connection will be lost!`);
+
+                // Only attempt full recovery if over 200 files (last resort)
+                if (fileCount > 200) {
+                    console.error('File count exceeds 200 - attempting emergency recovery');
+                    await this.sendAlert(`💀 Emergency recovery initiated.\nFiles: ${fileCount}\nMay require QR code rescan.`);
                     await this.cleanupAuth();
                     await this.recover();
                 }
-            } else if (fileCount > 80) {
-                console.log(`📊 Auth files: ${fileCount} (approaching limit)`);
             }
         } catch (error) {
             // Directory doesn't exist, which is fine
