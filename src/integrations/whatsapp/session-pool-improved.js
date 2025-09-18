@@ -269,11 +269,31 @@ class WhatsAppSessionPool extends EventEmitter {
             const files = await fs.readdir(authPath);
             const totalSize = files.length;
 
-            // If too many files (indicating key accumulation), force cleanup
-            if (totalSize > 100) {
-                logger.warn(`⚠️ Session for ${companyId} has ${totalSize} files - forcing cleanup`);
-                await this.removeSession(companyId);
-                await this.createSession(companyId);
+            // If too many files (indicating key accumulation), alert but don't force reset
+            if (totalSize > 180) {
+                logger.error(`🚨 CRITICAL: Session for ${companyId} has ${totalSize} files!`);
+                logger.error(`Risk of device_removed! Manual cleanup required urgently!`);
+
+                // Send alert if Telegram configured
+                if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+                    const axios = require('axios');
+                    try {
+                        await axios.post(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                            chat_id: process.env.TELEGRAM_CHAT_ID,
+                            text: `🚨 CRITICAL WhatsApp Issue!\n\nCompany: ${companyId}\nAuth files: ${totalSize}\n\nRisk of device_removed!\n\n1. Stop WhatsApp for this company\n2. Run smart cleanup\n3. Restart\n\nDO NOT wait!`,
+                            parse_mode: 'HTML'
+                        });
+                    } catch (alertErr) {
+                        logger.error('Failed to send Telegram alert:', alertErr.message);
+                    }
+                }
+
+                // DO NOT automatically reset - this requires QR rescan!
+                // Let smart cleanup handle it properly
+            } else if (totalSize > 150) {
+                logger.warn(`⚠️ Session for ${companyId} has ${totalSize} files - needs cleanup soon`);
+            } else if (totalSize > 120) {
+                logger.info(`📊 Session for ${companyId} has ${totalSize} files - monitoring`);
             }
         } catch (err) {
             logger.debug(`Health check failed for ${companyId}: ${err.message}`);
