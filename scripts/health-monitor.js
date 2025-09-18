@@ -8,14 +8,15 @@
 const axios = require('axios');
 const { exec } = require('child_process');
 const { promisify } = require('util');
+const path = require('path');
 const execAsync = promisify(exec);
 
-// Добавляем путь к node_modules
-require('module-alias/register');
+// Устанавливаем правильный путь для require
+const projectRoot = path.dirname(__dirname);
 
 // Импортируем наш notifier
-const telegramNotifier = require('../src/services/telegram-notifier');
-const logger = require('../src/utils/logger');
+const telegramNotifier = require(path.join(projectRoot, 'src/services/telegram-notifier'));
+const logger = require(path.join(projectRoot, 'src/utils/logger'));
 
 const HEALTH_URL = 'http://localhost:3000/health';
 const RECOVERY_SCRIPT = '/opt/ai-admin/scripts/recovery.sh';
