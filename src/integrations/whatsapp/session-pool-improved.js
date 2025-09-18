@@ -23,6 +23,7 @@ class WhatsAppSessionPool extends EventEmitter {
         this.authPaths = new Map(); // companyId -> authPath
         this.reconnectAttempts = new Map(); // companyId -> attempts
         this.reconnectTimers = new Map(); // companyId -> timer
+        this.qrCodes = new Map(); // companyId -> qrCode
         
         // Configuration
         this.maxReconnectAttempts = 5;
@@ -194,6 +195,7 @@ class WhatsAppSessionPool extends EventEmitter {
             if (qr) {
                 logger.info(`📱 QR Code generated for company ${companyId}`);
                 this.metrics.qrCodesGenerated++;
+                this.qrCodes.set(companyId, qr); // Store QR code
                 this.emit('qr', { companyId, qr });
             }
 
@@ -217,6 +219,7 @@ class WhatsAppSessionPool extends EventEmitter {
                 logger.info(`✅ WhatsApp connected for company ${companyId}`);
                 this.metrics.activeConnections++;
                 this.reconnectAttempts.set(companyId, 0);
+                this.qrCodes.delete(companyId); // Clear QR code on successful connection
                 this.emit('connected', { companyId });
             }
         });
@@ -546,6 +549,14 @@ class WhatsAppSessionPool extends EventEmitter {
         }
         
         return sessions;
+    }
+
+    /**
+     * Gets QR code for a company
+     */
+    getQRCode(companyId) {
+        const validatedId = this.validateCompanyId(companyId);
+        return this.qrCodes.get(validatedId) || null;
     }
 
     /**
