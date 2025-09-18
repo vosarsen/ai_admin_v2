@@ -14,6 +14,7 @@ const { getSyncManager } = require('../sync/sync-manager');
 // Import webhook routes
 const whatsappBatchedWebhook = require('./webhooks/whatsapp-batched');
 const whatsappBaileysWebhook = require('./webhooks/whatsapp-baileys');
+const whatsappManagement = require('./routes/whatsapp-management');
 
 // Import Swagger documentation
 const { setupSwagger } = require('./swagger');
@@ -49,6 +50,9 @@ app.use(whatsappBatchedWebhook);
 app.use(whatsappBaileysWebhook);
 
 // Mount API routes
+app.use('/api/whatsapp', whatsappManagement);
+
+// Other API routes
 const calendarRoutes = require('./routes/calendar');
 app.use('/api/calendar', calendarRoutes);
 
