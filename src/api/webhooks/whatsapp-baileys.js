@@ -199,8 +199,8 @@ router.get(['/webhook/whatsapp/baileys/qr/:companyId', '/webhook/whatsapp/bailey
 router.post('/webhook/whatsapp/baileys/init/:companyId', async (req, res) => {
   try {
     const companyId = req.params.companyId;
-    const config = req.body.config || {};
-    
+    logger.info(`Initializing session for company ${companyId}, body:`, req.body);
+
     // Create new session in pool
     await sessionPool.createSession(companyId);
     
