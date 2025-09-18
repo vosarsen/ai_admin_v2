@@ -9,7 +9,8 @@ class RedisBatchService {
     this.redis = null;
     this.batchPrefix = 'rapid-fire:';
     this.lastMessagePrefix = 'last-msg:';
-    this.defaultTTL = 600; // 600 секунд (10 минут) - достаточный запас для батчинга и обработки
+    this.defaultTTL = 600; // 600 секунд (10 минут) - для батчей
+    this.lastMessageTTL = 86400; // 24 часа для последней активности
     this.batchTimeout = 9000; // 9 секунд после последнего сообщения
     this.maxBatchSize = 10; // максимум сообщений в батче
   }
@@ -92,9 +93,9 @@ class RedisBatchService {
       logger.info(`SET executed for key: ${lastMsgKey}, value: ${now}`);
 
       // Обновляем TTL при каждом новом сообщении для автоматической очистки
-      // TTL должен быть больше чем batchTimeout + запас на обработку
+      // Батчи удаляются быстро, но last-msg храним дольше для статистики
       const ttl1 = await this.redis.expire(batchKey, this.defaultTTL);
-      const ttl2 = await this.redis.expire(lastMsgKey, this.defaultTTL);
+      const ttl2 = await this.redis.expire(lastMsgKey, this.lastMessageTTL);
       logger.info(`EXPIRE executed - batch: ${ttl1}, lastMsg: ${ttl2}, TTL: ${this.defaultTTL}`);
       
       // Проверяем что ключи действительно существуют
