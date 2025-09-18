@@ -72,32 +72,9 @@ app.use('/api/whatsapp', whatsappSessionsRoutes);
 const marketplaceRoutes = require('./routes/marketplace');
 app.use('/marketplace', marketplaceRoutes);
 
-// Health check (with relaxed rate limit)
-app.get('/health', rateLimiter, async (req, res) => {
-  try {
-    // Check critical services
-    const whatsappStatus = await whatsappClient.checkStatus();
-    const queueMetrics = await messageQueue.getMetrics(config.queue.messageQueue);
-    
-    const healthy = whatsappStatus.connected && queueMetrics !== null;
-    
-    res.status(healthy ? 200 : 503).json({
-      status: healthy ? 'healthy' : 'unhealthy',
-      timestamp: new Date().toISOString(),
-      services: {
-        whatsapp: whatsappStatus.connected ? 'connected' : 'disconnected',
-        redis: queueMetrics !== null ? 'connected' : 'disconnected'
-      },
-      queue: queueMetrics
-    });
-  } catch (error) {
-    logger.error('Health check failed:', error);
-    res.status(503).json({
-      status: 'unhealthy',
-      error: error.message
-    });
-  }
-});
+// Health check routes with detailed monitoring
+const healthRoutes = require('./routes/health');
+app.use('', healthRoutes);
 
 // WhatsApp webhook - DEPRECATED (redirecting to batched version)
 // All messages should now go through /webhook/whatsapp/batched for proper rapid-fire handling
