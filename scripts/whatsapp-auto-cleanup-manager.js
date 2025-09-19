@@ -253,6 +253,18 @@ class AutoCleanupManager {
                 await new Promise(resolve => setTimeout(resolve, 3000));
             }
 
+            // Step 2.5: Create backup before cleanup
+            try {
+                const BackupManager = require('./whatsapp-backup-manager');
+                const backupManager = new BackupManager();
+                await backupManager.init();
+                await backupManager.createBackup(companyId);
+                console.log(`📦 Backup created before cleanup`);
+            } catch (backupError) {
+                console.warn(`⚠️  Could not create backup: ${backupError.message}`);
+                // Don't stop cleanup for backup failure
+            }
+
             // Step 3: Run cleanup
             const cleanupResult = await this.runCleanup(companyId, authPath);
 

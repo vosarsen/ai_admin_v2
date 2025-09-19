@@ -33,11 +33,34 @@ class WhatsAppRecovery {
 
     async checkStatus() {
         try {
-            const response = await axios.get(`${CONFIG.apiUrl}/webhook/whatsapp/baileys/status/${CONFIG.companyId}`);
+            const response = await axios.get(`${CONFIG.apiUrl}/webhook/whatsapp/baileys/status/${CONFIG.companyId}`, {
+                timeout: 5000 // 5 second timeout
+            });
             return response.data;
         } catch (error) {
+            // Check if it's a network error
+            if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.code === 'ENOTFOUND') {
+                console.error(`🔌 Network error checking status: ${error.code}`);
+                // Return special status to indicate network issue
+                return {
+                    status: { connected: false },
+                    networkError: true,
+                    errorCode: error.code
+                };
+            }
             console.error('Failed to check status:', error.message);
             return { status: { connected: false } };
+        }
+    }
+
+    async checkNetworkConnectivity() {
+        try {
+            // Try to ping Google's DNS
+            const { stdout } = await execAsync('ping -c 1 -W 2 8.8.8.8');
+            return true;
+        } catch (error) {
+            console.warn('⚠️  Network connectivity issue detected');
+            return false;
         }
     }
 
@@ -230,14 +253,37 @@ class WhatsAppRecovery {
             const status = await this.checkStatus();
 
             if (!status.status || !status.status.connected) {
+                // Check if it's a network error
+                if (status.networkError) {
+                    console.log(`🔌 Network issue detected: ${status.errorCode}`);
+                    const hasInternet = await this.checkNetworkConnectivity();
+                    if (!hasInternet) {
+                        console.log('🌐 No internet connectivity - skipping recovery');
+                        return; // Don't try to recover during network outage
+                    }
+                }
+
                 console.log(`❌ WhatsApp disconnected at ${new Date().toISOString()}`);
 
                 // Check if it's a temporary disconnect
                 const timeSinceHealthy = Date.now() - this.lastHealthyTime;
-                if (timeSinceHealthy > 300000) { // 5 minutes
+                const disconnectMinutes = Math.floor(timeSinceHealthy / 60000);
+
+                if (timeSinceHealthy > 900000) { // 15 minutes - increased from 5
+                    console.log(`⚠️ Disconnected for ${disconnectMinutes} minutes, attempting recovery...`);
                     await this.recover();
+                } else if (timeSinceHealthy > 600000) { // 10 minutes - warning
+                    console.log(`⚠️ Disconnected for ${disconnectMinutes} minutes, will recover at 15 minutes`);
+                    if (disconnectMinutes === 10 && !this.warningAlertSent) {
+                        await this.sendAlert(
+                            `⚠️ WhatsApp disconnected for 10 minutes\n\n` +
+                            `Company: ${CONFIG.companyId}\n` +
+                            `Will attempt recovery in 5 minutes if not reconnected`
+                        );
+                        this.warningAlertSent = true;
+                    }
                 } else {
-                    console.log('Waiting for auto-reconnect...');
+                    console.log(`Waiting for auto-reconnect... (${disconnectMinutes} minutes)`);
                 }
             } else {
                 if (this.retryCount > 0) {
@@ -245,6 +291,7 @@ class WhatsAppRecovery {
                     this.retryCount = 0;
                 }
                 this.lastHealthyTime = Date.now();
+                this.warningAlertSent = false; // Reset warning flag when connected
             }
         }, CONFIG.checkInterval);
     }
