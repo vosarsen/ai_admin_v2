@@ -79,6 +79,11 @@ async function connectWithPairingCode() {
 
                 // Keep script running to wait for pairing
                 console.log('⏳ Waiting for pairing...');
+
+                // Set a timeout to keep the process alive for pairing
+                setTimeout(() => {
+                    console.log('⏰ Pairing timeout. If not connected, please try again.');
+                }, 90000); // 90 seconds timeout
             } catch (err) {
                 console.error('❌ Failed to get pairing code:', err.message);
                 console.log('\n💡 Possible issues:');
@@ -113,7 +118,11 @@ async function connectWithPairingCode() {
                 console.log(`📱 Connected as: ${sock.user?.id}`);
                 console.log(`📂 Session saved in: ${sessionPath}`);
                 console.log('\n✨ WhatsApp is now ready for company', companyId);
-                process.exit(0);
+                // Keep the process running for a bit to ensure session is saved
+                setTimeout(() => {
+                    console.log('👍 Session established and saved. Exiting...');
+                    process.exit(0);
+                }, 3000);
             }
         });
 
