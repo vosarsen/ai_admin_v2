@@ -330,6 +330,15 @@
         </div>
 
         <div class="pairing-section">
+            <div style="margin-bottom: 20px;">
+                <input type="tel"
+                       id="phoneNumber"
+                       placeholder="Номер телефона (например: 79001234567)"
+                       style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px;">
+                <small style="color: #666; display: block; margin-top: 5px;">
+                    Введите номер WhatsApp который хотите подключить
+                </small>
+            </div>
             <div class="pairing-code loading" id="pairingCode">
                 <div class="spinner" id="loadingSpinner"></div>
             </div>
@@ -404,6 +413,17 @@
             const btn = document.getElementById('getCodeBtn');
             const codeDiv = document.getElementById('pairingCode');
             const statusDiv = document.getElementById('statusMessage');
+            const phoneInput = document.getElementById('phoneNumber');
+
+            // Get phone number
+            const phoneNumber = phoneInput.value.replace(/[^0-9]/g, '');
+
+            if (!phoneNumber || phoneNumber.length < 10) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = 'Пожалуйста, введите корректный номер телефона';
+                statusDiv.style.display = 'block';
+                return;
+            }
 
             // Reset status
             statusDiv.style.display = 'none';
@@ -420,7 +440,8 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
-                    }
+                    },
+                    body: JSON.stringify({ phoneNumber })
                 });
 
                 const data = await response.json();
@@ -434,7 +455,7 @@
                     startConnectionCheck();
 
                     statusDiv.className = 'status info';
-                    statusDiv.textContent = '✨ Код получен! Следуйте инструкциям ниже.';
+                    statusDiv.textContent = `✨ Код получен для номера +${phoneNumber}! Следуйте инструкциям ниже.`;
                     statusDiv.style.display = 'block';
                 } else {
                     throw new Error(data.error || 'Не удалось получить код');
