@@ -21,12 +21,14 @@ class BaileysProvider extends EventEmitter {
     this.reconnectDelay = 5000; // 5 seconds base delay
     this.sessionsPath = path.join(process.cwd(), 'sessions');
     this.messageHandlers = new Map(); // companyId -> handler function
-    
+
     // Enhanced connection management
     this.connectionStates = new Map(); // companyId -> state
     this.lastDisconnectReasons = new Map(); // companyId -> reason
     this.keepAliveIntervals = new Map(); // companyId -> interval
-    
+    this.pairingCodes = new Map(); // companyId -> pairing code
+    this.qrGenerationCount = new Map(); // companyId -> QR generation count
+
     // Enhanced configuration
     this.config = {
       reconnectDelay: 5000,
@@ -34,6 +36,8 @@ class BaileysProvider extends EventEmitter {
       reconnectBackoffMultiplier: 1.5, // Exponential backoff
       keepAliveIntervalMs: 30000, // Send keep-alive every 30s
       connectionTimeoutMs: 60000, // Connection timeout
+      maxQRAttempts: 3, // Max QR attempts before switching to pairing code
+      usePairingCode: process.env.USE_PAIRING_CODE === 'true', // Enable pairing code
     };
   }
 
@@ -51,6 +55,8 @@ class BaileysProvider extends EventEmitter {
    * Connect a company to WhatsApp
    * @param {string} companyId - Unique company identifier
    * @param {Object} config - Company-specific configuration
+   * @param {boolean} config.usePairingCode - Use pairing code instead of QR
+   * @param {string} config.phoneNumber - Phone number for pairing code
    */
   async connectSession(companyId, config = {}) {
     logger.info(`📱 Connecting WhatsApp session for company ${companyId}`);
@@ -74,6 +80,10 @@ class BaileysProvider extends EventEmitter {
       // Store functionality removed - not available in current Baileys version
       // Will be added back when makeInMemoryStore is available
 
+      // Check if we should use pairing code
+      const usePairingCode = config.usePairingCode || this.config.usePairingCode;
+      const phoneNumber = config.phoneNumber;
+
       // Create socket connection
       const socket = makeWASocket({
         version,
@@ -93,6 +103,24 @@ class BaileysProvider extends EventEmitter {
         defaultQueryTimeoutMs: 60_000, // Query timeout 60 seconds
         ...config
       });
+
+      // Request pairing code if configured and not registered
+      if (usePairingCode && phoneNumber && !state.creds.registered) {
+        try {
+          logger.info(`📱 Requesting pairing code for company ${companyId}`);
+          const code = await socket.requestPairingCode(phoneNumber);
+          const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
+
+          this.pairingCodes.set(companyId, formattedCode);
+          logger.info(`✅ Pairing code generated for company ${companyId}: ${formattedCode}`);
+
+          // Emit pairing code event
+          this.emit('pairing-code', { companyId, code: formattedCode, phoneNumber });
+        } catch (error) {
+          logger.error(`Failed to request pairing code: ${error.message}`);
+          // Fall back to QR if pairing code fails
+        }
+      }
 
       // Bind store to socket
       // Store binding removed - not available in current Baileys version
@@ -137,7 +165,25 @@ class BaileysProvider extends EventEmitter {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      logger.info(`📱 QR Code generated for company ${companyId}`);
+      // Track QR generation count
+      const qrCount = (this.qrGenerationCount.get(companyId) || 0) + 1;
+      this.qrGenerationCount.set(companyId, qrCount);
+
+      logger.info(`📱 QR Code generated for company ${companyId} (attempt ${qrCount})`);
+
+      // Check if we should switch to pairing code
+      if (qrCount >= this.config.maxQRAttempts) {
+        logger.warn(`⚠️ Too many QR attempts (${qrCount}) for company ${companyId}`);
+        logger.info(`💡 Consider using pairing code method to avoid "linking devices" block`);
+
+        // Emit warning event
+        this.emit('qr-limit-reached', {
+          companyId,
+          attempts: qrCount,
+          message: 'Too many QR attempts. Consider using pairing code method.'
+        });
+      }
+
       // Display QR in terminal
       qrcode.generate(qr, { small: true });
       // Emit QR event for web interface

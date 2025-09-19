@@ -135,6 +135,88 @@ router.get('/sessions/:companyId/status', async (req, res) => {
     }
 });
 
+// Initialize session with pairing code
+router.post('/sessions/:companyId/pairing-code', async (req, res) => {
+    const { companyId } = req.params;
+    const { phoneNumber } = req.body;
+
+    try {
+        if (!phoneNumber) {
+            return res.status(400).json({
+                success: false,
+                error: 'Phone number is required for pairing code'
+            });
+        }
+
+        const sessionPool = req.app.locals.sessionPool;
+
+        if (!sessionPool) {
+            return res.status(500).json({
+                success: false,
+                error: 'Session pool not initialized'
+            });
+        }
+
+        // Check if session already exists
+        const existingSession = sessionPool.sessions.get(companyId);
+        if (existingSession) {
+            await sessionPool.removeSession(companyId);
+            logger.info(`🔄 Removed existing session for company ${companyId} before pairing`);
+        }
+
+        // Create new session with pairing code
+        logger.info(`📱 Requesting pairing code for company ${companyId}, phone: ${phoneNumber}`);
+
+        // Initialize with pairing code config
+        await sessionPool.createSession(companyId, {
+            usePairingCode: true,
+            phoneNumber: phoneNumber
+        });
+
+        // Wait a bit for pairing code generation
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Get the pairing code from provider
+        const provider = sessionPool.provider;
+        const pairingCode = provider.pairingCodes.get(companyId);
+
+        if (pairingCode) {
+            logger.info(`✅ Pairing code generated for company ${companyId}: ${pairingCode}`);
+
+            res.json({
+                success: true,
+                companyId,
+                pairingCode,
+                phoneNumber,
+                instructions: [
+                    '1. Open WhatsApp on your phone',
+                    '2. Go to Settings → Linked Devices',
+                    '3. Tap "Link a Device"',
+                    '4. Select "Link with phone number instead"',
+                    '5. Enter the pairing code'
+                ],
+                expiresIn: '60 seconds'
+            });
+        } else {
+            res.json({
+                success: false,
+                message: 'Pairing code generation in progress',
+                note: 'Check status endpoint or wait for pairing-code event'
+            });
+        }
+
+    } catch (error) {
+        logger.error(`Failed to generate pairing code for company ${companyId}:`, error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            suggestion: error.message.includes('rate')
+                ? 'Rate limit reached. Please wait 30-60 minutes before trying again.'
+                : undefined
+        });
+    }
+});
+
 // Trigger cleanup for specific company
 router.post('/sessions/:companyId/cleanup', async (req, res) => {
     const { companyId } = req.params;
