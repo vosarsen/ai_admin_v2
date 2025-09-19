@@ -273,8 +273,8 @@ router.post('/sessions/:companyId/pairing-code',
             const execAsync = promisify(exec);
 
             try {
-                // Run the pairing code script
-                const { stdout } = await execAsync(`node scripts/get-pairing-code.js ${companyId}`, {
+                // Run the improved pairing code script that maintains session
+                const { stdout } = await execAsync(`node scripts/pairing-code-api.js ${companyId}`, {
                     timeout: 30000
                 });
 
