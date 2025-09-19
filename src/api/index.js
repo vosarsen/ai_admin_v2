@@ -202,7 +202,7 @@ app.post('/api/whatsapp/reaction', rateLimiter, async (req, res) => {
   try {
     logger.info(`🔵 Reaction API called:`, { to, emoji, messageId, companyId });
     
-    const { getSessionPool } = require('../integrations/whatsapp/session-pool-improved');
+    const { getSessionPool } = require('../integrations/whatsapp/session-pool');
     const sessionPool = getSessionPool();
     
     // Use the new sendReaction method that handles session creation automatically

@@ -4,7 +4,7 @@ const router = express.Router();
 const logger = require('../../utils/logger');
 // MIGRATION: Disabled old session manager in favor of new Session Pool architecture
 // const sessionManager = require('../../integrations/whatsapp/session-manager');
-const { getSessionPool } = require('../../integrations/whatsapp/session-pool-improved');
+const { getSessionPool } = require('../../integrations/whatsapp/session-pool');
 const healthMonitor = require('../../services/whatsapp/health-monitor');
 const sessionStateManager = require('../../services/whatsapp/session-state-manager');
 const messageQueue = require('../../queue/message-queue');

@@ -8,26 +8,31 @@ const qrcode = require('qrcode-terminal');
 const logger = require('../../../utils/logger');
 const EventEmitter = require('events');
 const sessionStateManager = require('../../../services/whatsapp/session-state-manager');
+const TTLMap = require('../../../utils/ttl-map');
 
 class BaileysProvider extends EventEmitter {
   constructor() {
     super();
     this.setMaxListeners(20); // Prevent memory leak warnings
-    this.sessions = new Map(); // companyId -> socket instance
-    this.stores = new Map(); // companyId -> store instance
-    this.authStates = new Map(); // companyId -> auth state
-    this.reconnectAttempts = new Map(); // companyId -> attempt count
+
+    // Use TTLMap for auto-cleanup of stale data
+    this.sessions = new TTLMap(3600000, 60000); // 1 hour TTL, check every minute
+    this.stores = new TTLMap(3600000, 60000); // 1 hour TTL
+    this.authStates = new TTLMap(7200000, 120000); // 2 hours TTL for auth states
+    this.reconnectAttempts = new TTLMap(1800000, 60000); // 30 minutes TTL
+    this.pairingCodes = new TTLMap(60000, 10000); // 60 seconds TTL for pairing codes
+    this.qrGenerationCount = new TTLMap(3600000, 60000); // 1 hour TTL
+
+    // Regular Maps for persistent data
     this.maxReconnectAttempts = 10; // Увеличиваем количество попыток
     this.reconnectDelay = 5000; // 5 seconds base delay
     this.sessionsPath = path.join(process.cwd(), 'sessions');
-    this.messageHandlers = new Map(); // companyId -> handler function
+    this.messageHandlers = new Map(); // companyId -> handler function - no TTL needed
 
-    // Enhanced connection management
-    this.connectionStates = new Map(); // companyId -> state
-    this.lastDisconnectReasons = new Map(); // companyId -> reason
-    this.keepAliveIntervals = new Map(); // companyId -> interval
-    this.pairingCodes = new Map(); // companyId -> pairing code
-    this.qrGenerationCount = new Map(); // companyId -> QR generation count
+    // Enhanced connection management with TTL
+    this.connectionStates = new TTLMap(1800000, 60000); // 30 minutes TTL
+    this.lastDisconnectReasons = new TTLMap(3600000, 60000); // 1 hour TTL
+    this.keepAliveIntervals = new Map(); // No TTL - managed manually
 
     // Enhanced configuration
     this.config = {
@@ -609,7 +614,18 @@ class BaileysProvider extends EventEmitter {
     for (const companyId of this.sessions.keys()) {
       await this.disconnectSession(companyId);
     }
-    logger.info('All sessions disconnected');
+
+    // Cleanup all TTL Maps
+    this.sessions.destroy();
+    this.stores.destroy();
+    this.authStates.destroy();
+    this.reconnectAttempts.destroy();
+    this.pairingCodes.destroy();
+    this.qrGenerationCount.destroy();
+    this.connectionStates.destroy();
+    this.lastDisconnectReasons.destroy();
+
+    logger.info('All sessions disconnected and memory cleaned');
   }
 
   /**
