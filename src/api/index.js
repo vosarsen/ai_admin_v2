@@ -3,8 +3,9 @@ const express = require('express');
 const config = require('../config');
 const logger = require('../utils/logger');
 const messageQueue = require('../queue/message-queue');
-const clientFactory = require('../integrations/whatsapp/client-factory');
-const whatsappClient = clientFactory.getClient();
+// Using simplified WhatsApp Manager (3-layer architecture)
+const whatsappManager = require('../integrations/whatsapp/whatsapp-manager');
+const whatsappClient = whatsappManager; // Backward compatibility alias
 const { validateWebhookSignature, validateApiKey } = require('../middlewares/webhook-auth');
 const rateLimiter = require('../middlewares/rate-limiter');
 const criticalErrorMiddleware = require('../middlewares/critical-error');
