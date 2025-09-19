@@ -7,7 +7,7 @@
  */
 
 const sessionManager = require('./session-manager');
-const config = require('../../config');
+const whatsappConfig = require('../../config/whatsapp');
 const logger = require('../../utils/logger');
 const {
   WhatsAppError,
@@ -18,15 +18,22 @@ const {
   ConfigurationError,
   ErrorHandler
 } = require('../../utils/whatsapp-errors');
+const WhatsAppMetrics = require('../../utils/whatsapp-metrics');
 
 class WhatsAppManager {
   constructor() {
     this.sessionManager = sessionManager;
     this.isInitialized = false;
-    this.defaultCompanyId = config.yclients?.companyId || process.env.YCLIENTS_COMPANY_ID || '962302';
+    this.config = whatsappConfig;
+    this.metrics = new WhatsAppMetrics();
+
+    // Multi-tenant mode - no default company
+    this.defaultCompanyId = this.config.isMultiTenant() ?
+      null :
+      this.config.defaults.singleTenantCompanyId;
 
     // Provider configuration
-    this.provider = config.whatsapp?.provider || 'baileys';
+    this.provider = this.config.provider;
 
     // Singleton instance
     if (WhatsAppManager.instance) {
@@ -94,23 +101,52 @@ class WhatsAppManager {
   async sendMessage(phone, message, options = {}) {
     await this.ensureInitialized();
 
+    // Multi-tenant validation
     const companyId = options.companyId || this.defaultCompanyId;
+    if (this.config.isMultiTenant() && !companyId) {
+      throw new ValidationError('Company ID is required in multi-tenant mode', 'companyId');
+    }
 
-    // Validate input
-    if (!phone) {
-      throw new ValidationError('Phone number is required', 'phone');
+    // Validate company ID
+    const WhatsAppValidator = require('../../utils/whatsapp-validator');
+    const companyValidation = WhatsAppValidator.validateCompanyId(companyId, this.config.isMultiTenant());
+    if (!companyValidation.valid) {
+      throw new ValidationError(companyValidation.error, 'companyId');
     }
-    if (!message) {
-      throw new ValidationError('Message is required', 'message');
+
+    // Validate phone number
+    const phoneValidation = WhatsAppValidator.validatePhoneNumber(phone);
+    if (!phoneValidation.valid) {
+      throw new ValidationError(phoneValidation.error, 'phone');
     }
-    if (!this.isValidPhone(phone)) {
-      throw new ValidationError('Invalid phone number format', 'phone', { phone });
+
+    // Validate message
+    const messageValidation = WhatsAppValidator.validateMessage(message);
+    if (!messageValidation.valid) {
+      throw new ValidationError(messageValidation.error, 'message');
     }
+
+    // Start performance tracking
+    const startTime = Date.now();
 
     try {
-      const result = await this.sessionManager.sendMessage(companyId, phone, message, options);
+      const result = await this.sessionManager.sendMessage(
+        companyValidation.companyId || companyId,
+        phoneValidation.phone,
+        messageValidation.message,
+        options
+      );
+
+      // Record metrics
+      this.metrics.increment('messagesSent', companyId);
+      this.metrics.recordPerformance('messageLatency', Date.now() - startTime, companyId);
+
       return { success: true, ...result };
     } catch (error) {
+      // Record error metrics
+      this.metrics.increment('messagesFailed', companyId);
+      this.metrics.recordError(error, companyId);
+
       const standardError = ErrorHandler.standardize(error);
       ErrorHandler.log(standardError, logger);
 
@@ -118,6 +154,7 @@ class WhatsAppManager {
         throw new SessionError('No active WhatsApp session', companyId, { phone });
       }
       if (error.message?.includes('rate')) {
+        this.metrics.increment('rateLimits', companyId);
         throw standardError; // Already standardized as RateLimitError
       }
 
