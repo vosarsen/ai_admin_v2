@@ -5,7 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { getSessionPool } = require('../../integrations/whatsapp/session-pool-improved');
+const { getSessionPool } = require('../../integrations/whatsapp/session-pool');
 const logger = require('../../utils/logger');
 const QRCode = require('qrcode');
 const { body, param, validationResult } = require('express-validator');
@@ -363,7 +363,7 @@ sessionPool.on('qr', ({ companyId, qr }) => {
 
 // Handle connections
 sessionPool.on('connected', ({ companyId }) => {
-    // Connection already logged in session-pool-improved.js
+    // Connection already logged in session-pool.js
     // Could send webhook or notification here
 });
 

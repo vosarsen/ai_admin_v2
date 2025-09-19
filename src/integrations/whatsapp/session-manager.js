@@ -218,18 +218,22 @@ class WhatsAppSessionManager extends EventEmitter {
       const result = await this.provider.sendMessage(companyId, phone, message, options);
       
       // Store outgoing message
-      // TODO: Fix supabase import issue
-      // await supabase
-      //   .from('messages')
-      //   .insert({
-      //     company_id: companyId,
-      //     phone,
-      //     message,
-      //     message_id: result.messageId,
-      //     direction: 'outgoing',
-      //     status: 'sent',
-      //     created_at: new Date()
-      //   });
+      try {
+        await supabase
+          .from('messages')
+          .insert({
+            company_id: companyId,
+            phone,
+            message,
+            message_id: result.messageId,
+            direction: 'outgoing',
+            status: 'sent',
+            created_at: new Date()
+          });
+      } catch (dbError) {
+        logger.warn(`Failed to store message in database: ${dbError.message}`);
+        // Don't throw - message was sent successfully
+      }
 
       return result;
 
@@ -253,20 +257,24 @@ class WhatsAppSessionManager extends EventEmitter {
       const result = await this.provider.sendMedia(companyId, phone, mediaUrl, type, caption);
       
       // Store outgoing media
-      // TODO: Fix supabase import issue
-      // await supabase
-      //   .from('messages')
-      //   .insert({
-      //     company_id: companyId,
-      //     phone,
-      //     message: caption || `[${type}]`,
-      //     message_id: result.messageId,
-      //     media_url: mediaUrl,
-      //     media_type: type,
-      //     direction: 'outgoing',
-      //     status: 'sent',
-      //     created_at: new Date()
-      //   });
+      try {
+        await supabase
+          .from('messages')
+          .insert({
+            company_id: companyId,
+            phone,
+            message: caption || `[${type}]`,
+            message_id: result.messageId,
+            media_url: mediaUrl,
+            media_type: type,
+            direction: 'outgoing',
+            status: 'sent',
+            created_at: new Date()
+          });
+      } catch (dbError) {
+        logger.warn(`Failed to store media message in database: ${dbError.message}`);
+        // Don't throw - media was sent successfully
+      }
 
       return result;
 
@@ -326,14 +334,13 @@ class WhatsAppSessionManager extends EventEmitter {
    */
   async updateSessionStatus(companyId, status) {
     try {
-      // TODO: Fix supabase import issue
-      // await supabase
-      //   .from('companies')
-      //   .update({ 
-      //     whatsapp_status: status,
-      //     whatsapp_last_connected: status === 'connected' ? new Date() : undefined
-      //   })
-      //   .eq('id', companyId);
+      await supabase
+        .from('companies')
+        .update({
+          whatsapp_status: status,
+          whatsapp_last_connected: status === 'connected' ? new Date() : undefined
+        })
+        .eq('company_id', companyId);
     } catch (error) {
       logger.error(`Failed to update session status for company ${companyId}:`, error);
     }
@@ -383,15 +390,18 @@ class WhatsAppSessionManager extends EventEmitter {
     this.activeSessions.delete(companyId);
     
     // Update database
-    // TODO: Fix supabase import issue
-    // await supabase
-    //   .from('companies')
-    //   .update({ 
-    //     whatsapp_enabled: false,
-    //     whatsapp_status: 'disconnected',
-    //     whatsapp_config: null
-    //   })
-    //   .eq('id', companyId);
+    try {
+      await supabase
+        .from('companies')
+        .update({
+          whatsapp_enabled: false,
+          whatsapp_status: 'disconnected',
+          whatsapp_config: null
+        })
+        .eq('company_id', companyId);
+    } catch (dbError) {
+      logger.warn(`Failed to update company status in database: ${dbError.message}`);
+    }
   }
 
   /**
