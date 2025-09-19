@@ -267,12 +267,24 @@ router.post('/sessions/:companyId/pairing-code',
                 });
             }
 
-            // Request pairing code
-            const phoneNumber = process.env.WHATSAPP_PHONE_NUMBER || '+79686484488';
-            const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
+            // Request pairing code using the script that works
+            const { exec } = require('child_process');
+            const { promisify } = require('util');
+            const execAsync = promisify(exec);
 
             try {
-                const code = await session.requestPairingCode(cleanPhone);
+                // Run the pairing code script
+                const { stdout } = await execAsync(`node scripts/get-pairing-code.js ${companyId}`, {
+                    timeout: 30000
+                });
+
+                // Extract pairing code from output
+                const codeMatch = stdout.match(/PAIRING CODE:\s*([A-Z0-9-]+)/);
+                const code = codeMatch ? codeMatch[1] : null;
+
+                if (!code) {
+                    throw new Error('Failed to extract pairing code from script output');
+                }
 
                 logger.info(`Pairing code generated for company ${companyId}`);
 
