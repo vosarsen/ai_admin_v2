@@ -235,17 +235,86 @@ If file count >180:
 4. **WhatsApp security** - Designed to prevent automated abuse, strict on anomalies
 5. **Customer impact** - QR rescan is unacceptable in production
 
+## Backup and Recovery System (NEW - September 2025)
+
+### Automatic Backups
+System now creates automatic backups before ANY cleanup operation:
+- Preserves `creds.json` to prevent QR rescans
+- Keeps last 5 backups per company
+- Can restore from backup if something goes wrong
+
+### Backup Commands
+```bash
+# Create manual backup
+node scripts/whatsapp-backup-manager.js backup 962302
+
+# Restore from latest backup
+node scripts/whatsapp-backup-manager.js restore 962302
+
+# List available backups
+node scripts/whatsapp-backup-manager.js list 962302
+
+# Verify backup integrity
+node scripts/whatsapp-backup-manager.js verify 962302
+
+# Backup all companies
+node scripts/whatsapp-backup-manager.js backup-all
+```
+
+## Health Check Dashboard (NEW - September 2025)
+
+### Quick System Check
+```bash
+# One command to check everything
+node scripts/whatsapp-health-check.js
+
+# Live monitoring mode
+node scripts/whatsapp-health-check.js --watch
+```
+
+Shows:
+- Process status (API, workers, monitors)
+- WhatsApp connection status per company
+- File counts with health indicators
+- Backup status and age
+- Actionable recommendations
+
+## Enhanced Recovery System (UPDATED - September 2025)
+
+### Key Improvements:
+1. **15-minute timeout** (was 5) - Better tolerance for network issues
+2. **Network detection** - Distinguishes network vs WhatsApp issues
+3. **Smart recovery** - Tries reconnection WITHOUT cleanup first
+4. **Backup before cleanup** - Always preserves critical files
+5. **No more rm -rf** - Smart cleanup preserves creds.json
+
+### Recovery Flow:
+1. Disconnected 0-10 min: Wait for auto-reconnect
+2. Disconnected 10 min: Warning alert sent
+3. Disconnected 15 min: Try reconnect without cleanup
+4. If files >150: Smart cleanup (preserves creds.json)
+5. If files >200: Last resort - full cleanup (requires QR)
+
 ## Quick Reference Card
 
 ```bash
+# HEALTH CHECK (Do this first!)
+node scripts/whatsapp-health-check.js
+
 # Check status
 pm2 status | grep whatsapp
 ls -la /opt/ai-admin/baileys_sessions/company_962302 | wc -l
+
+# Create backup (always safe)
+node scripts/whatsapp-backup-manager.js backup 962302
 
 # Safe cleanup (when disconnected)
 pm2 stop ai-admin-api
 node scripts/whatsapp-smart-cleanup.js
 pm2 restart ai-admin-api
+
+# Restore from backup if needed
+node scripts/whatsapp-backup-manager.js restore 962302
 
 # Emergency (180+ files)
 pm2 stop ai-admin-api
@@ -254,6 +323,10 @@ pm2 restart ai-admin-api
 
 # Monitor logs
 pm2 logs ai-admin-api --lines 100 | grep -E "(Closing stale|device_removed|waiting)"
+
+# Start all monitors
+pm2 start scripts/whatsapp-auto-recovery.js --name whatsapp-monitor
+pm2 start scripts/whatsapp-multi-company-monitor.js --name whatsapp-multi-monitor
 ```
 
 ## Multi-Company Support
@@ -308,6 +381,16 @@ AUTH_PATH=/opt/ai-admin/baileys_sessions/company_XXXXXX \
 
 ---
 
-**Last Updated**: September 2025
-**Version**: 2.0
-**Critical**: This document contains production-critical information. All team members must understand these procedures.
+**Last Updated**: September 19, 2025
+**Version**: 3.0
+**Major Update**: Added backup system, health dashboard, and enhanced recovery after critical incident
+
+**⚠️ CRITICAL**: This document contains production-critical information. All team members must understand these procedures.
+
+**🆕 NEW FEATURES (v3.0)**:
+- Automatic backup system prevents data loss
+- Health check dashboard for instant status
+- 15-minute recovery timeout (was 5)
+- Network failure detection
+- Multi-company support
+- No more accidental QR rescans
