@@ -135,7 +135,9 @@ router.get('/sessions/:companyId/status', async (req, res) => {
     }
 });
 
-// Initialize session with pairing code
+// DEPRECATED: Moved to whatsapp-sessions-improved.js
+// This endpoint is now handled by the improved session management
+/*
 router.post('/sessions/:companyId/pairing-code', async (req, res) => {
     const { companyId } = req.params;
     const { phoneNumber } = req.body;
@@ -216,6 +218,7 @@ router.post('/sessions/:companyId/pairing-code', async (req, res) => {
         });
     }
 });
+*/
 
 // Trigger cleanup for specific company
 router.post('/sessions/:companyId/cleanup', async (req, res) => {
