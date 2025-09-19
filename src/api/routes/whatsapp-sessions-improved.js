@@ -12,7 +12,18 @@ const { body, param, validationResult } = require('express-validator');
 const messageQueue = require('../../queue/message-queue');
 
 // Get singleton session pool instance
-const sessionPool = getSessionPool();
+let sessionPool = null;
+
+// Initialize session pool lazily
+function ensureSessionPool() {
+    if (!sessionPool) {
+        sessionPool = getSessionPool();
+        if (!sessionPool) {
+            throw new Error('Failed to initialize session pool');
+        }
+    }
+    return sessionPool;
+}
 
 /**
  * Validation middleware
@@ -34,8 +45,8 @@ const validate = (req, res, next) => {
  */
 router.get('/sessions', async (req, res) => {
     try {
-        const sessions = sessionPool.getActiveSessions();
-        const metrics = sessionPool.getMetrics();
+        const sessions = ensureSessionPool().getActiveSessions();
+        const metrics = ensureSessionPool().getMetrics();
         
         res.json({
             success: true,
@@ -62,8 +73,8 @@ router.get('/sessions/:companyId/status',
     async (req, res) => {
         try {
             const { companyId } = req.params;
-            const status = sessionPool.getSessionStatus(companyId);
-            const health = await sessionPool.healthCheck(companyId);
+            const status = ensureSessionPool().getSessionStatus(companyId);
+            const health = await ensureSessionPool().healthCheck(companyId);
             
             res.json({
                 success: true,
@@ -95,7 +106,7 @@ router.post('/sessions/:companyId/initialize',
             logger.info(`Initializing WhatsApp session for company ${companyId}`);
             
             // Initialize session and wait for QR code
-            const result = await sessionPool.initializeSession(companyId);
+            const result = await ensureSessionPool().initializeSession(companyId);
             
             if (result.qr) {
                 // Generate QR code in Data URL format for browser display
@@ -144,7 +155,7 @@ router.post('/sessions/:companyId/send',
             const { companyId } = req.params;
             const { phone, message, options } = req.body;
             
-            const result = await sessionPool.sendMessage(companyId, phone, message, options);
+            const result = await ensureSessionPool().sendMessage(companyId, phone, message, options);
             
             res.json({
                 success: true,
@@ -185,7 +196,7 @@ router.delete('/sessions/:companyId',
         try {
             const { companyId } = req.params;
             
-            await sessionPool.removeSession(companyId);
+            await ensureSessionPool().removeSession(companyId);
             
             res.json({
                 success: true,
@@ -214,10 +225,10 @@ router.post('/sessions/:companyId/reconnect',
             const { companyId } = req.params;
             
             // Remove old session
-            await sessionPool.removeSession(companyId);
+            await ensureSessionPool().removeSession(companyId);
             
             // Create new one
-            await sessionPool.getOrCreateSession(companyId);
+            await ensureSessionPool().getOrCreateSession(companyId);
             
             res.json({
                 success: true,
@@ -246,7 +257,8 @@ router.post('/sessions/:companyId/pairing-code',
             const { companyId } = req.params;
 
             // Get or create session
-            const session = await sessionPool.getOrCreateSession(companyId);
+            const pool = ensureSessionPool();
+            const session = await pool.getOrCreateSession(companyId);
 
             if (!session) {
                 return res.status(503).json({
@@ -307,7 +319,7 @@ router.get('/sessions/:companyId/health',
     async (req, res) => {
         try {
             const { companyId } = req.params;
-            const health = await sessionPool.healthCheck(companyId);
+            const health = await ensureSessionPool().healthCheck(companyId);
             
             const statusCode = health.healthy ? 200 : 503;
             
@@ -332,8 +344,8 @@ router.get('/sessions/:companyId/health',
  */
 router.get('/metrics', async (req, res) => {
     try {
-        const metrics = sessionPool.getMetrics();
-        const sessions = sessionPool.getActiveSessions();
+        const metrics = ensureSessionPool().getMetrics();
+        const sessions = ensureSessionPool().getActiveSessions();
         
         res.json({
             success: true,
@@ -389,7 +401,7 @@ router.ws('/events', (ws, req) => {
     
     // Subscribe to events
     for (const [event, handler] of Object.entries(handlers)) {
-        sessionPool.on(event, handler);
+        ensureSessionPool().on(event, handler);
     }
     
     // Handle WebSocket disconnect
@@ -397,15 +409,15 @@ router.ws('/events', (ws, req) => {
         logger.info('WebSocket connection closed');
         // Unsubscribe from events
         for (const [event, handler] of Object.entries(handlers)) {
-            sessionPool.off(event, handler);
+            ensureSessionPool().off(event, handler);
         }
     });
     
     // Send initial status
     ws.send(JSON.stringify({
         type: 'status',
-        sessions: sessionPool.getActiveSessions(),
-        metrics: sessionPool.getMetrics()
+        sessions: ensureSessionPool().getActiveSessions(),
+        metrics: ensureSessionPool().getMetrics()
     }));
 });
 */
@@ -413,43 +425,43 @@ router.ws('/events', (ws, req) => {
 // Message handling moved to whatsapp-baileys.js webhook to avoid duplication
 // The webhook provides better message processing with client name extraction and validation
 /*
-sessionPool.on('message', async ({ companyId, message }) => {
+ensureSessionPool().on('message', async ({ companyId, message }) => {
     // Disabled - handled in whatsapp-baileys.js
 });
 */
 
 // Handle QR codes
-sessionPool.on('qr', ({ companyId, qr }) => {
+ensureSessionPool().on('qr', ({ companyId, qr }) => {
     logger.info(`📱 QR Code available for company ${companyId}`);
     // QR codes are handled through API endpoints
 });
 
 // Handle connections
-sessionPool.on('connected', ({ companyId }) => {
+ensureSessionPool().on('connected', ({ companyId }) => {
     // Connection already logged in session-pool.js
     // Could send webhook or notification here
 });
 
 // Handle errors
-sessionPool.on('error', ({ companyId, error }) => {
+ensureSessionPool().on('error', ({ companyId, error }) => {
     logger.error(`WhatsApp error for company ${companyId}:`, error);
     // Could send alert here
 });
 
 // Handle logouts
-sessionPool.on('logout', ({ companyId }) => {
+ensureSessionPool().on('logout', ({ companyId }) => {
     logger.warn(`WhatsApp logged out for company ${companyId}`);
     // Could send notification to admin
 });
 
 // Handle reconnection failures
-sessionPool.on('reconnect_failed', ({ companyId }) => {
+ensureSessionPool().on('reconnect_failed', ({ companyId }) => {
     logger.error(`Reconnection failed for company ${companyId}`);
     // Could trigger alert or alternative action
 });
 
 // Handle health check failures
-sessionPool.on('health_check_failed', (health) => {
+ensureSessionPool().on('health_check_failed', (health) => {
     logger.warn(`Health check failed:`, health);
     // Could trigger auto-recovery or alert
 });
@@ -457,13 +469,13 @@ sessionPool.on('health_check_failed', (health) => {
 // Graceful shutdown
 process.on('SIGINT', async () => {
     logger.info('Shutting down WhatsApp sessions API...');
-    await sessionPool.shutdown();
+    await ensureSessionPool().shutdown();
     process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
     logger.info('Shutting down WhatsApp sessions API...');
-    await sessionPool.shutdown();
+    await ensureSessionPool().shutdown();
     process.exit(0);
 });
 

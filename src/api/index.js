@@ -6,6 +6,10 @@ const messageQueue = require('../queue/message-queue');
 // Using simplified WhatsApp Manager (3-layer architecture)
 const whatsappManager = require('../integrations/whatsapp/whatsapp-manager');
 const whatsappClient = whatsappManager; // Backward compatibility alias
+
+// Initialize WhatsApp Session Pool
+const { getSessionPool } = require('../integrations/whatsapp/session-pool');
+const sessionPool = getSessionPool(); // Initialize singleton at startup
 const { validateWebhookSignature, validateApiKey } = require('../middlewares/webhook-auth');
 const rateLimiter = require('../middlewares/rate-limiter');
 const criticalErrorMiddleware = require('../middlewares/critical-error');
