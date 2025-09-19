@@ -1,6 +1,7 @@
 // src/integrations/whatsapp/session-manager.js
 const baileysProvider = require('./providers/baileys-provider');
 const healthMonitor = require('../../services/whatsapp/health-monitor');
+const pairingCodeManager = require('../../services/whatsapp/pairing-code-manager');
 const { supabase } = require('../../database/supabase');
 const logger = require('../../utils/logger');
 const EventEmitter = require('events');
@@ -27,7 +28,9 @@ class WhatsAppSessionManager extends EventEmitter {
     this.provider.on('ready', (data) => this.handleSessionReady(data));
     this.provider.on('disconnected', (data) => this.handleSessionDisconnected(data));
     this.provider.on('message', (data) => this.handleMessage(data));
-    this.provider.on('qr', (data) => this.emit('qr', data));
+    this.provider.on('qr', (data) => this.handleQRGenerated(data));
+    this.provider.on('pairing-code', (data) => this.handlePairingCode(data));
+    this.provider.on('qr-limit-reached', (data) => this.handleQRLimitReached(data));
 
     // Load existing sessions from database
     await this.loadExistingSessions();
@@ -66,6 +69,10 @@ class WhatsAppSessionManager extends EventEmitter {
 
   /**
    * Initialize WhatsApp session for a company
+   * @param {string} companyId - Company ID
+   * @param {Object} config - Configuration options
+   * @param {boolean} config.usePairingCode - Use pairing code instead of QR
+   * @param {string} config.phoneNumber - Phone number for pairing code
    */
   async initializeCompanySession(companyId, config = {}) {
     // Prevent duplicate initialization
@@ -83,9 +90,29 @@ class WhatsAppSessionManager extends EventEmitter {
 
     try {
       logger.info(`🔄 Initializing WhatsApp session for company ${companyId}`);
-      
+
+      // Check if should use pairing code
+      const shouldUsePairing = config.usePairingCode || await pairingCodeManager.shouldUsePairingCode(companyId);
+
+      if (shouldUsePairing && !config.phoneNumber) {
+        // Get phone number from company settings
+        const { data: company } = await supabase
+          .from('companies')
+          .select('whatsapp_phone')
+          .eq('company_id', companyId)
+          .single();
+
+        config.phoneNumber = company?.whatsapp_phone;
+      }
+
+      // Update config with pairing preference
+      const connectionConfig = {
+        ...config,
+        usePairingCode: shouldUsePairing
+      };
+
       // Connect session
-      await this.provider.connectSession(companyId, config);
+      await this.provider.connectSession(companyId, connectionConfig);
       
       // Register message handler
       this.provider.registerMessageHandler(companyId, async (message) => {
@@ -96,8 +123,9 @@ class WhatsAppSessionManager extends EventEmitter {
       const sessionInfo = {
         companyId,
         connectedAt: new Date(),
-        config,
-        status: 'connecting'
+        config: connectionConfig,
+        status: 'connecting',
+        method: shouldUsePairing ? 'pairing_code' : 'qr'
       };
       
       this.activeSessions.set(companyId, sessionInfo);
@@ -415,15 +443,122 @@ class WhatsAppSessionManager extends EventEmitter {
   }
 
   /**
+   * Handle QR code generated event
+   */
+  async handleQRGenerated({ companyId, qr }) {
+    logger.info(`📱 QR code generated for company ${companyId}`);
+
+    // Track QR generation in Redis
+    const { redisClient } = require('../../services/redis/redis-factory');
+    const qrCount = await redisClient.incr(`whatsapp:qr_count:${companyId}`);
+    await redisClient.expire(`whatsapp:qr_count:${companyId}`, 3600); // 1 hour expiry
+
+    // Log to database
+    await supabase
+      .from('whatsapp_events')
+      .insert({
+        company_id: companyId,
+        event_type: 'qr_generated',
+        details: { attempt: qrCount }
+      });
+
+    // Emit for web interface
+    this.emit('qr', { companyId, qr, attempts: qrCount });
+  }
+
+  /**
+   * Handle pairing code generated event
+   */
+  async handlePairingCode({ companyId, code, phoneNumber }) {
+    logger.info(`🔢 Pairing code generated for company ${companyId}: ${code}`);
+
+    // Store the code
+    await pairingCodeManager.storePairingCode(companyId, code);
+
+    // Log to database
+    await supabase
+      .from('whatsapp_events')
+      .insert({
+        company_id: companyId,
+        event_type: 'pairing_generated',
+        details: { phoneNumber, code }
+      });
+
+    // Emit for web interface
+    this.emit('pairing-code', { companyId, code, phoneNumber });
+  }
+
+  /**
+   * Handle QR limit reached event
+   */
+  async handleQRLimitReached({ companyId, attempts }) {
+    logger.warn(`⚠️ QR limit reached for company ${companyId} (${attempts} attempts)`);
+
+    // Get company phone for pairing code
+    const { data: company } = await supabase
+      .from('companies')
+      .select('whatsapp_phone, notification_email')
+      .eq('company_id', companyId)
+      .single();
+
+    if (company?.whatsapp_phone) {
+      logger.info(`Switching to pairing code for company ${companyId}`);
+
+      // Reinitialize with pairing code
+      await this.initializeCompanySession(companyId, {
+        usePairingCode: true,
+        phoneNumber: company.whatsapp_phone
+      });
+    } else {
+      logger.error(`No phone number configured for company ${companyId}, cannot use pairing code`);
+
+      // Notify admin
+      this.emit('connection-failed', {
+        companyId,
+        reason: 'qr_limit_no_phone',
+        message: 'QR limit reached but no phone number configured for pairing code'
+      });
+    }
+  }
+
+  /**
+   * Request pairing code for company
+   */
+  async requestPairingCode(companyId, phoneNumber) {
+    // Check if can generate code
+    const canGenerate = pairingCodeManager.canGenerateCode(companyId);
+    if (canGenerate !== true) {
+      throw new Error(`Rate limit: ${canGenerate.reason}. Wait ${canGenerate.minutesLeft} minutes.`);
+    }
+
+    // Generate pairing code request
+    await pairingCodeManager.generatePairingCode(companyId, phoneNumber);
+
+    // Initialize session with pairing code
+    await this.initializeCompanySession(companyId, {
+      usePairingCode: true,
+      phoneNumber
+    });
+
+    // Wait for code to be generated
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Get the generated code
+    const codeInfo = await pairingCodeManager.getPendingCode(companyId);
+
+    return codeInfo;
+  }
+
+  /**
    * Shutdown all sessions
    */
   async shutdown() {
     logger.info('Shutting down WhatsApp Session Manager...');
-    
+
     this.stopHealthCheck();
     await this.provider.disconnectAll();
     this.activeSessions.clear();
-    
+
     logger.info('WhatsApp Session Manager shut down');
   }
 }
