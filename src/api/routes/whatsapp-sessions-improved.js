@@ -273,13 +273,20 @@ router.post('/sessions/:companyId/pairing-code',
             const execAsync = promisify(exec);
 
             try {
-                // Run the improved pairing code script that maintains session
-                const { stdout } = await execAsync(`node scripts/pairing-code-api.js ${companyId}`, {
-                    timeout: 30000
-                });
+                // Use the working pairing script with proper environment variables
+                const phoneNumber = process.env.WHATSAPP_PHONE_NUMBER?.replace(/[^0-9]/g, '') || '79686484488';
 
-                // Extract pairing code from output
-                const codeMatch = stdout.match(/PAIRING CODE:\s*([A-Z0-9-]+)/);
+                // Run the working pairing script with auto-input for phone number
+                const { stdout } = await execAsync(
+                    `echo "${phoneNumber}" | USE_PAIRING_CODE=true COMPANY_ID=${companyId} node scripts/whatsapp-pairing-auth.js`,
+                    {
+                        timeout: 30000,
+                        cwd: process.cwd()
+                    }
+                );
+
+                // Extract pairing code from output (looking for "ВАШ КОД:" or similar patterns)
+                const codeMatch = stdout.match(/(?:PAIRING CODE|ВАШ КОД|CODE):\s*([A-Z0-9-]+)/i);
                 const code = codeMatch ? codeMatch[1] : null;
 
                 if (!code) {
