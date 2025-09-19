@@ -29,8 +29,31 @@ async function connectWithPairingCode() {
             mobile: false,
             browser: ['AI Admin', 'Chrome', '120.0.0.0'],
             markOnlineOnConnect: false,
-            generateHighQualityLinkPreview: false
+            generateHighQualityLinkPreview: false,
+            syncFullHistory: false,
+            // Add timeout to prevent immediate closure
+            connectTimeoutMs: 60000,
+            defaultQueryTimeoutMs: 60000,
+            keepAliveIntervalMs: 20000,
+            retryRequestDelayMs: 2000,
+            maxMsgRetryCount: 5
         });
+
+        // Add error handler
+        sock.ev.on('connection.update', async (update) => {
+            const { connection, lastDisconnect, qr } = update;
+
+            if (qr) {
+                console.log('❌ QR Code mode detected. Switching to pairing code...');
+            }
+
+            if (connection === 'connecting') {
+                console.log('🔄 Connecting to WhatsApp...');
+            }
+        });
+
+        // Wait a bit for connection to establish
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Request pairing code
         if (!sock.authState.creds.registered) {
@@ -38,19 +61,32 @@ async function connectWithPairingCode() {
             const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
 
             console.log(`📞 Requesting pairing code for phone: ${phoneNumber}`);
-            const code = await sock.requestPairingCode(cleanPhone);
 
-            console.log('\n' + '='.repeat(50));
-            console.log('🔑 PAIRING CODE:', code);
-            console.log('='.repeat(50));
-            console.log('\n📱 Instructions:');
-            console.log('1. Open WhatsApp on your phone');
-            console.log('2. Go to Settings → Linked Devices');
-            console.log('3. Tap "Link a Device"');
-            console.log('4. Choose "Link with phone number instead"');
-            console.log('5. Enter this code:', code);
-            console.log('\n⏰ Code expires in 60 seconds!');
-            console.log('='.repeat(50) + '\n');
+            try {
+                const code = await sock.requestPairingCode(cleanPhone);
+
+                console.log('\n' + '='.repeat(50));
+                console.log('🔑 PAIRING CODE:', code);
+                console.log('='.repeat(50));
+                console.log('\n📱 Instructions:');
+                console.log('1. Open WhatsApp on your phone');
+                console.log('2. Go to Settings → Linked Devices');
+                console.log('3. Tap "Link a Device"');
+                console.log('4. Choose "Link with phone number instead"');
+                console.log('5. Enter this code:', code);
+                console.log('\n⏰ Code expires in 60 seconds!');
+                console.log('='.repeat(50) + '\n');
+
+                // Keep script running to wait for pairing
+                console.log('⏳ Waiting for pairing...');
+            } catch (err) {
+                console.error('❌ Failed to get pairing code:', err.message);
+                console.log('\n💡 Possible issues:');
+                console.log('1. Phone number format (should be without + or spaces)');
+                console.log('2. WhatsApp rate limiting (try again in a few minutes)');
+                console.log('3. Network connectivity issues');
+                throw err;
+            }
         } else {
             console.log('✅ Already registered! No pairing code needed.');
             process.exit(0);
