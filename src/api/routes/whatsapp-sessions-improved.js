@@ -235,6 +235,69 @@ router.post('/sessions/:companyId/reconnect',
 );
 
 /**
+ * POST /api/whatsapp/sessions/:companyId/pairing-code
+ * Get pairing code for WhatsApp connection
+ */
+router.post('/sessions/:companyId/pairing-code',
+    param('companyId').notEmpty().isAlphanumeric(),
+    validate,
+    async (req, res) => {
+        try {
+            const { companyId } = req.params;
+
+            // Get or create session
+            const session = await sessionPool.getOrCreateSession(companyId);
+
+            if (!session) {
+                return res.status(503).json({
+                    success: false,
+                    error: 'Failed to create session'
+                });
+            }
+
+            // Request pairing code
+            const phoneNumber = process.env.WHATSAPP_PHONE_NUMBER || '+79686484488';
+            const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
+
+            try {
+                const code = await session.requestPairingCode(cleanPhone);
+
+                logger.info(`Pairing code generated for company ${companyId}`);
+
+                res.json({
+                    success: true,
+                    code,
+                    companyId,
+                    expiresIn: 60, // seconds
+                    instructions: [
+                        'Open WhatsApp on your phone',
+                        'Go to Settings → Linked Devices',
+                        'Tap "Link a Device"',
+                        'Choose "Link with phone number instead"',
+                        `Enter the code: ${code}`
+                    ]
+                });
+            } catch (error) {
+                logger.error(`Failed to get pairing code for ${companyId}:`, error);
+
+                // If pairing code fails, suggest QR code
+                res.status(400).json({
+                    success: false,
+                    error: 'Failed to generate pairing code. Please use QR code method.',
+                    alternativeUrl: `/whatsapp-qr.html?company=${companyId}`
+                });
+            }
+        } catch (error) {
+            logger.error(`Error in pairing code endpoint for ${req.params.companyId}:`, error);
+            res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+    }
+);
+
+/**
  * GET /api/whatsapp/sessions/:companyId/health
  * Get session health status
  */
