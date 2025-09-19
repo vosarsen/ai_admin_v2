@@ -1,7 +1,7 @@
 // src/services/whatsapp/pairing-code-manager.js
 const { supabase } = require('../../database/supabase');
 const logger = require('../../utils/logger');
-const { redisClient } = require('../../services/redis/redis-factory');
+const { redisClient } = require('../../utils/redis-factory');
 const EventEmitter = require('events');
 
 /**
