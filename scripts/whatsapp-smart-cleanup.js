@@ -171,6 +171,20 @@ class SmartCleanup {
         console.log(`📁 Auth path: ${AUTH_PATH}`);
         console.log(`🔍 Mode: ${DRY_RUN ? 'DRY RUN (no files will be deleted)' : 'LIVE'}\n`);
 
+        // Create backup before cleanup (only in LIVE mode)
+        if (!DRY_RUN && !FORCE_CLEANUP) {
+            try {
+                const BackupManager = require('./whatsapp-backup-manager');
+                const backupManager = new BackupManager();
+                await backupManager.init();
+                await backupManager.createBackup(COMPANY_ID);
+                console.log(`📦 Backup created before cleanup\n`);
+            } catch (error) {
+                console.warn(`⚠️  Could not create backup: ${error.message}`);
+                console.warn(`   Proceeding with cleanup anyway...\n`);
+            }
+        }
+
         // Safety check: Don't cleanup while connected (unless forced)
         if (!DRY_RUN && !FORCE_CLEANUP) {
             const isConnected = await this.isWhatsAppConnected();
