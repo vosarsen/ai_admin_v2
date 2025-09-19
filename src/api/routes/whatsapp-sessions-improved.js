@@ -273,8 +273,13 @@ router.post('/sessions/:companyId/pairing-code',
             const execAsync = promisify(exec);
 
             try {
-                // Use the working pairing script with proper environment variables
-                const phoneNumber = process.env.WHATSAPP_PHONE_NUMBER?.replace(/[^0-9]/g, '') || '79686484488';
+                // Get phone number from request body or use default
+                const { phoneNumber: requestPhone } = req.body || {};
+                const phoneNumber = requestPhone ?
+                    String(requestPhone).replace(/[^0-9]/g, '') :
+                    (process.env.WHATSAPP_PHONE_NUMBER?.replace(/[^0-9]/g, '') || '79686484488');
+
+                logger.info(`Requesting pairing code for company ${companyId} with phone ${phoneNumber}`);
 
                 // Run the working pairing script with auto-input for phone number
                 const { stdout } = await execAsync(
