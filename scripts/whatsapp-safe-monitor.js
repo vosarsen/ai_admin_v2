@@ -66,7 +66,10 @@ class WhatsAppSafeMonitor {
     }
 
     async checkFileCount() {
-        const authPath = `/opt/ai-admin/baileys_sessions/company_${CONFIG.companyId}`;
+        const authPath = process.env.WHATSAPP_AUTH_PATH ||
+                        path.join(process.env.SERVER_PATH || '/opt/ai-admin',
+                                 'baileys_sessions',
+                                 `company_${CONFIG.companyId}`);
 
         try {
             const files = await fs.readdir(authPath);
