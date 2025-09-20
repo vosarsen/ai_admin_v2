@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const Joi = require('joi');
-const whatsappManager = require('../../integrations/whatsapp/whatsapp-manager');
+const whatsappManager = require('../../integrations/whatsapp/whatsapp-manager-unified');
 const { asyncHandler, validateRequest } = require('../../middlewares/whatsapp-error-handler');
 const {
   SessionError,

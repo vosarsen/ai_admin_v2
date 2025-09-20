@@ -5,7 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
-const whatsappManager = require('../../integrations/whatsapp/whatsapp-manager');
+const whatsappManager = require('../../integrations/whatsapp/whatsapp-manager-unified');
 const WhatsAppValidator = require('../../utils/whatsapp-validator');
 const { authMiddleware } = require('../../middlewares/auth');
 const logger = require('../../utils/logger');

@@ -47,6 +47,43 @@ module.exports = {
       kill_timeout: 5000
     },
     {
+      name: 'whatsapp-backup-service',
+      script: './scripts/automated-backup-service.js',
+      args: 'start',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        NODE_ENV: 'production',
+        BACKUP_SCHEDULE: '0 */6 * * *', // Every 6 hours
+        BACKUP_COMPANIES: '962302',
+        BACKUP_RETENTION_DAYS: '7',
+        BACKUP_BEFORE_OPS: 'true',
+        MAX_BACKUPS_PER_COMPANY: '10'
+      },
+      error_file: './logs/backup-error.log',
+      out_file: './logs/backup-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      max_memory_restart: '100M'
+    },
+    {
+      name: 'whatsapp-safe-monitor',
+      script: './scripts/whatsapp-safe-monitor.js',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        NODE_ENV: 'production',
+        COMPANY_ID: '962302',
+        CHECK_INTERVAL: '60000',
+        USE_PAIRING_CODE: 'true',
+        WHATSAPP_PHONE_NUMBER: '79686484488'
+      },
+      error_file: './logs/whatsapp-monitor-error.log',
+      out_file: './logs/whatsapp-monitor-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      max_memory_restart: '100M',
+      autorestart: false // Don't auto-restart if stopped manually
+    },
+    {
       name: 'ai-admin-reminder',
       script: './src/workers/index-reminder.js',
       instances: 1,

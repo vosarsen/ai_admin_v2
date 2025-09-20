@@ -3,8 +3,8 @@ const express = require('express');
 const config = require('../config');
 const logger = require('../utils/logger');
 const messageQueue = require('../queue/message-queue');
-// Using simplified WhatsApp Manager (3-layer architecture)
-const whatsappManager = require('../integrations/whatsapp/whatsapp-manager');
+// Using unified WhatsApp Manager (2-layer architecture)
+const whatsappManager = require('../integrations/whatsapp/whatsapp-manager-unified');
 const whatsappClient = whatsappManager; // Backward compatibility alias
 
 // Initialize WhatsApp Session Pool
