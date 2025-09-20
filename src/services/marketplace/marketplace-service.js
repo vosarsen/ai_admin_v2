@@ -5,7 +5,7 @@ const { supabase } = require('../../database/supabase');
 const { createRedisClient } = require('../../utils/redis-factory');
 const logger = require('../../utils/logger');
 const { YclientsClient } = require('../../integrations/yclients/client');
-const BaileysManager = require('../../integrations/whatsapp/baileys-manager');
+const { getSessionPool } = require('../../integrations/whatsapp/session-pool');
 const crypto = require('crypto');
 const axios = require('axios');
 const { validateId, sanitizeCompanyData, normalizePhone, validateEmail } = require('../../utils/validators');
@@ -15,7 +15,7 @@ class MarketplaceService {
     this.supabase = supabase;
     this.redis = null; // Will be initialized in init()
     this.yclients = new YclientsClient();
-    this.baileysManager = new BaileysManager();
+    this.sessionPool = getSessionPool();
     this.isInitialized = false;
   }
 
@@ -210,7 +210,9 @@ class MarketplaceService {
       await this.init(); // Ensure Redis is connected
 
       // Используем Baileys для генерации QR
-      const qrData = await this.baileysManager.generateQRForCompany(companyId);
+      // Session pool не имеет метода generateQRForCompany, используем createSession
+      await this.sessionPool.createSession(companyId);
+      const qrData = this.sessionPool.qrCodes.get(companyId);
 
       // Сохраняем информацию о текущей сессии
       await this.redis.setex(

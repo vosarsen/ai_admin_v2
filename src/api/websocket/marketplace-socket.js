@@ -3,12 +3,12 @@
 
 const logger = require('../../utils/logger');
 const jwt = require('jsonwebtoken');
-const BaileysManager = require('../../integrations/whatsapp/baileys-manager');
+const { getSessionPool } = require('../../integrations/whatsapp/session-pool');
 
 class MarketplaceSocket {
   constructor(io) {
     this.io = io;
-    this.baileysManager = new BaileysManager();
+    this.sessionPool = getSessionPool();
     this.connections = new Map(); // companyId -> socket
     this.rateLimiter = new Map(); // IP -> { count, lastReset }
     this.RATE_LIMIT_MAX = 5; // Максимум 5 подключений
@@ -120,9 +120,9 @@ class MarketplaceSocket {
 
           // Очистка Baileys сессии если она не подключена
           try {
-            const status = this.baileysManager.getSessionStatus(companyId);
+            const status = this.sessionPool.getSessionStatus(companyId);
             if (status.status !== 'connected' && status.status !== 'not_initialized') {
-              await this.baileysManager.disconnectSession(companyId);
+              await this.sessionPool.disconnectSession(companyId);
               logger.info('Неподключенная Baileys сессия удалена', { companyId });
             }
           } catch (error) {
@@ -152,7 +152,9 @@ class MarketplaceSocket {
       logger.info('🚀 Начинаем подключение WhatsApp', { companyId });
 
       // Инициализируем сессию Baileys
-      const qr = await this.baileysManager.generateQRForCompany(companyId);
+      // Создаем сессию и получаем QR
+      await this.sessionPool.createSession(companyId);
+      const qr = this.sessionPool.qrCodes.get(companyId);
 
       // Если QR уже есть, отправляем его
       if (qr) {
@@ -163,7 +165,7 @@ class MarketplaceSocket {
       }
 
       // Слушаем события от Baileys через EventEmitter
-      this.baileysManager.on(`qr-${companyId}`, (qrDataURL) => {
+      this.sessionPool.on(`qr-${companyId}`, (qrDataURL) => {
         logger.info('📱 Получен QR-код', { companyId });
         socket.emit('qr-update', {
           qr: qrDataURL,
@@ -171,7 +173,7 @@ class MarketplaceSocket {
         });
       });
 
-      this.baileysManager.on(`connected-${companyId}`, async (data) => {
+      this.sessionPool.on(`connected-${companyId}`, async (data) => {
         logger.info('✅ WhatsApp подключен!', {
           companyId,
           phone: data.phone
@@ -189,7 +191,7 @@ class MarketplaceSocket {
         this.startOnboarding(companyId, data.phone);
       });
 
-      this.baileysManager.on(`logged-out-${companyId}`, () => {
+      this.sessionPool.on(`logged-out-${companyId}`, () => {
         logger.warn('WhatsApp отключен пользователем', { companyId });
         socket.emit('error', {
           message: 'WhatsApp отключен. Требуется повторное подключение.'
@@ -206,7 +208,7 @@ class MarketplaceSocket {
 
   async sendQRCode(socket, companyId) {
     try {
-      const status = this.baileysManager.getSessionStatus(companyId);
+      const status = this.sessionPool.getSessionStatus(companyId);
 
       if (status.status === 'not_initialized') {
         // Создаем новую сессию
@@ -220,7 +222,9 @@ class MarketplaceSocket {
         });
       } else {
         // Генерируем новый QR
-        const qr = await this.baileysManager.generateQRForCompany(companyId);
+        // Создаем сессию и получаем QR
+      await this.sessionPool.createSession(companyId);
+      const qr = this.sessionPool.qrCodes.get(companyId);
         if (qr) {
           socket.emit('qr-update', {
             qr,
@@ -265,7 +269,7 @@ class MarketplaceSocket {
       // Отправляем приветственное сообщение
       setTimeout(async () => {
         try {
-          await this.baileysManager.sendMessage(
+          await this.sessionPool.sendMessage(
             companyId,
             whatsappPhone,
             `🎉 Поздравляем! AI Admin успешно подключен!\n\n` +

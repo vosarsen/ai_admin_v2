@@ -17,8 +17,7 @@ const {
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
     Browsers,
-    delay,
-    proto
+    delay
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
@@ -297,10 +296,8 @@ class WhatsAppSessionPool extends EventEmitter {
                 keepAliveIntervalMs: 30000, // Увеличили интервал
                 qrTimeout: 60000,
                 defaultQueryTimeoutMs: undefined,
-                // Простая функция для получения сообщений
-                getMessage: async (key) => {
-                    return proto.Message.fromObject({});
-                }
+                // Функция для получения сообщений (без store в v7.0.0)
+                getMessage: async () => undefined
             });
 
             // Store pairing code info for later use when socket is ready
