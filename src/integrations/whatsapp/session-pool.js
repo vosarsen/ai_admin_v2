@@ -321,10 +321,11 @@ class WhatsAppSessionPool extends EventEmitter {
         sock.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect, qr } = update;
 
-            // Handle pairing code request when socket is ready
-            if (sock.shouldRequestPairingCode && !qr && connection !== 'close') {
+            // Handle pairing code request when socket is ready and we have QR
+            // Pairing code can only be requested when QR is available
+            if (sock.shouldRequestPairingCode && qr) {
                 try {
-                    logger.info(`📱 Socket ready, requesting pairing code for company ${companyId}`);
+                    logger.info(`📱 QR available, requesting pairing code for company ${companyId}`);
                     const code = await sock.requestPairingCode(sock.pairingPhoneNumber);
                     const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
 
