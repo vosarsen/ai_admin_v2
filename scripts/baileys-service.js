@@ -14,6 +14,10 @@ const companyId = process.env.COMPANY_ID || '962302';
 logger.info('🚀 Starting Baileys WhatsApp Service');
 logger.info(`Company ID: ${companyId}`);
 
+// Global variable to track if we're already connected
+let isConnected = false;
+let connectionAttempt = 0;
+
 async function startBaileysService() {
     try {
         // Get session pool instance
@@ -43,6 +47,8 @@ async function startBaileysService() {
 
         pool.on('connected', ({ companyId: cId, user, phoneNumber }) => {
             if (cId !== companyId) return;
+            isConnected = true;
+            connectionAttempt = 0;
             logger.info(`✅ WhatsApp connected for company ${cId}`, { user, phoneNumber });
             console.log('\n✅ WHATSAPP CONNECTED SUCCESSFULLY!');
             console.log(`Phone: ${phoneNumber}`);
@@ -84,7 +90,14 @@ async function startBaileysService() {
 
         pool.on('logout', ({ companyId: cId }) => {
             if (cId !== companyId) return;
+            isConnected = false;
             logger.warn('❌ Session logged out, will need to re-authenticate');
+        });
+
+        pool.on('disconnected', ({ companyId: cId }) => {
+            if (cId !== companyId) return;
+            isConnected = false;
+            logger.warn('⚠️ WhatsApp disconnected');
         });
 
         pool.on('error', ({ companyId: cId, error }) => {
@@ -92,8 +105,23 @@ async function startBaileysService() {
             logger.error('Session error:', error);
         });
 
-        // Create session
+        // Create session with protection against multiple connections
         logger.info('🔄 Creating WhatsApp session...');
+
+        // Check if already connected
+        if (isConnected) {
+            logger.info('✅ Already connected, skipping session creation');
+            return;
+        }
+
+        // Prevent multiple rapid connection attempts
+        if (connectionAttempt > 0 && Date.now() - connectionAttempt < 10000) {
+            logger.info('⏳ Connection attempt in progress, waiting...');
+            return;
+        }
+
+        connectionAttempt = Date.now();
+
         const session = await pool.createSession(companyId, {
             usePairingCode: process.env.USE_PAIRING_CODE === 'true',
             phoneNumber: process.env.WHATSAPP_PHONE_NUMBER
