@@ -1,10 +1,11 @@
 /**
- * WhatsApp Session Pool Manager - Improved Version
+ * WhatsApp Session Pool Manager - Improved Version with Pairing Code Support
  * Централизованное управление всеми WhatsApp сессиями
  * Гарантирует что для каждой компании существует только одна сессия
+ * Поддерживает подключение через QR код и Pairing Code
  */
 
-const { makeWASocket, DisconnectReason, useMultiFileAuthState } = require('@whiskeysockets/baileys');
+const { makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
 const path = require('path');
@@ -126,8 +127,12 @@ class WhatsAppSessionPool extends EventEmitter {
 
     /**
      * Creates new session for company
+     * @param {string} companyId - Company ID
+     * @param {Object} options - Creation options
+     * @param {boolean} options.usePairingCode - Use pairing code instead of QR
+     * @param {string} options.phoneNumber - Phone number for pairing code
      */
-    async createSession(companyId) {
+    async createSession(companyId, options = {}) {
         const validatedId = this.validateCompanyId(companyId);
         
         try {
@@ -163,9 +168,21 @@ class WhatsAppSessionPool extends EventEmitter {
             // Load or create auth state
             const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
+            // Get latest Baileys version for better compatibility
+            const { version } = await fetchLatestBaileysVersion();
+            logger.info(`📦 Using Baileys version: ${version.join('.')}`);
+
+            // Check if we should use pairing code
+            const usePairingCode = options.usePairingCode || process.env.USE_PAIRING_CODE === 'true';
+            const phoneNumber = options.phoneNumber || process.env.WHATSAPP_PHONE_NUMBER;
+
             // Create socket with optimized config
             const sock = makeWASocket({
-                auth: state,
+                version,
+                auth: {
+                    creds: state.creds,
+                    keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }))
+                },
                 printQRInTerminal: false,
                 logger: pino({ level: 'error' }),
                 browser: ['AI Admin', 'Chrome', '1.0.0'],
@@ -179,12 +196,31 @@ class WhatsAppSessionPool extends EventEmitter {
                 qrTimeout: 60000
             });
 
+            // Request pairing code if configured and not registered
+            if (usePairingCode && phoneNumber && !state.creds.registered) {
+                try {
+                    logger.info(`📱 Requesting pairing code for company ${validatedId}`);
+                    const cleanPhone = phoneNumber.replace(/\D/g, '');
+                    const code = await sock.requestPairingCode(cleanPhone);
+                    const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
+
+                    logger.info(`✅ Pairing code generated for company ${validatedId}: ${formattedCode}`);
+                    this.emit('pairing-code', { companyId: validatedId, code: formattedCode, phoneNumber: cleanPhone });
+
+                    // Store pairing code for retrieval
+                    this.qrCodes.set(`pairing-${validatedId}`, formattedCode);
+                } catch (error) {
+                    logger.error(`Failed to request pairing code: ${error.message}`);
+                    // Fall back to QR if pairing code fails
+                }
+            }
+
             // Save in pool
             this.sessions.set(validatedId, sock);
             this.metrics.totalSessions++;
 
-            // Setup event handlers
-            this.setupEventHandlers(validatedId, sock, saveCreds);
+            // Setup event handlers with pairing code support
+            this.setupEventHandlers(validatedId, sock, saveCreds, options);
 
             return sock;
         } catch (error) {
@@ -198,14 +234,42 @@ class WhatsAppSessionPool extends EventEmitter {
     /**
      * Sets up event handlers for session
      */
-    setupEventHandlers(companyId, sock, saveCreds) {
+    setupEventHandlers(companyId, sock, saveCreds, options = {}) {
+        // Track QR generation count for auto-switching to pairing code
+        let qrCount = 0;
+        const maxQRAttempts = 3;
         // Connection updates
         sock.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect, qr } = update;
 
             if (qr) {
-                logger.info(`📱 QR Code generated for company ${companyId}`);
+                qrCount++;
+                logger.info(`📱 QR Code generated for company ${companyId} (attempt ${qrCount})`);
                 this.metrics.qrCodesGenerated++;
+
+                // Check if we should switch to pairing code
+                if (qrCount >= maxQRAttempts && process.env.USE_PAIRING_CODE === 'true') {
+                    logger.warn(`⚠️ Too many QR attempts (${qrCount}) for company ${companyId}`);
+                    logger.info(`💡 Switching to pairing code method to avoid 'linking devices' block`);
+
+                    // Request pairing code instead
+                    const phoneNumber = options.phoneNumber || process.env.WHATSAPP_PHONE_NUMBER;
+                    if (phoneNumber) {
+                        try {
+                            const cleanPhone = phoneNumber.replace(/\D/g, '');
+                            const code = await sock.requestPairingCode(cleanPhone);
+                            const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
+
+                            logger.info(`✅ Pairing code generated: ${formattedCode}`);
+                            this.emit('pairing-code', { companyId, code: formattedCode, phoneNumber: cleanPhone });
+                            this.qrCodes.set(`pairing-${companyId}`, formattedCode);
+                            return; // Don't emit QR
+                        } catch (error) {
+                            logger.error(`Failed to request pairing code: ${error.message}`);
+                        }
+                    }
+                }
+
                 this.qrCodes.set(companyId, qr); // Store QR code
                 this.emit('qr', { companyId, qr });
             }
@@ -609,11 +673,36 @@ class WhatsAppSessionPool extends EventEmitter {
     }
 
     /**
-     * Gets QR code for a company
+     * Gets QR code or pairing code for a company
      */
     getQRCode(companyId) {
         const validatedId = this.validateCompanyId(companyId);
-        return this.qrCodes.get(validatedId) || null;
+        // Check for pairing code first
+        const pairingCode = this.qrCodes.get(`pairing-${validatedId}`);
+        if (pairingCode) {
+            return { type: 'pairing', code: pairingCode };
+        }
+        // Then check for QR code
+        const qrCode = this.qrCodes.get(validatedId);
+        if (qrCode) {
+            return { type: 'qr', code: qrCode };
+        }
+        return null;
+    }
+
+    /**
+     * Request pairing code for a company
+     */
+    async requestPairingCode(companyId, phoneNumber) {
+        const validatedId = this.validateCompanyId(companyId);
+        const session = await this.getOrCreateSession(validatedId, {
+            usePairingCode: true,
+            phoneNumber
+        });
+
+        // Return stored pairing code if available
+        const pairingCode = this.qrCodes.get(`pairing-${validatedId}`);
+        return pairingCode || null;
     }
 
     /**
