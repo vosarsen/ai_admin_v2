@@ -8,6 +8,9 @@
 const { getSessionPool } = require('../src/integrations/whatsapp/session-pool');
 const logger = require('../src/utils/logger');
 const supabase = require('../src/database/supabase');
+const qrcodeTerminal = require('qrcode-terminal');
+const fs = require('fs').promises;
+const path = require('path');
 
 const companyId = process.env.COMPANY_ID || '962302';
 
@@ -27,12 +30,21 @@ async function startBaileysService() {
         pool.on('qr', async ({ companyId: cId, qr }) => {
             if (cId !== companyId) return;
             logger.info('📱 QR Code generated for scanning');
-            // Save QR to database or send notification
+
+            // Save full QR to file
+            const qrPath = path.join(process.cwd(), `qr_${companyId}.txt`);
+            await fs.writeFile(qrPath, qr, 'utf8');
+
             console.log('\n==============================================');
             console.log('QR CODE GENERATED - SCAN WITH WHATSAPP');
             console.log('==============================================');
-            console.log('QR String (use QR generator to scan):');
-            console.log(qr.substring(0, 100) + '...');
+
+            // Display QR code in terminal
+            qrcodeTerminal.generate(qr, { small: true });
+
+            console.log('\n==============================================');
+            console.log(`Full QR saved to: ${qrPath}`);
+            console.log('Use cat command to view full QR string');
             console.log('==============================================\n');
         });
 
