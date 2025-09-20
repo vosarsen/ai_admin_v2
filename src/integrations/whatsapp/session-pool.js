@@ -843,6 +843,33 @@ class WhatsAppSessionPool extends EventEmitter {
                     sock = null;
                 }
 
+                // CRITICAL: Clear the auth state to force new pairing code
+                // WhatsApp won't generate new code if auth state exists
+                const authPath = this.authPaths.get(validatedId);
+                if (authPath) {
+                    logger.info(`🔄 Clearing auth state for company ${validatedId} to force new pairing code`);
+                    try {
+                        const fs = require('fs').promises;
+                        const path = require('path');
+
+                        // Remove creds.json which stores the authentication
+                        const credsFile = path.join(authPath, 'creds.json');
+                        try {
+                            await fs.unlink(credsFile);
+                            logger.info(`✅ Cleared creds.json for company ${validatedId}`);
+                        } catch (err) {
+                            if (err.code !== 'ENOENT') {
+                                logger.warn(`Could not remove creds.json: ${err.message}`);
+                            }
+                        }
+
+                        // Also clear the auth path from memory
+                        this.authPaths.delete(validatedId);
+                    } catch (err) {
+                        logger.warn(`Error clearing auth state: ${err.message}`);
+                    }
+                }
+
                 // Create new session for new pairing code
                 logger.info(`Creating new session for pairing code generation for company ${validatedId}`);
 
