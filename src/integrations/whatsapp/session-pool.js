@@ -329,23 +329,29 @@ class WhatsAppSessionPool extends EventEmitter {
 
             // Handle pairing code request when connection is in "connecting" state or QR is available
             // According to Baileys docs: can request pairing code when connection == "connecting" || !!qr
+            // But we need to wait a bit for connection to stabilize
             if (sock.shouldRequestPairingCode && (connection === 'connecting' || qr)) {
-                try {
-                    logger.info(`📱 Connection ready (${connection || 'qr available'}), requesting pairing code for company ${companyId}`);
-                    const code = await sock.requestPairingCode(sock.pairingPhoneNumber);
-                    const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
+                // Mark as handled to prevent multiple requests
+                sock.shouldRequestPairingCode = false;
 
-                    logger.info(`✅ Pairing code generated for company ${companyId}: ${formattedCode}`);
-                    this.emit('pairing-code', { companyId, code: formattedCode, phoneNumber: sock.pairingPhoneNumber });
-                    this.qrCodes.set(`pairing-${companyId}`, formattedCode);
+                // Small delay to let connection stabilize
+                setTimeout(async () => {
+                    try {
+                        logger.info(`📱 Requesting pairing code for company ${companyId} with phone ${sock.pairingPhoneNumber}`);
+                        const code = await sock.requestPairingCode(sock.pairingPhoneNumber);
+                        const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
 
-                    // Clear the flag
-                    sock.shouldRequestPairingCode = false;
-                } catch (error) {
-                    logger.error(`Failed to request pairing code: ${error.message}`);
-                    // Will fall back to QR if available
-                    sock.shouldRequestPairingCode = false;
-                }
+                        logger.info(`✅ Pairing code generated for company ${companyId}: ${formattedCode}`);
+                        this.emit('pairing-code', { companyId, code: formattedCode, phoneNumber: sock.pairingPhoneNumber });
+                        this.qrCodes.set(`pairing-${companyId}`, formattedCode);
+                    } catch (error) {
+                        logger.error(`Failed to request pairing code: ${error.message}`);
+                        // Check if we should fallback to QR
+                        if (error.message?.includes('Connection Closed')) {
+                            logger.info(`Connection not ready yet, will show QR code instead`);
+                        }
+                    }
+                }, 1000); // 1 second delay
             }
 
             if (qr) {
