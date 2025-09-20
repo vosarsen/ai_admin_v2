@@ -260,8 +260,8 @@ class WhatsAppSessionPool extends EventEmitter {
             const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
             // Get latest Baileys version for better compatibility
-            const { version } = await fetchLatestBaileysVersion();
-            logger.info(`📦 Using Baileys version: ${version.join('.')}`);
+            const { version, isLatest } = await fetchLatestBaileysVersion();
+            logger.info(`📦 Using Baileys version: ${version.join('.')} (latest: ${isLatest})`);
 
             // Check if we should use pairing code
             const usePairingCode = options.usePairingCode || process.env.USE_PAIRING_CODE === 'true';
@@ -276,7 +276,7 @@ class WhatsAppSessionPool extends EventEmitter {
                 },
                 printQRInTerminal: false, // Must be false for pairing code
                 logger: pino({ level: 'error' }),
-                browser: ['AI Admin', 'Chrome', '1.0.0'],
+                browser: ['Ubuntu', 'Chrome', '20.0.04'], // Fixed browser config for pairing code
                 markOnlineOnConnect: true,
                 generateHighQualityLinkPreview: false,
                 syncFullHistory: false,
@@ -329,21 +329,29 @@ class WhatsAppSessionPool extends EventEmitter {
 
             // Handle pairing code request when connection is in "connecting" state or QR is available
             // According to Baileys docs: can request pairing code when connection == "connecting" || !!qr
-            // But we need to wait a bit for connection to stabilize
-            if (sock.shouldRequestPairingCode && (connection === 'connecting' || qr)) {
+            // But we need to wait for QR to be available for more reliable pairing
+            if (sock.shouldRequestPairingCode && qr) {
                 // Mark as handled to prevent multiple requests
                 sock.shouldRequestPairingCode = false;
 
-                // Small delay to let connection stabilize
+                // Wait a bit longer for connection to fully initialize
                 setTimeout(async () => {
                     try {
                         logger.info(`📱 Requesting pairing code for company ${companyId} with phone ${sock.pairingPhoneNumber}`);
-                        const code = await sock.requestPairingCode(sock.pairingPhoneNumber);
-                        const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
 
-                        logger.info(`✅ Pairing code generated for company ${companyId}: ${formattedCode}`);
-                        this.emit('pairing-code', { companyId, code: formattedCode, phoneNumber: sock.pairingPhoneNumber });
-                        this.qrCodes.set(`pairing-${companyId}`, formattedCode);
+                        // Ensure we're still in a valid state
+                        if (!sock.authState?.creds?.registered) {
+                            const code = await sock.requestPairingCode(sock.pairingPhoneNumber);
+                            const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
+
+                            logger.info(`✅ Pairing code generated for company ${companyId}: ${formattedCode}`);
+                            logger.info(`📱 Browser config: Ubuntu/Chrome/20.0.04 for better compatibility`);
+
+                            this.emit('pairing-code', { companyId, code: formattedCode, phoneNumber: sock.pairingPhoneNumber });
+                            this.qrCodes.set(`pairing-${companyId}`, formattedCode);
+                        } else {
+                            logger.info(`Session already registered, skipping pairing code request`);
+                        }
                     } catch (error) {
                         logger.error(`Failed to request pairing code: ${error.message}`);
                         // Check if we should fallback to QR
@@ -351,7 +359,7 @@ class WhatsAppSessionPool extends EventEmitter {
                             logger.info(`Connection not ready yet, will show QR code instead`);
                         }
                     }
-                }, 1000); // 1 second delay
+                }, 2000); // 2 seconds delay for better stability
             }
 
             if (qr) {
