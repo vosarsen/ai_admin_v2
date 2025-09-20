@@ -822,29 +822,29 @@ class WhatsAppSessionPool extends EventEmitter {
 
         return new Promise(async (resolve, reject) => {
             try {
-                // Check if we already have a pairing code stored
+                // Clear any existing pairing code to force generation of new one
                 const existingCode = this.qrCodes.get(`pairing-${validatedId}`);
                 if (existingCode) {
-                    logger.info(`Returning existing pairing code for company ${validatedId}`);
-                    return resolve(existingCode);
+                    logger.info(`Clearing existing pairing code for company ${validatedId} to generate new one`);
+                    this.qrCodes.delete(`pairing-${validatedId}`);
                 }
 
-                // Check if we already have an active session
+                // Always remove existing session to generate new pairing code
                 let sock = this.sessions.get(validatedId);
-
-                // If no session or not connected, create new one
-                if (!sock || !sock.user) {
-                    logger.info(`Creating new session for pairing code generation for company ${validatedId}`);
-
-                    // Remove old session if exists
-                    if (sock) {
-                        try {
-                            await sock.logout();
-                        } catch (err) {
-                            // Ignore logout errors
-                        }
-                        this.sessions.delete(validatedId);
+                if (sock) {
+                    logger.info(`Removing existing session for company ${validatedId} to generate new pairing code`);
+                    try {
+                        await sock.logout();
+                    } catch (err) {
+                        // Ignore logout errors
+                        logger.debug(`Logout error ignored: ${err.message}`);
                     }
+                    this.sessions.delete(validatedId);
+                    sock = null;
+                }
+
+                // Create new session for new pairing code
+                logger.info(`Creating new session for pairing code generation for company ${validatedId}`);
 
                     // Set up listener for pairing code event
                     const pairingCodeHandler = (data) => {
