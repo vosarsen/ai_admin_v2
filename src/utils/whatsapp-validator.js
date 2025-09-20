@@ -182,7 +182,7 @@ class WhatsAppValidator {
   }
 
   /**
-   * Validate media URL
+   * Validate media URL with improved security checks
    */
   static validateMediaUrl(url, options = {}) {
     const {
@@ -238,16 +238,23 @@ class WhatsAppValidator {
           };
         }
 
-        // Check for localhost/internal IPs (security)
+        // Enhanced security checks for internal IPs and hostnames
         const hostname = urlObj.hostname.toLowerCase();
         const internalPatterns = [
-          'localhost',
-          '127.0.0.1',
-          '0.0.0.0',
-          '::1',
+          /^localhost$/i,
+          /^127\./,
+          /^0\./,
+          /^::1$/,
+          /^::$/,
+          /^fe80::/i,
+          /^fc00::/i,
+          /^fd[0-9a-f]{2}:/i, // IPv6 private
           /^10\./,
           /^192\.168\./,
           /^172\.(1[6-9]|2[0-9]|3[01])\./,
+          /^169\.254\./, // Link-local
+          /\.local$/i, // mDNS
+          /\.internal$/i,
         ];
 
         for (const pattern of internalPatterns) {
@@ -354,17 +361,25 @@ class WhatsAppValidator {
   /**
    * Validate rate limit
    */
-  static checkRateLimit(companyId, rateLimiter) {
-    // This would integrate with an actual rate limiting system
-    // For now, return a simple check based on config
-    const limit = whatsappConfig.multiTenant.rateLimitPerCompany;
-    const window = whatsappConfig.multiTenant.rateLimitWindow;
+  static async checkRateLimit(companyId, rateLimiter) {
+    // Use actual rate limiter if provided
+    if (!rateLimiter) {
+      const RateLimiter = require('./rate-limiter');
+      rateLimiter = new RateLimiter({
+        windowMs: whatsappConfig.multiTenant.rateLimitWindow,
+        maxRequests: whatsappConfig.multiTenant.rateLimitPerCompany,
+        keyPrefix: 'whatsapp:company:'
+      });
+    }
 
-    // Placeholder - would use Redis or similar for actual implementation
+    const key = `${companyId}`;
+    const allowed = await rateLimiter.checkLimit(key);
+    const remaining = await rateLimiter.getRemaining(key);
+
     return {
-      allowed: true,
-      remaining: limit,
-      resetIn: window,
+      allowed,
+      remaining,
+      resetIn: whatsappConfig.multiTenant.rateLimitWindow,
     };
   }
 

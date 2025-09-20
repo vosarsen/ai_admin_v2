@@ -45,8 +45,17 @@ class WhatsAppMetrics extends EventEmitter {
       reconnectTime: [],
     };
 
+    // Configuration
+    this.maxCompanies = 1000; // Maximum number of companies to track
+    this.companyTTL = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
+    this.maxErrorTypes = 100; // Maximum unique error types to track
+    this.maxTimeSeriesLength = 1440; // 24 hours of minute data
+
     // Start metrics collection interval
     this.metricsInterval = setInterval(() => this.collectTimeSeries(), 60000); // Every minute
+
+    // Start cleanup interval - run every hour
+    this.cleanupInterval = setInterval(() => this.cleanupOldData(), 3600000); // Every hour
   }
 
   /**
@@ -435,12 +444,120 @@ class WhatsAppMetrics extends EventEmitter {
   }
 
   /**
+   * Clean up old data to prevent memory leaks
+   */
+  cleanupOldData() {
+    const now = Date.now();
+
+    // Clean up old companies
+    this.cleanupOldCompanies();
+
+    // Clean up old errors
+    this.cleanupOldErrors();
+
+    // Clean up old time series data
+    this.cleanupTimeSeries();
+
+    // Log cleanup stats
+    console.log(`[Metrics Cleanup] Companies: ${this.companies.size}, Global errors: ${this.global.errors.size}`);
+  }
+
+  /**
+   * Clean up inactive companies
+   */
+  cleanupOldCompanies() {
+    const now = Date.now();
+    const cutoff = now - this.companyTTL;
+
+    for (const [companyId, metrics] of this.companies) {
+      if (metrics.lastActivity < cutoff) {
+        this.companies.delete(companyId);
+        console.log(`[Metrics] Removed inactive company: ${companyId}`);
+      }
+    }
+
+    // If still too many companies, remove least recently used
+    if (this.companies.size > this.maxCompanies) {
+      const sorted = Array.from(this.companies.entries())
+        .sort((a, b) => a[1].lastActivity - b[1].lastActivity);
+
+      const toRemove = sorted.slice(0, this.companies.size - this.maxCompanies);
+      toRemove.forEach(([companyId]) => {
+        this.companies.delete(companyId);
+        console.log(`[Metrics] Removed LRU company: ${companyId}`);
+      });
+    }
+  }
+
+  /**
+   * Clean up old error types
+   */
+  cleanupOldErrors() {
+    // Limit global error types
+    if (this.global.errors.size > this.maxErrorTypes) {
+      const sorted = Array.from(this.global.errors.entries())
+        .sort((a, b) => a[1] - b[1]);
+
+      const toRemove = sorted.slice(0, this.global.errors.size - this.maxErrorTypes);
+      toRemove.forEach(([errorKey]) => {
+        this.global.errors.delete(errorKey);
+      });
+    }
+
+    // Clean up company error maps
+    for (const [companyId, metrics] of this.companies) {
+      if (metrics.errors.size > this.maxErrorTypes) {
+        const sorted = Array.from(metrics.errors.entries())
+          .sort((a, b) => a[1] - b[1]);
+
+        const toRemove = sorted.slice(0, metrics.errors.size - this.maxErrorTypes);
+        toRemove.forEach(([errorKey]) => {
+          metrics.errors.delete(errorKey);
+        });
+      }
+    }
+  }
+
+  /**
+   * Clean up time series data
+   */
+  cleanupTimeSeries() {
+    // Limit time series length
+    Object.keys(this.timeSeries).forEach(key => {
+      if (this.timeSeries[key].length > this.maxTimeSeriesLength) {
+        // Keep only the most recent data
+        this.timeSeries[key] = this.timeSeries[key].slice(-this.maxTimeSeriesLength);
+      }
+    });
+
+    // Limit performance samples
+    Object.keys(this.performance).forEach(key => {
+      if (this.performance[key].length > 100) {
+        // Keep only the most recent 100 samples
+        this.performance[key] = this.performance[key].slice(-100);
+      }
+    });
+  }
+
+  /**
+   * Set maximum listeners to prevent warning
+   */
+  setMaxListeners(n) {
+    super.setMaxListeners(n);
+    return this;
+  }
+
+  /**
    * Destroy metrics collector
    */
   destroy() {
     if (this.metricsInterval) {
       clearInterval(this.metricsInterval);
       this.metricsInterval = null;
+    }
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
     }
     this.removeAllListeners();
   }

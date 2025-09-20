@@ -45,21 +45,61 @@ module.exports = {
 
   // Session management
   session: {
-    // TTL settings (in milliseconds)
-    ttl: parseInt(process.env.WHATSAPP_SESSION_TTL || '3600000'), // 1 hour
-    authStateTTL: parseInt(process.env.WHATSAPP_AUTH_STATE_TTL || '7200000'), // 2 hours
-    pairingCodeTTL: parseInt(process.env.WHATSAPP_PAIRING_CODE_TTL || '60000'), // 60 seconds
-    reconnectTTL: parseInt(process.env.WHATSAPP_RECONNECT_TTL || '1800000'), // 30 minutes
-    qrGenerationTTL: parseInt(process.env.WHATSAPP_QR_TTL || '3600000'), // 1 hour
-    connectionStateTTL: parseInt(process.env.WHATSAPP_CONNECTION_STATE_TTL || '1800000'), // 30 minutes
+    // TTL settings (in milliseconds) with validation
+    ttl: (() => {
+      const val = parseInt(process.env.WHATSAPP_SESSION_TTL || '3600000');
+      if (isNaN(val) || val < 60000) return 3600000; // Default 1 hour
+      return val;
+    })(),
+    authStateTTL: (() => {
+      const val = parseInt(process.env.WHATSAPP_AUTH_STATE_TTL || '7200000');
+      if (isNaN(val) || val < 60000) return 7200000; // Default 2 hours
+      return val;
+    })(),
+    pairingCodeTTL: (() => {
+      const val = parseInt(process.env.WHATSAPP_PAIRING_CODE_TTL || '60000');
+      if (isNaN(val) || val < 30000 || val > 300000) return 60000; // 30s-5min range
+      return val;
+    })(),
+    reconnectTTL: (() => {
+      const val = parseInt(process.env.WHATSAPP_RECONNECT_TTL || '1800000');
+      if (isNaN(val) || val < 60000) return 1800000; // Default 30 minutes
+      return val;
+    })(),
+    qrGenerationTTL: (() => {
+      const val = parseInt(process.env.WHATSAPP_QR_TTL || '3600000');
+      if (isNaN(val) || val < 60000) return 3600000; // Default 1 hour
+      return val;
+    })(),
+    connectionStateTTL: (() => {
+      const val = parseInt(process.env.WHATSAPP_CONNECTION_STATE_TTL || '1800000');
+      if (isNaN(val) || val < 60000) return 1800000; // Default 30 minutes
+      return val;
+    })(),
 
-    // Cleanup intervals (in milliseconds)
-    cleanupInterval: parseInt(process.env.WHATSAPP_CLEANUP_INTERVAL || '60000'), // 1 minute
-    authCleanupInterval: parseInt(process.env.WHATSAPP_AUTH_CLEANUP_INTERVAL || '120000'), // 2 minutes
-    pairingCleanupInterval: parseInt(process.env.WHATSAPP_PAIRING_CLEANUP_INTERVAL || '10000'), // 10 seconds
+    // Cleanup intervals (in milliseconds) with validation
+    cleanupInterval: (() => {
+      const val = parseInt(process.env.WHATSAPP_CLEANUP_INTERVAL || '60000');
+      if (isNaN(val) || val < 10000) return 60000; // Min 10 seconds
+      return val;
+    })(),
+    authCleanupInterval: (() => {
+      const val = parseInt(process.env.WHATSAPP_AUTH_CLEANUP_INTERVAL || '120000');
+      if (isNaN(val) || val < 30000) return 120000; // Min 30 seconds
+      return val;
+    })(),
+    pairingCleanupInterval: (() => {
+      const val = parseInt(process.env.WHATSAPP_PAIRING_CLEANUP_INTERVAL || '10000');
+      if (isNaN(val) || val < 5000) return 10000; // Min 5 seconds
+      return val;
+    })(),
 
-    // Max listeners for EventEmitter
-    maxListeners: parseInt(process.env.WHATSAPP_MAX_LISTENERS || '20'),
+    // Max listeners for EventEmitter with validation
+    maxListeners: (() => {
+      const val = parseInt(process.env.WHATSAPP_MAX_LISTENERS || '20');
+      if (isNaN(val) || val < 10 || val > 100) return 20;
+      return val;
+    })(),
   },
 
   // Connection settings
@@ -85,8 +125,15 @@ module.exports = {
     // Whether to enable multi-tenant mode
     enabled: process.env.WHATSAPP_MULTI_TENANT !== 'false', // Default true
 
-    // Max sessions per server instance
-    maxSessions: parseInt(process.env.WHATSAPP_MAX_SESSIONS || '1000'),
+    // Max sessions per server instance with validation
+    maxSessions: (() => {
+      const val = parseInt(process.env.WHATSAPP_MAX_SESSIONS || '1000');
+      if (isNaN(val) || val < 1 || val > 10000) {
+        console.warn('⚠️ WHATSAPP_MAX_SESSIONS must be between 1-10000. Using default: 1000');
+        return 1000;
+      }
+      return val;
+    })(),
 
     // Session isolation
     isolateAuth: process.env.WHATSAPP_ISOLATE_AUTH !== 'false', // Default true
@@ -95,9 +142,23 @@ module.exports = {
     validateCompanyId: process.env.WHATSAPP_VALIDATE_COMPANY !== 'false', // Default true
     companyIdPattern: process.env.WHATSAPP_COMPANY_ID_PATTERN || '^[a-zA-Z0-9_-]+$',
 
-    // Rate limiting per company
-    rateLimitPerCompany: parseInt(process.env.WHATSAPP_RATE_LIMIT_PER_COMPANY || '100'), // messages per minute
-    rateLimitWindow: parseInt(process.env.WHATSAPP_RATE_LIMIT_WINDOW || '60000'), // 1 minute
+    // Rate limiting per company with validation
+    rateLimitPerCompany: (() => {
+      const val = parseInt(process.env.WHATSAPP_RATE_LIMIT_PER_COMPANY || '100');
+      if (isNaN(val) || val < 1 || val > 1000) {
+        console.warn('⚠️ WHATSAPP_RATE_LIMIT_PER_COMPANY must be between 1-1000. Using default: 100');
+        return 100;
+      }
+      return val;
+    })(),
+    rateLimitWindow: (() => {
+      const val = parseInt(process.env.WHATSAPP_RATE_LIMIT_WINDOW || '60000');
+      if (isNaN(val) || val < 1000 || val > 3600000) {
+        console.warn('⚠️ WHATSAPP_RATE_LIMIT_WINDOW must be between 1-3600 seconds. Using default: 60000');
+        return 60000;
+      }
+      return val;
+    })(),
   },
 
   // Security settings

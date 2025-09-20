@@ -18,14 +18,24 @@ const RateLimiter = require('../../utils/rate-limiter');
 class WhatsAppSessionPool extends EventEmitter {
     constructor() {
         super();
-        
+
         // Core data structures
         this.sessions = new Map(); // companyId -> session
         this.authPaths = new Map(); // companyId -> authPath
         this.reconnectAttempts = new Map(); // companyId -> attempts
         this.reconnectTimers = new Map(); // companyId -> timer
         this.qrCodes = new Map(); // companyId -> qrCode
-        
+
+        // Mutex for preventing race conditions
+        this.creatingSession = new Set(); // companyIds currently being created
+        this.sessionCreationPromises = new Map(); // companyId -> Promise
+
+        // Circuit breaker pattern
+        this.failureCount = new Map(); // companyId -> failure count
+        this.lastFailureTime = new Map(); // companyId -> timestamp
+        this.circuitBreakerThreshold = 5; // failures before opening circuit
+        this.circuitBreakerCooldown = 300000; // 5 minutes cooldown
+
         // Configuration
         this.maxReconnectAttempts = 5;
         this.reconnectDelay = 5000;
@@ -105,11 +115,11 @@ class WhatsAppSessionPool extends EventEmitter {
     }
 
     /**
-     * Gets or creates session for company
+     * Gets or creates session for company with mutex protection
      */
     async getOrCreateSession(companyId) {
         const validatedId = this.validateCompanyId(companyId);
-        
+
         // Check existing session
         if (this.sessions.has(validatedId)) {
             const session = this.sessions.get(validatedId);
@@ -120,7 +130,17 @@ class WhatsAppSessionPool extends EventEmitter {
             }
         }
 
-        // Create new session
+        // Check if already creating this session (mutex)
+        if (this.creatingSession.has(validatedId)) {
+            logger.debug(`⏳ Waiting for session creation for company ${validatedId}`);
+            // Wait for the existing creation promise
+            const promise = this.sessionCreationPromises.get(validatedId);
+            if (promise) {
+                return await promise;
+            }
+        }
+
+        // Create new session with mutex protection
         logger.info(`🔄 Creating new session for company ${validatedId}`);
         return await this.createSession(validatedId);
     }
@@ -134,7 +154,78 @@ class WhatsAppSessionPool extends EventEmitter {
      */
     async createSession(companyId, options = {}) {
         const validatedId = this.validateCompanyId(companyId);
-        
+
+        // Check circuit breaker
+        if (this.isCircuitOpen(validatedId)) {
+            const lastFailure = this.lastFailureTime.get(validatedId);
+            const timeSinceFailure = Date.now() - lastFailure;
+            const remainingCooldown = Math.ceil((this.circuitBreakerCooldown - timeSinceFailure) / 1000);
+            throw new Error(`Circuit breaker open for company ${validatedId}. Too many failures. Retry in ${remainingCooldown} seconds.`);
+        }
+
+        // Mutex - prevent concurrent creation
+        if (this.creatingSession.has(validatedId)) {
+            logger.warn(`Session creation already in progress for company ${validatedId}`);
+            const promise = this.sessionCreationPromises.get(validatedId);
+            if (promise) {
+                return await promise;
+            }
+        }
+
+        // Create promise for this session creation
+        const sessionPromise = this._createSessionWithMutex(validatedId, options);
+        this.sessionCreationPromises.set(validatedId, sessionPromise);
+        this.creatingSession.add(validatedId);
+
+        try {
+            const session = await sessionPromise;
+            // Reset failure count on success
+            this.failureCount.delete(validatedId);
+            this.lastFailureTime.delete(validatedId);
+            return session;
+        } catch (error) {
+            // Track failures for circuit breaker
+            const failures = (this.failureCount.get(validatedId) || 0) + 1;
+            this.failureCount.set(validatedId, failures);
+            this.lastFailureTime.set(validatedId, Date.now());
+
+            logger.error(`Failed to create session for company ${validatedId} (attempt ${failures}):`, error.message);
+            throw error;
+        } finally {
+            // Clear mutex
+            this.creatingSession.delete(validatedId);
+            this.sessionCreationPromises.delete(validatedId);
+        }
+    }
+
+    /**
+     * Check if circuit breaker is open
+     */
+    isCircuitOpen(companyId) {
+        const failures = this.failureCount.get(companyId) || 0;
+        if (failures < this.circuitBreakerThreshold) {
+            return false;
+        }
+
+        const lastFailure = this.lastFailureTime.get(companyId) || 0;
+        const timeSinceFailure = Date.now() - lastFailure;
+
+        // Reset circuit if cooldown period has passed
+        if (timeSinceFailure > this.circuitBreakerCooldown) {
+            this.failureCount.delete(companyId);
+            this.lastFailureTime.delete(companyId);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Internal method to create session with mutex
+     */
+    async _createSessionWithMutex(companyId, options = {}) {
+        const validatedId = companyId; // Already validated
+
         try {
             // Check if session already exists and close it
             const existingSession = this.sessions.get(validatedId);
