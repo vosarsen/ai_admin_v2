@@ -1,4 +1,22 @@
 {
+  "name": "ai-admin-v2",
+  "version": "2.0.0",
+  "description": "AI Admin WhatsApp Bot for Beauty Salons",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "worker": "node src/workers/index-v2.js",
+    "test": "jest",
+    "test:unit": "jest tests/unit",
+    "test:integration": "RUN_INTEGRATION_TESTS=true jest tests/integration",
+    "test:whatsapp": "jest tests/whatsapp",
+    "test:watch": "jest --watch",
+    "backup": "node scripts/automated-backup-service.js backup",
+    "backup:service": "node scripts/automated-backup-service.js start",
+    "monitor": "node scripts/whatsapp-safe-monitor.js",
+    "health": "node scripts/whatsapp-health-check.js"
+  },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
     "@supabase/supabase-js": "^2.57.0",
