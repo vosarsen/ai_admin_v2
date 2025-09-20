@@ -79,7 +79,7 @@ node scripts/whatsapp-monitor-improved.js
 # 1. Запустить скрипт
 node scripts/whatsapp-pairing-auth.js 962302
 
-# 2. Ввести номер телефона (например, 79686484488)
+# 2. Ввести номер телефона (например, 79936363848)
 
 # 3. Получить код (например, 1234-5678)
 
@@ -98,7 +98,7 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 stop whatsapp-monitor"
 # 2. Запросить pairing code
 curl -X POST http://46.149.70.219:3000/api/whatsapp/sessions/962302/pairing-code \
   -H "Content-Type: application/json" \
-  -d '{"phoneNumber": "79686484488"}'
+  -d '{"phoneNumber": "79936363848"}'
 
 # 3. Ввести код в WhatsApp
 ```
@@ -107,7 +107,7 @@ curl -X POST http://46.149.70.219:3000/api/whatsapp/sessions/962302/pairing-code
 ```bash
 # Настроить environment переменные
 export USE_PAIRING_CODE=true
-export COMPANY_PHONE=79686484488
+export COMPANY_PHONE=79936363848
 
 # Запустить улучшенный монитор
 pm2 start scripts/whatsapp-monitor-improved.js --name whatsapp-monitor-v2

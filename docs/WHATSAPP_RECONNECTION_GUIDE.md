@@ -37,7 +37,7 @@ git pull origin feature/redis-context-cache
 ```bash
 # Добавить в /opt/ai-admin/.env
 echo "USE_PAIRING_CODE=true" >> .env
-echo "WHATSAPP_PHONE_NUMBER=79686484488" >> .env
+echo "WHATSAPP_PHONE_NUMBER=79936363848" >> .env
 echo "WHATSAPP_MAX_QR_ATTEMPTS=3" >> .env
 echo "WHATSAPP_MONITOR_ENABLED=false" >> .env
 ```
@@ -63,7 +63,7 @@ pm2 restart ai-admin-api
 # Запросить pairing code через API
 curl -X POST http://localhost:3000/api/whatsapp/sessions/962302/pairing-code \
   -H "Content-Type: application/json" \
-  -d '{"phoneNumber": "79686484488"}'
+  -d '{"phoneNumber": "79936363848"}'
 ```
 
 Или использовать веб-интерфейс:
