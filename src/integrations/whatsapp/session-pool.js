@@ -845,29 +845,62 @@ class WhatsAppSessionPool extends EventEmitter {
 
                 // CRITICAL: Clear the auth state to force new pairing code
                 // WhatsApp won't generate new code if auth state exists
-                const authPath = this.authPaths.get(validatedId);
-                if (authPath) {
-                    logger.info(`🔄 Clearing auth state for company ${validatedId} to force new pairing code`);
-                    try {
-                        const fs = require('fs').promises;
-                        const path = require('path');
+                const fs = require('fs').promises;
+                const path = require('path');
 
-                        // Remove creds.json which stores the authentication
-                        const credsFile = path.join(authPath, 'creds.json');
-                        try {
-                            await fs.unlink(credsFile);
-                            logger.info(`✅ Cleared creds.json for company ${validatedId}`);
-                        } catch (err) {
-                            if (err.code !== 'ENOENT') {
-                                logger.warn(`Could not remove creds.json: ${err.message}`);
+                // Try to get authPath from memory or construct it
+                let authPath = this.authPaths.get(validatedId);
+                if (!authPath) {
+                    // Construct default path if not in memory
+                    const baseDir = process.env.WHATSAPP_AUTH_PATH ||
+                                  path.join(process.cwd(), 'baileys_sessions');
+                    authPath = path.join(baseDir, `company_${validatedId}`);
+                    logger.info(`📂 Using constructed auth path: ${authPath}`);
+                }
+
+                logger.info(`🔄 Clearing auth state for company ${validatedId} to force new pairing code`);
+                logger.info(`📂 Auth path: ${authPath}`);
+
+                try {
+                    // Check if directory exists
+                    try {
+                        await fs.access(authPath);
+
+                        // Remove entire auth directory to ensure clean state
+                        const files = await fs.readdir(authPath);
+                        logger.info(`📁 Found ${files.length} files in auth directory`);
+
+                        // Delete all files in the directory
+                        for (const file of files) {
+                            const filePath = path.join(authPath, file);
+                            try {
+                                await fs.unlink(filePath);
+                                logger.info(`🗑️ Deleted: ${file}`);
+                            } catch (err) {
+                                logger.warn(`Could not delete ${file}: ${err.message}`);
                             }
                         }
 
-                        // Also clear the auth path from memory
-                        this.authPaths.delete(validatedId);
+                        // Remove the directory itself
+                        try {
+                            await fs.rmdir(authPath);
+                            logger.info(`✅ Removed auth directory for company ${validatedId}`);
+                        } catch (err) {
+                            logger.warn(`Could not remove directory: ${err.message}`);
+                        }
                     } catch (err) {
-                        logger.warn(`Error clearing auth state: ${err.message}`);
+                        if (err.code === 'ENOENT') {
+                            logger.info(`📂 Auth directory doesn't exist, nothing to clear`);
+                        } else {
+                            logger.warn(`Error accessing auth directory: ${err.message}`);
+                        }
                     }
+
+                    // Clear from memory
+                    this.authPaths.delete(validatedId);
+                    logger.info(`🧹 Cleared auth path from memory`);
+                } catch (err) {
+                    logger.error(`Error clearing auth state: ${err.message}`);
                 }
 
                 // Create new session for new pairing code
