@@ -256,43 +256,18 @@ router.post('/sessions/:companyId/pairing-code',
         try {
             const { companyId } = req.params;
 
-            // Get or create session
-            const pool = ensureSessionPool();
-            const session = await pool.getOrCreateSession(companyId);
+            // Get phone number from request body or use default
+            const { phoneNumber: requestPhone } = req.body || {};
+            const phoneNumber = requestPhone ?
+                String(requestPhone).replace(/[^0-9]/g, '') :
+                (process.env.WHATSAPP_PHONE_NUMBER?.replace(/[^0-9]/g, '') || '79686484488');
 
-            if (!session) {
-                return res.status(503).json({
-                    success: false,
-                    error: 'Failed to create session'
-                });
-            }
-
-            // Request pairing code using the script that works
-            const { exec } = require('child_process');
-            const { promisify } = require('util');
-            const execAsync = promisify(exec);
+            logger.info(`Requesting pairing code for company ${companyId} with phone ${phoneNumber}`);
 
             try {
-                // Get phone number from request body or use default
-                const { phoneNumber: requestPhone } = req.body || {};
-                const phoneNumber = requestPhone ?
-                    String(requestPhone).replace(/[^0-9]/g, '') :
-                    (process.env.WHATSAPP_PHONE_NUMBER?.replace(/[^0-9]/g, '') || '79686484488');
-
-                logger.info(`Requesting pairing code for company ${companyId} with phone ${phoneNumber}`);
-
-                // Run the working pairing script with auto-input for phone number
-                const { stdout } = await execAsync(
-                    `echo "${phoneNumber}" | USE_PAIRING_CODE=true COMPANY_ID=${companyId} node scripts/whatsapp-pairing-auth.js`,
-                    {
-                        timeout: 30000,
-                        cwd: process.cwd()
-                    }
-                );
-
-                // Extract pairing code from output (looking for "ВАШ КОД:" or similar patterns)
-                const codeMatch = stdout.match(/(?:PAIRING CODE|ВАШ КОД|CODE):\s*([A-Z0-9-]+)/i);
-                const code = codeMatch ? codeMatch[1] : null;
+                // Use session pool's new pairing code support
+                const pool = ensureSessionPool();
+                const code = await pool.requestPairingCode(companyId, phoneNumber);
 
                 if (!code) {
                     throw new Error('Failed to extract pairing code from script output');
