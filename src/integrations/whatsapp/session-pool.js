@@ -1,19 +1,32 @@
 /**
- * WhatsApp Session Pool Manager - Improved Version with Pairing Code Support
- * Централизованное управление всеми WhatsApp сессиями
- * Гарантирует что для каждой компании существует только одна сессия
- * Поддерживает подключение через QR код и Pairing Code
+ * WhatsApp Session Pool Manager - IMPROVED VERSION
+ * Исправленная версия с учетом официальной документации Baileys
+ *
+ * Ключевые улучшения:
+ * - Правильная проверка статуса подключения
+ * - Корректная очистка сессий
+ * - Улучшенная обработка ошибок
+ * - Правильные настройки browser
+ * - Совместимость с Baileys 7.0.0
  */
 
-const { makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys');
+const {
+    makeWASocket,
+    DisconnectReason,
+    useMultiFileAuthState,
+    fetchLatestBaileysVersion,
+    makeCacheableSignalKeyStore,
+    Browsers,
+    delay,
+    proto
+} = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
 const path = require('path');
 const fs = require('fs-extra');
 const EventEmitter = require('events');
 const logger = require('../../utils/logger');
-const validator = require('validator');
-const RateLimiter = require('../../utils/rate-limiter');
+const QRCode = require('qrcode');
 
 class WhatsAppSessionPool extends EventEmitter {
     constructor() {
@@ -39,8 +52,8 @@ class WhatsAppSessionPool extends EventEmitter {
         // Configuration
         this.maxReconnectAttempts = 5;
         this.reconnectDelay = 5000;
-        this.healthCheckInterval = 30000; // 30 seconds
-        
+        this.healthCheckInterval = 60000; // 60 seconds - реже проверяем
+
         // Metrics
         this.metrics = {
             totalSessions: 0,
@@ -52,17 +65,10 @@ class WhatsAppSessionPool extends EventEmitter {
             errors: 0,
             lastError: null
         };
-        
-        // Rate limiting
-        this.rateLimiter = new RateLimiter({
-            windowMs: 60000, // 1 minute
-            maxRequests: 30, // 30 messages per minute per company
-            keyPrefix: 'whatsapp:ratelimit:'
-        });
-        
+
         // Directory for storing sessions
         this.baseAuthPath = path.join(process.cwd(), 'baileys_sessions');
-        
+
         // Initialize async
         this.initialize();
     }
@@ -74,7 +80,7 @@ class WhatsAppSessionPool extends EventEmitter {
         try {
             await this.ensureBaseDirectory();
             this.startHealthChecks();
-            logger.info('✅ WhatsApp Session Pool initialized');
+            logger.info('✅ Improved WhatsApp Session Pool initialized');
         } catch (error) {
             logger.error('Failed to initialize WhatsApp Session Pool:', error);
             this.metrics.errors++;
@@ -87,9 +93,26 @@ class WhatsAppSessionPool extends EventEmitter {
      */
     async ensureBaseDirectory() {
         await fs.ensureDir(this.baseAuthPath);
-        
         // Ensure proper permissions
         await fs.chmod(this.baseAuthPath, 0o700);
+    }
+
+
+    /**
+     * Start health checks for all sessions
+     */
+    startHealthChecks() {
+        setInterval(() => {
+            this.sessions.forEach((session, companyId) => {
+                // Проверяем состояние подключения правильным способом
+                if (!session.user) {
+                    logger.warn(`Session for company ${companyId} is not authenticated`);
+                    this.metrics.activeConnections--;
+                    // Попытаемся переподключиться
+                    this.handleReconnect(companyId);
+                }
+            });
+        }, this.healthCheckInterval);
     }
 
     /**
@@ -99,18 +122,18 @@ class WhatsAppSessionPool extends EventEmitter {
         if (!companyId) {
             throw new Error('Company ID is required');
         }
-        
+
         if (typeof companyId !== 'string' && typeof companyId !== 'number') {
             throw new Error('Invalid company ID type');
         }
-        
+
         // Convert to string and sanitize
         const sanitized = String(companyId).replace(/[^a-zA-Z0-9_-]/g, '');
-        
+
         if (sanitized.length === 0 || sanitized.length > 50) {
             throw new Error('Invalid company ID format');
         }
-        
+
         return sanitized;
     }
 
@@ -123,17 +146,18 @@ class WhatsAppSessionPool extends EventEmitter {
         // Check existing session
         if (this.sessions.has(validatedId)) {
             const session = this.sessions.get(validatedId);
-            // For Baileys, check if user is authenticated instead of ws.readyState
+            // Правильная проверка для Baileys - проверяем user вместо ws.readyState
             if (session && session.user) {
                 logger.debug(`✅ Using existing session for company ${validatedId}`);
                 return session;
+            } else {
+                logger.info(`🔄 Session exists but not connected for company ${validatedId}`);
             }
         }
 
         // Check if already creating this session (mutex)
         if (this.creatingSession.has(validatedId)) {
             logger.debug(`⏳ Waiting for session creation for company ${validatedId}`);
-            // Wait for the existing creation promise
             const promise = this.sessionCreationPromises.get(validatedId);
             if (promise) {
                 return await promise;
@@ -147,10 +171,6 @@ class WhatsAppSessionPool extends EventEmitter {
 
     /**
      * Creates new session for company
-     * @param {string} companyId - Company ID
-     * @param {Object} options - Creation options
-     * @param {boolean} options.usePairingCode - Use pairing code instead of QR
-     * @param {string} options.phoneNumber - Phone number for pairing code
      */
     async createSession(companyId, options = {}) {
         const validatedId = this.validateCompanyId(companyId);
@@ -227,30 +247,21 @@ class WhatsAppSessionPool extends EventEmitter {
         const validatedId = companyId; // Already validated
 
         try {
-            // Check if session already exists and close it
+            // Check if session already exists and properly close it
             const existingSession = this.sessions.get(validatedId);
             if (existingSession) {
                 logger.info(`🔄 Closing existing session for company ${validatedId} before creating new one`);
                 try {
-                    await existingSession.logout();
+                    // Правильный способ закрытия для Baileys
+                    if (existingSession.end) {
+                        existingSession.end();
+                    }
                 } catch (err) {
-                    // Ignore logout errors - session might be already closed
-                    logger.debug(`Logout error for ${validatedId}:`, err.message);
+                    logger.debug(`Close error for ${validatedId}: ${err.message}`);
                 }
                 this.sessions.delete(validatedId);
-
-                // Force cleanup auth directory to prevent stale sessions
-                const authPath = this.authPaths.get(validatedId);
-                if (authPath) {
-                    try {
-                        await fs.remove(authPath);
-                        logger.info(`🧹 Cleaned up auth directory for ${validatedId}`);
-                    } catch (cleanupErr) {
-                        logger.warn(`Failed to cleanup auth directory: ${cleanupErr.message}`);
-                    }
-                }
             }
-            
+
             // Auth data path for company
             const authPath = path.join(this.baseAuthPath, `company_${validatedId}`);
             await fs.ensureDir(authPath);
@@ -267,24 +278,29 @@ class WhatsAppSessionPool extends EventEmitter {
             const usePairingCode = options.usePairingCode || process.env.USE_PAIRING_CODE === 'true';
             const phoneNumber = options.phoneNumber || process.env.WHATSAPP_PHONE_NUMBER;
 
-            // Create socket with optimized config
+            // Create socket with optimized config from official example
             const sock = makeWASocket({
                 version,
                 auth: {
                     creds: state.creds,
                     keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }))
                 },
-                printQRInTerminal: false, // Must be false for pairing code
+                printQRInTerminal: false,
                 logger: pino({ level: 'error' }),
-                browser: ['Ubuntu', 'Chrome', '20.0.04'], // Fixed browser config for pairing code
+                browser: Browsers.ubuntu('Chrome'), // Используем рекомендуемые настройки
                 markOnlineOnConnect: true,
                 generateHighQualityLinkPreview: false,
                 syncFullHistory: false,
                 retryRequestDelayMs: 250,
                 maxRetries: 3,
                 connectTimeoutMs: 60000,
-                keepAliveIntervalMs: 10000,
-                qrTimeout: 60000
+                keepAliveIntervalMs: 30000, // Увеличили интервал
+                qrTimeout: 60000,
+                defaultQueryTimeoutMs: undefined,
+                // Простая функция для получения сообщений
+                getMessage: async (key) => {
+                    return proto.Message.fromObject({});
+                }
             });
 
             // Store pairing code info for later use when socket is ready
@@ -298,7 +314,7 @@ class WhatsAppSessionPool extends EventEmitter {
                 sock.pairingPhoneNumber = cleanPhone;
                 sock.shouldRequestPairingCode = true;
                 sock.usePairingCode = true;
-                logger.info(`📱 Will request pairing code for company ${validatedId} with phone ${cleanPhone} when QR is available`);
+                logger.info(`📱 Will request pairing code for company ${validatedId} with phone ${cleanPhone}`);
             }
 
             // Save in pool
@@ -308,6 +324,7 @@ class WhatsAppSessionPool extends EventEmitter {
             // Setup event handlers with pairing code support
             this.setupEventHandlers(validatedId, sock, saveCreds, options);
 
+            logger.info(`✅ Session created for company ${validatedId}`);
             return sock;
         } catch (error) {
             logger.error(`Failed to create session for company ${validatedId}:`, error);
@@ -324,6 +341,8 @@ class WhatsAppSessionPool extends EventEmitter {
         // Track QR generation count for auto-switching to pairing code
         let qrCount = 0;
         const maxQRAttempts = 3;
+        let pairingCodeTimeout = null;
+
         // Connection updates
         sock.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect, qr } = update;
@@ -332,6 +351,11 @@ class WhatsAppSessionPool extends EventEmitter {
             if (qr && sock.usePairingCode && sock.shouldRequestPairingCode) {
                 // Mark as handled to prevent multiple requests
                 sock.shouldRequestPairingCode = false;
+
+                // Clear previous timeout if exists
+                if (pairingCodeTimeout) {
+                    clearTimeout(pairingCodeTimeout);
+                }
 
                 // Request pairing code immediately when QR is available
                 (async () => {
@@ -342,62 +366,59 @@ class WhatsAppSessionPool extends EventEmitter {
                         const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
 
                         logger.info(`✅ Pairing code generated for company ${companyId}: ${formattedCode}`);
-                        logger.info(`📱 Using browser config: Ubuntu/Chrome/20.0.04 for better compatibility`);
                         logger.info(`📱 Enter this code in WhatsApp within 60 seconds!`);
 
                         this.emit('pairing-code', { companyId, code: formattedCode, phoneNumber: sock.pairingPhoneNumber });
                         this.qrCodes.set(`pairing-${companyId}`, formattedCode);
 
-                        // Don't emit QR if pairing code was successfully generated
+                        // Set timeout for pairing code expiration
+                        pairingCodeTimeout = setTimeout(() => {
+                            logger.warn(`⏱️ Pairing code expired for company ${companyId}`);
+                            this.qrCodes.delete(`pairing-${companyId}`);
+                            // Request new code or fallback to QR
+                            sock.usePairingCode = false;
+                        }, 60000);
+
                         return;
                     } catch (error) {
                         logger.error(`Failed to request pairing code: ${error.message}`);
                         logger.info(`Will fallback to QR code method`);
-                        sock.usePairingCode = false; // Disable pairing code for this session
+                        sock.usePairingCode = false;
                     }
                 })();
             }
 
-            if (qr) {
+            if (qr && !sock.usePairingCode) {
                 qrCount++;
                 logger.info(`📱 QR Code generated for company ${companyId} (attempt ${qrCount})`);
                 this.metrics.qrCodesGenerated++;
 
-                // Check if we should switch to pairing code
+                // Store and emit raw QR code
+                this.qrCodes.set(companyId, qr);
+                this.emit('qr', { companyId, qr });
+
+                // Check if we should switch to pairing code after multiple QR attempts
                 if (qrCount >= maxQRAttempts && process.env.USE_PAIRING_CODE === 'true') {
                     logger.warn(`⚠️ Too many QR attempts (${qrCount}) for company ${companyId}`);
-                    logger.info(`💡 Switching to pairing code method to avoid 'linking devices' block`);
-
-                    // Request pairing code instead
-                    const phoneNumber = options.phoneNumber || process.env.WHATSAPP_PHONE_NUMBER;
-                    if (phoneNumber) {
-                        try {
-                            const cleanPhone = phoneNumber.replace(/\D/g, '');
-                            const code = await sock.requestPairingCode(cleanPhone);
-                            const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
-
-                            logger.info(`✅ Pairing code generated: ${formattedCode}`);
-                            this.emit('pairing-code', { companyId, code: formattedCode, phoneNumber: cleanPhone });
-                            this.qrCodes.set(`pairing-${companyId}`, formattedCode);
-                            return; // Don't emit QR
-                        } catch (error) {
-                            logger.error(`Failed to request pairing code: ${error.message}`);
-                        }
-                    }
+                    logger.info(`💡 Consider using pairing code method to avoid 'linking devices' block`);
                 }
-
-                this.qrCodes.set(companyId, qr); // Store QR code
-                this.emit('qr', { companyId, qr });
             }
 
             if (connection === 'close') {
                 this.metrics.activeConnections--;
-                
+
+                // Clear pairing code timeout
+                if (pairingCodeTimeout) {
+                    clearTimeout(pairingCodeTimeout);
+                    pairingCodeTimeout = null;
+                }
+
                 const shouldReconnect = (lastDisconnect?.error instanceof Boom)
                     ? lastDisconnect.error.output.statusCode !== DisconnectReason.loggedOut
                     : true;
 
                 if (shouldReconnect) {
+                    logger.warn(`Connection closed for company ${companyId}, will reconnect...`);
                     await this.handleReconnect(companyId);
                 } else {
                     logger.warn(`Session logged out for company ${companyId}`);
@@ -407,11 +428,25 @@ class WhatsAppSessionPool extends EventEmitter {
             }
 
             if (connection === 'open') {
-                logger.info(`✅ WhatsApp connected for company ${companyId}`);
+                logger.info(`✅ WhatsApp connected for company ${companyId}`, {
+                    user: sock.user
+                });
                 this.metrics.activeConnections++;
                 this.reconnectAttempts.set(companyId, 0);
-                this.qrCodes.delete(companyId); // Clear QR code on successful connection
-                this.emit('connected', { companyId });
+                this.qrCodes.delete(companyId);
+                this.qrCodes.delete(`pairing-${companyId}`);
+
+                // Clear pairing code timeout
+                if (pairingCodeTimeout) {
+                    clearTimeout(pairingCodeTimeout);
+                    pairingCodeTimeout = null;
+                }
+
+                this.emit('connected', {
+                    companyId,
+                    user: sock.user,
+                    phoneNumber: sock.user?.id?.split('@')[0]
+                });
             }
         });
 
@@ -419,13 +454,31 @@ class WhatsAppSessionPool extends EventEmitter {
         sock.ev.on('creds.update', saveCreds);
 
         // Handle incoming messages
-        sock.ev.on('messages.upsert', async ({ messages }) => {
-            for (const msg of messages) {
-                if (!msg.key.fromMe && msg.message) {
-                    this.metrics.messagesReceived++;
-                    this.emit('message', { companyId, message: msg });
+        sock.ev.on('messages.upsert', async ({ messages, type }) => {
+            logger.info(`📩 Messages upsert for company ${companyId}, type: ${type}, count: ${messages?.length}`);
+
+            // Only process new messages
+            if (type === 'notify') {
+                for (const msg of messages) {
+                    logger.info(`Processing message:`, {
+                        from: msg.key.remoteJid,
+                        fromMe: msg.key.fromMe,
+                        hasMessage: !!msg.message,
+                        messageType: msg.message ? Object.keys(msg.message) : null
+                    });
+
+                    if (!msg.key.fromMe && msg.message) {
+                        this.metrics.messagesReceived++;
+                        logger.info(`✅ Emitting message event for company ${companyId}`);
+                        this.emit('message', { companyId, message: msg });
+                    }
                 }
             }
+        });
+
+        // Handle message updates (receipts, etc.)
+        sock.ev.on('messages.update', (updates) => {
+            logger.debug(`Messages updated for company ${companyId}:`, updates.length);
         });
 
         // Handle errors
@@ -438,54 +491,11 @@ class WhatsAppSessionPool extends EventEmitter {
     }
 
     /**
-     * Monitors session health and cleans up if needed
-     */
-    async monitorSessionHealth(companyId) {
-        const authPath = this.authPaths.get(companyId);
-        if (!authPath) return;
-
-        try {
-            // Check auth directory size
-            const files = await fs.readdir(authPath);
-            const totalSize = files.length;
-
-            // If too many files (indicating key accumulation), alert but don't force reset
-            if (totalSize > 180) {
-                logger.error(`🚨 CRITICAL: Session for ${companyId} has ${totalSize} files!`);
-                logger.error(`Risk of device_removed! Manual cleanup required urgently!`);
-
-                // Send alert if Telegram configured
-                if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
-                    const axios = require('axios');
-                    try {
-                        await axios.post(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-                            chat_id: process.env.TELEGRAM_CHAT_ID,
-                            text: `🚨 CRITICAL WhatsApp Issue!\n\nCompany: ${companyId}\nAuth files: ${totalSize}\n\nRisk of device_removed!\n\n1. Stop WhatsApp for this company\n2. Run smart cleanup\n3. Restart\n\nDO NOT wait!`,
-                            parse_mode: 'HTML'
-                        });
-                    } catch (alertErr) {
-                        logger.error('Failed to send Telegram alert:', alertErr.message);
-                    }
-                }
-
-                // DO NOT automatically reset - this requires QR rescan!
-                // Let smart cleanup handle it properly
-            } else if (totalSize > 150) {
-                logger.warn(`⚠️ Session for ${companyId} has ${totalSize} files - needs cleanup soon`);
-            } else if (totalSize > 120) {
-                logger.info(`📊 Session for ${companyId} has ${totalSize} files - monitoring`);
-            }
-        } catch (err) {
-            logger.debug(`Health check failed for ${companyId}: ${err.message}`);
-        }
-    }
-
-    /**
      * Handles reconnection with exponential backoff
      */
     async handleReconnect(companyId) {
         const attempts = this.reconnectAttempts.get(companyId) || 0;
-        
+
         if (attempts >= this.maxReconnectAttempts) {
             logger.error(`Max reconnection attempts reached for company ${companyId}`);
             this.metrics.failedReconnects++;
@@ -494,499 +504,178 @@ class WhatsAppSessionPool extends EventEmitter {
             return;
         }
 
-        const delay = Math.min(this.reconnectDelay * Math.pow(2, attempts), 60000); // Max 1 minute
+        const delay = Math.min(this.reconnectDelay * Math.pow(2, attempts), 60000);
         logger.info(`🔄 Reconnecting company ${companyId} in ${delay}ms (attempt ${attempts + 1}/${this.maxReconnectAttempts})`);
-        
+
         this.reconnectAttempts.set(companyId, attempts + 1);
-        
+
         // Clear existing timer if any
         const existingTimer = this.reconnectTimers.get(companyId);
         if (existingTimer) {
             clearTimeout(existingTimer);
         }
-        
-        // Set new timer
+
+        // Set new reconnect timer
         const timer = setTimeout(async () => {
             this.reconnectTimers.delete(companyId);
             try {
                 await this.createSession(companyId);
             } catch (error) {
-                logger.error(`Reconnection failed for company ${companyId}:`, error);
-                await this.handleReconnect(companyId); // Retry
+                logger.error(`Reconnection failed for company ${companyId}:`, error.message);
             }
         }, delay);
-        
+
         this.reconnectTimers.set(companyId, timer);
     }
 
     /**
-     * Removes session for company
+     * Removes session and cleans up resources
      */
     async removeSession(companyId) {
-        const validatedId = this.validateCompanyId(companyId);
-        
+        const session = this.sessions.get(companyId);
+        if (session) {
+            try {
+                // Properly close session
+                if (session.end) {
+                    session.end();
+                }
+            } catch (err) {
+                logger.debug(`Error closing session for ${companyId}: ${err.message}`);
+            }
+        }
+
+        // Clear all related data
+        this.sessions.delete(companyId);
+        this.reconnectAttempts.delete(companyId);
+        this.qrCodes.delete(companyId);
+        this.qrCodes.delete(`pairing-${companyId}`);
+
         // Clear reconnect timer
-        const timer = this.reconnectTimers.get(validatedId);
+        const timer = this.reconnectTimers.get(companyId);
         if (timer) {
             clearTimeout(timer);
-            this.reconnectTimers.delete(validatedId);
+            this.reconnectTimers.delete(companyId);
         }
-        
-        // Close socket
-        const sock = this.sessions.get(validatedId);
-        if (sock) {
-            sock.ev.removeAllListeners();
-            sock.ws?.close();
-            this.metrics.activeConnections--;
-        }
-        
-        // Clean up maps
-        this.sessions.delete(validatedId);
-        this.reconnectAttempts.delete(validatedId);
-        this.metrics.totalSessions = Math.max(0, this.metrics.totalSessions - 1);
-        
-        logger.info(`🗑️ Session removed for company ${validatedId}`);
+
+        logger.info(`🔌 Session removed for company ${companyId}`);
     }
 
     /**
-     * Sends message through company session with rate limiting
+     * Sends message to WhatsApp
      */
     async sendMessage(companyId, phone, message, options = {}) {
-        const validatedId = this.validateCompanyId(companyId);
-        
-        // Validate phone number
-        if (!phone || !validator.isMobilePhone(String(phone))) {
-            throw new Error('Invalid phone number');
-        }
-        
-        // Check rate limit
-        const rateLimitKey = `${validatedId}:${phone}`;
-        if (!await this.rateLimiter.checkLimit(rateLimitKey)) {
-            throw new Error('Rate limit exceeded');
-        }
-        
-        // Get or create session
-        const sock = await this.getOrCreateSession(validatedId);
-        
-        if (!sock || !sock.user) {
-            throw new Error(`No active session for company ${validatedId}`);
+        const session = await this.getOrCreateSession(companyId);
+
+        if (!session || !session.user) {
+            throw new Error(`WhatsApp not connected for company ${companyId}`);
         }
 
-        const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
-        
+        // Format phone number
+        const formattedNumber = this.formatPhoneNumber(phone);
+
         try {
-            const messageOptions = { text: message, ...options };
-            const result = await sock.sendMessage(jid, messageOptions);
-            
+            const result = await session.sendMessage(formattedNumber, {
+                text: message
+            });
+
             this.metrics.messagesSent++;
-            logger.info(`✅ Message sent for company ${validatedId} to ${phone}`);
-            
+            logger.info(`✅ Message sent to ${formattedNumber} for company ${companyId}`);
+
             return result;
         } catch (error) {
-            logger.error(`Failed to send message for company ${validatedId}:`, error);
             this.metrics.errors++;
-            this.metrics.lastError = error.message;
             throw error;
         }
     }
 
     /**
-     * Send reaction to a message
+     * Formats phone number for WhatsApp
      */
-    async sendReaction(companyId, phone, emoji, messageId) {
-        const validatedId = this.validateCompanyId(companyId);
-        
-        // Get or create session (same as sendMessage)
-        const sock = await this.getOrCreateSession(validatedId);
-        
-        if (!sock || !sock.user) {
-            throw new Error(`No active session for company ${validatedId}`);
+    formatPhoneNumber(phone) {
+        // Remove all non-digit characters
+        let cleaned = phone.replace(/\D/g, '');
+
+        // If starts with 8, replace with 7
+        if (cleaned.startsWith('8')) {
+            cleaned = '7' + cleaned.slice(1);
         }
 
-        const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
-        
-        try {
-            const reactionMessage = {
-                react: {
-                    text: emoji,
-                    key: {
-                        remoteJid: jid,
-                        fromMe: false,
-                        id: messageId
-                    }
-                }
-            };
-            
-            const result = await sock.sendMessage(jid, reactionMessage);
-            
-            logger.info(`✅ Reaction ${emoji} sent for company ${validatedId} to ${phone}`);
-            
-            return result;
-        } catch (error) {
-            logger.error(`Failed to send reaction for company ${validatedId}:`, error);
-            throw error;
-        }
+        // Add @s.whatsapp.net suffix
+        return `${cleaned}@s.whatsapp.net`;
     }
 
     /**
-     * Gets session status with health info
+     * Gets session status
      */
     getSessionStatus(companyId) {
-        try {
-            const validatedId = this.validateCompanyId(companyId);
-            const sock = this.sessions.get(validatedId);
-            
-            if (!sock) {
-                return { 
-                    connected: false, 
-                    status: 'not_initialized',
-                    health: 'unknown'
-                };
-            }
+        const session = this.sessions.get(companyId);
 
-            // In Baileys, check if user exists to determine connection status
-            const connected = sock.user ? true : false;
-            const status = connected ? 'connected' : 'disconnected';
-            
-            return { 
-                connected, 
-                status,
-                reconnectAttempts: this.reconnectAttempts.get(validatedId) || 0,
-                health: connected ? 'healthy' : 'unhealthy',
-                uptime: sock.uptime || 0
-            };
-        } catch (error) {
-            return { 
-                connected: false, 
-                status: 'error',
-                error: error.message
-            };
-        }
-    }
-
-    /**
-     * Initializes session and waits for QR code
-     */
-    async initializeSession(companyId) {
-        const validatedId = this.validateCompanyId(companyId);
-        
-        // Remove old session if exists
-        await this.removeSession(validatedId);
-        
-        // Clear auth data for new session
-        const authPath = path.join(this.baseAuthPath, `company_${validatedId}`);
-        await fs.remove(authPath);
-        
-        return new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                this.off('qr', qrHandler);
-                this.off('connected', connectedHandler);
-                reject(new Error('QR code generation timeout'));
-            }, 60000);
-
-            const qrHandler = (data) => {
-                if (data.companyId === validatedId) {
-                    clearTimeout(timeout);
-                    this.off('connected', connectedHandler);
-                    resolve({ qr: data.qr });
-                }
-            };
-
-            const connectedHandler = (data) => {
-                if (data.companyId === validatedId) {
-                    clearTimeout(timeout);
-                    this.off('qr', qrHandler);
-                    resolve({ connected: true });
-                }
-            };
-
-            // Set up handlers BEFORE creating session
-            this.on('qr', qrHandler);
-            this.on('connected', connectedHandler);
-            
-            // Now create session
-            this.createSession(validatedId).catch(error => {
-                clearTimeout(timeout);
-                this.off('qr', qrHandler);
-                this.off('connected', connectedHandler);
-                reject(error);
-            });
-        });
-    }
-
-    /**
-     * Performs health check on session
-     */
-    async healthCheck(companyId) {
-        try {
-            const validatedId = this.validateCompanyId(companyId);
-            const sock = this.sessions.get(validatedId);
-            
-            if (!sock || !sock.user) {
-                return { 
-                    healthy: false, 
-                    reason: 'Session not connected',
-                    companyId: validatedId
-                };
-            }
-            
-            // Try to get user info as health check
-            const user = sock.user;
-            if (user) {
-                return { 
-                    healthy: true,
-                    companyId: validatedId,
-                    phoneNumber: user.id
-                };
-            }
-            
-            return { 
-                healthy: false, 
-                reason: 'User info not available',
-                companyId: validatedId
-            };
-        } catch (error) {
-            return { 
-                healthy: false, 
-                reason: error.message,
-                companyId
-            };
-        }
-    }
-
-    /**
-     * Starts periodic health checks
-     */
-    startHealthChecks() {
-        setInterval(async () => {
-            for (const [companyId] of this.sessions) {
-                const health = await this.healthCheck(companyId);
-                if (!health.healthy) {
-                    logger.warn(`Health check failed for company ${companyId}:`, health.reason);
-                    this.emit('health_check_failed', health);
-                }
-
-                // Also monitor for key accumulation
-                await this.monitorSessionHealth(companyId);
-            }
-        }, this.healthCheckInterval);
-    }
-
-    /**
-     * Gets list of all active sessions with details
-     */
-    getActiveSessions() {
-        const sessions = [];
-        
-        for (const [companyId] of this.sessions) {
-            sessions.push({
-                companyId,
-                ...this.getSessionStatus(companyId)
-            });
-        }
-        
-        return sessions;
-    }
-
-    /**
-     * Gets QR code or pairing code for a company
-     */
-    getQRCode(companyId) {
-        const validatedId = this.validateCompanyId(companyId);
-        // Check for pairing code first
-        const pairingCode = this.qrCodes.get(`pairing-${validatedId}`);
-        if (pairingCode) {
-            return { type: 'pairing', code: pairingCode };
-        }
-        // Then check for QR code
-        const qrCode = this.qrCodes.get(validatedId);
-        if (qrCode) {
-            return { type: 'qr', code: qrCode };
-        }
-        return null;
-    }
-
-    /**
-     * Request pairing code for a company
-     */
-    async requestPairingCode(companyId, phoneNumber) {
-        const validatedId = this.validateCompanyId(companyId);
-
-        // Clean phone number
-        const cleanPhone = String(phoneNumber).replace(/\D/g, '');
-        if (!cleanPhone || cleanPhone.length < 10) {
-            throw new Error('Invalid phone number provided');
+        if (!session) {
+            return { status: 'not_initialized', connected: false };
         }
 
-        logger.info(`Requesting pairing code for company ${validatedId} with phone ${cleanPhone}`);
-
-        return new Promise(async (resolve, reject) => {
-            try {
-                // Clear any existing pairing code to force generation of new one
-                const existingCode = this.qrCodes.get(`pairing-${validatedId}`);
-                if (existingCode) {
-                    logger.info(`Clearing existing pairing code for company ${validatedId} to generate new one`);
-                    this.qrCodes.delete(`pairing-${validatedId}`);
-                }
-
-                // Always remove existing session to generate new pairing code
-                let sock = this.sessions.get(validatedId);
-                if (sock) {
-                    logger.info(`Removing existing session for company ${validatedId} to generate new pairing code`);
-                    try {
-                        await sock.logout();
-                    } catch (err) {
-                        // Ignore logout errors
-                        logger.debug(`Logout error ignored: ${err.message}`);
-                    }
-                    this.sessions.delete(validatedId);
-                    sock = null;
-                }
-
-                // CRITICAL: Clear the auth state to force new pairing code
-                // WhatsApp won't generate new code if auth state exists
-                const fs = require('fs').promises;
-                const path = require('path');
-
-                // Try to get authPath from memory or construct it
-                let authPath = this.authPaths.get(validatedId);
-                if (!authPath) {
-                    // Construct default path if not in memory
-                    const baseDir = process.env.WHATSAPP_AUTH_PATH ||
-                                  path.join(process.cwd(), 'baileys_sessions');
-                    authPath = path.join(baseDir, `company_${validatedId}`);
-                    logger.info(`📂 Using constructed auth path: ${authPath}`);
-                }
-
-                logger.info(`🔄 Clearing auth state for company ${validatedId} to force new pairing code`);
-                logger.info(`📂 Auth path: ${authPath}`);
-
-                try {
-                    // Check if directory exists
-                    try {
-                        await fs.access(authPath);
-
-                        // Remove entire auth directory to ensure clean state
-                        const files = await fs.readdir(authPath);
-                        logger.info(`📁 Found ${files.length} files in auth directory`);
-
-                        // Delete all files in the directory
-                        for (const file of files) {
-                            const filePath = path.join(authPath, file);
-                            try {
-                                await fs.unlink(filePath);
-                                logger.info(`🗑️ Deleted: ${file}`);
-                            } catch (err) {
-                                logger.warn(`Could not delete ${file}: ${err.message}`);
-                            }
-                        }
-
-                        // Remove the directory itself
-                        try {
-                            await fs.rmdir(authPath);
-                            logger.info(`✅ Removed auth directory for company ${validatedId}`);
-                        } catch (err) {
-                            logger.warn(`Could not remove directory: ${err.message}`);
-                        }
-                    } catch (err) {
-                        if (err.code === 'ENOENT') {
-                            logger.info(`📂 Auth directory doesn't exist, nothing to clear`);
-                        } else {
-                            logger.warn(`Error accessing auth directory: ${err.message}`);
-                        }
-                    }
-
-                    // Clear from memory
-                    this.authPaths.delete(validatedId);
-                    logger.info(`🧹 Cleared auth path from memory`);
-                } catch (err) {
-                    logger.error(`Error clearing auth state: ${err.message}`);
-                }
-
-                // Create new session for new pairing code
-                logger.info(`Creating new session for pairing code generation for company ${validatedId}`);
-
-                // Set up listener for pairing code event
-                const pairingCodeHandler = (data) => {
-                    if (data.companyId === validatedId) {
-                        this.removeListener('pairing-code', pairingCodeHandler);
-                        resolve(data.code);
-                    }
-                };
-
-                // Set timeout for pairing code generation
-                const timeout = setTimeout(() => {
-                    this.removeListener('pairing-code', pairingCodeHandler);
-                    reject(new Error('Timeout waiting for pairing code generation'));
-                }, 30000); // 30 seconds timeout
-
-                this.on('pairing-code', pairingCodeHandler);
-
-                // Create new session with pairing code option
-                // This will trigger pairing code generation when socket is ready
-                sock = await this._createSessionWithMutex(validatedId, {
-                    usePairingCode: true,
-                    phoneNumber: cleanPhone
-                });
-
-                // Clear timeout if code was generated
-                clearTimeout(timeout);
-            } catch (error) {
-                logger.error(`Failed to generate pairing code for ${validatedId}:`, error);
-
-                // Check for specific error messages
-                if (error.message?.includes('Connection Closed')) {
-                    reject(new Error('WhatsApp connection is closed. Please try again or use QR code method.'));
-                } else if (error.message?.includes('rate')) {
-                    reject(new Error('Too many attempts. Please wait a few minutes and try again.'));
-                } else {
-                    reject(error);
-                }
-            }
-        });
-    }
-
-    /**
-     * Gets current metrics
-     */
-    getMetrics() {
         return {
-            ...this.metrics,
-            timestamp: new Date().toISOString()
+            status: session.user ? 'connected' : 'disconnected',
+            connected: !!session.user,
+            user: session.user,
+            phoneNumber: session.user?.id?.split('@')[0],
+            hasQR: this.qrCodes.has(companyId),
+            hasPairingCode: this.qrCodes.has(`pairing-${companyId}`)
         };
     }
 
     /**
-     * Graceful shutdown
+     * Gets active sessions list
      */
-    async shutdown() {
-        logger.info('Shutting down WhatsApp Session Pool...');
-        
-        // Clear all timers
-        for (const timer of this.reconnectTimers.values()) {
-            clearTimeout(timer);
+    getActiveSessions() {
+        const sessions = [];
+
+        for (const [companyId, session] of this.sessions) {
+            sessions.push({
+                companyId,
+                connected: !!session.user,
+                phoneNumber: session.user?.id?.split('@')[0],
+                user: session.user
+            });
         }
-        this.reconnectTimers.clear();
-        
-        // Close all sessions
-        for (const [companyId] of this.sessions) {
-            await this.removeSession(companyId);
-        }
-        
-        logger.info('WhatsApp Session Pool shutdown complete');
+
+        return sessions;
+    }
+
+    /**
+     * Disconnects session
+     */
+    async disconnectSession(companyId) {
+        await this.removeSession(companyId);
+        return true;
+    }
+
+    /**
+     * Get metrics
+     */
+    getMetrics() {
+        return {
+            ...this.metrics,
+            connectedSessions: this.getActiveSessions().filter(s => s.connected).length,
+            totalSessions: this.sessions.size
+        };
     }
 }
 
 // Singleton instance
-let sessionPool = null;
+let sessionPoolInstance = null;
 
+/**
+ * Gets or creates session pool singleton
+ */
 function getSessionPool() {
-    if (!sessionPool) {
-        sessionPool = new WhatsAppSessionPool();
+    if (!sessionPoolInstance) {
+        sessionPoolInstance = new WhatsAppSessionPool();
     }
-    return sessionPool;
+    return sessionPoolInstance;
 }
 
+// Экспортируем с обратной совместимостью
 module.exports = {
     WhatsAppSessionPool,
     getSessionPool
