@@ -786,14 +786,69 @@ class WhatsAppSessionPool extends EventEmitter {
      */
     async requestPairingCode(companyId, phoneNumber) {
         const validatedId = this.validateCompanyId(companyId);
-        const session = await this.getOrCreateSession(validatedId, {
-            usePairingCode: true,
-            phoneNumber
-        });
 
-        // Return stored pairing code if available
-        const pairingCode = this.qrCodes.get(`pairing-${validatedId}`);
-        return pairingCode || null;
+        // Clean phone number
+        const cleanPhone = String(phoneNumber).replace(/\D/g, '');
+        if (!cleanPhone || cleanPhone.length < 10) {
+            throw new Error('Invalid phone number provided');
+        }
+
+        logger.info(`Requesting pairing code for company ${validatedId} with phone ${cleanPhone}`);
+
+        try {
+            // Check if we already have an active session
+            let sock = this.sessions.get(validatedId);
+
+            // If no session or not connected, create new one
+            if (!sock || !sock.user) {
+                logger.info(`Creating new session for pairing code generation for company ${validatedId}`);
+
+                // Remove old session if exists
+                if (sock) {
+                    try {
+                        await sock.logout();
+                    } catch (err) {
+                        // Ignore logout errors
+                    }
+                    this.sessions.delete(validatedId);
+                }
+
+                // Create new session with pairing code option
+                sock = await this._createSessionWithMutex(validatedId, {
+                    usePairingCode: true,
+                    phoneNumber: cleanPhone
+                });
+            }
+
+            // Request pairing code from WhatsApp
+            const code = await sock.requestPairingCode(cleanPhone);
+            const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
+
+            logger.info(`✅ Pairing code generated for company ${validatedId}: ${formattedCode}`);
+
+            // Store the code
+            this.qrCodes.set(`pairing-${validatedId}`, formattedCode);
+
+            // Emit event
+            this.emit('pairing-code', {
+                companyId: validatedId,
+                code: formattedCode,
+                phoneNumber: cleanPhone
+            });
+
+            return formattedCode;
+        } catch (error) {
+            logger.error(`Failed to generate pairing code for ${validatedId}:`, error);
+
+            // Check for specific error messages
+            if (error.message?.includes('Connection Closed')) {
+                throw new Error('WhatsApp connection is closed. Please try again or use QR code method.');
+            } else if (error.message?.includes('rate')) {
+                throw new Error('Too many attempts. Please wait a few minutes and try again.');
+            }
+
+            throw error;
+        }
     }
 
     /**
