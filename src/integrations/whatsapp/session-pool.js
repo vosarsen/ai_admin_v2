@@ -274,7 +274,7 @@ class WhatsAppSessionPool extends EventEmitter {
                     creds: state.creds,
                     keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }))
                 },
-                printQRInTerminal: false,
+                printQRInTerminal: false, // Must be false for pairing code
                 logger: pino({ level: 'error' }),
                 browser: ['AI Admin', 'Chrome', '1.0.0'],
                 markOnlineOnConnect: true,
@@ -289,9 +289,15 @@ class WhatsAppSessionPool extends EventEmitter {
 
             // Store pairing code info for later use when socket is ready
             if (usePairingCode && phoneNumber && !state.creds.registered) {
-                sock.pairingPhoneNumber = phoneNumber.replace(/\D/g, '');
+                // Format phone number for E.164 without plus sign
+                let cleanPhone = phoneNumber.replace(/\D/g, '');
+                // Ensure it starts with country code (add 7 for Russia if needed)
+                if (cleanPhone.startsWith('8') && cleanPhone.length === 11) {
+                    cleanPhone = '7' + cleanPhone.substring(1);
+                }
+                sock.pairingPhoneNumber = cleanPhone;
                 sock.shouldRequestPairingCode = true;
-                logger.info(`📱 Will request pairing code for company ${validatedId} when connection is ready`);
+                logger.info(`📱 Will request pairing code for company ${validatedId} with phone ${cleanPhone} when connection is ready`);
             }
 
             // Save in pool
@@ -321,11 +327,11 @@ class WhatsAppSessionPool extends EventEmitter {
         sock.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect, qr } = update;
 
-            // Handle pairing code request when socket is ready and we have QR
-            // Pairing code can only be requested when QR is available
-            if (sock.shouldRequestPairingCode && qr) {
+            // Handle pairing code request when connection is in "connecting" state or QR is available
+            // According to Baileys docs: can request pairing code when connection == "connecting" || !!qr
+            if (sock.shouldRequestPairingCode && (connection === 'connecting' || qr)) {
                 try {
-                    logger.info(`📱 QR available, requesting pairing code for company ${companyId}`);
+                    logger.info(`📱 Connection ready (${connection || 'qr available'}), requesting pairing code for company ${companyId}`);
                     const code = await sock.requestPairingCode(sock.pairingPhoneNumber);
                     const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
 
