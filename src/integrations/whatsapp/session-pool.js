@@ -846,55 +846,31 @@ class WhatsAppSessionPool extends EventEmitter {
                 // Create new session for new pairing code
                 logger.info(`Creating new session for pairing code generation for company ${validatedId}`);
 
-                    // Set up listener for pairing code event
-                    const pairingCodeHandler = (data) => {
-                        if (data.companyId === validatedId) {
-                            this.removeListener('pairing-code', pairingCodeHandler);
-                            resolve(data.code);
-                        }
-                    };
-
-                    // Set timeout for pairing code generation
-                    const timeout = setTimeout(() => {
+                // Set up listener for pairing code event
+                const pairingCodeHandler = (data) => {
+                    if (data.companyId === validatedId) {
                         this.removeListener('pairing-code', pairingCodeHandler);
-                        reject(new Error('Timeout waiting for pairing code generation'));
-                    }, 30000); // 30 seconds timeout
-
-                    this.on('pairing-code', pairingCodeHandler);
-
-                    // Create new session with pairing code option
-                    // This will trigger pairing code generation when socket is ready
-                    sock = await this._createSessionWithMutex(validatedId, {
-                        usePairingCode: true,
-                        phoneNumber: cleanPhone
-                    });
-
-                    // Clear timeout if code was generated
-                    clearTimeout(timeout);
-                } else {
-                    // Session exists and is connected, try to request code directly
-                    try {
-                        const code = await sock.requestPairingCode(cleanPhone);
-                        const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
-
-                        logger.info(`✅ Pairing code generated for company ${validatedId}: ${formattedCode}`);
-
-                        // Store the code
-                        this.qrCodes.set(`pairing-${validatedId}`, formattedCode);
-
-                        // Emit event
-                        this.emit('pairing-code', {
-                            companyId: validatedId,
-                            code: formattedCode,
-                            phoneNumber: cleanPhone
-                        });
-
-                        resolve(formattedCode);
-                    } catch (error) {
-                        logger.error(`Failed to request pairing code from existing session:`, error);
-                        reject(new Error('Failed to generate pairing code. Please try again.'));
+                        resolve(data.code);
                     }
-                }
+                };
+
+                // Set timeout for pairing code generation
+                const timeout = setTimeout(() => {
+                    this.removeListener('pairing-code', pairingCodeHandler);
+                    reject(new Error('Timeout waiting for pairing code generation'));
+                }, 30000); // 30 seconds timeout
+
+                this.on('pairing-code', pairingCodeHandler);
+
+                // Create new session with pairing code option
+                // This will trigger pairing code generation when socket is ready
+                sock = await this._createSessionWithMutex(validatedId, {
+                    usePairingCode: true,
+                    phoneNumber: cleanPhone
+                });
+
+                // Clear timeout if code was generated
+                clearTimeout(timeout);
             } catch (error) {
                 logger.error(`Failed to generate pairing code for ${validatedId}:`, error);
 
