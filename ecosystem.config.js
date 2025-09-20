@@ -75,7 +75,7 @@ module.exports = {
         COMPANY_ID: '962302',
         CHECK_INTERVAL: '60000',
         USE_PAIRING_CODE: 'true',
-        WHATSAPP_PHONE_NUMBER: '79686484488'
+        WHATSAPP_PHONE_NUMBER: '79936363848' // Бизнес номер барбершопа
       },
       error_file: './logs/whatsapp-monitor-error.log',
       out_file: './logs/whatsapp-monitor-out.log',
