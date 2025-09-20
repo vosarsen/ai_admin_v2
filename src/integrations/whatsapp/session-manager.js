@@ -1,7 +1,7 @@
 // src/integrations/whatsapp/session-manager.js
-const baileysProvider = require('./providers/baileys-provider');
+// const baileysProvider = require('./providers/baileys-provider'); // Removed - integrated into session-pool
 const healthMonitor = require('../../services/whatsapp/health-monitor');
-const pairingCodeManager = require('../../services/whatsapp/pairing-code-manager');
+// const pairingCodeManager = require('../../services/whatsapp/pairing-code-manager'); // Removed - integrated into session-pool
 const { supabase } = require('../../database/supabase');
 const logger = require('../../utils/logger');
 const EventEmitter = require('events');
@@ -9,7 +9,7 @@ const EventEmitter = require('events');
 class WhatsAppSessionManager extends EventEmitter {
   constructor() {
     super();
-    this.provider = baileysProvider;
+    this.provider = null; // baileysProvider removed - use session-pool.js instead
     this.activeSessions = new Map(); // companyId -> sessionInfo
     this.initializationQueue = new Set(); // Companies being initialized
     this.healthCheckInterval = null;
