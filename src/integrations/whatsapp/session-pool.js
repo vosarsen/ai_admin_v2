@@ -287,23 +287,11 @@ class WhatsAppSessionPool extends EventEmitter {
                 qrTimeout: 60000
             });
 
-            // Request pairing code if configured and not registered
+            // Store pairing code info for later use when socket is ready
             if (usePairingCode && phoneNumber && !state.creds.registered) {
-                try {
-                    logger.info(`📱 Requesting pairing code for company ${validatedId}`);
-                    const cleanPhone = phoneNumber.replace(/\D/g, '');
-                    const code = await sock.requestPairingCode(cleanPhone);
-                    const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
-
-                    logger.info(`✅ Pairing code generated for company ${validatedId}: ${formattedCode}`);
-                    this.emit('pairing-code', { companyId: validatedId, code: formattedCode, phoneNumber: cleanPhone });
-
-                    // Store pairing code for retrieval
-                    this.qrCodes.set(`pairing-${validatedId}`, formattedCode);
-                } catch (error) {
-                    logger.error(`Failed to request pairing code: ${error.message}`);
-                    // Fall back to QR if pairing code fails
-                }
+                sock.pairingPhoneNumber = phoneNumber.replace(/\D/g, '');
+                sock.shouldRequestPairingCode = true;
+                logger.info(`📱 Will request pairing code for company ${validatedId} when connection is ready`);
             }
 
             // Save in pool
@@ -332,6 +320,26 @@ class WhatsAppSessionPool extends EventEmitter {
         // Connection updates
         sock.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect, qr } = update;
+
+            // Handle pairing code request when socket is ready
+            if (sock.shouldRequestPairingCode && !qr && connection !== 'close') {
+                try {
+                    logger.info(`📱 Socket ready, requesting pairing code for company ${companyId}`);
+                    const code = await sock.requestPairingCode(sock.pairingPhoneNumber);
+                    const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
+
+                    logger.info(`✅ Pairing code generated for company ${companyId}: ${formattedCode}`);
+                    this.emit('pairing-code', { companyId, code: formattedCode, phoneNumber: sock.pairingPhoneNumber });
+                    this.qrCodes.set(`pairing-${companyId}`, formattedCode);
+
+                    // Clear the flag
+                    sock.shouldRequestPairingCode = false;
+                } catch (error) {
+                    logger.error(`Failed to request pairing code: ${error.message}`);
+                    // Will fall back to QR if available
+                    sock.shouldRequestPairingCode = false;
+                }
+            }
 
             if (qr) {
                 qrCount++;
@@ -795,60 +803,94 @@ class WhatsAppSessionPool extends EventEmitter {
 
         logger.info(`Requesting pairing code for company ${validatedId} with phone ${cleanPhone}`);
 
-        try {
-            // Check if we already have an active session
-            let sock = this.sessions.get(validatedId);
-
-            // If no session or not connected, create new one
-            if (!sock || !sock.user) {
-                logger.info(`Creating new session for pairing code generation for company ${validatedId}`);
-
-                // Remove old session if exists
-                if (sock) {
-                    try {
-                        await sock.logout();
-                    } catch (err) {
-                        // Ignore logout errors
-                    }
-                    this.sessions.delete(validatedId);
+        return new Promise(async (resolve, reject) => {
+            try {
+                // Check if we already have a pairing code stored
+                const existingCode = this.qrCodes.get(`pairing-${validatedId}`);
+                if (existingCode) {
+                    logger.info(`Returning existing pairing code for company ${validatedId}`);
+                    return resolve(existingCode);
                 }
 
-                // Create new session with pairing code option
-                sock = await this._createSessionWithMutex(validatedId, {
-                    usePairingCode: true,
-                    phoneNumber: cleanPhone
-                });
+                // Check if we already have an active session
+                let sock = this.sessions.get(validatedId);
+
+                // If no session or not connected, create new one
+                if (!sock || !sock.user) {
+                    logger.info(`Creating new session for pairing code generation for company ${validatedId}`);
+
+                    // Remove old session if exists
+                    if (sock) {
+                        try {
+                            await sock.logout();
+                        } catch (err) {
+                            // Ignore logout errors
+                        }
+                        this.sessions.delete(validatedId);
+                    }
+
+                    // Set up listener for pairing code event
+                    const pairingCodeHandler = (data) => {
+                        if (data.companyId === validatedId) {
+                            this.removeListener('pairing-code', pairingCodeHandler);
+                            resolve(data.code);
+                        }
+                    };
+
+                    // Set timeout for pairing code generation
+                    const timeout = setTimeout(() => {
+                        this.removeListener('pairing-code', pairingCodeHandler);
+                        reject(new Error('Timeout waiting for pairing code generation'));
+                    }, 30000); // 30 seconds timeout
+
+                    this.on('pairing-code', pairingCodeHandler);
+
+                    // Create new session with pairing code option
+                    // This will trigger pairing code generation when socket is ready
+                    sock = await this._createSessionWithMutex(validatedId, {
+                        usePairingCode: true,
+                        phoneNumber: cleanPhone
+                    });
+
+                    // Clear timeout if code was generated
+                    clearTimeout(timeout);
+                } else {
+                    // Session exists and is connected, try to request code directly
+                    try {
+                        const code = await sock.requestPairingCode(cleanPhone);
+                        const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
+
+                        logger.info(`✅ Pairing code generated for company ${validatedId}: ${formattedCode}`);
+
+                        // Store the code
+                        this.qrCodes.set(`pairing-${validatedId}`, formattedCode);
+
+                        // Emit event
+                        this.emit('pairing-code', {
+                            companyId: validatedId,
+                            code: formattedCode,
+                            phoneNumber: cleanPhone
+                        });
+
+                        resolve(formattedCode);
+                    } catch (error) {
+                        logger.error(`Failed to request pairing code from existing session:`, error);
+                        reject(new Error('Failed to generate pairing code. Please try again.'));
+                    }
+                }
+            } catch (error) {
+                logger.error(`Failed to generate pairing code for ${validatedId}:`, error);
+
+                // Check for specific error messages
+                if (error.message?.includes('Connection Closed')) {
+                    reject(new Error('WhatsApp connection is closed. Please try again or use QR code method.'));
+                } else if (error.message?.includes('rate')) {
+                    reject(new Error('Too many attempts. Please wait a few minutes and try again.'));
+                } else {
+                    reject(error);
+                }
             }
-
-            // Request pairing code from WhatsApp
-            const code = await sock.requestPairingCode(cleanPhone);
-            const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
-
-            logger.info(`✅ Pairing code generated for company ${validatedId}: ${formattedCode}`);
-
-            // Store the code
-            this.qrCodes.set(`pairing-${validatedId}`, formattedCode);
-
-            // Emit event
-            this.emit('pairing-code', {
-                companyId: validatedId,
-                code: formattedCode,
-                phoneNumber: cleanPhone
-            });
-
-            return formattedCode;
-        } catch (error) {
-            logger.error(`Failed to generate pairing code for ${validatedId}:`, error);
-
-            // Check for specific error messages
-            if (error.message?.includes('Connection Closed')) {
-                throw new Error('WhatsApp connection is closed. Please try again or use QR code method.');
-            } else if (error.message?.includes('rate')) {
-                throw new Error('Too many attempts. Please wait a few minutes and try again.');
-            }
-
-            throw error;
-        }
+        });
     }
 
     /**
