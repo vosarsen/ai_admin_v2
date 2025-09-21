@@ -59,7 +59,10 @@ class WhatsAppManagerUnified {
       }
 
       // Initialize default company if configured
-      if (this.defaultCompanyId && !this.config.isMultiTenant()) {
+      // Skip if BAILEYS_STANDALONE=true (separate baileys-service is running)
+      if (process.env.BAILEYS_STANDALONE === 'true') {
+        logger.info('⚠️ Skipping default company initialization (BAILEYS_STANDALONE mode)');
+      } else if (this.defaultCompanyId && !this.config.isMultiTenant()) {
         try {
           await this.sessionPool.getOrCreateSession(this.defaultCompanyId);
           logger.info(`✅ Default company ${this.defaultCompanyId} initialized`);
