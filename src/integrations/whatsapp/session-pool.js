@@ -137,6 +137,14 @@ class WhatsAppSessionPool extends EventEmitter {
     }
 
     /**
+     * Gets existing session without creating new one
+     */
+    getSession(companyId) {
+        const validatedId = this.validateCompanyId(companyId);
+        return this.sessions.get(validatedId);
+    }
+
+    /**
      * Gets or creates session for company with mutex protection
      */
     async getOrCreateSession(companyId) {
@@ -587,10 +595,12 @@ class WhatsAppSessionPool extends EventEmitter {
      * Sends message to WhatsApp
      */
     async sendMessage(companyId, phone, message, options = {}) {
-        const session = await this.getOrCreateSession(companyId);
+        // ВАЖНО: Используем getSession вместо getOrCreateSession чтобы не создавать дубликаты
+        // В режиме BAILEYS_STANDALONE сессию создает только baileys-service
+        const session = this.getSession(companyId);
 
         if (!session || !session.user) {
-            throw new Error(`WhatsApp not connected for company ${companyId}`);
+            throw new Error(`WhatsApp not connected for company ${companyId}. Please ensure baileys-service is running.`);
         }
 
         // Format phone number
