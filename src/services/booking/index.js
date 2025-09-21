@@ -189,7 +189,8 @@ class BookingService {
       // Получаем информацию об услуге для определения её длительности
       let serviceDuration = 3600; // По умолчанию 60 минут
       try {
-        const serviceResult = await this.getServices({ service_id: actualServiceId }, companyId);
+        // Важно: передаем companyId как число, а не объект
+        const serviceResult = await this.getServices({ service_id: actualServiceId }, String(companyId));
         if (serviceResult.success && serviceResult.data && serviceResult.data.length > 0) {
           const service = serviceResult.data.find(s => s.yclients_id === actualServiceId || s.id === actualServiceId);
           if (service) {
