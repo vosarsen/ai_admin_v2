@@ -157,6 +157,7 @@ async function startBaileysService() {
         // Health check endpoint for monitoring
         const express = require('express');
         const app = express();
+        app.use(express.json());
 
         app.get('/health', (req, res) => {
             const status = pool.getSessionStatus(companyId);
@@ -166,6 +167,37 @@ async function startBaileysService() {
                 ...status,
                 metrics: pool.getMetrics()
             });
+        });
+
+        // Endpoint to send messages
+        app.post('/send', async (req, res) => {
+            try {
+                const { phone, message } = req.body;
+
+                if (!phone || !message) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Phone and message are required'
+                    });
+                }
+
+                logger.info(`📤 Sending message to ${phone} via baileys-service`);
+
+                const result = await pool.sendMessage(companyId, phone, message);
+
+                res.json({
+                    success: true,
+                    messageId: result?.key?.id,
+                    phone,
+                    companyId
+                });
+            } catch (error) {
+                logger.error('Failed to send message:', error.message);
+                res.status(500).json({
+                    success: false,
+                    error: error.message
+                });
+            }
         });
 
         const PORT = process.env.BAILEYS_PORT || 3003;

@@ -595,9 +595,9 @@ class WhatsAppSessionPool extends EventEmitter {
      * Sends message to WhatsApp
      */
     async sendMessage(companyId, phone, message, options = {}) {
-        // ВАЖНО: Используем getSession вместо getOrCreateSession чтобы не создавать дубликаты
-        // В режиме BAILEYS_STANDALONE сессию создает только baileys-service
-        const session = this.getSession(companyId);
+        // Получаем существующую сессию
+        const validatedId = this.validateCompanyId(companyId);
+        const session = this.sessions.get(validatedId);
 
         if (!session || !session.user) {
             throw new Error(`WhatsApp not connected for company ${companyId}. Please ensure baileys-service is running.`);

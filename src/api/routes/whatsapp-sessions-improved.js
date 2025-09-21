@@ -154,9 +154,38 @@ router.post('/sessions/:companyId/send',
         try {
             const { companyId } = req.params;
             const { phone, message, options } = req.body;
-            
+
+            // In BAILEYS_STANDALONE mode, forward request to baileys-service
+            if (process.env.BAILEYS_STANDALONE === 'true') {
+                const axios = require('axios');
+                const baileysPort = process.env.BAILEYS_PORT || 3003;
+
+                try {
+                    const response = await axios.post(
+                        `http://localhost:${baileysPort}/send`,
+                        { phone, message },
+                        { timeout: 30000 }
+                    );
+
+                    return res.json({
+                        success: true,
+                        companyId,
+                        phone,
+                        messageId: response.data.messageId,
+                        timestamp: new Date().toISOString()
+                    });
+                } catch (proxyError) {
+                    logger.error(`Failed to proxy message to baileys-service:`, proxyError.message);
+                    return res.status(500).json({
+                        success: false,
+                        error: 'Failed to send message through baileys-service'
+                    });
+                }
+            }
+
+            // Fallback to local session pool (for non-standalone mode)
             const result = await ensureSessionPool().sendMessage(companyId, phone, message, options);
-            
+
             res.json({
                 success: true,
                 companyId,
@@ -166,7 +195,7 @@ router.post('/sessions/:companyId/send',
             });
         } catch (error) {
             logger.error(`Failed to send message for ${req.params.companyId}:`, error);
-            
+
             // Determine appropriate status code
             let statusCode = 500;
             if (error.message.includes('Rate limit')) {
@@ -176,7 +205,7 @@ router.post('/sessions/:companyId/send',
             } else if (error.message.includes('Invalid')) {
                 statusCode = 400;
             }
-            
+
             res.status(statusCode).json({
                 success: false,
                 error: error.message
