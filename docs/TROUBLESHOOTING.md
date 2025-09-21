@@ -1,15 +1,89 @@
 # AI Admin v2 - Troubleshooting Guide
 
-## 📅 Last Updated: September 10, 2025
+## 📅 Last Updated: September 21, 2025
 
 ## Table of Contents
-1. [Dependency Issues](#dependency-issues)
-2. [API Service Issues](#api-service-issues)
-3. [WhatsApp Integration Issues](#whatsapp-integration-issues)
-4. [Database Connection Issues](#database-connection-issues)
-5. [Redis Issues](#redis-issues)
-6. [PM2 Process Management](#pm2-process-management)
-7. [Common Error Messages](#common-error-messages)
+1. [Critical Issues](#critical-issues)
+2. [WhatsApp Integration Issues](#whatsapp-integration-issues)
+3. [Dependency Issues](#dependency-issues)
+4. [API Service Issues](#api-service-issues)
+5. [Database Connection Issues](#database-connection-issues)
+6. [Redis Issues](#redis-issues)
+7. [PM2 Process Management](#pm2-process-management)
+8. [Common Error Messages](#common-error-messages)
+
+## Critical Issues
+
+### Error 440: connectionReplaced (SOLVED)
+
+**Symptoms:**
+- Baileys переподключается каждые 3-6 секунд
+- В логах: `stream errored out`, `conflict type:replaced`
+- WhatsApp соединение нестабильно
+
+**Причины:**
+1. Множественные процессы пытаются создать сессию для одного номера
+2. API сервер и baileys-service конфликтуют
+3. Агрессивные health checks вызывают ложные переподключения
+4. Метод sendMessage создает новые сессии
+
+**Решение:**
+```bash
+# 1. Добавить в .env на сервере
+echo "BAILEYS_STANDALONE=true" >> /opt/ai-admin/.env
+
+# 2. Обновить код
+cd /opt/ai-admin
+git pull
+
+# 3. Перезапустить с обновлением окружения
+pm2 restart baileys-whatsapp --update-env
+pm2 restart ai-admin-api --update-env
+
+# 4. Проверить статус
+pm2 logs baileys-whatsapp --lines 50
+```
+
+**Профилактика:**
+- ВСЕГДА используйте `BAILEYS_STANDALONE=true` в продакшене
+- НЕ создавайте сессии в нескольких местах
+- Используйте пассивный мониторинг вместо активных health checks
+
+### Worker Cannot Send Messages (SOLVED)
+
+**Symptoms:**
+- `Failed to send message via API: Request failed with status code 500`
+- Сообщения обрабатываются, но ответы не отправляются
+
+**Причина:**
+API не может найти WhatsApp сессию, так как она находится в памяти baileys-service
+
+**Решение:**
+API теперь проксирует запросы к baileys-service:
+```bash
+# Проверить, что baileys-service работает и доступен
+curl http://localhost:3003/health
+
+# Проверить логи отправки
+pm2 logs baileys-whatsapp | grep "Sending message via baileys-service"
+```
+
+### Invalid company ID: [object Object] (SOLVED)
+
+**Symptoms:**
+- Ошибка при поиске слотов для бронирования
+- `getServices failed: Invalid company ID: [object Object]`
+
+**Причина:**
+companyId передавался как объект вместо строки/числа
+
+**Решение:**
+Код уже исправлен. Если проблема повторяется:
+```bash
+cd /opt/ai-admin
+git pull
+pm2 restart ai-admin-worker-v2
+```
 
 ## Dependency Issues
 
