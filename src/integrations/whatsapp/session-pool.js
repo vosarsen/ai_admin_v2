@@ -99,18 +99,18 @@ class WhatsAppSessionPool extends EventEmitter {
 
     /**
      * Start health checks for all sessions
+     * ВАЖНО: Не проверяем session.user активно, чтобы избежать ошибки 440 (connectionReplaced)
+     * Полагаемся только на события Baileys для обнаружения отключений
      */
     startHealthChecks() {
+        // Отключаем активную проверку здоровья, чтобы избежать конфликтов
+        // Baileys сам уведомит нас через события, если соединение потеряно
+        logger.info('Health checks initialized (passive mode to prevent error 440)');
+
+        // Вместо активной проверки, просто логируем статистику
         setInterval(() => {
-            this.sessions.forEach((session, companyId) => {
-                // Проверяем состояние подключения правильным способом
-                if (!session.user) {
-                    logger.warn(`Session for company ${companyId} is not authenticated`);
-                    this.metrics.activeConnections--;
-                    // Попытаемся переподключиться
-                    this.handleReconnect(companyId);
-                }
-            });
+            const activeCount = Array.from(this.sessions.values()).filter(s => s.user).length;
+            logger.debug(`Session pool status: ${activeCount}/${this.sessions.size} active sessions`);
         }, this.healthCheckInterval);
     }
 
@@ -410,12 +410,38 @@ class WhatsAppSessionPool extends EventEmitter {
                     pairingCodeTimeout = null;
                 }
 
-                const shouldReconnect = (lastDisconnect?.error instanceof Boom)
-                    ? lastDisconnect.error.output.statusCode !== DisconnectReason.loggedOut
-                    : true;
+                // Проверяем причину отключения
+                const statusCode = (lastDisconnect?.error instanceof Boom)
+                    ? lastDisconnect.error.output.statusCode
+                    : 0;
+
+                // Логируем детальную информацию об отключении
+                logger.warn(`Connection closed for company ${companyId}`, {
+                    statusCode,
+                    error: lastDisconnect?.error?.message,
+                    disconnectReason: Object.keys(DisconnectReason).find(key => DisconnectReason[key] === statusCode)
+                });
+
+                // Обработка ошибки 440 (connectionReplaced) - НЕ переподключаемся
+                if (statusCode === DisconnectReason.connectionReplaced) {
+                    logger.error(`⚠️ Connection replaced (error 440) for company ${companyId}. Another device/instance took over the session.`);
+                    logger.info(`Clearing session data and waiting for manual reconnection...`);
+                    await this.removeSession(companyId);
+                    this.emit('connection_replaced', { companyId });
+                    return;
+                }
+
+                // Обработка ошибки 515 (restartRequired) - переподключаемся немедленно
+                if (statusCode === DisconnectReason.restartRequired) {
+                    logger.info(`Restart required for company ${companyId}, reconnecting immediately...`);
+                    await this.handleReconnect(companyId);
+                    return;
+                }
+
+                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
                 if (shouldReconnect) {
-                    logger.warn(`Connection closed for company ${companyId}, will reconnect...`);
+                    logger.info(`Connection closed for company ${companyId}, will reconnect...`);
                     await this.handleReconnect(companyId);
                 } else {
                     logger.warn(`Session logged out for company ${companyId}`);
