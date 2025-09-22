@@ -224,10 +224,10 @@ class ReminderService {
         .from('staff')
         .select('name, declensions')
         .eq('id', staffId)
-        .single();
-        
+        .maybeSingle();
+
       if (error) {
-        logger.error('Failed to load staff declensions:', error);
+        logger.error('Failed to load staff info:', error);
         return null;
       }
       
@@ -272,9 +272,9 @@ class ReminderService {
       const { data, error } = await supabase
         .from('companies')
         .select('title, address, phone')
-        .eq('id', companyId)
-        .single();
-        
+        .eq('company_id', companyId)
+        .maybeSingle();
+
       if (error) {
         logger.error('Failed to load company info:', error);
         return null;
