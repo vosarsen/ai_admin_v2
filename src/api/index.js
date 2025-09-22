@@ -112,7 +112,7 @@ app.post('/webhook/whatsapp', rateLimiter, validateWebhookSignature, async (req,
 app.post('/api/send-message', rateLimiter, validateApiKey, async (req, res) => {
   try {
     const { to, message } = req.body;
-    
+
     if (!to || !message) {
       return res.status(400).json({
         success: false,
@@ -121,7 +121,7 @@ app.post('/api/send-message', rateLimiter, validateApiKey, async (req, res) => {
     }
 
     const result = await whatsappClient.sendMessage(to, message);
-    
+
     res.json(result);
   } catch (error) {
     logger.error('Send message error:', error);
