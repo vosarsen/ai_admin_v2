@@ -4,6 +4,59 @@ const config = require('../../config');
 const logger = require('../../utils/logger');
 const { CircuitBreakerFactory: circuitBreakerFactory } = require('../../utils/circuit-breaker');
 
+// Constants for configuration
+const DEFAULT_TIMEOUT = 30000; // 30 seconds
+const DEFAULT_RETRIES = 3;
+const CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5;
+const CIRCUIT_BREAKER_RESET_TIMEOUT = 60000; // 1 minute
+const MAX_MESSAGE_LENGTH = 4096; // WhatsApp limit
+const DEFAULT_COUNTRY_CODE = '7'; // Russia
+
+/**
+ * @typedef {Object} SendMessageResult
+ * @property {boolean} success - Whether the operation was successful
+ * @property {Object} [data] - Response data if successful
+ * @property {string} [data.messageId] - Unique message identifier
+ * @property {string} [data.phone] - Recipient phone number
+ * @property {string} [data.companyId] - Company identifier
+ * @property {string} [error] - Error message if failed
+ */
+
+/**
+ * @typedef {Object} StatusResult
+ * @property {boolean} success - Whether the check was successful
+ * @property {boolean} connected - Whether WhatsApp is connected
+ * @property {Object} [sessions] - Active sessions information
+ * @property {Object} [metrics] - Service metrics
+ * @property {boolean} [circuitOpen] - Whether circuit breaker is open
+ * @property {string} [error] - Error message if failed
+ */
+
+/**
+ * @typedef {Object} DiagnosisResult
+ * @property {boolean} success - Whether diagnosis was successful
+ * @property {string} diagnosis - Diagnosis message
+ * @property {Object} [details] - Additional diagnostic details
+ * @property {string} [error] - Error message if failed
+ */
+
+/**
+ * @typedef {Object} HealthCheckResult
+ * @property {string} service - Service name
+ * @property {string} status - Current status
+ * @property {Object} metrics - Service metrics
+ * @property {Object} config - Current configuration
+ * @property {string} [lastError] - Last error message
+ * @property {Date} [lastErrorTime] - Last error timestamp
+ */
+
+/**
+ * @typedef {Object} BulkMessage
+ * @property {string} phone - Recipient phone number
+ * @property {string} message - Message text
+ * @property {Object} [options] - Additional options
+ */
+
 /**
  * WhatsApp Client for Baileys Integration
  *
@@ -18,23 +71,31 @@ const { CircuitBreakerFactory: circuitBreakerFactory } = require('../../utils/ci
  */
 class WhatsAppClient {
   constructor() {
-    // Baileys service configuration
-    // In production, baileys-service runs on localhost:3003
+    // Configuration
     this.baseUrl = process.env.BAILEYS_SERVICE_URL || 'http://localhost:3003';
+    this.timeout = config.whatsapp?.timeout || DEFAULT_TIMEOUT;
+    this.retries = config.whatsapp?.retries || DEFAULT_RETRIES;
+    this.defaultCountryCode = config.whatsapp?.defaultCountryCode || DEFAULT_COUNTRY_CODE;
 
-    // Timeout and retry configuration (keeping these for reliability)
-    this.timeout = config.whatsapp?.timeout || 30000;
-    this.retries = config.whatsapp?.retries || 3;
+    // Initialize metrics
+    this.metrics = {
+      messagesSent: 0,
+      messagesFailed: 0,
+      totalResponseTime: 0,
+      avgResponseTime: 0,
+      lastError: null,
+      lastErrorTime: null,
+      circuitBreakerTrips: 0
+    };
 
     // Initialize circuit breaker for fault tolerance
-    // This prevents cascading failures if Baileys service is temporarily down
     this.circuitBreaker = circuitBreakerFactory.getBreaker('whatsapp', {
       timeout: this.timeout,
-      failureThreshold: 5,
-      resetTimeout: 60000 // 1 minute
+      failureThreshold: config.circuitBreaker?.failureThreshold || CIRCUIT_BREAKER_FAILURE_THRESHOLD,
+      resetTimeout: config.circuitBreaker?.resetTimeout || CIRCUIT_BREAKER_RESET_TIMEOUT
     });
 
-    // Create axios instance for HTTP requests
+    // Create axios instance
     this.client = axios.create({
       baseURL: this.baseUrl,
       timeout: this.timeout,
@@ -43,8 +104,8 @@ class WhatsAppClient {
       }
     });
 
-    // Add response interceptor for logging
-    this.client.interceptors.response.use(
+    // Store interceptor IDs for cleanup
+    this.responseInterceptorId = this.client.interceptors.response.use(
       response => {
         logger.debug('Baileys API response:', {
           status: response.status,
@@ -54,6 +115,7 @@ class WhatsAppClient {
         return response;
       },
       error => {
+        this.recordError(error);
         logger.error('Baileys API error:', {
           message: error?.message,
           code: error?.code,
@@ -68,7 +130,8 @@ class WhatsAppClient {
     logger.info('✅ WhatsApp Client initialized for Baileys', {
       baseUrl: this.baseUrl,
       timeout: this.timeout,
-      retries: this.retries
+      retries: this.retries,
+      defaultCountryCode: this.defaultCountryCode
     });
   }
 
@@ -77,18 +140,43 @@ class WhatsAppClient {
    *
    * @param {string} phone - Recipient phone number
    * @param {string} message - Message text
-   * @param {object} options - Additional options (for future extensions)
-   * @returns {Promise<{success: boolean, data?: object, error?: string}>}
+   * @param {Object} [options={}] - Additional options
+   * @returns {Promise<SendMessageResult>}
    */
   async sendMessage(phone, message, options = {}) {
-    // Format phone number for WhatsApp
+    // Input validation
+    if (!phone || typeof phone !== 'string') {
+      return {
+        success: false,
+        error: 'Phone number is required and must be a string'
+      };
+    }
+
+    if (!message || typeof message !== 'string') {
+      return {
+        success: false,
+        error: 'Message is required and must be a string'
+      };
+    }
+
+    if (message.length > MAX_MESSAGE_LENGTH) {
+      return {
+        success: false,
+        error: `Message too long (max ${MAX_MESSAGE_LENGTH} characters, got ${message.length})`
+      };
+    }
+
+    // Format phone number
     const formattedPhone = this._formatPhone(phone);
     const cleanPhone = this._extractPhoneNumber(formattedPhone);
+
+    const startTime = Date.now();
 
     try {
       logger.info(`📱 Sending message to ${this._sanitizePhone(cleanPhone)}`, {
         messageLength: message.length,
-        messagePreview: message.substring(0, 100) + (message.length > 100 ? '...' : '')
+        messagePreview: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
+        hasOptions: Object.keys(options).length > 0
       });
 
       // Execute request with circuit breaker protection
@@ -97,22 +185,28 @@ class WhatsAppClient {
           // Baileys expects { phone, message } format
           const requestData = {
             phone: cleanPhone,
-            message: message
+            message: message,
+            ...options // Include additional options
           };
 
           logger.debug(`📤 Request to Baileys:`, {
             endpoint: '/send',
-            phone: this._sanitizePhone(cleanPhone)
+            phone: this._sanitizePhone(cleanPhone),
+            optionsKeys: Object.keys(options)
           });
 
-          // Send to Baileys service
           const result = await this.client.post('/send', requestData);
           return result;
         });
       });
 
+      // Update metrics
+      const responseTime = Date.now() - startTime;
+      this.updateMetrics(true, responseTime);
+
       logger.info(`✅ Message sent to ${this._sanitizePhone(cleanPhone)}`, {
-        messageId: response.data?.messageId
+        messageId: response.data?.messageId,
+        responseTime: `${responseTime}ms`
       });
 
       // Return in backward-compatible format
@@ -120,19 +214,25 @@ class WhatsAppClient {
         success: true,
         data: {
           messageId: response.data?.messageId,
-          phone: response.data?.phone,
-          companyId: response.data?.companyId
+          phone: response.data?.phone || cleanPhone,
+          companyId: response.data?.companyId,
+          responseTime
         }
       };
 
     } catch (error) {
+      const responseTime = Date.now() - startTime;
+      this.updateMetrics(false, responseTime);
+
       logger.error(`❌ Failed to send message to ${this._sanitizePhone(cleanPhone)}:`, {
         error: error?.message,
-        code: error?.code
+        code: error?.code,
+        responseTime: `${responseTime}ms`
       });
 
       // Handle circuit breaker open state
       if (error?.code === 'CIRCUIT_OPEN') {
+        this.metrics.circuitBreakerTrips++;
         logger.warn('WhatsApp circuit breaker is open, service temporarily unavailable');
         return {
           success: false,
@@ -140,29 +240,73 @@ class WhatsAppClient {
         };
       }
 
-      // Return error in backward-compatible format
+      // Return error with more context
       return {
         success: false,
-        error: error?.message || 'Failed to send message'
+        error: error?.message || error?.code || 'Failed to send message: Unknown error'
       };
     }
   }
 
   /**
+   * Send bulk messages efficiently
+   *
+   * @param {BulkMessage[]} messages - Array of messages to send
+   * @param {Object} [options={}] - Bulk sending options
+   * @param {number} [options.concurrency=5] - Number of concurrent sends
+   * @returns {Promise<Array>} Array of results
+   */
+  async sendBulkMessages(messages, options = {}) {
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return [];
+    }
+
+    const concurrency = options.concurrency || 5;
+    const results = [];
+
+    logger.info(`📦 Sending bulk messages`, {
+      total: messages.length,
+      concurrency
+    });
+
+    // Process messages in batches
+    for (let i = 0; i < messages.length; i += concurrency) {
+      const batch = messages.slice(i, i + concurrency);
+      const batchResults = await Promise.allSettled(
+        batch.map(msg =>
+          this.sendMessage(msg.phone, msg.message, msg.options)
+        )
+      );
+
+      results.push(...batchResults.map((result, index) => ({
+        ...result,
+        phone: batch[index].phone,
+        index: i + index
+      })));
+    }
+
+    const successful = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+    logger.info(`📦 Bulk send completed`, {
+      total: messages.length,
+      successful,
+      failed: messages.length - successful
+    });
+
+    return results;
+  }
+
+  /**
    * Send reaction emoji to a message
-   * Note: Simplified implementation - sends emoji as regular message
-   * Can be enhanced when Baileys supports native reactions
    *
    * @param {string} phone - Recipient phone number
-   * @param {string} emoji - Emoji to send (default: ❤️)
-   * @returns {Promise<{success: boolean, error?: string}>}
+   * @param {string} [emoji='❤️'] - Emoji to send
+   * @returns {Promise<SendMessageResult>}
    */
   async sendReaction(phone, emoji = '❤️') {
     try {
       logger.info(`💫 Sending reaction ${emoji} to ${this._sanitizePhone(phone)}`);
 
       // For now, send emoji as a regular message
-      // This maintains backward compatibility
       const response = await this.sendMessage(phone, emoji);
 
       if (response.success) {
@@ -181,16 +325,15 @@ class WhatsAppClient {
 
   /**
    * Send file via WhatsApp
-   * Note: Not implemented yet for Baileys
-   * Placeholder for future enhancement
    *
    * @param {string} phone - Recipient phone number
    * @param {string} fileUrl - URL of the file to send
-   * @param {string} caption - Optional caption for the file
-   * @returns {Promise<{success: boolean, error: string}>}
+   * @param {string} [caption=''] - Optional caption
+   * @returns {Promise<SendMessageResult>}
    */
   async sendFile(phone, fileUrl, caption = '') {
     logger.warn('sendFile not implemented for Baileys yet');
+    // TODO: Implement when Baileys service supports file sending
     return {
       success: false,
       error: 'File sending not implemented in Baileys integration yet'
@@ -200,7 +343,7 @@ class WhatsAppClient {
   /**
    * Check WhatsApp connection status
    *
-   * @returns {Promise<{success: boolean, connected: boolean, error?: string}>}
+   * @returns {Promise<StatusResult>}
    */
   async checkStatus() {
     try {
@@ -234,11 +377,38 @@ class WhatsAppClient {
   }
 
   /**
+   * Get health check information
+   *
+   * @returns {HealthCheckResult}
+   */
+  getHealth() {
+    const circuitState = this.circuitBreaker?.getState?.() || 'unknown';
+
+    return {
+      service: 'whatsapp-client',
+      status: circuitState === 'CLOSED' ? 'healthy' : circuitState === 'OPEN' ? 'unhealthy' : 'degraded',
+      metrics: {
+        ...this.metrics,
+        successRate: this.metrics.messagesSent > 0
+          ? ((this.metrics.messagesSent / (this.metrics.messagesSent + this.metrics.messagesFailed)) * 100).toFixed(2) + '%'
+          : '0%'
+      },
+      config: {
+        baseUrl: this.baseUrl,
+        timeout: this.timeout,
+        retries: this.retries,
+        circuitBreakerState: circuitState
+      },
+      lastError: this.metrics.lastError,
+      lastErrorTime: this.metrics.lastErrorTime
+    };
+  }
+
+  /**
    * Send typing indicator
-   * Note: Not implemented for Baileys yet
    *
    * @param {string} phone - Recipient phone number
-   * @param {number} duration - Duration in milliseconds
+   * @param {number} [duration=3000] - Duration in milliseconds
    * @returns {Promise<void>}
    */
   async sendTyping(phone, duration = 3000) {
@@ -249,10 +419,9 @@ class WhatsAppClient {
 
   /**
    * Diagnose connection issues
-   * Useful for debugging
    *
    * @param {string} phone - Test phone number
-   * @returns {Promise<{success: boolean, diagnosis: string}>}
+   * @returns {Promise<DiagnosisResult>}
    */
   async diagnoseProblem(phone) {
     const formattedPhone = this._formatPhone(phone);
@@ -261,14 +430,18 @@ class WhatsAppClient {
     logger.info(`🔍 Diagnosing WhatsApp connection for ${this._sanitizePhone(cleanPhone)}`);
 
     try {
-      // Check health status
-      const healthResult = await this.client.get('/health');
+      // Check health status with circuit breaker protection
+      const healthResult = await this.circuitBreaker.execute(async () => {
+        return await this.client.get('/health');
+      });
       logger.info('📊 Health check result:', healthResult.data);
 
-      // Try sending a test message
-      const testResult = await this.client.post('/send', {
-        phone: cleanPhone,
-        message: '🔍 Test message from diagnostic tool'
+      // Try sending a test message with circuit breaker protection
+      const testResult = await this.circuitBreaker.execute(async () => {
+        return await this.client.post('/send', {
+          phone: cleanPhone,
+          message: '🔍 Test message from diagnostic tool'
+        });
       });
       logger.info('📱 Test message result:', testResult.data);
 
@@ -277,7 +450,8 @@ class WhatsAppClient {
         diagnosis: 'Connection healthy',
         details: {
           health: healthResult.data,
-          testMessage: testResult.data
+          testMessage: testResult.data,
+          clientMetrics: this.getHealth()
         }
       };
     } catch (error) {
@@ -293,12 +467,16 @@ class WhatsAppClient {
         diagnosis = 'Baileys service is not running on port 3003';
       } else if (error?.code === 'ENOTFOUND') {
         diagnosis = 'Cannot resolve Baileys service hostname';
-      } else if (error?.code === 'ECONNABORTED') {
+      } else if (error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT') {
         diagnosis = 'Request timeout - Baileys service is too slow';
+      } else if (error?.code === 'CIRCUIT_OPEN') {
+        diagnosis = 'Circuit breaker is open due to multiple failures';
       } else if (error?.response?.status === 503) {
         diagnosis = 'Baileys service is unavailable';
       } else if (error?.response?.status === 500) {
         diagnosis = 'Internal error in Baileys service';
+      } else if (error?.response?.status >= 400 && error?.response?.status < 500) {
+        diagnosis = `Client error: ${error?.response?.data?.error || 'Bad request'}`;
       }
 
       return {
@@ -308,7 +486,8 @@ class WhatsAppClient {
         details: {
           code: error?.code,
           status: error?.response?.status,
-          data: error?.response?.data
+          data: error?.response?.data,
+          clientMetrics: this.getHealth()
         }
       };
     }
@@ -316,8 +495,8 @@ class WhatsAppClient {
 
   /**
    * Format phone number for WhatsApp
-   * Handles various input formats and ensures proper WhatsApp format
    *
+   * @private
    * @param {string} phone - Input phone number
    * @returns {string} Formatted phone number
    */
@@ -327,24 +506,34 @@ class WhatsAppClient {
     // Remove any non-digit characters except @
     let cleanPhone = phone.replace(/[^\d@]/g, '');
 
-    // If already in WhatsApp format (@c.us or @s.whatsapp.net), return as is
+    // If already in WhatsApp format, return as is
     if (cleanPhone.includes('@')) {
       return cleanPhone;
     }
 
-    // Ensure the phone starts with country code
-    // For Russian numbers, add 7 if not present
-    if (cleanPhone.length === 10 && cleanPhone.startsWith('9')) {
-      cleanPhone = '7' + cleanPhone;
+    // Handle different country formats
+    if (cleanPhone.length === 10) {
+      // Assume local number without country code
+      if (this.defaultCountryCode === '7' && cleanPhone.startsWith('9')) {
+        // Russian mobile number
+        cleanPhone = '7' + cleanPhone;
+      } else if (this.defaultCountryCode === '1') {
+        // US/Canada number
+        cleanPhone = '1' + cleanPhone;
+      } else {
+        // Use configured default country code
+        cleanPhone = this.defaultCountryCode + cleanPhone;
+      }
     }
 
-    // Add WhatsApp suffix for compatibility with old code
+    // Add WhatsApp suffix for compatibility
     return `${cleanPhone}@c.us`;
   }
 
   /**
    * Extract clean phone number from WhatsApp format
    *
+   * @private
    * @param {string} formattedPhone - Phone in WhatsApp format
    * @returns {string} Clean phone number
    */
@@ -359,8 +548,9 @@ class WhatsAppClient {
   }
 
   /**
-   * Sanitize phone number for logging (hide middle digits)
+   * Sanitize phone number for logging
    *
+   * @private
    * @param {string} phone - Phone number
    * @returns {string} Sanitized phone number
    */
@@ -376,8 +566,8 @@ class WhatsAppClient {
 
   /**
    * Retry request with exponential backoff
-   * Provides resilience against temporary failures
    *
+   * @private
    * @param {Function} requestFn - Function that performs the request
    * @returns {Promise<any>} Request result
    */
@@ -395,7 +585,8 @@ class WhatsAppClient {
 
         logger.warn(`❌ Request failed on attempt ${attempt + 1}:`, {
           error: error?.message,
-          code: error?.code
+          code: error?.code,
+          status: error?.response?.status
         });
 
         // Don't retry on client errors (4xx)
@@ -415,6 +606,51 @@ class WhatsAppClient {
 
     logger.error('All retry attempts exhausted');
     throw lastError;
+  }
+
+  /**
+   * Update metrics after operation
+   *
+   * @private
+   * @param {boolean} success - Whether operation was successful
+   * @param {number} responseTime - Response time in milliseconds
+   */
+  updateMetrics(success, responseTime) {
+    if (success) {
+      this.metrics.messagesSent++;
+    } else {
+      this.metrics.messagesFailed++;
+    }
+
+    this.metrics.totalResponseTime += responseTime;
+    const totalMessages = this.metrics.messagesSent + this.metrics.messagesFailed;
+    this.metrics.avgResponseTime = Math.round(this.metrics.totalResponseTime / totalMessages);
+  }
+
+  /**
+   * Record error for metrics
+   *
+   * @private
+   * @param {Error} error - Error to record
+   */
+  recordError(error) {
+    this.metrics.lastError = error?.message || error?.code || 'Unknown error';
+    this.metrics.lastErrorTime = new Date();
+  }
+
+  /**
+   * Clean up resources (for proper shutdown)
+   */
+  destroy() {
+    if (this.responseInterceptorId !== undefined) {
+      this.client.interceptors.response.eject(this.responseInterceptorId);
+    }
+
+    if (this.circuitBreaker && typeof this.circuitBreaker.destroy === 'function') {
+      this.circuitBreaker.destroy();
+    }
+
+    logger.info('WhatsApp Client destroyed');
   }
 }
 
