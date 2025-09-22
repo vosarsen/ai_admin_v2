@@ -185,10 +185,18 @@ AI Admin v2 is a production-ready WhatsApp AI Assistant for beauty salons. It us
 - Worker: `ai-admin-worker-v2` (not v1)
 - All messages processed through AI Admin v2
 
-### Known Issues Fixed
+### Critical Issues Fixed (September 21, 2025)
+1. ✅ **Error 440 (connectionReplaced)** - Baileys now stable without reconnections
+   - Added `BAILEYS_STANDALONE=true` flag
+   - Disabled aggressive health checks
+   - Fixed sendMessage to not create duplicate sessions
+2. ✅ **Worker message sending** - API now proxies to baileys-service
+3. ✅ **CompanyId type error** - Fixed object being passed instead of string
+
+### Previously Fixed Issues
 1. ✅ ecosystem.config.js updated to use v2 worker
 2. ✅ Fixed `context is not defined` error
-3. ✅ Fixed `query.from is not a function` 
+3. ✅ Fixed `query.from is not a function`
 4. ✅ Fixed table name: schedules → staff_schedules
 5. ✅ Fixed missing clients handling with maybeSingle()
 6. ✅ Fixed undefined checks in sortServicesForClient
@@ -197,9 +205,18 @@ AI Admin v2 is a production-ready WhatsApp AI Assistant for beauty salons. It us
 
 
 ### Important Configuration Notes
+- **BAILEYS_STANDALONE**: MUST be set to `true` in production to prevent session conflicts
 - **Redis Port**: Local development uses port 6380 (for SSH tunnel), but server uses 6379
 - **Temporary Fix**: `smart-cache.js` and `redis-factory.js` have temporary overrides for port 6380→6379
 - **TODO**: Create separate environment configs for local vs production Redis URLs
+
+### ⚠️ CRITICAL: WhatsApp Stability
+**ALWAYS use `BAILEYS_STANDALONE=true` in production!** This prevents:
+- Error 440 (connectionReplaced)
+- Multiple processes fighting for the same WhatsApp session
+- Unstable connections and reconnection loops
+
+See `docs/BAILEYS_STANDALONE_ARCHITECTURE.md` for complete architecture details.
 
 ### ✅ FIXED: Rapid-Fire Protection (July 23, 2025)
 - **Problem**: Messages sent in parts were NOT combined

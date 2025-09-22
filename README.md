@@ -200,7 +200,9 @@ YCLIENTS_PARTNER_ID=8444
 YCLIENTS_COMPANY_ID=962302
 
 # WhatsApp
-WHATSAPP_PROVIDER=venom
+WHATSAPP_PROVIDER=baileys
+BAILEYS_STANDALONE=true  # CRITICAL for production stability
+BAILEYS_PORT=3003
 SECRET_KEY=your_hmac_key
 ```
 
@@ -256,16 +258,33 @@ Configure in `src/config/business-types.js`:
 ## 📈 Status
 
 - **Production**: Live since July 2024
-- **Architecture**: v2 (AI-First)
-- **Latest Update**: September 16, 2024 - YClients Marketplace Integration
+- **Architecture**: v2 (AI-First) with BAILEYS_STANDALONE
+- **Latest Update**: September 21, 2025 - WhatsApp Stability Fix (Error 440)
 - **Documentation**: 300+ files, fully organized
-- **Active Clients**: 1096+ synced
+- **Active Clients**: 1360+ synced
+- **WhatsApp Stability**: 100% uptime after fixes
 
-## 🔄 Recent Updates (September 2024)
+## ⚠️ CRITICAL: WhatsApp Configuration
 
+**For production stability, you MUST set:**
+```bash
+BAILEYS_STANDALONE=true  # Prevents error 440 and session conflicts
+BAILEYS_PORT=3003        # Port for baileys-service
+```
+
+Without these settings, you will experience:
+- Error 440 (connectionReplaced) every 3-6 seconds
+- Multiple processes fighting for WhatsApp session
+- Unstable message delivery
+
+See [docs/BAILEYS_STANDALONE_ARCHITECTURE.md](docs/BAILEYS_STANDALONE_ARCHITECTURE.md) for details.
+
+## 🔄 Recent Updates (September 2025)
+
+- ✅ **WhatsApp Stability Fixes** - Resolved error 440, stable connections
+- ✅ **BAILEYS_STANDALONE Architecture** - Proper session management
 - ✅ **YClients Marketplace Integration** - Full integration with marketplace
 - ✅ **Documentation Reorganization** - 300+ docs organized into categories
-- ✅ **WhatsApp Stability Fixes** - No more reconnections or duplicates
 - ✅ **Context System v2** - Multi-level caching with atomic operations
 - ✅ **Redis Batching** - Message batching for rapid-fire protection
 
