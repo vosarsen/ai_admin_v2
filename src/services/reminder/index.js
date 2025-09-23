@@ -95,21 +95,21 @@ class ReminderService {
           type: 'day_before',
           booking: bookingData,
           phone: booking.client_phone,
-          bookingId: booking.id
+          bookingId: booking.id || booking.yclients_record_id // Ensure we have an ID
         }, dayBefore);
         logger.info(`📅 Scheduled day-before reminder for booking ${booking.yclients_record_id}`);
       }
-      
+
       // Напоминание за 2 часа
       const twoHoursBefore = new Date(bookingTime.getTime() - 2 * 60 * 60 * 1000);
-      
+
       if (twoHoursBefore > now && !booking.hour_before_sent) {
         await messageQueue.addReminder({
           type: 'hours_before',
           booking: bookingData,
           phone: booking.client_phone,
           hours: 2,
-          bookingId: booking.id
+          bookingId: booking.id || booking.yclients_record_id // Ensure we have an ID
         }, twoHoursBefore);
         logger.info(`⏰ Scheduled 2-hour reminder for booking ${booking.yclients_record_id}`);
       }
