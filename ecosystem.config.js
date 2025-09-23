@@ -84,23 +84,6 @@ module.exports = {
       autorestart: false // Don't auto-restart if stopped manually
     },
     {
-      name: 'venom-bot',
-      script: '/opt/venom-bot/index.js',
-      instances: 1,
-      exec_mode: 'fork',
-      cwd: '/opt/venom-bot',
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3001
-      },
-      error_file: '/opt/venom-bot/logs/error.log',
-      out_file: '/opt/venom-bot/logs/out.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss',
-      max_memory_restart: '500M',
-      autorestart: true,
-      watch: false
-    },
-    {
       name: 'ai-admin-booking-monitor',
       script: './src/workers/booking-monitor-worker.js',
       instances: 1,
