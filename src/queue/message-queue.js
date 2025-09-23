@@ -105,7 +105,12 @@ class MessageQueue {
       }
 
       // Generate unique job ID based on booking and reminder type
-      const jobId = `reminder-${data.bookingId || data.booking?.record_id}-${data.type}-${data.phone}`;
+      // Use YClients record ID as it's always present and unique
+      const bookingIdentifier = data.bookingId ||
+                                data.booking?.record_id ||
+                                data.booking?.yclients_record_id ||
+                                `${data.phone}-${scheduledTime.toISOString()}`;
+      const jobId = `reminder-${bookingIdentifier}-${data.type}`;
 
       const job = await queue.add('send-reminder', data, {
         jobId, // Prevent duplicate jobs with same ID
