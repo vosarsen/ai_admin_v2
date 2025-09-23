@@ -99,12 +99,16 @@ class MessageQueue {
     try {
       const queue = this.getQueue(config.queue.reminderQueue);
       const delay = scheduledTime.getTime() - Date.now();
-      
+
       if (delay < 0) {
         logger.warn('Reminder scheduled for past time, sending immediately');
       }
 
+      // Generate unique job ID based on booking and reminder type
+      const jobId = `reminder-${data.bookingId || data.booking?.record_id}-${data.type}-${data.phone}`;
+
       const job = await queue.add('send-reminder', data, {
+        jobId, // Prevent duplicate jobs with same ID
         delay: Math.max(0, delay),
         attempts: 5,
         backoff: {
@@ -113,9 +117,14 @@ class MessageQueue {
         }
       });
 
-      logger.info(`⏰ Reminder scheduled for ${scheduledTime.toISOString()}, job ID: ${job.id}`);
+      logger.info(`⏰ Reminder scheduled for ${scheduledTime.toISOString()}, job ID: ${job.id}, unique ID: ${jobId}`);
       return { success: true, jobId: job.id };
     } catch (error) {
+      // Check if it's a duplicate job error
+      if (error.message && error.message.includes('Job already exists')) {
+        logger.debug(`Reminder already scheduled with ID: ${jobId}, skipping duplicate`);
+        return { success: true, duplicate: true, jobId };
+      }
       logger.error('Failed to schedule reminder:', error);
       return { success: false, error: error.message };
     }
