@@ -84,20 +84,6 @@ module.exports = {
       autorestart: false // Don't auto-restart if stopped manually
     },
     {
-      name: 'ai-admin-reminder',
-      script: './src/workers/index-reminder.js',
-      instances: 1,
-      exec_mode: 'fork',
-      env: {
-        NODE_ENV: 'production'
-      },
-      error_file: './logs/reminder-error.log',
-      out_file: './logs/reminder-out.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss',
-      max_memory_restart: '200M',
-      kill_timeout: 5000
-    },
-    {
       name: 'venom-bot',
       script: '/opt/venom-bot/index.js',
       instances: 1,
