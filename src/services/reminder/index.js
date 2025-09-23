@@ -73,6 +73,7 @@ class ReminderService {
         service_name: booking.services?.join(', ') || 'услуга',
         staff_name: booking.staff_name || 'мастер',
         record_id: booking.yclients_record_id,
+        yclients_record_id: booking.yclients_record_id, // Ensure we have this field
         client_name: booking.client_name,
         cost: booking.cost,
         staff_declensions: staffData?.declensions,
@@ -95,7 +96,7 @@ class ReminderService {
           type: 'day_before',
           booking: bookingData,
           phone: booking.client_phone,
-          bookingId: booking.id || booking.yclients_record_id // Ensure we have an ID
+          bookingId: booking.yclients_record_id // Always use YClients ID as it's unique
         }, dayBefore);
         logger.info(`📅 Scheduled day-before reminder for booking ${booking.yclients_record_id}`);
       }
@@ -109,7 +110,7 @@ class ReminderService {
           booking: bookingData,
           phone: booking.client_phone,
           hours: 2,
-          bookingId: booking.id || booking.yclients_record_id // Ensure we have an ID
+          bookingId: booking.yclients_record_id // Always use YClients ID as it's unique
         }, twoHoursBefore);
         logger.info(`⏰ Scheduled 2-hour reminder for booking ${booking.yclients_record_id}`);
       }
