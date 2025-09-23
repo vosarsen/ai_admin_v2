@@ -218,11 +218,22 @@ AI Admin v2 is a production-ready WhatsApp AI Assistant for beauty salons. It us
 
 See `docs/BAILEYS_STANDALONE_ARCHITECTURE.md` for complete architecture details.
 
+### ✅ FIXED: Duplicate Reminders (September 23, 2025)
+- **Problem**: Clients received 10-20 identical reminders
+- **Root Cause**: Multiple reminder systems + 5319 duplicate jobs in queue
+- **Solution**: Consolidated to single booking-monitor service
+- **Status**: Fixed and deployed!
+- **Details**:
+  - Only booking-monitor handles reminders now
+  - Uses proper declensions for services/staff names
+  - 40 diverse templates
+  - See: `docs/development-diary/2025-09-23-reminder-system-consolidation.md`
+
 ### ✅ FIXED: Rapid-Fire Protection (July 23, 2025)
 - **Problem**: Messages sent in parts were NOT combined
 - **Solution**: Implemented Redis-based batching
 - **Status**: Deployed to production and working!
-- **Details**: 
+- **Details**:
   - Messages are batched for up to 10 seconds
   - All clients now use `/webhook/whatsapp/batched`
   - Batch processor runs as separate PM2 process
@@ -335,6 +346,15 @@ node scripts/yclients-api-test.js  # Test YClients integration
 - Handles message queuing with BullMQ
 - Implements rapid-fire protection
 - Manages worker job distribution
+
+### BookingMonitor (`src/services/booking-monitor/`)
+- **Monitors all bookings** from YClients every minute
+- **Handles ALL reminders** (consolidated system as of Sept 23, 2025)
+  - Sends reminders 19-21h day before & 2h before appointment
+  - Uses 40 diverse templates with proper declensions
+  - Stores history in `booking_notifications` table
+- Sends notifications for booking changes
+- Works with Baileys WhatsApp service
 
 ### BookingService (`src/services/booking/`)
 - Handles all booking operations
