@@ -463,8 +463,7 @@ class CriticalErrorLogger {
   async getQueueStats() {
     // TODO: Получить статистику очередей
     return {
-      messageQueue: { size: 0, processing: 0 },
-      reminderQueue: { size: 0, processing: 0 }
+      messageQueue: { size: 0, processing: 0 }
     };
   }
   
