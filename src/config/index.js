@@ -84,7 +84,6 @@ module.exports = {
   get queue() {
     return {
       messageQueue: process.env.QUEUE_MESSAGE_NAME || 'messages',
-      reminderQueue: process.env.QUEUE_REMINDER_NAME || 'reminders',
       maxConcurrentWorkers: parseInt(process.env.QUEUE_MAX_WORKERS) || 3,
       defaultJobOptions: {
         removeOnComplete: parseInt(process.env.QUEUE_KEEP_COMPLETED) || 100,
