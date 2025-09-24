@@ -53,7 +53,7 @@ class BaileysMultitenancyCleanup {
   /**
    * Получить список всех компаний из папки sessions
    */
-  async getCompanies() {
+  async getCompanies(targetCompanyId = null) {
     try {
       // Для локального тестирования используем текущую директорию
       const sessionsPath = this.dryRun && !fs.existsSync(BAILEYS_SESSIONS_PATH)
@@ -66,13 +66,23 @@ class BaileysMultitenancyCleanup {
       }
 
       const dirs = await fs.readdir(sessionsPath);
-      return dirs
+      let companies = dirs
         .filter(dir => dir.startsWith('company_'))
         .map(dir => ({
           name: dir,
           path: path.join(sessionsPath, dir),
           id: dir.replace('company_', '')
         }));
+
+      // Если указана конкретная компания, фильтруем
+      if (targetCompanyId) {
+        companies = companies.filter(c => c.id === targetCompanyId);
+        if (companies.length === 0) {
+          this.log('warn', `Company ${targetCompanyId} not found`);
+        }
+      }
+
+      return companies;
     } catch (error) {
       this.log('error', 'Failed to read baileys sessions directory:', error);
       return [];
@@ -349,7 +359,7 @@ class BaileysMultitenancyCleanup {
   /**
    * Главная функция очистки
    */
-  async cleanup() {
+  async cleanup(targetCompanyId = null) {
     const startTime = Date.now();
 
     this.log('info', '=' .repeat(60));
@@ -360,6 +370,10 @@ class BaileysMultitenancyCleanup {
       this.log('warn', '🔍 DRY-RUN MODE - No files will be deleted');
     }
 
+    if (targetCompanyId) {
+      this.log('info', `🎯 Target company: ${targetCompanyId}`);
+    }
+
     this.log('info', `📅 Date: ${new Date().toISOString()}`);
     this.log('info', `📁 Sessions path: ${BAILEYS_SESSIONS_PATH}`);
     this.log('info', `⚙️ Settings:`);
@@ -368,8 +382,8 @@ class BaileysMultitenancyCleanup {
     this.log('info', `  - Pre-keys to keep: ${MAX_PRE_KEYS}`);
     this.log('info', '');
 
-    // Получаем список компаний
-    const companies = await this.getCompanies();
+    // Получаем список компаний (или конкретную компанию)
+    const companies = await this.getCompanies(targetCompanyId);
     this.stats.companies = companies.length;
 
     if (companies.length === 0) {
@@ -468,11 +482,19 @@ class BaileysMultitenancyCleanup {
 // Запуск если вызван напрямую
 if (require.main === module) {
   const args = process.argv.slice(2);
+
+  // Парсинг опций
   const options = {
     dryRun: args.includes('--dry-run') || args.includes('-d'),
     verbose: args.includes('--verbose') || args.includes('-v'),
     help: args.includes('--help') || args.includes('-h')
   };
+
+  // Парсинг целевой компании
+  const companyIndex = args.indexOf('--company');
+  const targetCompanyId = companyIndex > -1 && args[companyIndex + 1]
+    ? args[companyIndex + 1]
+    : null;
 
   if (options.help) {
     console.log(`
@@ -481,14 +503,16 @@ Baileys Multitenancy Cleanup Script
 Usage: node baileys-multitenancy-cleanup.js [options]
 
 Options:
+  --company ID     Clean specific company only
   --dry-run, -d    Simulate cleanup without deleting files
   --verbose, -v    Show detailed debug information
   --help, -h       Show this help message
 
 Examples:
-  node baileys-multitenancy-cleanup.js --dry-run    # Test cleanup
-  node baileys-multitenancy-cleanup.js               # Perform actual cleanup
-  node baileys-multitenancy-cleanup.js -d -v         # Dry-run with verbose output
+  node baileys-multitenancy-cleanup.js --dry-run         # Test cleanup for all companies
+  node baileys-multitenancy-cleanup.js --company 962302  # Clean specific company
+  node baileys-multitenancy-cleanup.js -d -v             # Dry-run with verbose output
+  node baileys-multitenancy-cleanup.js --company 962302 --dry-run  # Test specific company
 
 Critical thresholds:
   < 150 files  - OK
@@ -501,7 +525,7 @@ Critical thresholds:
 
   const cleanup = new BaileysMultitenancyCleanup(options);
 
-  cleanup.cleanup()
+  cleanup.cleanup(targetCompanyId)
     .then(stats => {
       const exitCode = stats.errors.length > 0 ? 1 : 0;
       process.exit(exitCode);
