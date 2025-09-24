@@ -1,5 +1,5 @@
 const logger = require('../../utils/logger').child({ module: 'slot-validator' });
-const { format, parseISO, addSeconds, isAfter, isBefore } = require('date-fns');
+const { format, parseISO, addSeconds, isAfter, isBefore, isEqual } = require('date-fns');
 
 class SlotValidator {
   /**
@@ -127,15 +127,26 @@ class SlotValidator {
    */
   checkTimeOverlap(start1, end1, start2, end2) {
     // Интервалы пересекаются если:
-    // - начало первого находится внутри второго
-    // - конец первого находится внутри второго  
+    // - начало первого находится внутри второго (включая границы)
+    // - конец первого находится внутри второго
     // - первый полностью включает второй
-    return (
-      (isAfter(start1, start2) && isBefore(start1, end2)) || // start1 внутри booking
-      (isAfter(end1, start2) && isBefore(end1, end2)) ||     // end1 внутри booking
-      (isBefore(start1, start2) && isAfter(end1, end2)) ||   // slot полностью покрывает booking
-      (isAfter(start1, start2) && isBefore(end1, end2))      // slot внутри booking
+    // - слоты начинаются в одно и то же время
+    const overlap = (
+      (isEqual(start1, start2)) ||                                    // начинаются одновременно
+      (isAfter(start1, start2) && isBefore(start1, end2)) ||         // start1 внутри booking
+      (isAfter(end1, start2) && isBefore(end1, end2)) ||            // end1 внутри booking
+      (isEqual(end1, end2)) ||                                       // заканчиваются одновременно
+      (isBefore(start1, start2) && isAfter(end1, end2))             // slot покрывает booking
     );
+
+    if (overlap) {
+      logger.debug(`Time overlap detected:`, {
+        slot: `${format(start1, 'HH:mm')}-${format(end1, 'HH:mm')}`,
+        booking: `${format(start2, 'HH:mm')}-${format(end2, 'HH:mm')}`
+      });
+    }
+
+    return overlap;
   }
 
   /**
