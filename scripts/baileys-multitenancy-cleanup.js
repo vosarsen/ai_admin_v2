@@ -42,12 +42,90 @@ class BaileysMultitenancyCleanup {
       errors: [],
       companyStats: []
     };
+    this.lockFiles = new Set(); // Track lock files to cleanup on exit
+
+    // Валидация пути к сессиям (только если не dry-run для тестов)
+    if (!this.dryRun && !fs.existsSync(BAILEYS_SESSIONS_PATH)) {
+      throw new Error(`Sessions path not found: ${BAILEYS_SESSIONS_PATH}. Please ensure the path exists.`);
+    }
   }
 
   log(level, message, ...args) {
     if (this.verbose || level !== 'debug') {
       logger[level](message, ...args);
     }
+  }
+
+  /**
+   * Создать lock-файл для предотвращения параллельного запуска
+   */
+  async acquireLock(companyPath) {
+    const lockFile = path.join(companyPath, '.cleanup.lock');
+
+    try {
+      // Проверяем существующий lock
+      if (await fs.pathExists(lockFile)) {
+        const lockContent = await fs.readFile(lockFile, 'utf8');
+        const lockData = JSON.parse(lockContent);
+        const lockAge = Date.now() - lockData.timestamp;
+
+        // Если lock старше 10 минут, считаем его устаревшим
+        if (lockAge < 600000) { // 10 минут
+          throw new Error(`Cleanup already in progress for ${path.basename(companyPath)} (started ${Math.round(lockAge / 1000)}s ago)`);
+        } else {
+          this.log('warn', `Removing stale lock file (${Math.round(lockAge / 60000)} minutes old)`);
+        }
+      }
+
+      // Создаем новый lock
+      if (!this.dryRun) {
+        const lockData = {
+          timestamp: Date.now(),
+          pid: process.pid,
+          hostname: require('os').hostname()
+        };
+        await fs.writeFile(lockFile, JSON.stringify(lockData, null, 2));
+        this.lockFiles.add(lockFile);
+      }
+
+      return true;
+    } catch (error) {
+      if (error.message.includes('already in progress')) {
+        throw error;
+      }
+      this.log('error', `Failed to acquire lock: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Освободить lock-файл
+   */
+  async releaseLock(companyPath) {
+    const lockFile = path.join(companyPath, '.cleanup.lock');
+
+    if (!this.dryRun && this.lockFiles.has(lockFile)) {
+      try {
+        await fs.unlink(lockFile);
+        this.lockFiles.delete(lockFile);
+      } catch (error) {
+        this.log('debug', `Failed to release lock: ${error.message}`);
+      }
+    }
+  }
+
+  /**
+   * Очистить все lock-файлы при выходе
+   */
+  async releaseAllLocks() {
+    for (const lockFile of this.lockFiles) {
+      try {
+        await fs.unlink(lockFile);
+      } catch (error) {
+        // Игнорируем ошибки при очистке
+      }
+    }
+    this.lockFiles.clear();
   }
 
   /**
@@ -235,6 +313,9 @@ class BaileysMultitenancyCleanup {
     const companyId = company.id;
 
     try {
+      // Пытаемся получить lock
+      await this.acquireLock(companyPath);
+
       // Получаем все файлы
       const fileNames = await fs.readdir(companyPath);
       const files = [];
@@ -333,6 +414,10 @@ class BaileysMultitenancyCleanup {
       };
 
       this.stats.companyStats.push(companyStat);
+
+      // Освобождаем lock после успешной очистки
+      await this.releaseLock(companyPath);
+
       return companyStat;
 
     } catch (error) {
@@ -341,6 +426,10 @@ class BaileysMultitenancyCleanup {
         company: companyId,
         error: error.message
       });
+
+      // Освобождаем lock даже при ошибке
+      await this.releaseLock(companyPath);
+
       return null;
     }
   }
@@ -525,13 +614,35 @@ Critical thresholds:
 
   const cleanup = new BaileysMultitenancyCleanup(options);
 
+  // Обработчики для очистки lock-файлов при выходе
+  const gracefulShutdown = async () => {
+    console.log('\n🔓 Releasing locks...');
+    await cleanup.releaseAllLocks();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', gracefulShutdown);
+  process.on('SIGTERM', gracefulShutdown);
+  process.on('exit', () => {
+    // Синхронная очистка если async не сработал
+    cleanup.lockFiles.forEach(lockFile => {
+      try {
+        require('fs').unlinkSync(lockFile);
+      } catch (e) {
+        // Ignore
+      }
+    });
+  });
+
   cleanup.cleanup(targetCompanyId)
-    .then(stats => {
+    .then(async stats => {
+      await cleanup.releaseAllLocks();
       const exitCode = stats.errors.length > 0 ? 1 : 0;
       process.exit(exitCode);
     })
-    .catch(error => {
+    .catch(async error => {
       console.error('❌ Fatal error:', error);
+      await cleanup.releaseAllLocks();
       process.exit(1);
     });
 }

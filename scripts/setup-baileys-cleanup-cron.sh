@@ -37,6 +37,23 @@ print_status() {
 
 echo "📋 Checking prerequisites..."
 
+# 0. Check if SSH key exists
+if [ ! -f "$SSH_KEY" ]; then
+    echo -e "${RED}❌ SSH key not found: $SSH_KEY${NC}"
+    echo "Please ensure the SSH key exists or update the SSH_KEY variable"
+    exit 1
+fi
+echo -e "${GREEN}✅ SSH key found${NC}"
+
+# 0.5 Check Node.js version on server
+echo -n "Checking Node.js on server... "
+NODE_VERSION=$(remote_exec "node --version 2>/dev/null || echo 'not installed'")
+if [[ "$NODE_VERSION" == "not installed" ]]; then
+    echo -e "${RED}❌ Node.js not installed on server${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✅ Node.js ${NODE_VERSION}${NC}"
+
 # 1. Check if cleanup script exists on server
 echo -n "Checking if cleanup script exists on server... "
 remote_exec "test -f $SCRIPT_PATH"
@@ -51,7 +68,8 @@ print_status $? "Logs directory ready"
 echo ""
 echo -e "${YELLOW}🧪 Testing cleanup script in dry-run mode...${NC}"
 echo "----------------------------------------"
-remote_exec "cd /opt/ai-admin && node $SCRIPT_PATH --dry-run 2>&1 | head -20"
+# Better output filtering to show important information
+remote_exec "cd /opt/ai-admin && node $SCRIPT_PATH --dry-run 2>&1 | grep -E '(SUMMARY|companies|Processing company|files removed|WARNING|CRITICAL|ERROR)' | head -30"
 echo "----------------------------------------"
 
 # 4. Ask for confirmation
@@ -161,7 +179,13 @@ for dir in /opt/ai-admin/baileys_sessions/company_*; do
 done
 EOF
 
-print_status $? "Monitoring script created"
+# Проверяем что скрипт создан успешно
+if [ $? -eq 0 ]; then
+    remote_exec "chmod +x /opt/ai-admin/scripts/check-baileys-cleanup.sh"
+    print_status $? "Monitoring script created and made executable"
+else
+    print_status 1 "Failed to create monitoring script"
+fi
 
 # 9. Final summary
 echo ""
