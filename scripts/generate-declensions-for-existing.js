@@ -23,14 +23,14 @@ async function generateDeclensions(serviceName) {
   "accusative": "винительный",
   "instrumental": "творительный",
   "prepositional": "предложный",
-  "prepositional_na": "предложный с НА"
+  "prepositional_na": "винительный для НА"
 }
 
 Примеры:
-- "Мужская стрижка" -> accusative: "мужскую стрижку", prepositional_na: "мужской стрижке"
-- "Маникюр с покрытием" -> accusative: "маникюр с покрытием", prepositional_na: "маникюре с покрытием"
+- "Мужская стрижка" -> accusative: "мужскую стрижку", prepositional_na: "мужскую стрижку"
+- "Маникюр с покрытием" -> accusative: "маникюр с покрытием", prepositional_na: "маникюр с покрытием"
 
-Важно: prepositional_na используется после предлога "на" (записаться НА что?)
+Важно: prepositional_na - это ВИНИТЕЛЬНЫЙ падеж для предлога "на" (записаться НА что?)
 `;
 
   try {
