@@ -2,11 +2,12 @@
 // scripts/whatsapp-safe-monitor.js
 
 /**
- * WhatsApp Safe Monitor
- * Monitors WhatsApp connection WITHOUT destructive operations
+ * WhatsApp Safe Monitor - Multitenancy Edition
+ * Monitors WhatsApp connection for ALL companies
  * - NO rm -rf commands
  * - NO automatic cleanup
  * - Only alerts and non-destructive recovery attempts
+ * - Monitors all company_* directories
  */
 
 require('dotenv').config();
@@ -18,42 +19,98 @@ const { exec } = require('child_process');
 
 const CONFIG = {
     apiUrl: process.env.API_URL || 'http://localhost:3000',
-    companyId: process.env.COMPANY_ID || '962302',
+    // Default company for backwards compatibility
+    defaultCompanyId: process.env.COMPANY_ID || '962302',
+    // Paths
+    baileysSessionsPath: process.env.BAILEYS_SESSIONS_PATH || '/opt/ai-admin/baileys_sessions',
+    // Check intervals
     checkInterval: 60000, // Check every minute
+    // Thresholds
     unhealthyThreshold: 3, // Alert after 3 failed checks
-    fileCountWarning: 100,
-    fileCountCritical: 150,
+    fileCountWarning: 150,  // Updated based on research
+    fileCountCritical: 170, // Critical threshold
+    fileCountEmergency: 180, // Emergency threshold
+    // Auth settings
     usePairingCode: process.env.USE_PAIRING_CODE === 'true',
     phoneNumber: process.env.WHATSAPP_PHONE_NUMBER || '79686484488',
+    // Notifications
     telegramBotToken: process.env.TELEGRAM_BOT_TOKEN,
-    telegramChatId: process.env.TELEGRAM_CHAT_ID
+    telegramChatId: process.env.TELEGRAM_CHAT_ID,
+    // Features
+    enableMultitenancy: process.env.ENABLE_MULTITENANCY !== 'false', // Default true
+    autoCleanup: process.env.AUTO_CLEANUP === 'true' // Default false for safety
 };
 
 class WhatsAppSafeMonitor {
     constructor() {
-        this.consecutiveFailures = 0;
-        this.lastHealthyTime = Date.now();
+        // Track failures per company
+        this.companyStats = new Map();
         this.lastAlertTime = 0;
         this.alertCooldown = 300000; // 5 minutes between alerts
+        this.companies = [];
     }
 
-    async checkHealth() {
+    /**
+     * Get or initialize company statistics
+     */
+    getCompanyStats(companyId) {
+        if (!this.companyStats.has(companyId)) {
+            this.companyStats.set(companyId, {
+                consecutiveFailures: 0,
+                lastHealthyTime: Date.now(),
+                lastAlertTime: 0,
+                fileCount: 0,
+                status: 'unknown'
+            });
+        }
+        return this.companyStats.get(companyId);
+    }
+
+    /**
+     * Discover all companies from baileys_sessions directory
+     */
+    async discoverCompanies() {
+        try {
+            const dirs = await fs.readdir(CONFIG.baileysSessionsPath);
+            this.companies = dirs
+                .filter(dir => dir.startsWith('company_'))
+                .map(dir => dir.replace('company_', ''));
+
+            if (this.companies.length === 0 && CONFIG.defaultCompanyId) {
+                // Fallback to default company if no companies found
+                this.companies = [CONFIG.defaultCompanyId];
+            }
+
+            console.log(`🏢 Discovered ${this.companies.length} companies: ${this.companies.join(', ')}`);
+            return this.companies;
+        } catch (error) {
+            console.error('Failed to discover companies:', error.message);
+            // Fallback to default company
+            this.companies = [CONFIG.defaultCompanyId];
+            return this.companies;
+        }
+    }
+
+    async checkHealth(companyId) {
+        const stats = this.getCompanyStats(companyId);
+
         try {
             // Проверяем несколько способов:
             // 1. Сначала пробуем старый endpoint (может быть он заработает)
             try {
                 const statusResponse = await axios.get(
-                    `${CONFIG.apiUrl}/webhook/whatsapp/baileys/status/${CONFIG.companyId}`,
+                    `${CONFIG.apiUrl}/webhook/whatsapp/baileys/status/${companyId}`,
                     { timeout: 3000 }
                 );
 
                 if (statusResponse.data?.status?.connected === true) {
-                    if (this.consecutiveFailures > 0) {
-                        console.log('✅ WhatsApp connected (status endpoint)');
-                        await this.sendNotification('✅ WhatsApp восстановлен', 'info');
+                    if (stats.consecutiveFailures > 0) {
+                        console.log(`✅ [${companyId}] WhatsApp connected (status endpoint)`);
+                        await this.sendNotification(`✅ WhatsApp восстановлен (${companyId})`, 'info');
                     }
-                    this.consecutiveFailures = 0;
-                    this.lastHealthyTime = Date.now();
+                    stats.consecutiveFailures = 0;
+                    stats.lastHealthyTime = Date.now();
+                    stats.status = 'connected';
                     return true;
                 }
             } catch (statusError) {
@@ -68,11 +125,12 @@ class WhatsAppSafeMonitor {
                 );
 
                 if (baileysResponse.status === 200) {
-                    if (this.consecutiveFailures > 0) {
-                        console.log('✅ WhatsApp service is healthy (baileys direct check)');
+                    if (stats.consecutiveFailures > 0) {
+                        console.log(`✅ [${companyId}] WhatsApp service is healthy (baileys direct check)`);
                     }
-                    this.consecutiveFailures = 0;
-                    this.lastHealthyTime = Date.now();
+                    stats.consecutiveFailures = 0;
+                    stats.lastHealthyTime = Date.now();
+                    stats.status = 'connected';
                     return true;
                 }
             } catch (baileysError) {
@@ -90,122 +148,177 @@ class WhatsAppSafeMonitor {
 
             if (isProcessRunning) {
                 // Процесс запущен, но endpoints не отвечают - возможно временная проблема
-                console.log('⚠️ Baileys process is running but endpoints not responding');
+                console.log(`⚠️ [${companyId}] Baileys process is running but endpoints not responding`);
                 // Не увеличиваем счетчик ошибок сразу
-                if (this.consecutiveFailures < 2) {
+                if (stats.consecutiveFailures < 2) {
+                    stats.status = 'degraded';
                     return true; // Даем шанс восстановиться
                 }
             }
 
-            this.consecutiveFailures++;
-            console.log(`⚠️ WhatsApp health check inconclusive (${this.consecutiveFailures} consecutive checks)`);
+            stats.consecutiveFailures++;
+            stats.status = 'disconnected';
+            console.log(`⚠️ [${companyId}] WhatsApp health check inconclusive (${stats.consecutiveFailures} consecutive checks)`);
             return false;
 
         } catch (error) {
-            this.consecutiveFailures++;
-            console.error(`❌ Health check failed: ${error.message}`);
+            stats.consecutiveFailures++;
+            stats.status = 'error';
+            console.error(`❌ [${companyId}] Health check failed: ${error.message}`);
             return false;
         }
     }
 
-    async checkFileCount() {
-        const authPath = process.env.WHATSAPP_AUTH_PATH ||
-                        path.join(process.env.SERVER_PATH || '/opt/ai-admin',
-                                 'baileys_sessions',
-                                 `company_${CONFIG.companyId}`);
+    async checkFileCount(companyId) {
+        const authPath = path.join(CONFIG.baileysSessionsPath, `company_${companyId}`);
+        const stats = this.getCompanyStats(companyId);
 
         try {
             const files = await fs.readdir(authPath);
             const fileCount = files.length;
+            stats.fileCount = fileCount;
 
-            if (fileCount >= CONFIG.fileCountCritical) {
-                console.error(`🚨 CRITICAL: ${fileCount} files in auth directory!`);
+            // Emergency threshold - immediate action required
+            if (fileCount >= CONFIG.fileCountEmergency) {
+                console.error(`🔴 [${companyId}] EMERGENCY: ${fileCount} files! Risk of device_removed!`);
                 await this.sendAlert(
-                    `🚨 CRITICAL: WhatsApp auth files!\n\n` +
-                    `Company: ${CONFIG.companyId}\n` +
+                    `🔴 EMERGENCY: WhatsApp auth files!\n\n` +
+                    `Company: ${companyId}\n` +
                     `Files: ${fileCount}\n` +
-                    `Status: Risk of device_removed!\n\n` +
-                    `Action required:\n` +
-                    `1. Backup creds.json\n` +
-                    `2. Run smart cleanup\n` +
-                    `3. Monitor closely`
+                    `Status: CRITICAL RISK of device_removed!\n\n` +
+                    `IMMEDIATE ACTION REQUIRED:\n` +
+                    `1. Backup creds.json NOW\n` +
+                    `2. Run cleanup: node scripts/baileys-multitenancy-cleanup.js\n` +
+                    `3. Consider emergency rotation`
                 );
-            } else if (fileCount >= CONFIG.fileCountWarning) {
-                console.warn(`⚠️ WARNING: ${fileCount} files in auth directory`);
+
+                // Auto-cleanup if enabled and emergency
+                if (CONFIG.autoCleanup && fileCount > 190) {
+                    await this.triggerEmergencyCleanup(companyId);
+                }
+            }
+            // Critical threshold
+            else if (fileCount >= CONFIG.fileCountCritical) {
+                console.error(`🟠 [${companyId}] CRITICAL: ${fileCount} files approaching danger zone!`);
+
+                // Alert once per 30 minutes for critical
+                const minutesSinceLastAlert = (Date.now() - stats.lastAlertTime) / 60000;
+                if (minutesSinceLastAlert > 30) {
+                    await this.sendNotification(
+                        `🟠 CRITICAL: Company ${companyId}\n` +
+                        `Files: ${fileCount}\n` +
+                        `Action: Cleanup recommended within 24h`,
+                        'critical'
+                    );
+                    stats.lastAlertTime = Date.now();
+                }
+            }
+            // Warning threshold
+            else if (fileCount >= CONFIG.fileCountWarning) {
+                console.warn(`⚠️ [${companyId}] WARNING: ${fileCount} files`);
 
                 // Alert once per hour for warnings
-                const hoursSinceLastAlert = (Date.now() - this.lastAlertTime) / 3600000;
+                const hoursSinceLastAlert = (Date.now() - stats.lastAlertTime) / 3600000;
                 if (hoursSinceLastAlert > 1) {
                     await this.sendNotification(
-                        `⚠️ WhatsApp файлов: ${fileCount}\nТребуется профилактическая очистка`,
+                        `⚠️ Company ${companyId}: ${fileCount} files\nMonitor closely`,
                         'warning'
                     );
+                    stats.lastAlertTime = Date.now();
                 }
             }
 
             return fileCount;
         } catch (error) {
-            console.error(`Failed to check file count: ${error.message}`);
+            console.error(`[${companyId}] Failed to check file count: ${error.message}`);
             return -1;
         }
     }
 
-    async attemptReconnection() {
-        console.log('🔄 Attempting non-destructive reconnection...');
+    /**
+     * Trigger emergency cleanup for critical situations
+     */
+    async triggerEmergencyCleanup(companyId) {
+        console.log(`🚨 [${companyId}] Triggering emergency cleanup...`);
+
+        return new Promise((resolve) => {
+            exec(
+                `node ${path.join(__dirname, 'baileys-multitenancy-cleanup.js')} --company ${companyId}`,
+                (error, stdout, stderr) => {
+                    if (error) {
+                        console.error(`Emergency cleanup failed: ${error.message}`);
+                        resolve(false);
+                    } else {
+                        console.log(`✅ Emergency cleanup completed for ${companyId}`);
+                        this.sendNotification(
+                            `✅ Emergency cleanup completed for company ${companyId}`,
+                            'info'
+                        );
+                        resolve(true);
+                    }
+                }
+            );
+        });
+    }
+
+    async attemptReconnection(companyId) {
+        console.log(`🔄 [${companyId}] Attempting non-destructive reconnection...`);
 
         try {
             // Try to restart the session without cleanup
             const response = await axios.post(
-                `${CONFIG.apiUrl}/api/whatsapp/sessions/${CONFIG.companyId}/reconnect`,
+                `${CONFIG.apiUrl}/api/whatsapp/sessions/${companyId}/reconnect`,
                 {},
                 { timeout: 30000 }
             );
 
             if (response.data?.success) {
-                console.log('✅ Reconnection successful');
+                console.log(`✅ [${companyId}] Reconnection successful`);
                 return true;
             }
         } catch (error) {
-            console.error(`Reconnection failed: ${error.message}`);
+            console.error(`[${companyId}] Reconnection failed: ${error.message}`);
         }
 
         return false;
     }
 
-    async suggestRecovery() {
+    async suggestRecovery(companyId) {
+        const stats = this.getCompanyStats(companyId);
         const suggestions = [];
 
         if (CONFIG.usePairingCode) {
             suggestions.push(
                 '📱 Use Pairing Code:',
-                `   curl -X POST ${CONFIG.apiUrl}/api/whatsapp/sessions/${CONFIG.companyId}/pairing-code \\`,
+                `   curl -X POST ${CONFIG.apiUrl}/api/whatsapp/sessions/${companyId}/pairing-code \\`,
                 `     -H "Content-Type: application/json" \\`,
                 `     -d '{"phoneNumber": "${CONFIG.phoneNumber}"}'`
             );
         } else {
             suggestions.push(
                 '📱 Use QR Code:',
-                `   Open: ${CONFIG.apiUrl}/whatsapp-qr.html?company=${CONFIG.companyId}`
+                `   Open: ${CONFIG.apiUrl}/whatsapp-qr.html?company=${companyId}`
             );
         }
 
         suggestions.push(
             '',
             '🔧 Manual recovery steps:',
-            '1. Check logs: pm2 logs ai-admin-api --lines 100',
-            '2. Backup auth: node scripts/whatsapp-backup-manager.js backup 962302',
-            '3. Smart cleanup: node scripts/whatsapp-smart-cleanup.js',
+            '1. Check logs: pm2 logs baileys-whatsapp --lines 100',
+            `2. Backup auth: node scripts/whatsapp-backup-manager.js backup ${companyId}`,
+            `3. Smart cleanup: node scripts/baileys-multitenancy-cleanup.js --company ${companyId}`,
             '4. Reconnect using method above'
         );
 
-        console.log('\n' + suggestions.join('\n'));
+        console.log(`\n[${companyId}] Recovery suggestions:\n` + suggestions.join('\n'));
 
         // Send to Telegram if configured
-        if (this.consecutiveFailures === CONFIG.unhealthyThreshold) {
+        if (stats.consecutiveFailures === CONFIG.unhealthyThreshold) {
             await this.sendAlert(
                 `⚠️ WhatsApp отключен!\n\n` +
-                `Компания: ${CONFIG.companyId}\n` +
-                `Неудачных проверок: ${this.consecutiveFailures}\n\n` +
+                `Компания: ${companyId}\n` +
+                `Неудачных проверок: ${stats.consecutiveFailures}\n` +
+                `Файлов: ${stats.fileCount}\n\n` +
                 suggestions.join('\n')
             );
         }
@@ -242,44 +355,115 @@ class WhatsAppSafeMonitor {
     }
 
     async run() {
-        console.log('🚀 WhatsApp Safe Monitor started');
+        console.log('=' .repeat(60));
+        console.log('🚀 WhatsApp Safe Monitor - Multitenancy Edition');
+        console.log('=' .repeat(60));
         console.log(`📊 Config:`, {
-            companyId: CONFIG.companyId,
             checkInterval: CONFIG.checkInterval / 1000 + 's',
-            usePairingCode: CONFIG.usePairingCode
+            enableMultitenancy: CONFIG.enableMultitenancy,
+            autoCleanup: CONFIG.autoCleanup,
+            thresholds: {
+                warning: CONFIG.fileCountWarning,
+                critical: CONFIG.fileCountCritical,
+                emergency: CONFIG.fileCountEmergency
+            }
         });
+
+        // Discover companies
+        if (CONFIG.enableMultitenancy) {
+            await this.discoverCompanies();
+        } else {
+            this.companies = [CONFIG.defaultCompanyId];
+            console.log(`📌 Single-tenant mode: ${CONFIG.defaultCompanyId}`);
+        }
 
         // Initial check
         await this.performCheck();
 
         // Schedule periodic checks
         setInterval(() => this.performCheck(), CONFIG.checkInterval);
+
+        // Rediscover companies every 5 minutes
+        if (CONFIG.enableMultitenancy) {
+            setInterval(() => this.discoverCompanies(), 300000);
+        }
     }
 
     async performCheck() {
         const timestamp = new Date().toISOString();
-        console.log(`\n[${timestamp}] Checking WhatsApp health...`);
+        console.log(`\n${'─' .repeat(60)}`);
+        console.log(`⏰ [${timestamp}] Starting health check...`);
+
+        // Check each company
+        for (const companyId of this.companies) {
+            await this.checkCompany(companyId);
+        }
+
+        // Summary
+        this.printSummary();
+    }
+
+    async checkCompany(companyId) {
+        const stats = this.getCompanyStats(companyId);
 
         // Check connection health
-        const isHealthy = await this.checkHealth();
+        const isHealthy = await this.checkHealth(companyId);
 
         // Check file count
-        const fileCount = await this.checkFileCount();
+        const fileCount = await this.checkFileCount(companyId);
+
+        // Determine overall status
+        const statusEmoji = stats.status === 'connected' ? '✅' :
+                          stats.status === 'degraded' ? '⚠️' :
+                          stats.status === 'disconnected' ? '❌' : '❓';
+
+        const fileEmoji = fileCount >= CONFIG.fileCountEmergency ? '🔴' :
+                         fileCount >= CONFIG.fileCountCritical ? '🟠' :
+                         fileCount >= CONFIG.fileCountWarning ? '⚠️' : '✅';
 
         // Log status
-        if (isHealthy) {
-            console.log(`✅ WhatsApp healthy (${fileCount} files)`);
-        } else {
-            console.log(`❌ WhatsApp unhealthy (${this.consecutiveFailures} failures)`);
+        console.log(`${statusEmoji} [${companyId}] Status: ${stats.status} | ${fileEmoji} Files: ${fileCount}`);
 
+        // Handle unhealthy connections
+        if (!isHealthy) {
             // Try reconnection after threshold
-            if (this.consecutiveFailures === CONFIG.unhealthyThreshold) {
-                const reconnected = await this.attemptReconnection();
+            if (stats.consecutiveFailures === CONFIG.unhealthyThreshold) {
+                const reconnected = await this.attemptReconnection(companyId);
 
                 if (!reconnected) {
-                    await this.suggestRecovery();
+                    await this.suggestRecovery(companyId);
                 }
             }
+        }
+    }
+
+    /**
+     * Print summary of all companies
+     */
+    printSummary() {
+        const healthy = [];
+        const warning = [];
+        const critical = [];
+
+        for (const [companyId, stats] of this.companyStats) {
+            if (stats.status === 'connected' && stats.fileCount < CONFIG.fileCountWarning) {
+                healthy.push(companyId);
+            } else if (stats.status === 'disconnected' || stats.fileCount >= CONFIG.fileCountCritical) {
+                critical.push(companyId);
+            } else {
+                warning.push(companyId);
+            }
+        }
+
+        console.log(`\n📊 Summary:`);
+        if (healthy.length > 0) {
+            console.log(`  ✅ Healthy: ${healthy.join(', ')}`);
+        }
+        if (warning.length > 0) {
+            console.log(`  ⚠️ Warning: ${warning.join(', ')}`);
+        }
+        if (critical.length > 0) {
+            console.log(`  🔴 Critical: ${critical.join(', ')}`);
         }
     }
 }
