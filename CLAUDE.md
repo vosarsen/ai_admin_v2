@@ -148,6 +148,36 @@ We use a strict workflow for all changes:
    ```bash
    ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "cd /opt/ai-admin && git pull && pm2 restart all"
    ```
+
+## 🧹 Baileys Session Cleanup System
+
+The project includes an automated cleanup system for WhatsApp session files to prevent `device_removed` errors.
+
+### System Components:
+1. **baileys-multitenancy-cleanup.js** - Main cleanup script (protects critical files)
+2. **whatsapp-safe-monitor.js** - Real-time monitoring (alerts at thresholds)
+3. **baileys-auto-cleanup-trigger.js** - Auto-trigger at 175+ files
+
+### File Thresholds:
+- **< 150 files** - ✅ Healthy
+- **150-170 files** - ⚠️ Warning (monitor alerts)
+- **175+ files** - 🔧 Auto-cleanup triggered
+- **185+ files** - 🚨 Emergency cleanup
+- **> 190 files** - 💀 Risk of session loss
+
+### Quick Commands:
+```bash
+# Check file counts
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "ls -1 /opt/ai-admin/baileys_sessions/company_* | wc -l"
+
+# Manual cleanup
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "node /opt/ai-admin/scripts/baileys-multitenancy-cleanup.js"
+
+# Check cleanup logs
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "tail -50 /opt/ai-admin/logs/baileys-cleanup.log"
+```
+
+**Documentation**: See `docs/BAILEYS_CLEANUP_SYSTEM.md` for full details
 5. **Test** - test changes in production environment
    - Send test messages via @whatsapp or test scripts
    - Check logs via @logs for errors and expected behavior
