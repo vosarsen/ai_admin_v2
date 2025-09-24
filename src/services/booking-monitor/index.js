@@ -8,6 +8,7 @@ const { detectBusinessType, defaultEmojis } = businessTypes;
 const { generateDayBeforeReminder, generateTwoHoursReminder } = require('../reminder/templates');
 const contextService = require('../context');
 const reminderContextTracker = require('../reminder/reminder-context-tracker');
+const messages = require('../../config/booking-monitor-messages');
 
 // Простые функции форматирования даты
 const formatDate = (date) => {
@@ -31,6 +32,7 @@ class BookingMonitorService {
     this.yclientsClient = new YclientsClient();
     this.whatsappClient = whatsappClient;
     this.checkInterval = config.bookingMonitor?.checkInterval || 60000; // 1 минута по умолчанию
+    this.duplicateCheckWindow = config.bookingMonitor?.duplicateCheckWindow || 60 * 60 * 1000; // 1 час по умолчанию
     this.isRunning = false;
     this.intervalId = null;
   }
@@ -354,7 +356,7 @@ class BookingMonitorService {
       .from('booking_notifications')
       .select('*')
       .eq('yclients_record_id', parseInt(record.id))
-      .gte('sent_at', new Date(Date.now() - 60 * 60 * 1000).toISOString()) // За последний час
+      .gte('sent_at', new Date(Date.now() - this.duplicateCheckWindow).toISOString())
       .order('sent_at', { ascending: false });
 
     // Группируем изменения для одного сообщения
@@ -420,14 +422,12 @@ class BookingMonitorService {
   async formatCancellationMessage(record, companyId) {
     const date = formatDate(new Date(record.datetime));
     const time = formatTime(new Date(record.datetime));
-    const services = record.services?.map(s => s.title).join(', ') || 'Услуга';
+    const services = record.services?.map(s => s.title).join(', ') || messages.defaults.service;
 
-    return `Ваша запись отменена
-
-${date} в ${time}
-${services}
-
-Если это ошибка, пожалуйста, свяжитесь с нами для восстановления записи.`;
+    return messages.cancellation.template
+      .replace('{date}', date)
+      .replace('{time}', time)
+      .replace('{services}', services);
   }
 
   /**
@@ -436,8 +436,8 @@ ${services}
   async formatChangeMessage(record, changes, previousState, companyId) {
     const date = formatDate(new Date(record.datetime));
     const time = formatTime(new Date(record.datetime));
-    const services = record.services?.map(s => s.title).join(', ') || 'Услуга';
-    const staff = record.staff?.name || 'Специалист';
+    const services = record.services?.map(s => s.title).join(', ') || messages.defaults.service;
+    const staff = record.staff?.name || messages.defaults.staff;
     const price = record.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0;
 
     let changesList = [];
@@ -446,24 +446,29 @@ ${services}
       if (change.type === 'booking_time_changed') {
         const oldDate = formatDate(new Date(change.oldValue));
         const oldTime = formatTime(new Date(change.oldValue));
-        changesList.push(`Время изменено: ${oldDate} ${oldTime} → ${date} ${time}`);
+        changesList.push(
+          messages.change.changes.time
+            .replace('{oldDateTime}', `${oldDate} ${oldTime}`)
+            .replace('{newDateTime}', `${date} ${time}`)
+        );
       } else if (change.type === 'booking_staff_changed') {
-        changesList.push(`Мастер изменен: ${change.oldValue || 'Не указан'} → ${staff}`);
+        changesList.push(
+          messages.change.changes.staff
+            .replace('{oldStaff}', change.oldValue || messages.change.changes.notSpecified)
+            .replace('{newStaff}', staff)
+        );
       } else if (change.type === 'booking_service_changed') {
-        changesList.push(`Услуги изменены`);
+        changesList.push(messages.change.changes.services);
       }
     });
 
-    return `Ваша запись изменена
-
-${changesList.join('\n')}
-
-Актуальные данные:
-${date} в ${time}
-${services}
-Мастер: ${staff}
-${price > 0 ? `Стоимость: ${price} руб.\n` : ''}
-Если есть вопросы - пишите!`;
+    return messages.change.template
+      .replace('{changesList}', changesList.join('\n'))
+      .replace('{date}', date)
+      .replace('{time}', time)
+      .replace('{services}', services)
+      .replace('{staff}', staff)
+      .replace('{price}', price);
   }
 
   /**
