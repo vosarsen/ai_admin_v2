@@ -296,10 +296,12 @@ class BookingMonitorService {
       });
     }
 
-    // Проверяем изменение услуг
-    const prevServices = JSON.stringify(previousState.services || []);
-    const currServices = JSON.stringify(currentState.services || []);
-    if (prevServices !== currServices) {
+    // Проверяем изменение услуг (с учетом порядка)
+    const prevServices = (previousState.services || []).sort();
+    const currServices = (currentState.services || []).sort();
+    const prevServicesStr = JSON.stringify(prevServices);
+    const currServicesStr = JSON.stringify(currServices);
+    if (prevServicesStr !== currServicesStr) {
       changes.push({
         type: 'booking_service_changed',
         description: 'Изменены услуги',
@@ -323,10 +325,12 @@ class BookingMonitorService {
     // Проверяем мастера
     if (previousState.staff_id !== currentState.staff_id) return true;
 
-    // Проверяем услуги
-    const prevServices = JSON.stringify(previousState.services || []);
-    const currServices = JSON.stringify(currentState.services || []);
-    if (prevServices !== currServices) return true;
+    // Проверяем услуги (с учетом порядка)
+    const prevServices = (previousState.services || []).sort();
+    const currServices = (currentState.services || []).sort();
+    const prevServicesStr = JSON.stringify(prevServices);
+    const currServicesStr = JSON.stringify(currServices);
+    if (prevServicesStr !== currServicesStr) return true;
 
     // Проверяем цену
     if (previousState.cost !== currentState.cost) return true;
@@ -350,7 +354,7 @@ class BookingMonitorService {
       .from('booking_notifications')
       .select('*')
       .eq('yclients_record_id', parseInt(record.id))
-      .gte('sent_at', new Date(Date.now() - 30 * 60 * 1000).toISOString()) // За последние 30 минут
+      .gte('sent_at', new Date(Date.now() - 60 * 60 * 1000).toISOString()) // За последний час
       .order('sent_at', { ascending: false });
 
     // Группируем изменения для одного сообщения
