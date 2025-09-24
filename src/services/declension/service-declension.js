@@ -45,18 +45,18 @@ class ServiceDeclension {
   "accusative": "винительный падеж (кого? что?)",
   "instrumental": "творительный падеж (кем? чем?)",
   "prepositional": "предложный падеж (о ком? о чём?)",
-  "prepositional_na": "предложный падеж с предлогом НА (на ком? на чём?)"
+  "prepositional_na": "винительный падеж для предлога НА (на что? на кого?)"
 }
 
 Примеры:
-- "Мужская стрижка" -> accusative: "мужскую стрижку", prepositional_na: "мужской стрижке"
-- "Маникюр с покрытием" -> accusative: "маникюр с покрытием", prepositional_na: "маникюре с покрытием"
-- "Окрашивание волос" -> accusative: "окрашивание волос", prepositional_na: "окрашивании волос"
+- "Мужская стрижка" -> accusative: "мужскую стрижку", prepositional_na: "мужскую стрижку"
+- "Маникюр с покрытием" -> accusative: "маникюр с покрытием", prepositional_na: "маникюр с покрытием"
+- "Окрашивание волос" -> accusative: "окрашивание волос", prepositional_na: "окрашивание волос"
 
 Важно: 
 - Сохраняй регистр как в оригинале
 - Для составных названий склоняй все части правильно
-- prepositional_na используется после предлога "на" (записаться НА что?)
+- prepositional_na используется после предлога "на" и требует ВИНИТЕЛЬНЫЙ падеж (записаться НА что?)
 `;
 
       const aiProvider = await this.getAIProvider();
@@ -126,11 +126,11 @@ ${serviceNames.map((name, i) => `${i + 1}. "${name}"`).join('\n')}
     "accusative": "винительный",
     "instrumental": "творительный",
     "prepositional": "предложный",
-    "prepositional_na": "предложный с НА"
+    "prepositional_na": "винительный для НА"
   }
 ]
 
-Важно: prepositional_na - это форма после предлога "на" (записаться НА что?)
+Важно: prepositional_na - это ВИНИТЕЛЬНЫЙ падеж для предлога "на" (записаться НА что?)
 `;
 
         const aiProvider = await this.getAIProvider();
