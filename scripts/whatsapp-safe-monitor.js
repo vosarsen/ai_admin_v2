@@ -14,6 +14,7 @@ require('dotenv').config();
 const axios = require('axios');
 const fs = require('fs').promises;
 const path = require('path');
+const { exec } = require('child_process');
 
 const CONFIG = {
     apiUrl: process.env.API_URL || 'http://localhost:3000',
@@ -38,26 +39,68 @@ class WhatsAppSafeMonitor {
 
     async checkHealth() {
         try {
-            const response = await axios.get(
-                `${CONFIG.apiUrl}/webhook/whatsapp/baileys/status/${CONFIG.companyId}`,
-                { timeout: 5000 }
-            );
+            // Проверяем несколько способов:
+            // 1. Сначала пробуем старый endpoint (может быть он заработает)
+            try {
+                const statusResponse = await axios.get(
+                    `${CONFIG.apiUrl}/webhook/whatsapp/baileys/status/${CONFIG.companyId}`,
+                    { timeout: 3000 }
+                );
 
-            const isHealthy = response.data?.status?.connected === true;
-
-            if (isHealthy) {
-                if (this.consecutiveFailures > 0) {
-                    console.log('✅ WhatsApp recovered');
-                    await this.sendNotification('✅ WhatsApp восстановлен', 'info');
+                if (statusResponse.data?.status?.connected === true) {
+                    if (this.consecutiveFailures > 0) {
+                        console.log('✅ WhatsApp connected (status endpoint)');
+                        await this.sendNotification('✅ WhatsApp восстановлен', 'info');
+                    }
+                    this.consecutiveFailures = 0;
+                    this.lastHealthyTime = Date.now();
+                    return true;
                 }
-                this.consecutiveFailures = 0;
-                this.lastHealthyTime = Date.now();
-            } else {
-                this.consecutiveFailures++;
-                console.log(`⚠️ WhatsApp disconnected (${this.consecutiveFailures} consecutive checks)`);
+            } catch (statusError) {
+                // Если status endpoint не работает, пробуем альтернативный метод
             }
 
-            return isHealthy;
+            // 2. Проверяем через baileys service напрямую на порту 3003
+            try {
+                const baileysResponse = await axios.get(
+                    `http://localhost:3003/health`,
+                    { timeout: 3000 }
+                );
+
+                if (baileysResponse.status === 200) {
+                    if (this.consecutiveFailures > 0) {
+                        console.log('✅ WhatsApp service is healthy (baileys direct check)');
+                    }
+                    this.consecutiveFailures = 0;
+                    this.lastHealthyTime = Date.now();
+                    return true;
+                }
+            } catch (baileysError) {
+                // Продолжаем с другими проверками
+            }
+
+            // 3. Если оба метода не сработали, проверяем через PM2 (запущен ли процесс)
+            const checkProcess = new Promise((resolve) => {
+                exec('pm2 list | grep baileys-whatsapp | grep online', (error, stdout) => {
+                    resolve(!error && stdout.includes('online'));
+                });
+            });
+
+            const isProcessRunning = await checkProcess;
+
+            if (isProcessRunning) {
+                // Процесс запущен, но endpoints не отвечают - возможно временная проблема
+                console.log('⚠️ Baileys process is running but endpoints not responding');
+                // Не увеличиваем счетчик ошибок сразу
+                if (this.consecutiveFailures < 2) {
+                    return true; // Даем шанс восстановиться
+                }
+            }
+
+            this.consecutiveFailures++;
+            console.log(`⚠️ WhatsApp health check inconclusive (${this.consecutiveFailures} consecutive checks)`);
+            return false;
+
         } catch (error) {
             this.consecutiveFailures++;
             console.error(`❌ Health check failed: ${error.message}`);

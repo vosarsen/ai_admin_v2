@@ -17,6 +17,11 @@ class SlotValidator {
 
     logger.info(`Validating ${slots.length} slots against ${existingBookings.length} existing bookings`);
 
+    // Логируем переданную длительность для отладки
+    if (serviceDuration) {
+      logger.info(`Using service duration: ${serviceDuration / 60} minutes (passed from database)`);
+    }
+
     // Сортируем записи по времени для проверки следующей записи
     const sortedBookings = [...existingBookings].sort((a, b) => {
       const timeA = typeof a.datetime === 'string' ? parseISO(a.datetime) : new Date(a.datetime * 1000);
@@ -25,8 +30,9 @@ class SlotValidator {
     });
 
     return slots.filter(slot => {
-      // Используем длительность из слота или переданную
-      const duration = slot.seance_length || serviceDuration || 3600; // По умолчанию 1 час
+      // Приоритет: переданная длительность услуги > длительность из слота > дефолт
+      // Это важно, так как YClients может возвращать неправильную длительность
+      const duration = serviceDuration || slot.seance_length || 3600; // По умолчанию 1 час
       
       const slotStart = typeof slot.datetime === 'string' 
         ? parseISO(slot.datetime) 
