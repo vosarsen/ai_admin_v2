@@ -72,9 +72,19 @@ class WhatsAppSafeMonitor {
     async discoverCompanies() {
         try {
             const dirs = await fs.readdir(CONFIG.baileysSessionsPath);
-            this.companies = dirs
+            const newCompanies = dirs
                 .filter(dir => dir.startsWith('company_'))
                 .map(dir => dir.replace('company_', ''));
+
+            // Очищаем устаревшие записи из Map для компаний которые больше не существуют
+            for (const [companyId] of this.companyStats) {
+                if (!newCompanies.includes(companyId)) {
+                    this.companyStats.delete(companyId);
+                    console.log(`🗑️ Removed stale company from monitoring: ${companyId}`);
+                }
+            }
+
+            this.companies = newCompanies;
 
             if (this.companies.length === 0 && CONFIG.defaultCompanyId) {
                 // Fallback to default company if no companies found
@@ -241,17 +251,35 @@ class WhatsAppSafeMonitor {
     async triggerEmergencyCleanup(companyId) {
         console.log(`🚨 [${companyId}] Triggering emergency cleanup...`);
 
+        const scriptPath = path.join(__dirname, 'baileys-multitenancy-cleanup.js');
+
+        // Проверяем существование скрипта
+        try {
+            await fs.access(scriptPath);
+        } catch (error) {
+            console.error(`❌ Emergency cleanup script not found: ${scriptPath}`);
+            await this.sendNotification(
+                `❌ Cannot run emergency cleanup for ${companyId}: script not found`,
+                'critical'
+            );
+            return false;
+        }
+
         return new Promise((resolve) => {
             exec(
-                `node ${path.join(__dirname, 'baileys-multitenancy-cleanup.js')} --company ${companyId}`,
+                `node "${scriptPath}" --company ${companyId}`,
+                { timeout: 120000 }, // 2 minute timeout
                 (error, stdout, stderr) => {
                     if (error) {
                         console.error(`Emergency cleanup failed: ${error.message}`);
+                        if (stderr) console.error(`Stderr: ${stderr}`);
                         resolve(false);
                     } else {
                         console.log(`✅ Emergency cleanup completed for ${companyId}`);
+                        // Parse output to get statistics if available
+                        const filesRemoved = stdout.match(/Total files removed: (\d+)/)?.[1] || 'unknown';
                         this.sendNotification(
-                            `✅ Emergency cleanup completed for company ${companyId}`,
+                            `✅ Emergency cleanup completed for company ${companyId}\nFiles removed: ${filesRemoved}`,
                             'info'
                         );
                         resolve(true);
