@@ -426,6 +426,25 @@ class CommandHandler {
       });
 
       if (context.client) {
+        // Логируем полную структуру клиента для отладки
+        logger.info('🔍 Client data structure for personalization:', {
+          hasName: !!context.client.name,
+          hasPhone: !!context.client.phone,
+          hasVisitHistory: !!context.client.visit_history,
+          visitHistoryLength: context.client.visit_history?.length || 0,
+          hasLastServices: !!context.client.last_services,
+          lastServicesCount: context.client.last_services?.length || 0,
+          hasVisitCount: !!context.client.visit_count,
+          visitCount: context.client.visit_count || 0,
+          hasAverageBill: !!context.client.average_bill,
+          averageBill: context.client.average_bill || 0,
+          // Показываем первые 2 визита для отладки
+          firstTwoVisits: context.client.visit_history?.slice(0, 2).map(v => ({
+            date: v.date,
+            services: v.services
+          }))
+        });
+
         // Если есть информация о клиенте - используем персонализацию
         const matches = serviceMatcher.findTopMatchesWithPersonalization(
           serviceToSearch,
