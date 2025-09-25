@@ -73,8 +73,9 @@ class ContextManagerV2 {
    */
   async _enrichContextWithDatabaseData(context, phone, companyId) {
     // Если контекст уже содержит все необходимые данные - не загружаем повторно
-    // Важно: проверяем не только наличие client, но и наличие имени
-    if (context.company && context.services && context.staff && context.client && context.client.name) {
+    // Важно: проверяем наличие client, имени И истории визитов
+    if (context.company && context.services && context.staff &&
+        context.client && context.client.name && context.client.visit_history) {
       return context;
     }
     
@@ -107,8 +108,10 @@ class ContextManagerV2 {
         return null;
       }),
       
-      // Загружаем клиента из БД если его нет в Redis контексте или если нет имени
-      (context.client && context.client.name) ? context.client : dataLoader.loadClient(phone, companyId).catch(e => {
+      // Загружаем клиента из БД если его нет в Redis контексте, нет имени или нет истории
+      (context.client && context.client.name && context.client.visit_history) ?
+        context.client :
+        dataLoader.loadClient(phone, companyId).catch(e => {
         logger.error('Failed to load client:', e.message);
         return null;
       })
@@ -122,7 +125,7 @@ class ContextManagerV2 {
     );
     
     // Если загрузили клиента из БД - сохраним его в Redis для будущих запросов
-    if (client && (!context.client || !context.client.name)) {
+    if (client && (!context.client || !context.client.name || !context.client.visit_history)) {
       logger.info(`Saving client ${client.name} to Redis cache`);
       await contextServiceV2.saveClientCache(phone, companyId, client).catch(e => {
         logger.error('Failed to save client to Redis:', e.message);
