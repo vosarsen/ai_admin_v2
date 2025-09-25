@@ -399,13 +399,20 @@ class ServiceMatcher {
     
     logger.debug('Calculating personalization for service:', {
       service: service.title,
-      client_visits: client.visits?.length || 0,
-      client_avg_check: client.average_check
+      client_visits: client.visit_history?.length || 0,
+      client_avg_check: client.average_bill || client.average_check
     });
-    
+
     // 1. Любимые услуги (часто заказываемые)
-    if (client.visits && client.visits.length > 0) {
-      const serviceCount = client.visits.filter(v => v.service_id === service.id).length;
+    if (client.visit_history && client.visit_history.length > 0) {
+      // Подсчитываем, сколько раз клиент заказывал услугу с похожим названием
+      const serviceCount = client.visit_history.filter(v => {
+        if (!v.services || !Array.isArray(v.services)) return false;
+        return v.services.some(serviceName =>
+          this.normalizeText(serviceName).includes(this.normalizeText(service.title)) ||
+          this.normalizeText(service.title).includes(this.normalizeText(serviceName))
+        );
+      }).length;
       
       if (serviceCount >= 3) {
         score += 100; // Большой бонус за частую услугу
@@ -414,10 +421,16 @@ class ServiceMatcher {
         score += 30; // Средний бонус за знакомую услугу
         reasons.push('заказывали ранее');
       }
-      
+
       // Недавно заказанная услуга
-      const lastVisit = client.visits
-        .filter(v => v.service_id === service.id)
+      const lastVisit = client.visit_history
+        .filter(v => {
+          if (!v.services || !Array.isArray(v.services)) return false;
+          return v.services.some(serviceName =>
+            this.normalizeText(serviceName).includes(this.normalizeText(service.title)) ||
+            this.normalizeText(service.title).includes(this.normalizeText(serviceName))
+          );
+        })
         .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
       
       if (lastVisit) {
@@ -432,9 +445,10 @@ class ServiceMatcher {
     }
     
     // 2. Учет среднего чека
-    if (client.average_check && client.average_check > 0) {
-      const priceDiff = Math.abs(service.price - client.average_check);
-      const priceRatio = priceDiff / client.average_check;
+    const avgCheck = client.average_bill || client.average_check;
+    if (avgCheck && avgCheck > 0) {
+      const priceDiff = Math.abs(service.price_min - avgCheck);
+      const priceRatio = priceDiff / avgCheck;
       
       // Бонус за услуги в привычном ценовом диапазоне
       if (priceRatio < 0.3) { // В пределах 30% от среднего чека
@@ -442,7 +456,7 @@ class ServiceMatcher {
         reasons.push('в вашем ценовом диапазоне');
       }
       // Штраф за слишком дорогие услуги
-      else if (service.price > client.average_check * 2) {
+      else if (service.price_min > avgCheck * 2) {
         score -= 30;
         reasons.push('дороже обычного');
       }
@@ -455,7 +469,11 @@ class ServiceMatcher {
     }
     
     // 4. Для родителей - бонус детским услугам
-    if (client.visits && client.visits.some(v => v.service_name && v.service_name.toLowerCase().includes('детск'))) {
+    if (client.visit_history && client.visit_history.some(v =>
+      v.services && v.services.some(serviceName =>
+        serviceName.toLowerCase().includes('детск')
+      )
+    )) {
       if (service.title.toLowerCase().includes('детск') || service.title.toLowerCase().includes('сын')) {
         score += 40;
         reasons.push('для вашего ребенка');
