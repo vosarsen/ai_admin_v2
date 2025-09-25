@@ -168,8 +168,8 @@ class DataLoader {
       // Добавляем + если его нет (для поиска по raw_phone)
       const phoneWithPlus = cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`;
       
-      logger.debug(`Searching for client with raw_phone: ${phoneWithPlus} in company: ${safeCompanyId}`);
-      
+      logger.info(`Searching for client with raw_phone: ${phoneWithPlus} in company: ${safeCompanyId}`);
+
       // Ищем по raw_phone (с +)
       const { data, error } = await supabase
         .from('clients')
@@ -184,8 +184,12 @@ class DataLoader {
       }
       
       if (data) {
-        logger.info(`✅ Client found: ${data.name} (${data.phone})`);
-        
+        logger.info(`✅ Client found: ${data.name} (${data.phone})`, {
+          visitHistoryLength: data.visit_history?.length || 0,
+          lastServices: data.last_services || [],
+          visitCount: data.visit_count || 0
+        });
+
         // Маппинг полей для совместимости с персонализацией
         if (data.visit_history) {
           data.visits = data.visit_history; // Для ServiceMatcher.calculatePersonalizationScore
