@@ -182,19 +182,186 @@ class SlotValidator {
   }
 
   /**
+   * Валидирует слоты для услуг с временными ограничениями
+   * @param {Array} slots - Массив слотов для проверки
+   * @param {Object} service - Информация об услуге из БД (с raw_data)
+   * @returns {Array} Отфильтрованные слоты, соответствующие ограничениям услуги
+   */
+  validateTimeRestrictedSlots(slots, service) {
+    if (!slots || !Array.isArray(slots) || slots.length === 0) {
+      return [];
+    }
+
+    if (!service) {
+      return slots;
+    }
+
+    // Сначала проверяем данные из YClients API
+    const rawData = service.raw_data || service;
+
+    // 1. Проверка временных окон из API (seance_search_start/finish)
+    if (rawData.seance_search_start !== undefined && rawData.seance_search_finish !== undefined) {
+      const startHour = Math.floor(rawData.seance_search_start / 3600); // Секунды в часы
+      const endHour = Math.ceil(rawData.seance_search_finish / 3600);
+
+      if (startHour > 0 || endHour < 24) {
+        logger.info(`⏰ Service "${service.title}" has YClients time window: ${startHour}:00 - ${endHour}:00`);
+
+        const validSlots = slots.filter(slot => {
+          const slotTime = typeof slot.datetime === 'string'
+            ? parseISO(slot.datetime)
+            : new Date(slot.datetime * 1000);
+
+          const hour = slotTime.getHours();
+          const minutes = slotTime.getMinutes();
+          const totalMinutes = hour * 60 + minutes;
+          const slotSeconds = totalMinutes * 60;
+
+          // Проверяем, попадает ли слот в разрешенное временное окно
+          if (slotSeconds < rawData.seance_search_start) {
+            logger.debug(`Slot ${slot.time} rejected: too early (before ${startHour}:00)`);
+            return false;
+          }
+
+          if (slotSeconds >= rawData.seance_search_finish) {
+            logger.debug(`Slot ${slot.time} rejected: too late (after ${endHour}:00)`);
+            return false;
+          }
+
+          return true;
+        });
+
+        logger.info(`YClients time window validation: ${validSlots.length}/${slots.length} slots are valid`);
+        return validSlots;
+      }
+    }
+
+    // 2. Фоллбэк на проверку по названию услуги (для УТРО/ДЕНЬ/ВЕЧЕР)
+    const serviceTitle = service.title.toLowerCase();
+    const restrictions = {
+      'утро': { maxHour: 13, message: 'доступна только до 13:00' },
+      'день': { minHour: 13, maxHour: 17, message: 'доступна с 13:00 до 17:00' },
+      'вечер': { minHour: 17, message: 'доступна только после 17:00' }
+    };
+
+    let restriction = null;
+    for (const [key, value] of Object.entries(restrictions)) {
+      if (serviceTitle.includes(key)) {
+        restriction = value;
+        logger.info(`⏰ Service "${service.title}" has name-based time restriction: ${value.message}`);
+        break;
+      }
+    }
+
+    if (!restriction) {
+      return slots; // Нет ограничений
+    }
+
+    // Фильтруем слоты по временным ограничениям из названия
+    const validSlots = slots.filter(slot => {
+      const slotTime = typeof slot.datetime === 'string'
+        ? parseISO(slot.datetime)
+        : new Date(slot.datetime * 1000);
+
+      const hour = slotTime.getHours();
+
+      if (restriction.minHour !== undefined && hour < restriction.minHour) {
+        logger.debug(`Slot ${slot.time} rejected: too early for ${service.title} (${hour}:00 < ${restriction.minHour}:00)`);
+        return false;
+      }
+
+      if (restriction.maxHour !== undefined && hour >= restriction.maxHour) {
+        logger.debug(`Slot ${slot.time} rejected: too late for ${service.title} (${hour}:00 >= ${restriction.maxHour}:00)`);
+        return false;
+      }
+
+      return true;
+    });
+
+    logger.info(`Name-based time restriction validation: ${validSlots.length}/${slots.length} slots are valid for "${service.title}"`);
+
+    return validSlots;
+  }
+
+  /**
+   * Валидирует слоты по дням недели для услуг с ограничениями
+   * @param {Array} slots - Массив слотов для проверки
+   * @param {Object} service - Информация об услуге из БД
+   * @param {string} date - Дата для проверки (YYYY-MM-DD)
+   * @returns {Array} Отфильтрованные слоты
+   */
+  validateDateRestrictedSlots(slots, service, date) {
+    if (!slots || !Array.isArray(slots) || slots.length === 0) {
+      return [];
+    }
+
+    if (!service || !date) {
+      return slots;
+    }
+
+    const rawData = service.raw_data || service;
+
+    // Проверка конкретных дат из API
+    if (rawData.dates && Array.isArray(rawData.dates) && rawData.dates.length > 0) {
+      // Проверяем, есть ли текущая дата в списке разрешенных
+      if (!rawData.dates.includes(date)) {
+        logger.info(`📅 Service "${service.title}" is not available on ${date} (not in allowed dates list)`);
+        return [];
+      }
+    }
+
+    // Проверка периода доступности
+    if (rawData.date_from && rawData.date_from !== '0000-00-00' &&
+        rawData.date_to && rawData.date_to !== '0000-00-00') {
+      const currentDate = parseISO(date);
+      const dateFrom = parseISO(rawData.date_from);
+      const dateTo = parseISO(rawData.date_to);
+
+      if (isBefore(currentDate, dateFrom) || isAfter(currentDate, dateTo)) {
+        logger.info(`📅 Service "${service.title}" is not available on ${date} (outside date range ${rawData.date_from} - ${rawData.date_to})`);
+        return [];
+      }
+    }
+
+    // Проверка дня недели для услуг типа "для студентов" (пн-чт)
+    const serviceTitleLower = service.title.toLowerCase();
+    if (serviceTitleLower.includes('студент') || serviceTitleLower.includes('школьник')) {
+      const dayOfWeek = new Date(date).getDay();
+      // 0 - воскресенье, 1 - понедельник, ..., 6 - суббота
+      // Разрешаем только пн-чт (1-4)
+      if (dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6) {
+        logger.info(`📅 Service "${service.title}" is not available on weekends (only Mon-Thu)`);
+        return [];
+      }
+    }
+
+    return slots;
+  }
+
+  /**
    * Валидирует и фильтрует слоты с учетом реальной доступности
    */
-  async validateSlotsWithBookings(slots, yclientsClient, companyId, staffId, date, serviceDuration = null, workingHours = null) {
+  async validateSlotsWithBookings(slots, yclientsClient, companyId, staffId, date, serviceDuration = null, workingHours = null, service = null) {
     // Получаем существующие записи
     const existingBookings = await this.getStaffBookings(
-      yclientsClient, 
-      companyId, 
-      staffId, 
+      yclientsClient,
+      companyId,
+      staffId,
       date
     );
 
     // Валидируем слоты с учетом длительности услуги и рабочих часов
-    const validSlots = this.validateSlots(slots, existingBookings, serviceDuration, workingHours);
+    let validSlots = this.validateSlots(slots, existingBookings, serviceDuration, workingHours);
+
+    // Дополнительно проверяем ограничения услуги
+    if (service) {
+      // Проверяем временные ограничения (часы работы)
+      validSlots = this.validateTimeRestrictedSlots(validSlots, service);
+
+      // Проверяем ограничения по датам/дням недели
+      const dateStr = typeof date === 'string' ? date : format(date, 'yyyy-MM-dd');
+      validSlots = this.validateDateRestrictedSlots(validSlots, service, dateStr);
+    }
 
     logger.info(`Validation result: ${validSlots.length}/${slots.length} slots are actually available`);
 
