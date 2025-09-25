@@ -479,33 +479,38 @@ class CommandHandler {
       }
     }
     
-    // Группируем слоты по мастерам
+    // Группируем слоты по мастерам для информации
     const slotsByStaff = allSlots.reduce((acc, slot) => {
       const name = slot.staff_name || 'Unknown';
       if (!acc[name]) acc[name] = [];
       acc[name].push(slot);
       return acc;
     }, {});
-    
-    // Выбираем мастера с наибольшим количеством свободных слотов
-    const staffWithMostSlots = Object.entries(slotsByStaff)
-      .sort(([, slotsA], [, slotsB]) => slotsB.length - slotsA.length)[0];
-    
-    if (!staffWithMostSlots) {
-      return { service, staff: null, slots: [] };
-    }
-    
-    const [selectedStaffName, selectedSlots] = staffWithMostSlots;
-    
-    // Находим объект мастера по имени
-    const selectedStaff = staffToCheck.find(s => s.name === selectedStaffName) || 
-                         context.staff.find(s => s.name === selectedStaffName);
-    
-    // Возвращаем полную информацию
+
+    // Собираем все слоты от всех мастеров
+    // Добавляем информацию о мастере в каждый слот
+    const allAvailableSlots = allSlots.map(slot => {
+      const staffMember = staffToCheck.find(s => s.name === slot.staff_name) ||
+                         context.staff.find(s => s.name === slot.staff_name);
+      return {
+        ...slot,
+        staff: staffMember
+      };
+    });
+
+    // Сортируем слоты по времени
+    allAvailableSlots.sort((a, b) => {
+      const timeA = a.time || a.datetime || '';
+      const timeB = b.time || b.datetime || '';
+      return timeA.localeCompare(timeB);
+    });
+
+    // Возвращаем полную информацию со всеми доступными слотами
     return {
       service: service,
-      staff: selectedStaff,
-      slots: this.organizeSlotsByTimeZones(selectedSlots, params.time_preference)
+      staff: null, // Не выбираем конкретного мастера, показываем все варианты
+      slots: this.organizeSlotsByTimeZones(allAvailableSlots, params.time_preference),
+      slotsByStaff: slotsByStaff // Дополнительно сохраняем группировку по мастерам
     };
   }
 
