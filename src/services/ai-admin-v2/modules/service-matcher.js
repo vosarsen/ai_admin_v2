@@ -378,6 +378,24 @@ class ServiceMatcher {
       };
     });
     
+    // Логируем топ-3 услуги с персонализацией для отладки
+    const top3 = scoredServices
+      .filter(s => s.final_score > 0)
+      .sort((a, b) => b.final_score - a.final_score)
+      .slice(0, 3);
+
+    logger.info('🏆 Top services with personalization:', {
+      services: top3.map(s => ({
+        title: s.title,
+        base_score: s.base_score,
+        personalization_boost: s.personalization_boost,
+        time_boost: s.time_boost,
+        gender_penalty: s.gender_penalty,
+        final_score: s.final_score,
+        reason: s.personalization_reason
+      }))
+    });
+
     // Фильтруем и сортируем
     return scoredServices
       .filter(s => s.final_score > 0)
@@ -426,9 +444,11 @@ class ServiceMatcher {
       if (serviceCount >= 3) {
         score += 100; // Большой бонус за частую услугу
         reasons.push(`часто заказываете (${serviceCount} раз)`);
+        logger.info(`✅ Added 100 points for frequent service "${service.title}" (${serviceCount} times)`);
       } else if (serviceCount >= 1) {
         score += 30; // Средний бонус за знакомую услугу
         reasons.push('заказывали ранее');
+        logger.info(`✅ Added 30 points for familiar service "${service.title}" (${serviceCount} times)`);
       }
 
       // Недавно заказанная услуга
