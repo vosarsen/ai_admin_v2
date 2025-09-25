@@ -418,6 +418,13 @@ class CommandHandler {
       service = context.services.find(s => s.yclients_id === parseInt(params.service_id));
     } else if (serviceToSearch) {
       // Ищем по названию с персонализацией
+      logger.info('Service search context check:', {
+        hasClient: !!context.client,
+        clientName: context.client?.name,
+        visitHistory: context.client?.visit_history?.length || 0,
+        lastServices: context.client?.last_services || []
+      });
+
       if (context.client) {
         // Если есть информация о клиенте - используем персонализацию
         const matches = serviceMatcher.findTopMatchesWithPersonalization(
