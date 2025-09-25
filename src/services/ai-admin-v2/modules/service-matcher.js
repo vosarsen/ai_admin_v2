@@ -128,13 +128,44 @@ class ServiceMatcher {
       scoreDetails.components.push({ rule: 'title_contains_query', points: containsScore });
     }
     
-    // 4. Запрос содержит услугу
-    if (query.includes(serviceTitle)) {
-      const containsScore = config.serviceMatcher.scoring.queryContainsTitle;
-      score += containsScore;
-      scoreDetails.components.push({ rule: 'query_contains_title', points: containsScore });
+    // 4. Проверка на полное совпадение названия
+    if (query === serviceTitle) {
+      const exactMatchScore = 200; // Большой бонус за точное совпадение
+      score += exactMatchScore;
+      scoreDetails.components.push({ rule: 'exact_match', points: exactMatchScore });
     }
-    
+    // Проверка на вхождение полного названия услуги в запрос
+    else if (query.includes(serviceTitle)) {
+      const containsFullScore = 150; // Большой бонус если запрос содержит полное название
+      score += containsFullScore;
+      scoreDetails.components.push({ rule: 'query_contains_full_title', points: containsFullScore });
+    }
+    // Проверка на вхождение запроса в название услуги
+    else if (serviceTitle.includes(query)) {
+      const containsScore = config.serviceMatcher.scoring.queryContainsTitle || 100;
+      score += containsScore;
+      scoreDetails.components.push({ rule: 'title_contains_full_query', points: containsScore });
+    }
+
+    // Специальная проверка для ключевых фраз
+    const keyPhrases = [
+      { phrase: 'для студентов', bonus: 100 },
+      { phrase: 'для школьников', bonus: 100 },
+      { phrase: 'студентов и школьников', bonus: 120 },
+      { phrase: 'счастливые часы', bonus: 80 },
+      { phrase: 'утро', bonus: 50 },
+      { phrase: 'день', bonus: 50 },
+      { phrase: 'вечер', bonus: 50 }
+    ];
+
+    for (const { phrase, bonus } of keyPhrases) {
+      if (query.includes(phrase) && serviceTitle.includes(phrase)) {
+        score += bonus;
+        scoreDetails.components.push({ rule: 'key_phrase_match', phrase, points: bonus });
+        break; // Применяем только один бонус за ключевую фразу
+      }
+    }
+
     // Каждое слово из запроса найдено в услуге
     let wordMatchCount = 0;
     const wordMatchScore = config.serviceMatcher.scoring.wordMatch;
@@ -192,7 +223,12 @@ class ServiceMatcher {
     }
     
     // Бонус за простые базовые услуги
-    if (serviceWords.length <= config.serviceMatcher.thresholds.maxSimpleServiceWords && !service.title.includes('+')) {
+    // Исключаем служебные слова при подсчете
+    const meaningfulWords = serviceWords.filter(word =>
+      !['для', 'и', 'или', 'с', 'в', 'на', 'по', 'от', 'до'].includes(word)
+    );
+
+    if (meaningfulWords.length <= config.serviceMatcher.thresholds.maxSimpleServiceWords && !service.title.includes('+')) {
       const bonus = config.serviceMatcher.scoring.simpleServiceBonus;
       score += bonus;
       scoreDetails.components.push({ rule: 'simple_service_bonus', points: bonus });
