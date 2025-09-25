@@ -408,12 +408,21 @@ class ServiceMatcher {
       // Подсчитываем, сколько раз клиент заказывал услугу с похожим названием
       const serviceCount = client.visit_history.filter(v => {
         if (!v.services || !Array.isArray(v.services)) return false;
-        return v.services.some(serviceName =>
-          this.normalizeText(serviceName).includes(this.normalizeText(service.title)) ||
-          this.normalizeText(service.title).includes(this.normalizeText(serviceName))
-        );
+        const matches = v.services.some(serviceName => {
+          const serviceNameNorm = this.normalizeText(serviceName);
+          const serviceTitleNorm = this.normalizeText(service.title);
+          const isMatch = serviceNameNorm.includes(serviceTitleNorm) || serviceTitleNorm.includes(serviceNameNorm);
+
+          if (isMatch) {
+            logger.debug(`Service match found: "${serviceName}" ~ "${service.title}"`);
+          }
+          return isMatch;
+        });
+        return matches;
       }).length;
-      
+
+      logger.info(`📊 Service frequency for "${service.title}": ${serviceCount}/${client.visit_history.length} visits`);
+
       if (serviceCount >= 3) {
         score += 100; // Большой бонус за частую услугу
         reasons.push(`часто заказываете (${serviceCount} раз)`);
