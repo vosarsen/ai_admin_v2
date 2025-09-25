@@ -33,6 +33,9 @@ Use MCP servers instead of SSH/scripts for faster access:
 - **Server:** `ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219`
 - **Server path:** /opt/ai-admin
 - **WhatsApp:** +79936363848
+- **Test phone:** 89686484488 (для тестирования - ТОЛЬКО этот номер!)
+
+⚠️ **ВАЖНО:** НИКОГДА не тестируй на реальных клиентах! Используй только тестовый номер 89686484488.
 
 ## 🔄 Development Workflow
 
@@ -48,7 +51,7 @@ git push origin feature/redis-context-cache
 ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "cd /opt/ai-admin && git pull && pm2 restart all"
 
 # 5. Test via MCP
-@whatsapp send_message phone:79001234567 message:"Test"
+@whatsapp send_message phone:89686484488 message:"Test"
 @logs logs_tail service:ai-admin-worker-v2 lines:50
 ```
 
