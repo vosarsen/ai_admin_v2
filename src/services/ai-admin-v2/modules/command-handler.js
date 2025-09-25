@@ -349,12 +349,66 @@ class CommandHandler {
     // Проверяем, что услуга указана (либо в params, либо в контексте)
     if (!serviceToSearch && !params.service_id && !context.lastSearch?.service_id) {
       logger.warn('SEARCH_SLOTS called without service specification');
-      return { 
-        service: null, 
-        staff: null, 
-        slots: [],
-        error: 'Не указана услуга для поиска слотов'
-      };
+
+      // Пробуем определить услугу на основе истории клиента
+      if (context.client && context.client.last_services && context.client.last_services.length > 0) {
+        // Анализируем частоту использования услуг
+        const serviceFrequency = {};
+
+        // Считаем частоту из последних услуг
+        context.client.last_services.forEach(serviceName => {
+          serviceFrequency[serviceName] = (serviceFrequency[serviceName] || 0) + 1;
+        });
+
+        // Также анализируем историю визитов если есть
+        if (context.client.visit_history && Array.isArray(context.client.visit_history)) {
+          context.client.visit_history.slice(-10).forEach(visit => { // Последние 10 визитов
+            if (visit.services && Array.isArray(visit.services)) {
+              visit.services.forEach(serviceName => {
+                serviceFrequency[serviceName] = (serviceFrequency[serviceName] || 0) + 1;
+              });
+            }
+          });
+        }
+
+        // Находим самую популярную услугу
+        const sortedServices = Object.entries(serviceFrequency)
+          .sort(([,a], [,b]) => b - a);
+
+        // Проверяем, есть ли явный фаворит (используется в >50% случаев)
+        const totalCount = Object.values(serviceFrequency).reduce((a, b) => a + b, 0);
+        const topService = sortedServices[0];
+
+        if (topService && topService[1] >= totalCount * 0.5) {
+          // Есть явный фаворит - используем его
+          const favoriteServiceName = topService[0];
+          serviceToSearch = favoriteServiceName;
+          logger.info(`Using client's favorite service: ${favoriteServiceName} (${topService[1]}/${totalCount} times)`);
+        } else {
+          // Нет явного фаворита - нужно спросить
+          logger.info('No clear favorite service, need to ask client');
+          return {
+            service: null,
+            staff: null,
+            slots: [],
+            requiresServiceSelection: true,
+            topServices: sortedServices.slice(0, 3).map(([name, count]) => ({
+              name,
+              count,
+              percentage: Math.round((count / totalCount) * 100)
+            }))
+          };
+        }
+      } else {
+        // Новый клиент или нет истории - нужно спросить
+        return {
+          service: null,
+          staff: null,
+          slots: [],
+          requiresServiceSelection: true,
+          topServices: []
+        };
+      }
     }
     
     // ПЕРСОНАЛИЗАЦИЯ: Используем интеллектуальный поиск услуги с учетом истории
