@@ -319,8 +319,7 @@ class Formatter {
     
     const result = {};
     
-    // Показываем слоты от всех мастеров, но ограничиваем до 5 для читабельности
-    Object.entries(byStaff).slice(0, 5).forEach(([staffName, staffSlots]) => {
+    Object.entries(byStaff).slice(0, 3).forEach(([staffName, staffSlots]) => {
       // Группируем по датам
       const byDate = {};
       staffSlots.forEach(slot => {
