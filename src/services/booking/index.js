@@ -114,23 +114,37 @@ class BookingService {
     }
   }
 
-  async getAvailableSlots(staffId, date, serviceId, companyId = config.yclients.companyId, validateSlots = false, serviceDuration = null) {
+  async getAvailableSlots(staffId, date, serviceId, companyId = config.yclients.companyId, validateSlots = false, serviceDuration = null, service = null) {
     try {
       // Слоты всегда получаем из YClients (они динамические)
       const result = await this.getYclientsClient().getAvailableSlots(staffId, date, { service_id: serviceId }, companyId);
-      
+
       // Если нужна валидация и запрос успешен
       if (validateSlots && result.success && result.data) {
-        const slots = Array.isArray(result.data) ? result.data : 
+        const slots = Array.isArray(result.data) ? result.data :
                      (result.data.data ? result.data.data : []);
-        
+
         if (slots.length > 0) {
           logger.info(`Validating ${slots.length} slots for staff ${staffId} on ${date}`);
-          
+
           // Получаем информацию о рабочих часах компании (упрощенно используем стандартные)
           // TODO: Получить из базы данных или API реальные рабочие часы
           const workingHours = { start: '09:00', end: '22:00' };
-          
+
+          // Если услуга не передана, но есть serviceId, попробуем получить из БД
+          let serviceData = service;
+          if (!serviceData && serviceId) {
+            try {
+              const servicesResult = await this.dataLayer.getServices(companyId, { yclients_id: serviceId });
+              if (servicesResult.success && servicesResult.data && servicesResult.data.length > 0) {
+                serviceData = servicesResult.data[0];
+                logger.info(`Loaded service data for validation: ${serviceData.title}`);
+              }
+            } catch (err) {
+              logger.warn(`Could not load service data for ID ${serviceId}:`, err.message);
+            }
+          }
+
           // Валидируем слоты с учетом существующих записей, длительности услуги и рабочих часов
           const validSlots = await slotValidator.validateSlotsWithBookings(
             slots,
@@ -139,9 +153,10 @@ class BookingService {
             staffId,
             date,
             serviceDuration,
-            workingHours
+            workingHours,
+            serviceData  // Передаем данные услуги для проверки временных ограничений
           );
-          
+
           // Возвращаем результат с валидированными слотами
           return {
             ...result,
@@ -151,7 +166,7 @@ class BookingService {
           };
         }
       }
-      
+
       return result;
     } catch (error) {
       logger.error('Error getting available slots:', error);
@@ -305,6 +320,20 @@ class BookingService {
         };
       }
       
+      // Получаем данные услуги для валидации
+      let serviceData = null;
+      if (actualServiceId) {
+        try {
+          const servicesResult = await this.dataLayer.getServices(companyId, { yclients_id: actualServiceId });
+          if (servicesResult.success && servicesResult.data && servicesResult.data.length > 0) {
+            serviceData = servicesResult.data[0];
+            logger.info(`Loaded service "${serviceData.title}" for slot validation`);
+          }
+        } catch (err) {
+          logger.warn(`Could not load service data for ID ${actualServiceId}:`, err.message);
+        }
+      }
+
       const slotsResult = await this.retryHandler.execute(
         async () => {
           const result = await this.getAvailableSlots(
@@ -313,13 +342,14 @@ class BookingService {
             actualServiceId,
             companyId,
             true, // Включаем валидацию слотов
-            serviceDuration // Передаем длительность услуги
+            serviceDuration, // Передаем длительность услуги
+            serviceData // Передаем данные услуги для проверки ограничений
           );
-          
+
           if (!result.success) {
             throw new Error(result.error || 'Failed to get available slots');
           }
-          
+
           return result;
         },
         'getAvailableSlots',
