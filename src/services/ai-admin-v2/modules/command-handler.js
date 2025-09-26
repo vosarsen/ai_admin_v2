@@ -182,11 +182,25 @@ class CommandHandler {
         switch (cmd.command) {
           case 'SEARCH_SLOTS':
             const slotsResult = await this.searchSlots(cmd.params, context);
-            results.push({
-              type: 'slots',
-              data: slotsResult.slots,
-              partialWindows: slotsResult.partialWindows
-            });
+
+            // Если есть ошибка (например, сотрудник не найден), передаем её в результат
+            if (slotsResult.error) {
+              results.push({
+                type: 'slots',
+                data: slotsResult.slots || [],
+                partialWindows: slotsResult.partialWindows,
+                error: slotsResult.error,
+                staffName: slotsResult.staffName,
+                availableStaff: slotsResult.availableStaff
+              });
+            } else {
+              results.push({
+                type: 'slots',
+                data: slotsResult.slots,
+                partialWindows: slotsResult.partialWindows
+              });
+            }
+
             // Сохраняем информацию о последнем поиске для создания записи
             context.lastSearch = {
               service_name: cmd.params.service_name,
@@ -196,6 +210,7 @@ class CommandHandler {
               staff_name: slotsResult.staff?.name,
               slots: slotsResult.slots,
               partialWindows: slotsResult.partialWindows,
+              error: slotsResult.error,
               timestamp: new Date().toISOString()
             };
             break;

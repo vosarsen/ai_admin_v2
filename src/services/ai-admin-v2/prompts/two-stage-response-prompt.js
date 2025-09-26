@@ -34,11 +34,18 @@ function formatCommandResults(commandResults) {
         // 4. data может быть undefined при ошибке
         // 5. data.requiresServiceSelection - нужно уточнить услугу
         // 6. data.partialWindows - частично доступные окна
+        // 7. data.error - ошибка (например, сотрудник не найден)
         let slots, service, staff, partialWindows;
 
         if (!data) {
           // Если data undefined - команда не вернула результатов
           return `⚠️ SEARCH_SLOTS: Не удалось найти свободные слоты (услуга не указана или не найдена)`;
+        }
+
+        // Проверяем ошибки сначала
+        if (data.error === 'staff_not_found') {
+          return `❌ SEARCH_SLOTS: Сотрудник "${data.staffName}" не найден
+Доступные сотрудники: ${data.availableStaff?.join(', ') || 'не указаны'}`;
         }
 
         // Проверяем, нужно ли выбрать услугу
@@ -96,10 +103,6 @@ function formatCommandResults(commandResults) {
 Услуга: ${service?.title || 'не указана'}
 Требуется: ${partialWindows[0]?.requiredMinutes || '?'} минут
 Рекомендация: предложить клиенту сократить услуги или выбрать другой день`;
-        } else if (data.error === 'staff_not_found') {
-          // Сотрудник не найден
-          return `❌ SEARCH_SLOTS: Сотрудник "${data.staffName}" не найден
-Доступные сотрудники: ${data.availableStaff?.join(', ') || 'не указаны'}`;
         } else {
           return `⚠️ SEARCH_SLOTS: Свободных слотов не найдено`;
         }
