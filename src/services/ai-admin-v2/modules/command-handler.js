@@ -257,24 +257,33 @@ class CommandHandler {
             
           case 'CHECK_STAFF_SCHEDULE':
             const scheduleResult = await this.checkStaffSchedule(cmd.params, context);
-            results.push({ type: 'staff_schedule', data: scheduleResult });
-            // Сохраняем результат проверки для последующего использования в CREATE_BOOKING
-            if (scheduleResult.targetStaff) {
-              context.lastStaffCheck = {
-                staff_name: scheduleResult.targetStaff.name,
-                is_working: scheduleResult.targetStaff.isWorking,
-                date: scheduleResult.date,
-                timestamp: new Date().toISOString()
-              };
-              
-              // Сохраняем информацию о последнем упомянутом мастере в контекст для будущих вопросов
-              if (!context.conversationContext) {
-                context.conversationContext = {};
+
+            // Если есть ошибка (сотрудник не найден), передаем её
+            if (scheduleResult.error === 'staff_not_found') {
+              results.push({
+                type: 'staff_schedule',
+                data: scheduleResult
+              });
+            } else {
+              results.push({ type: 'staff_schedule', data: scheduleResult });
+              // Сохраняем результат проверки для последующего использования в CREATE_BOOKING
+              if (scheduleResult.targetStaff) {
+                context.lastStaffCheck = {
+                  staff_name: scheduleResult.targetStaff.name,
+                  is_working: scheduleResult.targetStaff.isWorking,
+                  date: scheduleResult.date,
+                  timestamp: new Date().toISOString()
+                };
+
+                // Сохраняем информацию о последнем упомянутом мастере в контекст для будущих вопросов
+                if (!context.conversationContext) {
+                  context.conversationContext = {};
+                }
+                context.conversationContext.lastMentionedStaff = {
+                  name: scheduleResult.targetStaff.name,
+                  timestamp: new Date().toISOString()
+                };
               }
-              context.conversationContext.lastMentionedStaff = {
-                name: scheduleResult.targetStaff.name,
-                timestamp: new Date().toISOString()
-              };
             }
             break;
             
@@ -2217,21 +2226,32 @@ class CommandHandler {
     // Находим мастера по имени
     let staff = null;
     if (staff_name) {
-      staff = context.staff.find(s => 
+      staff = context.staff.find(s =>
         s.name.toLowerCase().includes(staff_name.toLowerCase()) ||
         staff_name.toLowerCase().includes(s.name.toLowerCase())
       );
-      
-      // Обновляем контекст последнего упомянутого мастера
-      if (staff && (!context.conversationContext)) {
-        context.conversationContext = {};
-      }
-      if (staff) {
-        context.conversationContext.lastMentionedStaff = {
-          name: staff.name,
-          timestamp: new Date().toISOString()
+
+      // Если сотрудник не найден - сразу возвращаем ошибку
+      if (!staff) {
+        logger.warn(`Staff member not found in CHECK_STAFF_SCHEDULE: ${staff_name}`);
+        return {
+          success: false,
+          error: 'staff_not_found',
+          staffName: staff_name,
+          availableStaff: context.staff.map(s => s.name),
+          date: dateStr,
+          formattedDate: formatHumanDate(targetDate)
         };
       }
+
+      // Обновляем контекст последнего упомянутого мастера
+      if (!context.conversationContext) {
+        context.conversationContext = {};
+      }
+      context.conversationContext.lastMentionedStaff = {
+        name: staff.name,
+        timestamp: new Date().toISOString()
+      };
     }
     
     // Получаем расписание из базы данных

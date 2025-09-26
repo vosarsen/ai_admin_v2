@@ -145,6 +145,11 @@ ID записи: ${bookingId}
         return `⚠️ SHOW_PRICES: Услуги не найдены`;
         
       case 'CHECK_STAFF_SCHEDULE':
+        // Проверяем ошибку несуществующего сотрудника
+        if (data.error === 'staff_not_found') {
+          return `❌ CHECK_STAFF_SCHEDULE: Сотрудник "${data.staffName}" не найден
+Доступные сотрудники: ${data.availableStaff?.join(', ') || 'не указаны'}`;
+        }
         // Обрабатываем результат проверки расписания мастера
         if (data.targetStaff) {
           const staff = data.targetStaff;
