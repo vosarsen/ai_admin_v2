@@ -99,12 +99,27 @@ class BookingService {
   async getServices(filters = {}, companyId = config.yclients.companyId) {
     try {
       // Сначала пробуем получить из Supabase
-      const result = await this.dataLayer.getServices(filters, companyId);
+      // Важно: dataLayer.getServices ожидает companyId первым параметром
+      const result = await this.dataLayer.getServices(companyId, false);
+
+      // Фильтруем результаты если нужно
       if (result.success && result.data && result.data.length > 0) {
-        logger.info(`✅ Services loaded from Supabase: ${result.data.length}`);
-        return result;
+        let filteredData = result.data;
+
+        // Применяем фильтры если они есть
+        if (filters.service_id) {
+          filteredData = filteredData.filter(s =>
+            s.yclients_id === filters.service_id ||
+            s.id === filters.service_id
+          );
+        }
+
+        if (filteredData.length > 0) {
+          logger.info(`✅ Services loaded from Supabase: ${filteredData.length}`);
+          return { success: true, data: filteredData };
+        }
       }
-      
+
       // Если в Supabase пусто, получаем из YClients
       logger.info('📱 Services not found in Supabase, fetching from YClients...');
       return await this.getYclientsClient().getServices(filters, companyId);
@@ -135,7 +150,7 @@ class BookingService {
           let serviceData = service;
           if (!serviceData && serviceId) {
             try {
-              const servicesResult = await this.dataLayer.getServices(companyId, { yclients_id: serviceId });
+              const servicesResult = await this.getServices({ service_id: serviceId }, companyId);
               if (servicesResult.success && servicesResult.data && servicesResult.data.length > 0) {
                 serviceData = servicesResult.data[0];
                 logger.info(`Loaded service data for validation: ${serviceData.title}`);
@@ -324,7 +339,7 @@ class BookingService {
       let serviceData = null;
       if (actualServiceId) {
         try {
-          const servicesResult = await this.dataLayer.getServices(companyId, { yclients_id: actualServiceId });
+          const servicesResult = await this.getServices({ service_id: actualServiceId }, companyId);
           if (servicesResult.success && servicesResult.data && servicesResult.data.length > 0) {
             serviceData = servicesResult.data[0];
             logger.info(`Loaded service "${serviceData.title}" for slot validation`);
