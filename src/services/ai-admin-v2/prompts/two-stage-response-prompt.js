@@ -14,17 +14,38 @@ function formatCommandResults(commandResults) {
   if (!commandResults || commandResults.length === 0) {
     return 'Команды не выполнялись (простое сообщение)';
   }
-  
+
   // Логируем для отладки
   console.log('📊 formatCommandResults received:', JSON.stringify(commandResults, null, 2));
-  
+
+  // КРИТИЧНО: Проверяем ошибки staff_not_found в самом начале
+  const hasStaffNotFound = commandResults.some(result => {
+    return result.data?.error === 'staff_not_found' ||
+           result.error === 'staff_not_found';
+  });
+
+  if (hasStaffNotFound) {
+    const staffError = commandResults.find(result =>
+      result.data?.error === 'staff_not_found' ||
+      result.error === 'staff_not_found'
+    );
+    const staffName = staffError.data?.staffName || staffError.staffName || 'указанный сотрудник';
+    const available = staffError.data?.availableStaff || staffError.availableStaff || [];
+
+    return `🚨 КРИТИЧНО: СОТРУДНИК НЕ СУЩЕСТВУЕТ!
+❌ Сотрудника "${staffName}" НЕТ в нашей компании!
+НЕ ГОВОРИ "все занято" или "нет времени" - СОТРУДНИКА ПРОСТО НЕТ!
+Доступные сотрудники: ${available.join(', ')}
+ОБЯЗАТЕЛЬНО скажи клиенту, что такого сотрудника у вас нет и предложи других.`;
+  }
+
   return commandResults.map(result => {
     const { command, success, data, error } = result;
-    
+
     if (!success) {
       return `❌ ${command}: ОШИБКА - ${error || 'неизвестная ошибка'}`;
     }
-    
+
     switch (command) {
       case 'SEARCH_SLOTS':
         // Обрабатываем разные варианты структуры:
