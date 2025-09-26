@@ -497,6 +497,17 @@ class CommandHandler {
           found: targetStaff.name,
           staffId: targetStaff.yclients_id
         });
+      } else {
+        // Сотрудник с таким именем не найден
+        logger.warn(`Staff member not found: ${staffToSearch}`);
+        return {
+          service: service,
+          staff: null,
+          slots: [],
+          error: `staff_not_found`,
+          staffName: staffToSearch,
+          availableStaff: context.staff.map(s => s.name)
+        };
       }
     }
     
