@@ -293,12 +293,69 @@ class BookingService {
         
         if (allSlots.length === 0) {
           logger.warn(`❌ No available slots found for any staff`);
+
+          // Пытаемся найти частично доступные окна для всех мастеров
+          let allPartialWindows = [];
+          if (serviceDuration) {
+            try {
+              for (const staffMember of staffResult.data) {
+                // Получаем все слоты без валидации
+                const allSlotsResult = await this.getAvailableSlots(
+                  staffMember.yclients_id,
+                  targetDate,
+                  actualServiceId,
+                  companyId,
+                  false // Без валидации
+                );
+
+                if (allSlotsResult.success && allSlotsResult.data) {
+                  const rawSlots = Array.isArray(allSlotsResult.data) ? allSlotsResult.data :
+                                  (allSlotsResult.data.data ? allSlotsResult.data.data : []);
+
+                  // Получаем существующие записи
+                  const existingBookings = await slotValidator.getStaffBookings(
+                    this.getYclientsClient(),
+                    companyId,
+                    staffMember.yclients_id,
+                    targetDate
+                  );
+
+                  // Находим частично доступные окна
+                  const partialWindows = slotValidator.findPartiallyAvailableWindows(
+                    rawSlots,
+                    existingBookings,
+                    serviceDuration,
+                    { start: '09:00', end: '22:00' }
+                  );
+
+                  // Добавляем информацию о мастере к каждому окну
+                  if (partialWindows.length > 0) {
+                    const windowsWithStaff = partialWindows.map(window => ({
+                      ...window,
+                      staff_id: staffMember.yclients_id,
+                      staff_name: staffMember.name,
+                      staff_rating: staffMember.rating
+                    }));
+                    allPartialWindows.push(...windowsWithStaff);
+                  }
+                }
+              }
+
+              if (allPartialWindows.length > 0) {
+                logger.info(`Found ${allPartialWindows.length} partially available windows across all staff`);
+              }
+            } catch (error) {
+              logger.warn('Failed to find partial windows:', error.message);
+            }
+          }
+
           return {
             success: false,
             error: 'No available slots found',
             reason: 'fully_booked',
             data: [],
-            checkedStaffCount: staffResult.data.length
+            checkedStaffCount: staffResult.data.length,
+            partialWindows: allPartialWindows
           };
         }
         
@@ -388,12 +445,56 @@ class BookingService {
       
       if (availableSlots.length === 0) {
         logger.warn(`❌ All slots are booked for staff ${staffId}`);
+
+        // Пытаемся найти частично доступные окна
+        let partialWindows = [];
+        if (serviceDuration) {
+          try {
+            // Получаем все слоты без валидации для анализа
+            const allSlotsResult = await this.getAvailableSlots(
+              staffId,
+              targetDate,
+              actualServiceId,
+              companyId,
+              false // Без валидации
+            );
+
+            if (allSlotsResult.success && allSlotsResult.data) {
+              const allSlots = Array.isArray(allSlotsResult.data) ? allSlotsResult.data :
+                              (allSlotsResult.data.data ? allSlotsResult.data.data : []);
+
+              // Получаем существующие записи для анализа
+              const existingBookings = await slotValidator.getStaffBookings(
+                this.getYclientsClient(),
+                companyId,
+                staffId,
+                targetDate
+              );
+
+              // Находим частично доступные окна
+              partialWindows = slotValidator.findPartiallyAvailableWindows(
+                allSlots,
+                existingBookings,
+                serviceDuration,
+                { start: '09:00', end: '22:00' }
+              );
+
+              if (partialWindows.length > 0) {
+                logger.info(`Found ${partialWindows.length} partially available windows`);
+              }
+            }
+          } catch (error) {
+            logger.warn('Failed to find partial windows:', error.message);
+          }
+        }
+
         return {
           success: false,
           error: 'All slots are booked',
           reason: 'fully_booked',
           data: [],
-          alternativeSlots: slotsData // Возвращаем все слоты как альтернативы
+          alternativeSlots: slotsData, // Возвращаем все слоты как альтернативы
+          partialWindows: partialWindows
         };
       }
 
