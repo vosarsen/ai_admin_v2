@@ -339,6 +339,76 @@ class SlotValidator {
   }
 
   /**
+   * Находит частично доступные временные окна (меньше требуемой длительности)
+   * @param {Array} slots - Массив слотов от YClients API
+   * @param {Array} existingBookings - Существующие записи мастера
+   * @param {number} requiredDuration - Требуемая длительность в секундах
+   * @param {Object} workingHours - Рабочие часы
+   * @returns {Array} Массив объектов с информацией о частично доступных окнах
+   */
+  findPartiallyAvailableWindows(slots, existingBookings = [], requiredDuration, workingHours = null) {
+    if (!slots || !Array.isArray(slots) || slots.length === 0) {
+      return [];
+    }
+
+    logger.info(`Finding partially available windows for duration: ${requiredDuration / 60} minutes`);
+
+    const partialWindows = [];
+    const sortedBookings = [...existingBookings].sort((a, b) => {
+      const timeA = typeof a.datetime === 'string' ? parseISO(a.datetime) : new Date(a.datetime * 1000);
+      const timeB = typeof b.datetime === 'string' ? parseISO(b.datetime) : new Date(b.datetime * 1000);
+      return timeA - timeB;
+    });
+
+    for (const slot of slots) {
+      const slotStart = typeof slot.datetime === 'string'
+        ? parseISO(slot.datetime)
+        : new Date(slot.datetime * 1000);
+
+      // Найдем максимальную доступную длительность для этого слота
+      let maxAvailableDuration = requiredDuration; // Начинаем с требуемой
+
+      // Проверка 1: Ограничение рабочими часами
+      if (workingHours && workingHours.end) {
+        const [endHour, endMinute] = workingHours.end.split(':').map(Number);
+        const workEndDate = new Date(slotStart);
+        workEndDate.setHours(endHour, endMinute, 0, 0);
+
+        const timeUntilWorkEnd = Math.floor((workEndDate - slotStart) / 1000);
+        maxAvailableDuration = Math.min(maxAvailableDuration, timeUntilWorkEnd);
+      }
+
+      // Проверка 2: Следующая запись
+      for (const booking of sortedBookings) {
+        const bookingStart = typeof booking.datetime === 'string'
+          ? parseISO(booking.datetime)
+          : new Date(booking.datetime * 1000);
+
+        if (isAfter(bookingStart, slotStart)) {
+          const timeUntilNextBooking = Math.floor((bookingStart - slotStart) / 1000);
+          maxAvailableDuration = Math.min(maxAvailableDuration, timeUntilNextBooking);
+          break; // Нашли первую запись после слота
+        }
+      }
+
+      // Если доступное время меньше требуемого, но больше 15 минут
+      if (maxAvailableDuration < requiredDuration && maxAvailableDuration >= 900) {
+        partialWindows.push({
+          datetime: slot.datetime,
+          time: slot.time,
+          availableDuration: maxAvailableDuration,
+          availableMinutes: Math.floor(maxAvailableDuration / 60),
+          requiredMinutes: Math.floor(requiredDuration / 60),
+          shortage: Math.floor((requiredDuration - maxAvailableDuration) / 60),
+          isPartial: true
+        });
+      }
+    }
+
+    return partialWindows;
+  }
+
+  /**
    * Валидирует и фильтрует слоты с учетом реальной доступности
    */
   async validateSlotsWithBookings(slots, yclientsClient, companyId, staffId, date, serviceDuration = null, workingHours = null, service = null) {

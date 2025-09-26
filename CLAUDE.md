@@ -97,12 +97,24 @@ Server: 6379 (direct)
 1. "Извините, произошла ошибка" → Check logs: `@logs logs_tail service:ai-admin-worker-v2`
 2. Session errors → Check Baileys cleanup: `ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "ls -1 /opt/ai-admin/baileys_sessions/company_* | wc -l"`
 3. Redis connection → Ensure tunnel: `./scripts/maintain-redis-tunnel.sh status`
+4. Too many Telegram alerts → See `docs/TELEGRAM_ALERTS_TROUBLESHOOTING.md`
+5. WhatsApp file accumulation → See `docs/WHATSAPP_MONITORING_GUIDE.md`
 
 **PM2 monitoring:**
 ```bash
 ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 status"
 ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 logs --err --lines 50"
 ```
+
+## 📊 Monitoring & Alerts
+
+**WhatsApp file monitoring thresholds:**
+- ✅ OK: < 200 files
+- ⚠️ WARNING: 200+ files (alert 1/hour)
+- 🟠 CRITICAL: 250+ files (alert 1/30min)
+- 🔴 EMERGENCY: 300+ files (alert 1/15min)
+
+**Note:** We tested with 230 files without issues. The "device_removed" warnings are precautionary, not based on hard limits.
 
 ## 📚 Detailed Documentation
 
@@ -111,6 +123,8 @@ For more information, see:
 - `docs/MCP_SERVERS_GUIDE.md` - Complete MCP setup
 - `docs/SYNC_SYSTEM.md` - YClients sync details
 - `docs/AI_PROVIDERS_GUIDE.md` - AI provider configuration
+- `docs/WHATSAPP_MONITORING_GUIDE.md` - WhatsApp monitoring and file management
+- `docs/TELEGRAM_ALERTS_TROUBLESHOOTING.md` - Telegram alert troubleshooting
 - `docs/development-diary/` - Recent changes and decisions
 
 ## 🚫 Important Rules
@@ -137,5 +151,5 @@ For more information, see:
 ```
 
 ---
-**Last updated:** September 24, 2025
+**Last updated:** September 26, 2025
 **Current branch:** feature/redis-context-cache

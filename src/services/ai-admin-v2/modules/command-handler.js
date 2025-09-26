@@ -182,7 +182,11 @@ class CommandHandler {
         switch (cmd.command) {
           case 'SEARCH_SLOTS':
             const slotsResult = await this.searchSlots(cmd.params, context);
-            results.push({ type: 'slots', data: slotsResult.slots });
+            results.push({
+              type: 'slots',
+              data: slotsResult.slots,
+              partialWindows: slotsResult.partialWindows
+            });
             // Сохраняем информацию о последнем поиске для создания записи
             context.lastSearch = {
               service_name: cmd.params.service_name,
@@ -191,6 +195,7 @@ class CommandHandler {
               staff_id: slotsResult.staff?.yclients_id,
               staff_name: slotsResult.staff?.name,
               slots: slotsResult.slots,
+              partialWindows: slotsResult.partialWindows,
               timestamp: new Date().toISOString()
             };
             break;
@@ -572,7 +577,50 @@ class CommandHandler {
       .sort(([, slotsA], [, slotsB]) => slotsB.length - slotsA.length)[0];
     
     if (!staffWithMostSlots) {
-      return { service, staff: null, slots: [] };
+      // Если нет полностью доступных слотов, проверяем частично доступные окна
+      let partialWindows = [];
+
+      if (service) {
+        logger.info('No fully available slots found, checking for partial windows...');
+
+        for (const staff of staffToCheck) {
+          try {
+            const result = await bookingService.findSuitableSlot({
+              companyId: context.company.yclients_id || context.company.company_id,
+              serviceId: service?.yclients_id,
+              staffId: staff?.yclients_id,
+              preferredDate: parsedDate,
+              timePreference: params.time_preference
+            });
+
+            // Проверяем наличие частично доступных окон в результате
+            if (result.partialWindows && result.partialWindows.length > 0) {
+              // Добавляем информацию о мастере к каждому окну
+              const windowsWithStaff = result.partialWindows.map(window => ({
+                ...window,
+                staff_name: staff.name,
+                staff_id: staff.yclients_id,
+                service_name: service.title,
+                service_id: service.yclients_id
+              }));
+              partialWindows.push(...windowsWithStaff);
+            }
+          } catch (error) {
+            logger.debug(`Error checking partial windows for ${staff.name}:`, error.message);
+          }
+        }
+
+        if (partialWindows.length > 0) {
+          logger.info(`Found ${partialWindows.length} partial windows for service ${service.title}`);
+        }
+      }
+
+      return {
+        service,
+        staff: null,
+        slots: [],
+        partialWindows: partialWindows
+      };
     }
     
     const [selectedStaffName, selectedSlots] = staffWithMostSlots;
