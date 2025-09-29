@@ -180,7 +180,7 @@ class ServiceMatcher {
     }
     
     // 5. Проверка синонимов и связанных слов
-    const synonymScore = this.checkSynonyms(query, serviceTitle);
+    const synonymScore = this.checkSynonyms(query, serviceTitle, service);
     if (synonymScore > 0) {
       score += synonymScore;
       scoreDetails.components.push({ rule: 'synonyms', points: synonymScore });
@@ -261,22 +261,52 @@ class ServiceMatcher {
    * Проверка синонимов и связанных слов
    * @param {string} query - Search query
    * @param {string} serviceTitle - Service title
+   * @param {Object} service - Service object (optional)
    * @returns {number} Synonym match score
    */
-  checkSynonyms(query, serviceTitle) {
+  checkSynonyms(query, serviceTitle, service = {}) {
     let score = 0;
     
-    // Специальная проверка для детских услуг - высокий приоритет
-    const childKeywords = ['ребенок', 'ребёнок', 'дети', 'сын', 'дочь', 'мальчик', 'девочка', 'школьник', 'подросток', 'ребенка', 'сына', 'дочку'];
-    const hasChildKeyword = childKeywords.some(keyword => query.includes(keyword));
-    const isChildService = serviceTitle.includes('детск');
-    
-    if (hasChildKeyword && isChildService) {
-      // Большой бонус если упоминается ребенок и это детская услуга
-      return 100;
-    } else if (hasChildKeyword && !isChildService) {
-      // Штраф если упоминается ребенок, но это НЕ детская услуга
-      return -50;
+    // Универсальная проверка для специальных категорий клиентов
+    const specialCategories = [
+      {
+        keywords: ['ребенок', 'ребёнок', 'дети', 'сын', 'дочь', 'мальчик', 'девочка', 'школьник', 'подросток', 'ребенка', 'сына', 'дочку'],
+        serviceMarkers: ['детск', 'ребен', 'child', 'kids'],
+        bonus: 100,
+        penalty: -50
+      },
+      {
+        keywords: ['беременн', 'в положении', 'будущая мама'],
+        serviceMarkers: ['беременн', 'prenatal', 'матер'],
+        bonus: 80,
+        penalty: -30
+      },
+      {
+        keywords: ['мужчина', 'муж', 'парень'],
+        serviceMarkers: ['мужск', 'men', 'барбер'],
+        bonus: 50,
+        penalty: 0
+      },
+      {
+        keywords: ['женщина', 'жена', 'девушка'],
+        serviceMarkers: ['женск', 'women', 'дамск'],
+        bonus: 50,
+        penalty: 0
+      }
+    ];
+
+    for (const category of specialCategories) {
+      const hasKeyword = category.keywords.some(keyword => query.includes(keyword));
+      const isSpecialService = category.serviceMarkers.some(marker => serviceTitle.includes(marker));
+
+      if (hasKeyword && isSpecialService) {
+        return category.bonus;
+      } else if (hasKeyword && !isSpecialService && category.penalty !== 0) {
+        // Для комплексных услуг с "+" не применяем штраф если услуга может быть универсальной
+        if (!service.title.includes('+')) {
+          return category.penalty;
+        }
+      }
     }
     
     // Расширенный словарь синонимов для барбершопа и beauty-индустрии
