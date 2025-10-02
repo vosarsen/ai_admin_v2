@@ -6,6 +6,7 @@ const messageQueue = require('./queue/message-queue');
 const { validateRedisConfig } = require('./utils/redis-factory');
 const secureConfig = require('./config/secure-config');
 const { getSyncManager } = require('./sync/sync-manager');
+const MarketplaceWebSocket = require('./api/websocket/marketplace-ws');
 
 // Handle uncaught errors
 process.on('uncaughtException', (error) => {
@@ -19,6 +20,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Global server instance
 let server;
+let marketplaceWS;
 
 // Graceful shutdown
 process.on('SIGTERM', shutdown);
@@ -66,6 +68,10 @@ async function startServer() {
       logger.info(`🏢 Company ID: ${config.yclients.companyId}`);
       logger.info('🔒 Redis authentication: enabled');
     });
+
+    // Initialize WebSocket server for marketplace
+    marketplaceWS = new MarketplaceWebSocket(server);
+    logger.info('🔌 Marketplace WebSocket server initialized');
     
     // Initialize sync manager
     logger.info('🔄 Initializing sync manager...');

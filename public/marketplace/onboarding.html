@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Подключение AI Admin к вашему салону</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 40px;
+            color: white;
+        }
+
+        h1 {
+            color: #2c3e50;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .salon-info {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .salon-name {
+            font-size: 20px;
+            color: #2c3e50;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .salon-details {
+            color: #6c757d;
+            font-size: 14px;
+        }
+
+        .steps {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 40px;
+            position: relative;
+        }
+
+        .steps::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 10%;
+            right: 10%;
+            height: 2px;
+            background: #e0e0e0;
+            z-index: 1;
+        }
+
+        .step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+            z-index: 2;
+        }
+
+        .step-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e0e0e0;
+            color: #999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .step.active .step-number {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .step.completed .step-number {
+            background: #4caf50;
+            color: white;
+        }
+
+        .step-title {
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .step.active .step-title {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        .whatsapp-section {
+            text-align: center;
+        }
+
+        .qr-container {
+            width: 280px;
+            height: 280px;
+            margin: 20px auto;
+            border: 3px solid #25d366;
+            border-radius: 20px;
+            padding: 20px;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .qr-code {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .qr-code canvas {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .qr-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #25d366;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .instructions {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+
+        .instructions h3 {
+            color: #0284c7;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .instructions ol {
+            text-align: left;
+            max-width: 400px;
+            margin: 0 auto;
+            color: #334155;
+        }
+
+        .instructions li {
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: 500;
+            display: none;
+        }
+
+        .status.connecting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffc107;
+            display: block;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #28a745;
+            display: block;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #dc3545;
+            display: block;
+        }
+
+        .success-section {
+            display: none;
+            text-align: center;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .success-icon {
+            width: 100px;
+            height: 100px;
+            background: #4caf50;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 30px;
+            font-size: 50px;
+            color: white;
+        }
+
+        .button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            margin-top: 20px;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+        }
+
+        .timer {
+            color: #6c757d;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .error-message {
+            color: #dc3545;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🤖</div>
+            <h1>Подключение AI Admin</h1>
+            <p style="color: #6c757d;">Интеллектуальный помощник для вашего салона</p>
+        </div>
+
+        <div class="salon-info">
+            <div class="salon-name" id="salonName">Загрузка...</div>
+            <div class="salon-details" id="salonDetails"></div>
+        </div>
+
+        <div class="steps">
+            <div class="step active" id="step1">
+                <div class="step-number">1</div>
+                <div class="step-title">WhatsApp</div>
+            </div>
+            <div class="step" id="step2">
+                <div class="step-number">2</div>
+                <div class="step-title">Настройка</div>
+            </div>
+            <div class="step" id="step3">
+                <div class="step-number">3</div>
+                <div class="step-title">Готово</div>
+            </div>
+        </div>
+
+        <div class="whatsapp-section" id="whatsappSection">
+            <h2 style="color: #2c3e50; margin-bottom: 20px;">Подключите WhatsApp вашего салона</h2>
+
+            <div class="qr-container">
+                <div class="qr-code" id="qrCode">
+                    <div class="qr-loading">
+                        <div class="spinner"></div>
+                        <p style="margin-top: 15px; color: #6c757d;">Генерация QR-кода...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="timer" id="timer"></div>
+            <div class="status" id="status"></div>
+            <div class="error-message" id="errorMessage"></div>
+
+            <div class="instructions">
+                <h3>📱 Как подключить WhatsApp:</h3>
+                <ol>
+                    <li>Откройте <strong>WhatsApp</strong> на телефоне салона</li>
+                    <li>Перейдите в <strong>Настройки</strong> → <strong>Связанные устройства</strong></li>
+                    <li>Нажмите <strong>Привязать устройство</strong></li>
+                    <li>Отсканируйте QR-код камерой телефона</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="success-section" id="successSection">
+            <div class="success-icon">✓</div>
+            <h2 style="color: #2c3e50; margin-bottom: 20px;">WhatsApp успешно подключен!</h2>
+            <p style="color: #6c757d; margin-bottom: 30px;">
+                Сейчас мы настраиваем вашего AI-помощника.<br>
+                Это займет всего несколько секунд...
+            </p>
+            <div class="spinner" style="margin: 0 auto;"></div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+    <script>
+        // Получаем токен из URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+
+        if (!token) {
+            alert('Ошибка: токен не найден');
+            window.location.href = 'https://yclients.com/marketplace';
+        }
+
+        // Декодируем токен для получения данных
+        let tokenData = {};
+        try {
+            tokenData = JSON.parse(atob(token.split('.')[1]));
+            console.log('Token data:', tokenData);
+        } catch (e) {
+            console.error('Error decoding token:', e);
+        }
+
+        // Обновляем информацию о салоне
+        document.getElementById('salonName').textContent =
+            tokenData.user_data?.user_name || `Салон #${tokenData.salon_id}`;
+
+        if (tokenData.user_data?.user_phone) {
+            document.getElementById('salonDetails').textContent =
+                `Телефон: ${tokenData.user_data.user_phone}`;
+        }
+
+        let qrRefreshTimer;
+        let qrExpiryTime = 20; // секунд
+        let socket;
+        let currentQR = null;
+
+        // Инициализация WebSocket
+        function initWebSocket() {
+            socket = io('/marketplace', {
+                auth: {
+                    token: token
+                }
+            });
+
+            socket.on('connect', () => {
+                console.log('WebSocket connected');
+            });
+
+            socket.on('qr', (data) => {
+                console.log('QR received:', data);
+                currentQR = data.qr;
+                displayQR(data.qr);
+                startQRTimer();
+            });
+
+            socket.on('status', (data) => {
+                console.log('Status update:', data);
+                updateStatus(data.status);
+            });
+
+            socket.on('connected', (data) => {
+                console.log('WhatsApp connected!', data);
+                handleWhatsAppConnected();
+            });
+
+            socket.on('error', (error) => {
+                console.error('WebSocket error:', error);
+                showError(error.message || 'Ошибка подключения');
+            });
+        }
+
+        // Отображение QR-кода
+        function displayQR(qrData) {
+            const qrContainer = document.getElementById('qrCode');
+            qrContainer.innerHTML = '';
+
+            const canvas = document.createElement('canvas');
+            qrContainer.appendChild(canvas);
+
+            QRCode.toCanvas(canvas, qrData, {
+                width: 240,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#ffffff'
+                }
+            }, (error) => {
+                if (error) {
+                    console.error('QR generation error:', error);
+                    showError('Ошибка генерации QR-кода');
+                }
+            });
+        }
+
+        // Таймер обновления QR
+        function startQRTimer() {
+            clearInterval(qrRefreshTimer);
+            qrExpiryTime = 20;
+
+            qrRefreshTimer = setInterval(() => {
+                qrExpiryTime--;
+
+                if (qrExpiryTime <= 0) {
+                    clearInterval(qrRefreshTimer);
+                    requestNewQR();
+                } else {
+                    document.getElementById('timer').textContent =
+                        `QR-код обновится через ${qrExpiryTime} сек`;
+                }
+            }, 1000);
+        }
+
+        // Запрос нового QR
+        async function requestNewQR() {
+            try {
+                const response = await fetch('/marketplace/api/qr', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to get QR');
+                }
+
+                const data = await response.json();
+                if (data.qr) {
+                    currentQR = data.qr;
+                    displayQR(data.qr);
+                    startQRTimer();
+                }
+            } catch (error) {
+                console.error('QR request error:', error);
+                showError('Не удалось получить QR-код. Обновите страницу.');
+            }
+        }
+
+        // Обновление статуса
+        function updateStatus(status) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = 'status';
+
+            switch (status) {
+                case 'connecting':
+                    statusEl.textContent = '⏳ Подключение...';
+                    statusEl.classList.add('connecting');
+                    break;
+                case 'connected':
+                    statusEl.textContent = '✅ WhatsApp подключен!';
+                    statusEl.classList.add('connected');
+                    break;
+                case 'error':
+                    statusEl.textContent = '❌ Ошибка подключения';
+                    statusEl.classList.add('error');
+                    break;
+                default:
+                    statusEl.style.display = 'none';
+            }
+        }
+
+        // Показ ошибки
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+        }
+
+        // Обработка успешного подключения WhatsApp
+        async function handleWhatsAppConnected() {
+            clearInterval(qrRefreshTimer);
+
+            // Обновляем UI
+            document.getElementById('step1').classList.remove('active');
+            document.getElementById('step1').classList.add('completed');
+            document.getElementById('step2').classList.add('active');
+
+            document.getElementById('whatsappSection').style.display = 'none';
+            document.getElementById('successSection').style.display = 'block';
+
+            // Отправляем callback в YClients для активации
+            try {
+                const response = await fetch('/marketplace/api/activate', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    // Успешно активировано
+                    setTimeout(() => {
+                        document.getElementById('step2').classList.remove('active');
+                        document.getElementById('step2').classList.add('completed');
+                        document.getElementById('step3').classList.add('active');
+
+                        document.getElementById('successSection').innerHTML = `
+                            <div class="success-icon">🎉</div>
+                            <h2 style="color: #2c3e50; margin-bottom: 20px;">Поздравляем!</h2>
+                            <p style="color: #6c757d; margin-bottom: 30px;">
+                                AI Admin успешно подключен к вашему салону.<br>
+                                Бот готов помогать вашим клиентам!
+                            </p>
+                            <button class="button" onclick="window.location.href='https://yclients.com/marketplace'">
+                                Вернуться в YClients
+                            </button>
+                        `;
+                    }, 3000);
+                } else {
+                    throw new Error('Activation failed');
+                }
+            } catch (error) {
+                console.error('Activation error:', error);
+                showError('Ошибка активации. Обратитесь в поддержку.');
+            }
+        }
+
+        // Запускаем процесс
+        initWebSocket();
+        requestNewQR();
+    </script>
+</body>
+</html>

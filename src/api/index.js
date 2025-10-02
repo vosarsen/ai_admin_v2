@@ -94,6 +94,10 @@ app.use('/api/whatsapp', whatsappSessionsRoutes);
 const marketplaceRoutes = require('./routes/marketplace');
 app.use('/marketplace', marketplaceRoutes);
 
+// YClients Marketplace routes (новая интеграция)
+const yclientsMarketplaceRoutes = require('./routes/yclients-marketplace');
+app.use('', yclientsMarketplaceRoutes); // Монтируем в корень для правильных URL
+
 // Health check routes with detailed monitoring
 const healthRoutes = require('./routes/health');
 app.use('', healthRoutes);
