@@ -739,6 +739,15 @@ class CommandHandler {
       }
 
       // YClients book_services endpoint возвращает { data: { services: [...], events: [...], category: [...] } }
+      logger.info('Parsing book_services response:', {
+        resultKeys: Object.keys(servicesResult),
+        dataType: typeof servicesResult.data,
+        dataKeys: servicesResult.data ? Object.keys(servicesResult.data) : 'null',
+        hasServices: servicesResult.data?.services !== undefined,
+        servicesType: typeof servicesResult.data?.services,
+        servicesLength: Array.isArray(servicesResult.data?.services) ? servicesResult.data.services.length : 'N/A'
+      });
+
       const services = Array.isArray(servicesResult.data)
         ? servicesResult.data
         : (servicesResult.data.services || servicesResult.data.data);
@@ -746,7 +755,7 @@ class CommandHandler {
       if (!Array.isArray(services)) {
         logger.warn('Services is not an array, using original service ID:', {
           servicesType: typeof services,
-          dataKeys: Object.keys(servicesResult.data || {})
+          servicesValue: services
         });
         return [serviceId];
       }
