@@ -13,6 +13,7 @@ Quick reference for Claude Code when working with AI Admin v2.
 - `config/project-docs/CONTEXT.md` - Where we left off
 - `config/project-docs/TASK.md` - Current tasks
 - `docs/TROUBLESHOOTING.md` - Common issues
+- `docs/marketplace/AUTHORIZATION_QUICK_REFERENCE.md` - ⚡ YClients авторизация
 
 ## 🔧 Essential MCP Servers
 
@@ -126,6 +127,7 @@ For more information, see:
 - `docs/WHATSAPP_MONITORING_GUIDE.md` - WhatsApp monitoring and file management
 - `docs/TELEGRAM_ALERTS_TROUBLESHOOTING.md` - Telegram alert troubleshooting
 - `docs/development-diary/` - Recent changes and decisions
+- `docs/marketplace/` - YClients Marketplace интеграция и авторизация
 
 ## 🚫 Important Rules
 
@@ -150,6 +152,24 @@ For more information, see:
 └── tests/           # Test files
 ```
 
+## 🔑 YClients Marketplace Authorization
+
+**ВАЖНО: НЕ нужен User Token для маркетплейса!**
+
+```javascript
+// Для работы с API салона через маркетплейс достаточно:
+headers = {
+  'Authorization': `Bearer ${PARTNER_TOKEN}`,  // Только Partner Token!
+  'Accept': 'application/vnd.yclients.v2+json'
+}
+
+// Все API endpoints работают с salon_id после подключения:
+GET/POST https://api.yclients.com/api/v1/records/{salon_id}
+GET https://api.yclients.com/api/v1/clients/{salon_id}
+```
+
+Детали: `docs/marketplace/AUTHORIZATION_QUICK_REFERENCE.md`
+
 ---
-**Last updated:** September 26, 2025
+**Last updated:** October 02, 2025
 **Current branch:** feature/redis-context-cache

@@ -22,7 +22,7 @@ GET https://ai-admin.ru/marketplace/register?salon_id=123456
 - Это ID филиала, который подключает интеграцию
 
 ### Шаг 2: Переход на нашу страницу регистрации
-**Где**: Наш сервер (ai-admin.ru)
+**Где**: Наш сервер (ai-admin.app)
 
 **Что видит клиент**:
 ```html
@@ -33,13 +33,13 @@ GET https://ai-admin.ru/marketplace/register?salon_id=123456
     <h2>Салон: [Название из YClients API]</h2>
     <p>Адрес: [Адрес салона]</p>
   </div>
-  
+
   <div class="steps">
     <div class="step active">1. Подключение WhatsApp</div>
     <div class="step">2. Настройка бота</div>
     <div class="step">3. Готово к работе</div>
   </div>
-  
+
   <div class="whatsapp-section">
     <h3>Подключите WhatsApp вашего салона</h3>
     <div class="qr-code">
@@ -57,9 +57,11 @@ GET https://ai-admin.ru/marketplace/register?salon_id=123456
 **Что происходит на backend**:
 ```javascript
 // 1. Получаем данные салона из YClients
+// ВАЖНО: Используем ТОЛЬКО Partner Token! User Token НЕ нужен!
 const salonData = await yclientsAPI.get(`/companies/${salon_id}`, {
-  headers: { 
-    'Authorization': `Bearer ${PARTNER_TOKEN}`
+  headers: {
+    'Authorization': `Bearer ${PARTNER_TOKEN}`,  // Только Partner Token
+    'Accept': 'application/vnd.yclients.v2+json'
   }
 });
 
@@ -73,6 +75,9 @@ const company = await db.companies.upsert({
 
 // 3. Генерируем QR для WhatsApp через Baileys
 const qrCode = await baileysSession.generateQR(company.id);
+
+// Примечание: НЕ нужно запрашивать логин/пароль пользователя!
+// После подключения через маркетплейс Partner Token + salon_id дает полный доступ
 ```
 
 ### Шаг 3: Подключение WhatsApp
@@ -212,7 +217,7 @@ res.send(`
 
 2. **При подключении салона**:
    - `salon_id` - ID конкретного салона
-   - `user_token` - токен пользователя (опционально)
+   - ~~`user_token`~~ - НЕ ТРЕБУЕТСЯ! Partner Token + salon_id достаточно
 
 ### API endpoints которые мы должны реализовать
 
