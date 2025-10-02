@@ -738,11 +738,16 @@ class CommandHandler {
         return [serviceId];
       }
 
-      // YClients возвращает data.data для book_services endpoint
-      const services = Array.isArray(servicesResult.data) ? servicesResult.data : servicesResult.data.data;
+      // YClients book_services endpoint возвращает { data: { services: [...], events: [...], category: [...] } }
+      const services = Array.isArray(servicesResult.data)
+        ? servicesResult.data
+        : (servicesResult.data.services || servicesResult.data.data);
 
       if (!Array.isArray(services)) {
-        logger.warn('Services is not an array, using original service ID:', { servicesType: typeof services });
+        logger.warn('Services is not an array, using original service ID:', {
+          servicesType: typeof services,
+          dataKeys: Object.keys(servicesResult.data || {})
+        });
         return [serviceId];
       }
 
