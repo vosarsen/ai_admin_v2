@@ -716,6 +716,66 @@ class CommandHandler {
   /**
    * Создание записи
    */
+  /**
+   * Разворачивает композитные услуги в подуслуги для YClients API
+   * @param {number} serviceId - ID услуги
+   * @param {number} staffId - ID сотрудника
+   * @param {object} context - Контекст с данными о компании
+   * @returns {Promise<number[]>} - Массив ID услуг (или подуслуг для композитной услуги)
+   */
+  async expandCompositeService(serviceId, staffId, context) {
+    try {
+      const yclientsClient = bookingService.getYclientsClient();
+      const companyId = context.company.yclients_id || context.company.company_id;
+
+      // Получаем список услуг сотрудника
+      logger.info('Checking if service is composite:', { serviceId, staffId, companyId });
+
+      const servicesResult = await yclientsClient.getBookServices(companyId, { staff_id: staffId });
+
+      if (!servicesResult.success || !servicesResult.data) {
+        logger.warn('Failed to get services for staff, using original service ID');
+        return [serviceId];
+      }
+
+      // Ищем нашу услугу
+      const service = servicesResult.data.find(s => s.id === serviceId);
+
+      if (!service) {
+        logger.warn('Service not found in staff services, using original service ID:', { serviceId });
+        return [serviceId];
+      }
+
+      // Проверяем, является ли услуга композитной
+      if (service.is_composite && service.composite_details && service.composite_details.links) {
+        const subServiceIds = service.composite_details.links
+          .sort((a, b) => a.position - b.position)
+          .map(link => link.service_id);
+
+        logger.info('✅ Expanded composite service:', {
+          compositeService: service.title,
+          compositeServiceId: serviceId,
+          subServices: service.composite_details.links.map(l => ({ id: l.service_id, title: l.title })),
+          subServiceIds
+        });
+
+        return subServiceIds;
+      }
+
+      // Если не композитная услуга, возвращаем оригинальный ID
+      logger.info('Service is not composite, using original ID:', { serviceId, title: service.title });
+      return [serviceId];
+
+    } catch (error) {
+      logger.error('Error expanding composite service, using original service ID:', {
+        serviceId,
+        error: error.message
+      });
+      // В случае ошибки возвращаем оригинальный ID
+      return [serviceId];
+    }
+  }
+
   async createBooking(params, context) {
     // 🔴 КРИТИЧЕСКАЯ ПРОВЕРКА: Проверяем доступность слота перед созданием записи
     if (params.time && context.lastSearch?.slots) {
@@ -1171,7 +1231,10 @@ class CommandHandler {
       });
       throw new Error('Не указано время для записи. Пожалуйста, укажите желаемое время.');
     }
-    
+
+    // Разворачиваем композитные услуги в подуслуги
+    let serviceIds = await this.expandCompositeService(serviceId, staffId, context);
+
     const bookingData = {
       phone: cleanPhone,
       fullname: clientName,
@@ -1179,7 +1242,7 @@ class CommandHandler {
       comment: "Запись через AI администратора WhatsApp",
       appointments: [{
         id: 1,
-        services: [serviceId],
+        services: serviceIds,
         staff_id: staffId,
         datetime: `${parsedDate} ${params.time}:00`
       }]

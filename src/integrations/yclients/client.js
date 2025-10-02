@@ -194,11 +194,21 @@ class YclientsClient {
    * 🛍️ Получить услуги (с фильтрацией по времени/мастеру)
    */
   async getServices(params = {}, companyId = this.config.companyId) {
-    const endpoint = params.datetime || params.staff_id 
+    const endpoint = params.datetime || params.staff_id
       ? YclientsClient.ENDPOINTS.bookServices(companyId)
       : YclientsClient.ENDPOINTS.services(companyId);
 
     return this.get(endpoint, params, {
+      cacheTtl: 1800 // Услуги кэшируются на 30 минут
+    });
+  }
+
+  /**
+   * 📚 Получить услуги для записи (book_services endpoint)
+   * Используется для получения полной информации о композитных услугах
+   */
+  async getBookServices(companyId = this.config.companyId, params = {}) {
+    return this.get(YclientsClient.ENDPOINTS.bookServices(companyId), params, {
       cacheTtl: 1800 // Услуги кэшируются на 30 минут
     });
   }
