@@ -1,5 +1,7 @@
 // src/api/index.js
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const config = require('../config');
 const logger = require('../utils/logger');
 const messageQueue = require('../queue/message-queue');
@@ -24,7 +26,32 @@ const whatsappManagement = require('./routes/whatsapp-management');
 // Import Swagger documentation
 const { setupSwagger } = require('./swagger');
 
+// Import Marketplace WebSocket handler
+const MarketplaceSocket = require('./websocket/marketplace-socket');
+
 const app = express();
+
+// Create HTTP server for Socket.IO
+const server = http.createServer(app);
+
+// Setup Socket.IO with CORS
+const io = new Server(server, {
+  cors: {
+    origin: process.env.NODE_ENV === 'production'
+      ? ['https://ai-admin.app', 'https://yclients.com', 'https://n962302.yclients.com']
+      : '*',
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
+  path: '/socket.io/',
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000
+});
+
+// Initialize Marketplace WebSocket
+new MarketplaceSocket(io);
+logger.info('✅ Socket.IO server initialized for marketplace integration');
 
 // View engine setup
 app.set('views', __dirname + '/views');
@@ -266,4 +293,5 @@ app.use((req, res) => {
 // Error handler - use critical error middleware
 app.use(criticalErrorMiddleware);
 
-module.exports = app;
+// Export server instead of app for Socket.IO compatibility
+module.exports = server;

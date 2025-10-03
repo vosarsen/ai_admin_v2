@@ -33,6 +33,16 @@ if (!PARTNER_TOKEN || !APP_ID || !JWT_SECRET) {
 // ============================
 router.get('/auth/yclients/redirect', async (req, res) => {
   try {
+    // КРИТИЧНО: Проверка PARTNER_TOKEN перед любыми операциями
+    if (!PARTNER_TOKEN || PARTNER_TOKEN === 'test_token_waiting_for_real') {
+      logger.error('❌ PARTNER_TOKEN not configured properly');
+      return res.status(503).send(renderErrorPage(
+        'Конфигурация не завершена',
+        'Интеграция еще не настроена администратором. Пожалуйста, свяжитесь с технической поддержкой AI Admin.',
+        'https://yclients.com/marketplace'
+      ));
+    }
+
     const { salon_id, user_id, user_name, user_phone, user_email } = req.query;
 
     logger.info('📍 Registration redirect from YClients Marketplace:', {
