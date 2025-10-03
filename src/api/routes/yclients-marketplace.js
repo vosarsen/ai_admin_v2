@@ -107,6 +107,22 @@ router.get('/auth/yclients/redirect', async (req, res) => {
       { expiresIn: '1h' }
     );
 
+    // Сохраняем временную метку для контроля 1-часового лимита
+    await supabase
+      .from('marketplace_events')
+      .insert({
+        company_id: company.id,
+        salon_id: parseInt(salon_id),
+        event_type: 'registration_started',
+        event_data: {
+          user_id,
+          user_name,
+          user_phone,
+          user_email,
+          timestamp: new Date().toISOString()
+        }
+      });
+
     // Перенаправляем на страницу онбординга
     res.redirect(`/marketplace/onboarding?token=${token}`);
 
@@ -381,6 +397,114 @@ async function handlePayment(salon_id, data) {
     })
     .eq('yclients_id', parseInt(salon_id));
 }
+
+// ============================
+// 4. Активация интеграции в YClients
+// Вызывается после успешного подключения WhatsApp
+// ============================
+router.post('/marketplace/activate', async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token required' });
+    }
+
+    // Верифицируем токен
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const { salon_id, company_id } = decoded;
+
+    // Проверяем, что прошло не больше часа с начала регистрации
+    const { data: events, error: eventError } = await supabase
+      .from('marketplace_events')
+      .select('*')
+      .eq('salon_id', salon_id)
+      .eq('event_type', 'registration_started')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (eventError || !events || events.length === 0) {
+      return res.status(400).json({ error: 'Registration not found' });
+    }
+
+    const registrationTime = new Date(events[0].created_at);
+    const currentTime = new Date();
+    const timeDiff = (currentTime - registrationTime) / 1000 / 60; // в минутах
+
+    if (timeDiff > 60) {
+      return res.status(400).json({
+        error: 'Registration expired. Please restart from YClients marketplace.'
+      });
+    }
+
+    // Отправляем запрос в YClients для активации интеграции
+    // ВАЖНО: Этот endpoint нужно уточнить в документации YClients
+    const activationData = {
+      salon_id: salon_id,
+      application_id: process.env.YCLIENTS_APP_ID,
+      partner_token: process.env.YCLIENTS_PARTNER_TOKEN,
+      // Дополнительные параметры согласно документации YClients
+      webhooks: [
+        {
+          url: 'https://ai-admin.app/callback/yclients',
+          events: ['record_created', 'record_updated', 'record_deleted', 'client_created']
+        }
+      ],
+      // User ID системного пользователя (нужно уточнить в настройках приложения)
+      system_user_id: process.env.YCLIENTS_SYSTEM_USER_ID || '1'
+    };
+
+    // TODO: Заменить на реальный endpoint из документации YClients
+    const yclientsResponse = await fetch('https://api.yclients.com/api/v1/marketplace/activate', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.YCLIENTS_PARTNER_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/vnd.yclients.v2+json'
+      },
+      body: JSON.stringify(activationData)
+    });
+
+    if (!yclientsResponse.ok) {
+      const errorText = await yclientsResponse.text();
+      logger.error('YClients activation failed:', errorText);
+      throw new Error('Failed to activate integration in YClients');
+    }
+
+    const yclientsData = await yclientsResponse.json();
+
+    // Обновляем статус интеграции
+    await supabase
+      .from('companies')
+      .update({
+        integration_status: 'active',
+        connected_at: new Date().toISOString()
+      })
+      .eq('id', company_id);
+
+    // Логируем событие активации
+    await supabase
+      .from('marketplace_events')
+      .insert({
+        company_id: company_id,
+        salon_id: parseInt(salon_id),
+        event_type: 'integration_activated',
+        event_data: yclientsData
+      });
+
+    logger.info(`Integration activated for salon ${salon_id}`);
+
+    res.json({
+      success: true,
+      message: 'Integration activated successfully',
+      yclients_response: yclientsData
+    });
+
+  } catch (error) {
+    logger.error('Activation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Health check endpoint для проверки готовности интеграции
 router.get('/marketplace/health-check', (req, res) => {
