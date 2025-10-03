@@ -151,51 +151,73 @@ class MarketplaceSocket {
     try {
       logger.info('🚀 Начинаем подключение WhatsApp', { companyId });
 
-      // Инициализируем сессию Baileys
-      // Создаем сессию и получаем QR
-      await this.sessionPool.createSession(companyId);
-      const qr = this.sessionPool.qrCodes.get(companyId);
+      // Создаем обработчики событий с правильными именами
+      const handleQR = (data) => {
+        if (data.companyId === companyId) {
+          logger.info('📱 Получен QR-код', { companyId });
+          socket.emit('qr-update', {
+            qr: data.qr,
+            expiresIn: 20
+          });
+        }
+      };
 
-      // Если QR уже есть, отправляем его
+      const handleConnected = async (data) => {
+        if (data.companyId === companyId) {
+          logger.info('✅ WhatsApp подключен!', {
+            companyId,
+            phone: data.phoneNumber
+          });
+
+          // Отправляем событие успешного подключения
+          socket.emit('whatsapp-connected', {
+            success: true,
+            phone: data.phoneNumber,
+            companyId,
+            message: 'WhatsApp успешно подключен!'
+          });
+
+          // Очистка listeners
+          this.sessionPool.off('qr', handleQR);
+          this.sessionPool.off('connected', handleConnected);
+          this.sessionPool.off('logout', handleLogout);
+
+          // Запускаем автоматический онбординг
+          this.startOnboarding(companyId, data.phoneNumber);
+        }
+      };
+
+      const handleLogout = (data) => {
+        if (data.companyId === companyId) {
+          logger.warn('WhatsApp отключен пользователем', { companyId });
+          socket.emit('error', {
+            message: 'WhatsApp отключен. Требуется повторное подключение.'
+          });
+          this.sessionPool.off('qr', handleQR);
+          this.sessionPool.off('connected', handleConnected);
+          this.sessionPool.off('logout', handleLogout);
+        }
+      };
+
+      // Подписываемся на глобальные события Session Pool
+      this.sessionPool.on('qr', handleQR);
+      this.sessionPool.on('connected', handleConnected);
+      this.sessionPool.on('logout', handleLogout);
+
+      // Создаем сессию
+      await this.sessionPool.createSession(companyId);
+
+      // Отправляем QR если уже есть
+      const qr = this.sessionPool.getQR(companyId);
       if (qr) {
-        socket.emit('qr-update', {
-          qr,
-          expiresIn: 20
-        });
+        socket.emit('qr-update', { qr, expiresIn: 20 });
       }
 
-      // Слушаем события от Baileys через EventEmitter
-      this.sessionPool.on(`qr-${companyId}`, (qrDataURL) => {
-        logger.info('📱 Получен QR-код', { companyId });
-        socket.emit('qr-update', {
-          qr: qrDataURL,
-          expiresIn: 20
-        });
-      });
-
-      this.sessionPool.on(`connected-${companyId}`, async (data) => {
-        logger.info('✅ WhatsApp подключен!', {
-          companyId,
-          phone: data.phone
-        });
-
-        // Отправляем событие успешного подключения
-        socket.emit('whatsapp-connected', {
-          success: true,
-          phone: data.phone,
-          companyId,
-          message: 'WhatsApp успешно подключен!'
-        });
-
-        // Запускаем автоматический онбординг
-        this.startOnboarding(companyId, data.phone);
-      });
-
-      this.sessionPool.on(`logged-out-${companyId}`, () => {
-        logger.warn('WhatsApp отключен пользователем', { companyId });
-        socket.emit('error', {
-          message: 'WhatsApp отключен. Требуется повторное подключение.'
-        });
+      // Очистка при отключении сокета
+      socket.on('disconnect', () => {
+        this.sessionPool.off('qr', handleQR);
+        this.sessionPool.off('connected', handleConnected);
+        this.sessionPool.off('logout', handleLogout);
       });
 
     } catch (error) {

@@ -407,7 +407,7 @@
                 console.log('WebSocket connected');
             });
 
-            socket.on('qr', (data) => {
+            socket.on('qr-update', (data) => {
                 console.log('QR received:', data);
                 currentQR = data.qr;
                 displayQR(data.qr);
@@ -419,11 +419,45 @@
                 updateStatus(data.status);
             });
 
-            socket.on('connected', async (data) => {
+            socket.on('whatsapp-connected', async (data) => {
                 console.log('WhatsApp connected!', data);
                 await activateIntegration();
                 handleWhatsAppConnected();
             });
+
+            // FALLBACK: Polling для проверки статуса подключения
+            // На случай если WebSocket не сработал
+            let activationAttempts = 0;
+            const maxActivationAttempts = 30; // 30 секунд
+
+            const checkConnectionStatus = setInterval(async () => {
+                if (activationAttempts >= maxActivationAttempts) {
+                    clearInterval(checkConnectionStatus);
+                    showError('Timeout подключения WhatsApp. Обновите страницу и попробуйте снова.');
+                    return;
+                }
+
+                try {
+                    const sessionId = `company_${tokenData.salon_id}`;
+                    const response = await fetch(`/marketplace/api/status/${sessionId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.connected) {
+                            clearInterval(checkConnectionStatus);
+                            console.log('WhatsApp connected via polling fallback!');
+                            await activateIntegration();
+                            handleWhatsAppConnected();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Status check error:', error);
+                }
+
+                activationAttempts++;
+            }, 1000);
 
             socket.on('error', (error) => {
                 console.error('WebSocket error:', error);
