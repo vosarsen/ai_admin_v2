@@ -74,10 +74,6 @@ app.use('/api/whatsapp', whatsappManagement);
 const calendarRoutes = require('./routes/calendar');
 app.use('/api/calendar', calendarRoutes);
 
-// YClients integration routes
-const yclientsRoutes = require('./routes/yclients-integration');
-app.use(yclientsRoutes);
-
 // Cache monitoring routes
 const cacheRoutes = require('./routes/cache-stats');
 app.use('/api/cache', cacheRoutes);
@@ -90,11 +86,8 @@ app.use('/api/ai', aiManagementRoutes);
 const whatsappSessionsRoutes = require('./routes/whatsapp-sessions-improved');
 app.use('/api/whatsapp', whatsappSessionsRoutes);
 
-// Marketplace integration routes
-const marketplaceRoutes = require('./routes/marketplace');
-app.use('/marketplace', marketplaceRoutes);
-
-// YClients Marketplace routes (новая интеграция)
+// YClients Marketplace routes - ЕДИНСТВЕННАЯ ПРАВИЛЬНАЯ ИНТЕГРАЦИЯ
+// Включает: registration redirect, onboarding, QR generation, activation, webhooks
 const yclientsMarketplaceRoutes = require('./routes/yclients-marketplace');
 app.use('', yclientsMarketplaceRoutes); // Монтируем в корень для правильных URL
 
