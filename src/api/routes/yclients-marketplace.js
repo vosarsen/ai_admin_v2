@@ -382,4 +382,43 @@ async function handlePayment(salon_id, data) {
     .eq('yclients_id', parseInt(salon_id));
 }
 
+// Health check endpoint для проверки готовности интеграции
+router.get('/marketplace/health-check', (req, res) => {
+  const healthStatus = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: {
+      partner_token: !!process.env.YCLIENTS_PARTNER_TOKEN,
+      app_id: !!process.env.YCLIENTS_APP_ID,
+      jwt_secret: !!process.env.JWT_SECRET,
+      node_version: process.version
+    },
+    dependencies: {
+      socket_io: !!require.resolve('socket.io'),
+      jsonwebtoken: !!require.resolve('jsonwebtoken'),
+      baileys: !!require.resolve('@whiskeysockets/baileys'),
+      supabase: !!supabase
+    },
+    services: {
+      api_running: true,
+      websocket_enabled: !!global.marketplaceWebSocket,
+      session_pool_ready: !!sessionPool
+    }
+  };
+
+  // Проверяем критические компоненты
+  const criticalChecks = [
+    process.env.YCLIENTS_PARTNER_TOKEN,
+    process.env.YCLIENTS_APP_ID,
+    process.env.JWT_SECRET
+  ];
+
+  if (!criticalChecks.every(check => check)) {
+    healthStatus.status = 'warning';
+    healthStatus.message = 'Some critical environment variables are missing';
+  }
+
+  res.json(healthStatus);
+});
+
 module.exports = router;
