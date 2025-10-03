@@ -70,7 +70,7 @@ router.get('/auth/yclients/redirect', async (req, res) => {
       .from('companies')
       .upsert({
         yclients_id: parseInt(salon_id),
-        name: salonInfo?.title || `Салон ${salon_id}`,
+        title: salonInfo?.title || `Салон ${salon_id}`,
         phone: salonInfo?.phone || user_phone || '',
         email: salonInfo?.email || user_email || '',
         address: salonInfo?.address || '',
@@ -102,7 +102,7 @@ router.get('/auth/yclients/redirect', async (req, res) => {
     logger.info('✅ Компания создана/обновлена в БД:', {
       company_id: company.id,
       yclients_id: salon_id,
-      name: company.name
+      title: company.title
     });
 
     // Генерируем JWT токен для безопасной передачи данных (срок действия 1 час)
