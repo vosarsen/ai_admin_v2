@@ -419,8 +419,9 @@
                 updateStatus(data.status);
             });
 
-            socket.on('connected', (data) => {
+            socket.on('connected', async (data) => {
                 console.log('WhatsApp connected!', data);
+                await activateIntegration();
                 handleWhatsAppConnected();
             });
 
@@ -526,6 +527,31 @@
             document.getElementById('errorMessage').textContent = message;
         }
 
+        // Активация интеграции в YClients
+        async function activateIntegration() {
+            try {
+                const response = await fetch('/marketplace/activate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ token: token })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to activate integration');
+                }
+
+                const result = await response.json();
+                console.log('Integration activated:', result);
+                return result;
+            } catch (error) {
+                console.error('Activation error:', error);
+                showError('Ошибка активации интеграции');
+                throw error;
+            }
+        }
+
         // Обработка успешного подключения WhatsApp
         async function handleWhatsAppConnected() {
             clearInterval(qrRefreshTimer);
@@ -538,42 +564,23 @@
             document.getElementById('whatsappSection').style.display = 'none';
             document.getElementById('successSection').style.display = 'block';
 
-            // Отправляем callback в YClients для активации
-            try {
-                const response = await fetch('/marketplace/api/activate', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
+            setTimeout(() => {
+                document.getElementById('step2').classList.remove('active');
+                document.getElementById('step2').classList.add('completed');
+                document.getElementById('step3').classList.add('active');
 
-                if (response.ok) {
-                    // Успешно активировано
-                    setTimeout(() => {
-                        document.getElementById('step2').classList.remove('active');
-                        document.getElementById('step2').classList.add('completed');
-                        document.getElementById('step3').classList.add('active');
-
-                        document.getElementById('successSection').innerHTML = `
-                            <div class="success-icon">🎉</div>
-                            <h2 style="color: #2c3e50; margin-bottom: 20px;">Поздравляем!</h2>
-                            <p style="color: #6c757d; margin-bottom: 30px;">
-                                AI Admin успешно подключен к вашему салону.<br>
-                                Бот готов помогать вашим клиентам!
-                            </p>
-                            <button class="button" onclick="window.location.href='https://yclients.com/marketplace'">
-                                Вернуться в YClients
-                            </button>
-                        `;
-                    }, 3000);
-                } else {
-                    throw new Error('Activation failed');
-                }
-            } catch (error) {
-                console.error('Activation error:', error);
-                showError('Ошибка активации. Обратитесь в поддержку.');
-            }
+                document.getElementById('successSection').innerHTML = `
+                    <div class="success-icon">🎉</div>
+                    <h2 style="color: #2c3e50; margin-bottom: 20px;">Поздравляем!</h2>
+                    <p style="color: #6c757d; margin-bottom: 30px;">
+                        AI Admin успешно подключен к вашему салону.<br>
+                        Бот готов помогать вашим клиентам!
+                    </p>
+                    <button class="button" onclick="window.location.href='https://yclients.com/marketplace'">
+                        Вернуться в YClients
+                    </button>
+                `;
+            }, 3000);
         }
 
         // Запускаем процесс
