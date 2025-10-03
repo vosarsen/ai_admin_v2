@@ -1,5 +1,6 @@
 // src/api/routes/yclients-marketplace.js
-// Routes для интеграции с YClients Marketplace
+// YClients Marketplace Integration - ПРАВИЛЬНАЯ РЕАЛИЗАЦИЯ согласно документации
+// https://docs.yclients.com/marketplace
 
 const express = require('express');
 const router = express.Router();
@@ -15,21 +16,26 @@ const path = require('path');
 const sessionPool = getSessionPool();
 const yclientsClient = new YclientsClient();
 
+// Валидация критических переменных окружения
+const PARTNER_TOKEN = process.env.YCLIENTS_PARTNER_TOKEN;
+const APP_ID = process.env.YCLIENTS_APP_ID;
+const JWT_SECRET = process.env.JWT_SECRET;
+const BASE_URL = process.env.BASE_URL || 'https://ai-admin.app';
+
+if (!PARTNER_TOKEN || !APP_ID || !JWT_SECRET) {
+  logger.error('❌ КРИТИЧЕСКАЯ ОШИБКА: Отсутствуют обязательные переменные окружения!');
+  logger.error('Необходимо установить: YCLIENTS_PARTNER_TOKEN, YCLIENTS_APP_ID, JWT_SECRET');
+}
+
 // ============================
-// 1. Registration Redirect URL - /auth/yclients/redirect
-// Сюда YClients перенаправляет после нажатия "Подключить"
+// 1. REGISTRATION REDIRECT - Точка входа из маркетплейса
+// URL: /auth/yclients/redirect?salon_id=XXX
 // ============================
 router.get('/auth/yclients/redirect', async (req, res) => {
   try {
-    const {
-      salon_id,  // ID салона в YClients
-      user_id,   // ID пользователя (если передается)
-      user_name, // Имя пользователя (если передается)
-      user_phone,// Телефон (если передается)
-      user_email // Email (если передается)
-    } = req.query;
+    const { salon_id, user_id, user_name, user_phone, user_email } = req.query;
 
-    logger.info('Registration redirect from YClients:', {
+    logger.info('📍 Registration redirect from YClients Marketplace:', {
       salon_id,
       user_id,
       user_name,
@@ -37,37 +43,26 @@ router.get('/auth/yclients/redirect', async (req, res) => {
       user_email
     });
 
-    // Проверяем обязательный параметр
+    // Проверка обязательного параметра
     if (!salon_id) {
-      return res.status(400).send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Ошибка подключения</title>
-          <meta charset="utf-8">
-          <style>
-            body { font-family: -apple-system, sans-serif; padding: 40px; text-align: center; }
-            .error { color: #e74c3c; }
-            .button { background: #3498db; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; display: inline-block; margin-top: 20px; }
-          </style>
-        </head>
-        <body>
-          <h1 class="error">Ошибка подключения</h1>
-          <p>Не получен ID салона от YClients</p>
-          <a href="https://yclients.com/marketplace" class="button">Вернуться в маркетплейс</a>
-        </body>
-        </html>
-      `);
+      logger.error('❌ salon_id отсутствует в запросе');
+      return res.status(400).send(renderErrorPage(
+        'Ошибка подключения',
+        'Не получен ID салона от YClients',
+        'https://yclients.com/marketplace'
+      ));
     }
 
     // Получаем информацию о салоне из YClients API
     let salonInfo = null;
     try {
       salonInfo = await yclientsClient.getCompanyInfo(salon_id);
-      logger.info('Salon info from YClients:', salonInfo);
+      logger.info('✅ Информация о салоне получена:', {
+        title: salonInfo.title,
+        phone: salonInfo.phone
+      });
     } catch (error) {
-      logger.error('Error fetching salon info:', error);
-      // Продолжаем даже если не получили инфо - покажем форму
+      logger.warn('⚠️ Не удалось получить информацию о салоне, продолжаем с базовыми данными', error.message);
     }
 
     // Создаем или обновляем запись в БД
@@ -79,35 +74,50 @@ router.get('/auth/yclients/redirect', async (req, res) => {
         phone: salonInfo?.phone || user_phone || '',
         email: salonInfo?.email || user_email || '',
         address: salonInfo?.address || '',
-        integration_status: 'pending_whatsapp',
+        timezone: salonInfo?.timezone || 'Europe/Moscow',
+        integration_status: 'pending_whatsapp', // Ожидаем подключения WhatsApp
         marketplace_user_id: user_id,
         marketplace_user_name: user_name,
         marketplace_user_phone: user_phone,
         marketplace_user_email: user_email,
-        connected_at: new Date().toISOString()
+        whatsapp_connected: false,
+        connected_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }, {
-        onConflict: 'yclients_id'
+        onConflict: 'yclients_id',
+        returning: 'representation'
       })
       .select()
       .single();
 
     if (dbError) {
-      logger.error('DB error:', dbError);
-      return res.status(500).send('Ошибка сохранения данных');
+      logger.error('❌ Ошибка сохранения в БД:', dbError);
+      return res.status(500).send(renderErrorPage(
+        'Ошибка сохранения данных',
+        'Не удалось сохранить информацию о компании',
+        'https://yclients.com/marketplace'
+      ));
     }
 
-    // Генерируем JWT токен для безопасной передачи данных
+    logger.info('✅ Компания создана/обновлена в БД:', {
+      company_id: company.id,
+      yclients_id: salon_id,
+      name: company.name
+    });
+
+    // Генерируем JWT токен для безопасной передачи данных (срок действия 1 час)
     const token = jwt.sign(
       {
         company_id: company.id,
-        salon_id: salon_id,
+        salon_id: parseInt(salon_id),
+        type: 'marketplace_registration',
         user_data: { user_id, user_name, user_phone, user_email }
       },
-      process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+      JWT_SECRET,
       { expiresIn: '1h' }
     );
 
-    // Сохраняем временную метку для контроля 1-часового лимита
+    // Сохраняем событие регистрации
     await supabase
       .from('marketplace_events')
       .insert({
@@ -123,159 +133,134 @@ router.get('/auth/yclients/redirect', async (req, res) => {
         }
       });
 
-    // Перенаправляем на страницу онбординга
-    res.redirect(`/marketplace/onboarding?token=${token}`);
+    // Перенаправляем на страницу онбординга с QR-кодом
+    const onboardingUrl = `${BASE_URL}/marketplace/onboarding?token=${token}`;
+    logger.info('🔄 Redirecting to onboarding:', onboardingUrl);
+    res.redirect(onboardingUrl);
 
   } catch (error) {
-    logger.error('Registration redirect error:', error);
-    res.status(500).send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Ошибка</title>
-        <meta charset="utf-8">
-        <style>
-          body { font-family: -apple-system, sans-serif; padding: 40px; text-align: center; }
-          .error { color: #e74c3c; }
-        </style>
-      </head>
-      <body>
-        <h1 class="error">Произошла ошибка</h1>
-        <p>${error.message}</p>
-        <p>Пожалуйста, попробуйте позже или свяжитесь с поддержкой</p>
-      </body>
-      </html>
-    `);
+    logger.error('❌ Registration redirect error:', error);
+    res.status(500).send(renderErrorPage(
+      'Произошла ошибка',
+      error.message,
+      'https://yclients.com/marketplace'
+    ));
   }
 });
 
 // ============================
-// 2. Callback URL - /callback/yclients
-// Для webhook событий от YClients
-// ============================
-router.post('/callback/yclients', async (req, res) => {
-  try {
-    const {
-      event_type,  // Тип события
-      salon_id,    // ID салона
-      data         // Данные события
-    } = req.body;
-
-    logger.info('YClients callback received:', {
-      event_type,
-      salon_id,
-      data_keys: data ? Object.keys(data) : []
-    });
-
-    // Проверяем подпись запроса (если YClients поддерживает)
-    // const signature = req.headers['x-yclients-signature'];
-    // if (!verifySignature(req.body, signature)) {
-    //   return res.status(401).json({ error: 'Invalid signature' });
-    // }
-
-    // Обрабатываем разные типы событий
-    switch (event_type) {
-      case 'uninstall':
-        // Приложение удалено из салона
-        await handleUninstall(salon_id);
-        break;
-
-      case 'freeze':
-        // Приложение заморожено
-        await handleFreeze(salon_id);
-        break;
-
-      case 'payment':
-        // Оплата прошла
-        await handlePayment(salon_id, data);
-        break;
-
-      case 'record_created':
-      case 'record_updated':
-      case 'record_deleted':
-        // События записей - можно использовать для напоминаний
-        logger.info(`Record event: ${event_type} for salon ${salon_id}`);
-        break;
-
-      default:
-        logger.warn(`Unknown event type: ${event_type}`);
-    }
-
-    // YClients ожидает успешный ответ
-    res.status(200).json({ success: true });
-
-  } catch (error) {
-    logger.error('Callback processing error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// ============================
-// 3. Страница онбординга с QR-кодом
+// 2. ONBOARDING PAGE - Страница с QR-кодом
+// URL: /marketplace/onboarding?token=XXX
 // ============================
 router.get('/marketplace/onboarding', async (req, res) => {
   try {
     const { token } = req.query;
 
     if (!token) {
-      return res.status(400).send('Token required');
+      logger.error('❌ Token отсутствует в запросе');
+      return res.status(400).send(renderErrorPage(
+        'Ошибка',
+        'Отсутствует токен авторизации',
+        'https://yclients.com/marketplace'
+      ));
     }
 
-    // Отправляем HTML страницу
+    // Проверяем токен
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      logger.info('✅ Token validated for company:', decoded.company_id);
+    } catch (error) {
+      logger.error('❌ Invalid token:', error.message);
+      return res.status(401).send(renderErrorPage(
+        'Недействительный токен',
+        'Токен истек или недействителен. Пожалуйста, начните процесс подключения заново.',
+        'https://yclients.com/marketplace'
+      ));
+    }
+
+    // Отправляем HTML страницу с QR-кодом
     res.sendFile(path.join(__dirname, '../../../public/marketplace/onboarding.html'));
 
   } catch (error) {
-    logger.error('Onboarding page error:', error);
-    res.status(500).send('Error loading onboarding page');
+    logger.error('❌ Onboarding page error:', error);
+    res.status(500).send(renderErrorPage(
+      'Ошибка загрузки страницы',
+      error.message,
+      'https://yclients.com/marketplace'
+    ));
   }
 });
 
 // ============================
-// 4. API для получения QR-кода
+// 3. QR CODE API - Генерация QR-кода для WhatsApp
+// URL: POST /marketplace/api/qr
+// Headers: Authorization: Bearer <token>
 // ============================
 router.post('/marketplace/api/qr', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      logger.error('❌ Authorization header missing or invalid');
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'your-secret-key-change-in-production'
-    );
-
+    const decoded = jwt.verify(token, JWT_SECRET);
     const { company_id, salon_id } = decoded;
 
-    // Генерируем QR-код через Baileys
+    logger.info('📱 QR code request for company:', { company_id, salon_id });
+
+    // Генерируем session ID для WhatsApp
     const sessionId = `company_${salon_id}`;
-    const qr = await sessionPool.getQR(sessionId);
+
+    // Проверяем существующий QR-код
+    let qr = await sessionPool.getQR(sessionId);
 
     if (!qr) {
+      logger.info('🔄 Initializing new WhatsApp session...');
+
       // Инициализируем новую сессию
-      await sessionPool.initSession(sessionId, {
+      await sessionPool.createSession(sessionId, {
         company_id,
         salon_id
       });
 
-      // Ждем генерации QR
-      setTimeout(async () => {
-        const newQr = await sessionPool.getQR(sessionId);
-        res.json({ qr: newQr, session_id: sessionId });
-      }, 2000);
-    } else {
-      res.json({ qr, session_id: sessionId });
+      // Ждем генерации QR (максимум 10 секунд)
+      let attempts = 0;
+      while (!qr && attempts < 10) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        qr = await sessionPool.getQR(sessionId);
+        attempts++;
+      }
+
+      if (!qr) {
+        throw new Error('QR code generation timeout');
+      }
     }
 
+    logger.info('✅ QR code generated successfully');
+    res.json({
+      success: true,
+      qr,
+      session_id: sessionId,
+      expires_in: 20 // QR код действителен 20 секунд
+    });
+
   } catch (error) {
-    logger.error('QR generation error:', error);
-    res.status(500).json({ error: 'QR generation failed' });
+    logger.error('❌ QR generation error:', error);
+
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    res.status(500).json({ error: 'QR generation failed: ' + error.message });
   }
 });
 
 // ============================
-// 5. API для проверки статуса WhatsApp
+// 4. STATUS CHECK - Проверка статуса WhatsApp подключения
+// URL: GET /marketplace/api/status/:sessionId
+// Headers: Authorization: Bearer <token>
 // ============================
 router.get('/marketplace/api/status/:sessionId', async (req, res) => {
   try {
@@ -286,133 +271,52 @@ router.get('/marketplace/api/status/:sessionId', async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const status = await sessionPool.getSessionStatus(sessionId);
-    res.json({ status, connected: status === 'connected' });
-
-  } catch (error) {
-    logger.error('Status check error:', error);
-    res.status(500).json({ error: 'Status check failed' });
-  }
-});
-
-// ============================
-// 6. Callback в YClients после успешного подключения
-// ============================
-router.post('/marketplace/api/activate', async (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'your-secret-key-change-in-production'
-    );
+    jwt.verify(token, JWT_SECRET); // Проверяем токен
 
-    const { salon_id } = decoded;
+    // Получаем статус сессии
+    const status = await sessionPool.getSessionStatus(sessionId);
+    const connected = status === 'connected' || status === 'open';
 
-    // Отправляем callback в YClients для активации
-    const response = await fetch('https://api.yclients.com/marketplace/partner/callback/redirect', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.YCLIENTS_PARTNER_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        salon_id: parseInt(salon_id),
-        application_id: parseInt(process.env.YCLIENTS_APP_ID || '1'), // Нужно получить от YClients
-        api_key: crypto.randomBytes(32).toString('hex'),
-        webhook_urls: [
-          `https://ai-admin.app/callback/yclients`
-        ]
-      })
+    logger.info('📊 Session status check:', { sessionId, status, connected });
+
+    res.json({
+      success: true,
+      status,
+      connected,
+      session_id: sessionId
     });
 
-    if (!response.ok) {
-      const error = await response.text();
-      logger.error('YClients activation failed:', error);
-      return res.status(500).json({ error: 'Activation failed' });
+  } catch (error) {
+    logger.error('❌ Status check error:', error);
+
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Invalid or expired token' });
     }
 
-    // Обновляем статус в БД
-    await supabase
-      .from('companies')
-      .update({
-        integration_status: 'active',
-        whatsapp_connected: true,
-        whatsapp_connected_at: new Date().toISOString()
-      })
-      .eq('yclients_id', parseInt(salon_id));
-
-    res.json({ success: true, message: 'Integration activated' });
-
-  } catch (error) {
-    logger.error('Activation error:', error);
-    res.status(500).json({ error: 'Activation failed' });
+    res.status(500).json({ error: 'Status check failed: ' + error.message });
   }
 });
 
 // ============================
-// Helper функции
-// ============================
-
-async function handleUninstall(salon_id) {
-  logger.info(`Handling uninstall for salon ${salon_id}`);
-
-  // Останавливаем WhatsApp сессию
-  const sessionId = `company_${salon_id}`;
-  await sessionPool.removeSession(sessionId);
-
-  // Обновляем статус в БД
-  await supabase
-    .from('companies')
-    .update({
-      integration_status: 'uninstalled',
-      whatsapp_connected: false
-    })
-    .eq('yclients_id', parseInt(salon_id));
-}
-
-async function handleFreeze(salon_id) {
-  logger.info(`Handling freeze for salon ${salon_id}`);
-
-  await supabase
-    .from('companies')
-    .update({
-      integration_status: 'frozen'
-    })
-    .eq('yclients_id', parseInt(salon_id));
-}
-
-async function handlePayment(salon_id, data) {
-  logger.info(`Payment received for salon ${salon_id}:`, data);
-
-  await supabase
-    .from('companies')
-    .update({
-      integration_status: 'active',
-      last_payment_date: new Date().toISOString()
-    })
-    .eq('yclients_id', parseInt(salon_id));
-}
-
-// ============================
-// 4. Активация интеграции в YClients
-// Вызывается после успешного подключения WhatsApp
+// 5. ACTIVATE INTEGRATION - Активация интеграции в YClients
+// URL: POST /marketplace/activate
+// Body: { token: <jwt_token> }
 // ============================
 router.post('/marketplace/activate', async (req, res) => {
   try {
     const { token } = req.body;
 
     if (!token) {
+      logger.error('❌ Token missing in activation request');
       return res.status(400).json({ error: 'Token required' });
     }
 
     // Верифицируем токен
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     const { salon_id, company_id } = decoded;
+
+    logger.info('🚀 Starting integration activation:', { salon_id, company_id });
 
     // Проверяем, что прошло не больше часа с начала регистрации
     const { data: events, error: eventError } = await supabase
@@ -424,6 +328,7 @@ router.post('/marketplace/activate', async (req, res) => {
       .limit(1);
 
     if (eventError || !events || events.length === 0) {
+      logger.error('❌ Registration event not found');
       return res.status(400).json({ error: 'Registration not found' });
     }
 
@@ -432,53 +337,84 @@ router.post('/marketplace/activate', async (req, res) => {
     const timeDiff = (currentTime - registrationTime) / 1000 / 60; // в минутах
 
     if (timeDiff > 60) {
+      logger.error('❌ Registration expired:', { timeDiff });
       return res.status(400).json({
-        error: 'Registration expired. Please restart from YClients marketplace.'
+        error: 'Registration expired. Please restart from YClients marketplace.',
+        expired_minutes_ago: Math.floor(timeDiff - 60)
       });
     }
 
-    // Отправляем запрос в YClients для активации интеграции
-    // ВАЖНО: Этот endpoint нужно уточнить в документации YClients
-    const activationData = {
-      salon_id: salon_id,
-      application_id: process.env.YCLIENTS_APP_ID,
-      partner_token: process.env.YCLIENTS_PARTNER_TOKEN,
-      // Дополнительные параметры согласно документации YClients
-      webhooks: [
-        {
-          url: 'https://ai-admin.app/callback/yclients',
-          events: ['record_created', 'record_updated', 'record_deleted', 'client_created']
-        }
-      ],
-      // User ID системного пользователя (нужно уточнить в настройках приложения)
-      system_user_id: process.env.YCLIENTS_SYSTEM_USER_ID || '1'
+    // Генерируем уникальный API ключ для компании
+    const apiKey = crypto.randomBytes(32).toString('hex');
+
+    // Сохраняем API ключ в БД ПЕРЕД отправкой в YClients
+    const { error: updateError } = await supabase
+      .from('companies')
+      .update({
+        api_key: apiKey,
+        whatsapp_connected: true,
+        integration_status: 'activating',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', company_id);
+
+    if (updateError) {
+      logger.error('❌ Failed to update company with API key:', updateError);
+      throw new Error('Database update failed');
+    }
+
+    logger.info('💾 API key saved to database');
+
+    // Формируем данные для callback в YClients
+    const callbackData = {
+      salon_id: parseInt(salon_id),
+      application_id: parseInt(APP_ID),
+      api_key: apiKey,
+      webhook_urls: [
+        `${BASE_URL}/webhook/yclients` // Правильный webhook endpoint
+      ]
     };
 
-    // TODO: Заменить на реальный endpoint из документации YClients
-    const yclientsResponse = await fetch('https://api.yclients.com/api/v1/marketplace/activate', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.YCLIENTS_PARTNER_TOKEN}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/vnd.yclients.v2+json'
-      },
-      body: JSON.stringify(activationData)
+    logger.info('📤 Sending callback to YClients:', {
+      salon_id: callbackData.salon_id,
+      application_id: callbackData.application_id,
+      webhook_url: callbackData.webhook_urls[0]
     });
+
+    // Отправляем callback в YClients для активации интеграции
+    const yclientsResponse = await fetch(
+      'https://api.yclients.com/marketplace/partner/callback/redirect',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${PARTNER_TOKEN}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/vnd.yclients.v2+json'
+        },
+        body: JSON.stringify(callbackData)
+      }
+    );
 
     if (!yclientsResponse.ok) {
       const errorText = await yclientsResponse.text();
-      logger.error('YClients activation failed:', errorText);
-      throw new Error('Failed to activate integration in YClients');
+      logger.error('❌ YClients activation failed:', {
+        status: yclientsResponse.status,
+        statusText: yclientsResponse.statusText,
+        error: errorText
+      });
+      throw new Error(`YClients activation failed: ${yclientsResponse.status} ${errorText}`);
     }
 
     const yclientsData = await yclientsResponse.json();
+    logger.info('✅ YClients activation response:', yclientsData);
 
-    // Обновляем статус интеграции
+    // Обновляем статус интеграции на "active"
     await supabase
       .from('companies')
       .update({
         integration_status: 'active',
-        connected_at: new Date().toISOString()
+        whatsapp_connected_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       .eq('id', company_id);
 
@@ -489,60 +425,286 @@ router.post('/marketplace/activate', async (req, res) => {
         company_id: company_id,
         salon_id: parseInt(salon_id),
         event_type: 'integration_activated',
-        event_data: yclientsData
+        event_data: {
+          yclients_response: yclientsData,
+          timestamp: new Date().toISOString()
+        }
       });
 
-    logger.info(`Integration activated for salon ${salon_id}`);
+    logger.info(`🎉 Integration activated successfully for salon ${salon_id}`);
 
     res.json({
       success: true,
       message: 'Integration activated successfully',
+      company_id,
+      salon_id,
       yclients_response: yclientsData
     });
 
   } catch (error) {
-    logger.error('Activation error:', error);
-    res.status(500).json({ error: error.message });
+    logger.error('❌ Activation error:', error);
+
+    // Откатываем статус в случае ошибки
+    if (error.decoded && error.decoded.company_id) {
+      await supabase
+        .from('companies')
+        .update({
+          integration_status: 'activation_failed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', error.decoded.company_id);
+    }
+
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 });
 
-// Health check endpoint для проверки готовности интеграции
-router.get('/marketplace/health-check', (req, res) => {
+// ============================
+// 6. WEBHOOK CALLBACK - Прием webhook событий от YClients
+// URL: POST /webhook/yclients
+// ============================
+router.post('/webhook/yclients', async (req, res) => {
+  try {
+    const { event_type, salon_id, data } = req.body;
+
+    logger.info('📨 YClients webhook received:', {
+      event_type,
+      salon_id,
+      data_keys: data ? Object.keys(data) : []
+    });
+
+    // Быстро отвечаем YClients (они ожидают 200 OK)
+    res.status(200).json({ success: true, received: true });
+
+    // Обрабатываем событие асинхронно
+    setImmediate(async () => {
+      try {
+        await handleWebhookEvent(event_type, salon_id, data);
+      } catch (error) {
+        logger.error('❌ Webhook processing error:', error);
+      }
+    });
+
+  } catch (error) {
+    logger.error('❌ Webhook error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================
+// 7. HEALTH CHECK - Проверка готовности системы
+// URL: GET /marketplace/health
+// ============================
+router.get('/marketplace/health', (req, res) => {
   const healthStatus = {
     status: 'ok',
     timestamp: new Date().toISOString(),
     environment: {
-      partner_token: !!process.env.YCLIENTS_PARTNER_TOKEN,
-      app_id: !!process.env.YCLIENTS_APP_ID,
-      jwt_secret: !!process.env.JWT_SECRET,
+      partner_token: !!PARTNER_TOKEN,
+      app_id: !!APP_ID,
+      jwt_secret: !!JWT_SECRET,
+      base_url: BASE_URL,
       node_version: process.version
     },
     dependencies: {
-      socket_io: !!require.resolve('socket.io'),
-      jsonwebtoken: !!require.resolve('jsonwebtoken'),
-      baileys: !!require.resolve('@whiskeysockets/baileys'),
-      supabase: !!supabase
+      express: !!express,
+      jsonwebtoken: !!jwt,
+      supabase: !!supabase,
+      session_pool: !!sessionPool
     },
     services: {
       api_running: true,
-      websocket_enabled: !!global.marketplaceWebSocket,
-      session_pool_ready: !!sessionPool
+      database_connected: !!supabase,
+      whatsapp_pool_ready: !!sessionPool
     }
   };
 
   // Проверяем критические компоненты
-  const criticalChecks = [
-    process.env.YCLIENTS_PARTNER_TOKEN,
-    process.env.YCLIENTS_APP_ID,
-    process.env.JWT_SECRET
-  ];
+  const criticalChecks = [PARTNER_TOKEN, APP_ID, JWT_SECRET];
 
   if (!criticalChecks.every(check => check)) {
-    healthStatus.status = 'warning';
-    healthStatus.message = 'Some critical environment variables are missing';
+    healthStatus.status = 'error';
+    healthStatus.message = 'Missing critical environment variables';
+    healthStatus.missing = [];
+    if (!PARTNER_TOKEN) healthStatus.missing.push('YCLIENTS_PARTNER_TOKEN');
+    if (!APP_ID) healthStatus.missing.push('YCLIENTS_APP_ID');
+    if (!JWT_SECRET) healthStatus.missing.push('JWT_SECRET');
+
+    return res.status(503).json(healthStatus);
   }
 
   res.json(healthStatus);
 });
+
+// ============================
+// HELPER FUNCTIONS
+// ============================
+
+/**
+ * Обработка webhook событий от YClients
+ */
+async function handleWebhookEvent(eventType, salonId, data) {
+  logger.info(`🔄 Processing webhook event: ${eventType} for salon ${salonId}`);
+
+  switch (eventType) {
+    case 'uninstall':
+      await handleUninstall(salonId);
+      break;
+
+    case 'freeze':
+      await handleFreeze(salonId);
+      break;
+
+    case 'payment':
+      await handlePayment(salonId, data);
+      break;
+
+    case 'record_created':
+    case 'record_updated':
+    case 'record_deleted':
+      // Эти события обрабатываются в webhook-processor
+      logger.info(`📋 Record event: ${eventType} for salon ${salonId}`);
+      break;
+
+    default:
+      logger.warn(`⚠️ Unknown webhook event type: ${eventType}`);
+  }
+}
+
+/**
+ * Обработка удаления приложения
+ */
+async function handleUninstall(salonId) {
+  logger.info(`🗑️ Handling uninstall for salon ${salonId}`);
+
+  // Останавливаем WhatsApp сессию
+  const sessionId = `company_${salonId}`;
+  try {
+    await sessionPool.removeSession(sessionId);
+    logger.info('✅ WhatsApp session removed');
+  } catch (error) {
+    logger.error('❌ Failed to remove WhatsApp session:', error);
+  }
+
+  // Обновляем статус в БД
+  await supabase
+    .from('companies')
+    .update({
+      integration_status: 'uninstalled',
+      whatsapp_connected: false,
+      updated_at: new Date().toISOString()
+    })
+    .eq('yclients_id', parseInt(salonId));
+
+  logger.info('✅ Company marked as uninstalled');
+}
+
+/**
+ * Обработка заморозки приложения
+ */
+async function handleFreeze(salonId) {
+  logger.info(`❄️ Handling freeze for salon ${salonId}`);
+
+  await supabase
+    .from('companies')
+    .update({
+      integration_status: 'frozen',
+      updated_at: new Date().toISOString()
+    })
+    .eq('yclients_id', parseInt(salonId));
+
+  logger.info('✅ Company marked as frozen');
+}
+
+/**
+ * Обработка платежа
+ */
+async function handlePayment(salonId, data) {
+  logger.info(`💰 Payment received for salon ${salonId}:`, data);
+
+  await supabase
+    .from('companies')
+    .update({
+      integration_status: 'active',
+      last_payment_date: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('yclients_id', parseInt(salonId));
+
+  logger.info('✅ Payment processed');
+}
+
+/**
+ * Рендер страницы с ошибкой
+ */
+function renderErrorPage(title, message, returnUrl) {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>${title}</title>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          padding: 40px;
+          text-align: center;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0;
+        }
+        .container {
+          background: white;
+          padding: 40px;
+          border-radius: 12px;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+          max-width: 500px;
+        }
+        .error-icon {
+          font-size: 64px;
+          margin-bottom: 20px;
+        }
+        h1 {
+          color: #e74c3c;
+          font-size: 24px;
+          margin-bottom: 10px;
+        }
+        p {
+          color: #666;
+          line-height: 1.6;
+          margin-bottom: 30px;
+        }
+        .button {
+          background: #3498db;
+          color: white;
+          padding: 12px 24px;
+          border-radius: 6px;
+          text-decoration: none;
+          display: inline-block;
+          transition: background 0.3s;
+        }
+        .button:hover {
+          background: #2980b9;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="error-icon">⚠️</div>
+        <h1>${title}</h1>
+        <p>${message}</p>
+        <a href="${returnUrl}" class="button">Вернуться в маркетплейс</a>
+      </div>
+    </body>
+    </html>
+  `;
+}
 
 module.exports = router;
