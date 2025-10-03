@@ -71,6 +71,7 @@ async function startServer() {
 
     // Initialize WebSocket server for marketplace
     marketplaceWS = new MarketplaceWebSocket(server);
+    global.marketplaceWebSocket = marketplaceWS;
     logger.info('🔌 Marketplace WebSocket server initialized');
     
     // Initialize sync manager
