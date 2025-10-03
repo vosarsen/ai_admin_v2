@@ -638,6 +638,21 @@ class WhatsAppSessionPool extends EventEmitter {
     }
 
     /**
+     * Gets QR code for a session
+     */
+    getQR(companyId) {
+        const validatedId = this.validateCompanyId(companyId);
+        return this.qrCodes.get(validatedId) || null;
+    }
+
+    /**
+     * Creates new session (alias for getOrCreateSession)
+     */
+    async createSession(companyId) {
+        return this.getOrCreateSession(companyId);
+    }
+
+    /**
      * Gets session status
      */
     getSessionStatus(companyId) {
