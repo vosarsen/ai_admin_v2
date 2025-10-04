@@ -55,29 +55,32 @@ class MarketplaceSocket {
         }
       }
 
-      // Получаем токен из headers или query (для обратной совместимости)
+      // Получаем токен из headers или auth (Socket.IO v4)
       const authHeader = socket.handshake.headers.authorization;
+      const authToken = socket.handshake.auth?.token;
       let token = null;
-      let companyId = socket.handshake.query.companyId;
 
-      // Приоритет отдаем токену из headers
+      // Приоритет отдаем токену из headers, затем из auth
       if (authHeader && authHeader.startsWith('Bearer ')) {
         token = authHeader.substring(7);
+      } else if (authToken) {
+        token = authToken;
       } else if (socket.handshake.query.token) {
-        // Fallback на query параметр (будет удален в будущем)
+        // Fallback на query параметр (для обратной совместимости)
         token = socket.handshake.query.token;
-        logger.warn('Токен передан через query параметры - небезопасно! Используйте Authorization header.');
+        logger.warn('Токен передан через query параметры - небезопасно! Используйте Authorization header или auth.');
       }
 
-      // Проверяем наличие токена после извлечения
-      if (!token || !companyId) {
-        logger.error('WebSocket: отсутствует токен или companyId');
+      // Проверяем наличие токена
+      if (!token) {
+        logger.error('WebSocket: отсутствует токен авторизации');
         socket.emit('error', { message: 'Требуется авторизация' });
         socket.disconnect();
         return;
       }
 
-      // Валидируем токен
+      // Валидируем токен и извлекаем companyId
+      let companyId;
       try {
         // Проверяем наличие JWT_SECRET
         if (!process.env.JWT_SECRET) {
@@ -89,8 +92,11 @@ class MarketplaceSocket {
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        if (decoded.company_id !== parseInt(companyId)) {
-          throw new Error('Неверный токен для компании');
+        // Извлекаем companyId из токена (безопасно)
+        companyId = decoded.company_id;
+
+        if (!companyId) {
+          throw new Error('Токен не содержит company_id');
         }
 
         // Сохраняем соединение
@@ -328,7 +334,7 @@ class MarketplaceSocket {
       const { getSyncManager } = require('../../sync/sync-manager');
       const syncManager = getSyncManager();
 
-      await syncManager.syncCompanyData(companyId);
+      await syncManager.syncAll(companyId);
 
       // Отправляем приветственное сообщение
       setTimeout(async () => {
