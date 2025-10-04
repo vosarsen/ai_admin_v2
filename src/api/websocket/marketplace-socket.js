@@ -199,10 +199,23 @@ class MarketplaceSocket {
         }
       };
 
+      // Обработчик pairing code
+      const handlePairingCode = (data) => {
+        if (data.companyId === companyId) {
+          logger.info('📱 Получен pairing code', { companyId, code: data.code });
+          socket.emit('pairing-code', {
+            code: data.code,
+            phoneNumber: data.phoneNumber,
+            expiresIn: 60
+          });
+        }
+      };
+
       // Подписываемся на глобальные события Session Pool
       this.sessionPool.on('qr', handleQR);
       this.sessionPool.on('connected', handleConnected);
       this.sessionPool.on('logout', handleLogout);
+      this.sessionPool.on('pairing-code', handlePairingCode);
 
       // Создаем сессию
       await this.sessionPool.createSession(companyId);
@@ -213,11 +226,40 @@ class MarketplaceSocket {
         socket.emit('qr-update', { qr, expiresIn: 20 });
       }
 
+      // Проверяем pairing code
+      const pairingCode = this.sessionPool.qrCodes.get(`pairing-${companyId}`);
+      if (pairingCode) {
+        socket.emit('pairing-code', {
+          code: pairingCode,
+          expiresIn: 60
+        });
+      }
+
+      // Обработчик запроса pairing code от клиента
+      socket.on('request-pairing-code', async (data) => {
+        try {
+          const { phoneNumber } = data;
+          logger.info('📱 Запрос pairing code', { companyId, phoneNumber });
+
+          // Создаем сессию с pairing code
+          await this.sessionPool.createSession(companyId, {
+            usePairingCode: true,
+            phoneNumber: phoneNumber
+          });
+        } catch (error) {
+          logger.error('Ошибка запроса pairing code:', error);
+          socket.emit('error', {
+            message: 'Не удалось получить код. Попробуйте еще раз.'
+          });
+        }
+      });
+
       // Очистка при отключении сокета
       socket.on('disconnect', () => {
         this.sessionPool.off('qr', handleQR);
         this.sessionPool.off('connected', handleConnected);
         this.sessionPool.off('logout', handleLogout);
+        this.sessionPool.off('pairing-code', handlePairingCode);
       });
 
     } catch (error) {
