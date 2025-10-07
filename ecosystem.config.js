@@ -111,6 +111,23 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       max_memory_restart: '100M',
       autorestart: true
+    },
+    {
+      name: 'baileys-whatsapp-service',
+      script: './scripts/baileys-service.js',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        NODE_ENV: 'production',
+        COMPANY_ID: '962302',
+        USE_PAIRING_CODE: 'true',
+        WHATSAPP_PHONE_NUMBER: '79936363848'
+      },
+      error_file: './logs/baileys-service-error.log',
+      out_file: './logs/baileys-service-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      max_memory_restart: '200M',
+      autorestart: true
     }
   ]
 };
