@@ -1219,14 +1219,17 @@ if (require.main === module) {
     process.exit(0);
   });
 
-  // Start bot and monitor
-  bot.run().then(() => {
-    // Start proactive monitor after bot is running
-    monitor.start();
-  }).catch(error => {
+  // Start bot (will run forever)
+  bot.run().catch(error => {
     logger.error('Failed to start bot:', error);
+    monitor.stop();
     process.exit(1);
   });
+
+  // Start proactive monitor (after a short delay to let bot initialize)
+  setTimeout(() => {
+    monitor.start();
+  }, 3000);
 }
 
 module.exports = TelegramBot;
