@@ -28,6 +28,18 @@ const logger = require('../../utils/logger');
 const QRCode = require('qrcode');
 const { useSupabaseAuthState } = require('./auth-state-supabase');
 
+// Configuration constants
+const CONFIG = {
+    CIRCUIT_BREAKER_THRESHOLD: 5,
+    CIRCUIT_BREAKER_COOLDOWN_MS: 5 * 60 * 1000, // 5 minutes
+    MAX_RECONNECT_ATTEMPTS: 5,
+    RECONNECT_DELAY_MS: 5000,
+    HEALTH_CHECK_INTERVAL_MS: 60 * 1000, // 1 minute
+    PAIRING_CODE_TIMEOUT_MS: 60 * 1000, // 1 minute
+    MIN_PHONE_LENGTH: 10,
+    MAX_PHONE_LENGTH: 15
+};
+
 class WhatsAppSessionPool extends EventEmitter {
     constructor() {
         super();
@@ -38,6 +50,7 @@ class WhatsAppSessionPool extends EventEmitter {
         this.reconnectAttempts = new Map(); // companyId -> attempts
         this.reconnectTimers = new Map(); // companyId -> timer
         this.qrCodes = new Map(); // companyId -> qrCode
+        this.pairingCodeTimeouts = new Map(); // companyId -> timeout (for cleanup)
 
         // Mutex for preventing race conditions
         this.creatingSession = new Set(); // companyIds currently being created
@@ -46,13 +59,16 @@ class WhatsAppSessionPool extends EventEmitter {
         // Circuit breaker pattern
         this.failureCount = new Map(); // companyId -> failure count
         this.lastFailureTime = new Map(); // companyId -> timestamp
-        this.circuitBreakerThreshold = 5; // failures before opening circuit
-        this.circuitBreakerCooldown = 300000; // 5 minutes cooldown
+        this.circuitBreakerThreshold = CONFIG.CIRCUIT_BREAKER_THRESHOLD;
+        this.circuitBreakerCooldown = CONFIG.CIRCUIT_BREAKER_COOLDOWN_MS;
 
         // Configuration
-        this.maxReconnectAttempts = 5;
-        this.reconnectDelay = 5000;
-        this.healthCheckInterval = 60000; // 60 seconds - реже проверяем
+        this.maxReconnectAttempts = CONFIG.MAX_RECONNECT_ATTEMPTS;
+        this.reconnectDelay = CONFIG.RECONNECT_DELAY_MS;
+        this.healthCheckInterval = CONFIG.HEALTH_CHECK_INTERVAL_MS;
+
+        // Timers (for cleanup)
+        this.healthCheckTimer = null;
 
         // Metrics
         this.metrics = {
@@ -69,8 +85,8 @@ class WhatsAppSessionPool extends EventEmitter {
         // Directory for storing sessions
         this.baseAuthPath = path.join(process.cwd(), 'baileys_sessions');
 
-        // Initialize async
-        this.initialize();
+        // Initialize async - store promise for later await
+        this.initPromise = this.initialize();
     }
 
     /**
@@ -85,7 +101,15 @@ class WhatsAppSessionPool extends EventEmitter {
             logger.error('Failed to initialize WhatsApp Session Pool:', error);
             this.metrics.errors++;
             this.metrics.lastError = error.message;
+            throw error; // Re-throw so callers can handle
         }
+    }
+
+    /**
+     * Wait for initialization to complete
+     */
+    async waitForInit() {
+        await this.initPromise;
     }
 
     /**
@@ -109,8 +133,12 @@ class WhatsAppSessionPool extends EventEmitter {
         logger.info('Health checks initialized (passive mode to prevent error 440)');
 
         // Вместо активной проверки, просто логируем статистику
-        setInterval(() => {
-            const activeCount = Array.from(this.sessions.values()).filter(s => s.user).length;
+        this.healthCheckTimer = setInterval(() => {
+            // Efficient counting without creating array
+            let activeCount = 0;
+            for (const session of this.sessions.values()) {
+                if (session.user) activeCount++;
+            }
             logger.debug(`Session pool status: ${activeCount}/${this.sessions.size} active sessions`);
         }, this.healthCheckInterval);
     }
@@ -304,12 +332,8 @@ class WhatsAppSessionPool extends EventEmitter {
 
             // Store pairing code info for later use when socket is ready
             if (usePairingCode && phoneNumber) {
-                // Format phone number for E.164 without plus sign
-                let cleanPhone = phoneNumber.replace(/\D/g, '');
-                // Ensure it starts with country code (add 7 for Russia if needed)
-                if (cleanPhone.startsWith('8') && cleanPhone.length === 11) {
-                    cleanPhone = '7' + cleanPhone.substring(1);
-                }
+                // Use unified E.164 normalization
+                const cleanPhone = this.normalizePhoneE164(phoneNumber);
                 sock.pairingPhoneNumber = cleanPhone;
                 sock.shouldRequestPairingCode = true;
                 sock.usePairingCode = true;
@@ -340,7 +364,6 @@ class WhatsAppSessionPool extends EventEmitter {
         // Track QR generation count for auto-switching to pairing code
         let qrCount = 0;
         const maxQRAttempts = 3;
-        let pairingCodeTimeout = null;
 
         // Connection updates
         sock.ev.on('connection.update', async (update) => {
@@ -352,8 +375,10 @@ class WhatsAppSessionPool extends EventEmitter {
                 sock.shouldRequestPairingCode = false;
 
                 // Clear previous timeout if exists
-                if (pairingCodeTimeout) {
-                    clearTimeout(pairingCodeTimeout);
+                const existingTimeout = this.pairingCodeTimeouts.get(companyId);
+                if (existingTimeout) {
+                    clearTimeout(existingTimeout);
+                    this.pairingCodeTimeouts.delete(companyId);
                 }
 
                 // Request pairing code immediately when QR is available
@@ -371,12 +396,15 @@ class WhatsAppSessionPool extends EventEmitter {
                         this.qrCodes.set(`pairing-${companyId}`, formattedCode);
 
                         // Set timeout for pairing code expiration
-                        pairingCodeTimeout = setTimeout(() => {
+                        const timeout = setTimeout(() => {
                             logger.warn(`⏱️ Pairing code expired for company ${companyId}`);
                             this.qrCodes.delete(`pairing-${companyId}`);
+                            this.pairingCodeTimeouts.delete(companyId);
                             // Request new code or fallback to QR
                             sock.usePairingCode = false;
-                        }, 60000);
+                        }, CONFIG.PAIRING_CODE_TIMEOUT_MS);
+
+                        this.pairingCodeTimeouts.set(companyId, timeout);
 
                         return;
                     } catch (error) {
@@ -384,7 +412,10 @@ class WhatsAppSessionPool extends EventEmitter {
                         logger.info(`Will fallback to QR code method`);
                         sock.usePairingCode = false;
                     }
-                })();
+                }).catch(error => {
+                    logger.error('Unhandled error in pairing code request:', error);
+                    this.emit('error', { companyId, error });
+                });
             }
 
             if (qr && !sock.usePairingCode) {
@@ -407,9 +438,10 @@ class WhatsAppSessionPool extends EventEmitter {
                 this.metrics.activeConnections--;
 
                 // Clear pairing code timeout
-                if (pairingCodeTimeout) {
-                    clearTimeout(pairingCodeTimeout);
-                    pairingCodeTimeout = null;
+                const pairingTimeout = this.pairingCodeTimeouts.get(companyId);
+                if (pairingTimeout) {
+                    clearTimeout(pairingTimeout);
+                    this.pairingCodeTimeouts.delete(companyId);
                 }
 
                 // Проверяем причину отключения
@@ -474,9 +506,10 @@ class WhatsAppSessionPool extends EventEmitter {
                 this.qrCodes.delete(`pairing-${companyId}`);
 
                 // Clear pairing code timeout
-                if (pairingCodeTimeout) {
-                    clearTimeout(pairingCodeTimeout);
-                    pairingCodeTimeout = null;
+                const pairingTimeout = this.pairingCodeTimeouts.get(companyId);
+                if (pairingTimeout) {
+                    clearTimeout(pairingTimeout);
+                    this.pairingCodeTimeouts.delete(companyId);
                 }
 
                 this.emit('connected', {
@@ -580,6 +613,15 @@ class WhatsAppSessionPool extends EventEmitter {
         const session = this.sessions.get(companyId);
         if (session) {
             try {
+                // Remove all event listeners to prevent memory leaks
+                if (session.ev) {
+                    session.ev.removeAllListeners('connection.update');
+                    session.ev.removeAllListeners('creds.update');
+                    session.ev.removeAllListeners('messages.upsert');
+                    session.ev.removeAllListeners('messages.update');
+                    session.ev.removeAllListeners('error');
+                }
+
                 // Properly close session
                 if (session.end) {
                     session.end();
@@ -600,10 +642,17 @@ class WhatsAppSessionPool extends EventEmitter {
         this.lastFailureTime.delete(companyId);
 
         // Clear reconnect timer
-        const timer = this.reconnectTimers.get(companyId);
-        if (timer) {
-            clearTimeout(timer);
+        const reconnectTimer = this.reconnectTimers.get(companyId);
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
             this.reconnectTimers.delete(companyId);
+        }
+
+        // Clear pairing code timeout
+        const pairingTimeout = this.pairingCodeTimeouts.get(companyId);
+        if (pairingTimeout) {
+            clearTimeout(pairingTimeout);
+            this.pairingCodeTimeouts.delete(companyId);
         }
 
         logger.info(`🔌 Session removed for company ${companyId}`);
@@ -690,19 +739,45 @@ class WhatsAppSessionPool extends EventEmitter {
     }
 
     /**
-     * Formats phone number for WhatsApp
+     * Normalizes phone number to E.164 format (without + sign)
+     * @param {string} phone - Phone number in any format
+     * @returns {string} - E.164 formatted number (digits only, no +)
+     * @example
+     * normalizePhoneE164('89001234567') => '79001234567'
+     * normalizePhoneE164('+79001234567') => '79001234567'
+     * normalizePhoneE164('9001234567') => '79001234567' (assumes Russia)
      */
-    formatPhoneNumber(phone) {
+    normalizePhoneE164(phone) {
         // Remove all non-digit characters
         let cleaned = phone.replace(/\D/g, '');
 
-        // If starts with 8, replace with 7
-        if (cleaned.startsWith('8')) {
-            cleaned = '7' + cleaned.slice(1);
+        // Validate length
+        if (cleaned.length < CONFIG.MIN_PHONE_LENGTH || cleaned.length > CONFIG.MAX_PHONE_LENGTH) {
+            throw new Error(`Invalid phone number length: ${cleaned.length}. Expected ${CONFIG.MIN_PHONE_LENGTH}-${CONFIG.MAX_PHONE_LENGTH} digits.`);
         }
 
-        // Add @s.whatsapp.net suffix
-        return `${cleaned}@s.whatsapp.net`;
+        // Convert to E.164 format (without +)
+        // If starts with 8 and length is 11 (Russian mobile format), replace with 7
+        if (cleaned.startsWith('8') && cleaned.length === 11) {
+            cleaned = '7' + cleaned.slice(1);
+        }
+        // If doesn't start with country code and length is 10, assume Russia (7)
+        else if (cleaned.length === 10) {
+            cleaned = '7' + cleaned;
+        }
+
+        return cleaned;
+    }
+
+    /**
+     * Formats phone number to E.164 format with WhatsApp suffix
+     * @param {string} phone - Phone number in any format
+     * @returns {string} - Formatted number with @s.whatsapp.net suffix
+     * @example
+     * formatPhoneNumber('89001234567') => '79001234567@s.whatsapp.net'
+     */
+    formatPhoneNumber(phone) {
+        return `${this.normalizePhoneE164(phone)}@s.whatsapp.net`;
     }
 
     /**
@@ -771,6 +846,58 @@ class WhatsAppSessionPool extends EventEmitter {
             connectedSessions: this.getActiveSessions().filter(s => s.connected).length,
             totalSessions: this.sessions.size
         };
+    }
+
+    /**
+     * Graceful shutdown - cleanup all resources
+     */
+    async shutdown() {
+        logger.info('🔴 Shutting down WhatsApp Session Pool...');
+
+        // Clear health check interval
+        if (this.healthCheckTimer) {
+            clearInterval(this.healthCheckTimer);
+            this.healthCheckTimer = null;
+            logger.debug('Health check timer cleared');
+        }
+
+        // Close all sessions
+        const sessionIds = Array.from(this.sessions.keys());
+        logger.info(`Closing ${sessionIds.length} active sessions...`);
+
+        for (const companyId of sessionIds) {
+            try {
+                await this.removeSession(companyId);
+                logger.debug(`Session ${companyId} removed`);
+            } catch (error) {
+                logger.error(`Error removing session ${companyId}:`, error.message);
+            }
+        }
+
+        // Clear all pending reconnect timers
+        for (const [companyId, timer] of this.reconnectTimers.entries()) {
+            clearTimeout(timer);
+            logger.debug(`Cleared reconnect timer for ${companyId}`);
+        }
+        this.reconnectTimers.clear();
+
+        // Clear all pairing code timeouts
+        for (const [companyId, timeout] of this.pairingCodeTimeouts.entries()) {
+            clearTimeout(timeout);
+            logger.debug(`Cleared pairing timeout for ${companyId}`);
+        }
+        this.pairingCodeTimeouts.clear();
+
+        // Clear all other data structures
+        this.sessionCreationPromises.clear();
+        this.creatingSession.clear();
+        this.failureCount.clear();
+        this.lastFailureTime.clear();
+        this.qrCodes.clear();
+        this.authPaths.clear();
+        this.reconnectAttempts.clear();
+
+        logger.info('✅ WhatsApp Session Pool shutdown complete');
     }
 }
 
