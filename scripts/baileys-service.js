@@ -200,6 +200,38 @@ async function startBaileysService() {
             }
         });
 
+        // Endpoint to send reactions
+        app.post('/reaction', async (req, res) => {
+            try {
+                const { phone, emoji, messageId } = req.body;
+
+                if (!phone || !emoji || !messageId) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Phone, emoji, and messageId are required'
+                    });
+                }
+
+                logger.info(`❤️ Sending reaction ${emoji} to ${phone} via baileys-service`);
+
+                const result = await pool.sendReaction(companyId, phone, emoji, messageId);
+
+                res.json({
+                    success: true,
+                    phone,
+                    emoji,
+                    messageId,
+                    companyId
+                });
+            } catch (error) {
+                logger.error('Failed to send reaction:', error.message);
+                res.status(500).json({
+                    success: false,
+                    error: error.message
+                });
+            }
+        });
+
         const PORT = process.env.BAILEYS_PORT || 3003;
         app.listen(PORT, () => {
             logger.info(`Health check endpoint running on port ${PORT}`);
