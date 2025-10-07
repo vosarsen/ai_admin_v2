@@ -644,6 +644,17 @@ class WhatsAppSessionPool extends EventEmitter {
      */
     async sendReaction(companyId, phone, emoji, messageId) {
         const validatedId = this.validateCompanyId(companyId);
+
+        // Validate messageId
+        if (!messageId || typeof messageId !== 'string' || messageId.length === 0) {
+            throw new Error('Invalid messageId: must be a non-empty string');
+        }
+
+        // Validate emoji (1-4 characters to support single and multi-byte emojis)
+        if (!emoji || typeof emoji !== 'string' || emoji.length === 0 || emoji.length > 4) {
+            throw new Error('Invalid emoji: must be 1-4 characters');
+        }
+
         const session = this.sessions.get(validatedId);
 
         if (!session || !session.user) {
