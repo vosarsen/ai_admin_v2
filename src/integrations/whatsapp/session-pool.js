@@ -653,9 +653,6 @@ class WhatsAppSessionPool extends EventEmitter {
         // Format phone number
         const formattedNumber = this.formatPhoneNumber(phone);
 
-        // Wait 3 seconds before sending reaction (human-like behavior)
-        await new Promise(resolve => setTimeout(resolve, 3000));
-
         try {
             // Build message key for reaction
             const messageKey = {
