@@ -640,6 +640,48 @@ class WhatsAppSessionPool extends EventEmitter {
     }
 
     /**
+     * Sends reaction to a message
+     */
+    async sendReaction(companyId, phone, emoji, messageId) {
+        const validatedId = this.validateCompanyId(companyId);
+        const session = this.sessions.get(validatedId);
+
+        if (!session || !session.user) {
+            throw new Error(`WhatsApp not connected for company ${companyId}. Please ensure baileys-service is running.`);
+        }
+
+        // Format phone number
+        const formattedNumber = this.formatPhoneNumber(phone);
+
+        // Wait 3 seconds before sending reaction (human-like behavior)
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        try {
+            // Build message key for reaction
+            const messageKey = {
+                remoteJid: formattedNumber,
+                id: messageId,
+                fromMe: false
+            };
+
+            const result = await session.sendMessage(formattedNumber, {
+                react: {
+                    text: emoji,
+                    key: messageKey
+                }
+            });
+
+            logger.info(`✅ Reaction ${emoji} sent to ${formattedNumber} for company ${companyId}`);
+
+            return result;
+        } catch (error) {
+            this.metrics.errors++;
+            logger.error(`Failed to send reaction to ${formattedNumber}:`, error);
+            throw error;
+        }
+    }
+
+    /**
      * Formats phone number for WhatsApp
      */
     formatPhoneNumber(phone) {
