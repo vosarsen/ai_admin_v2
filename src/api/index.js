@@ -2,6 +2,7 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const axios = require('axios');
 const config = require('../config');
 const logger = require('../utils/logger');
 const messageQueue = require('../queue/message-queue');
@@ -232,37 +233,39 @@ app.post('/api/sync/schedules', rateLimiter, validateApiKey, async (req, res) =>
 
 // WhatsApp reaction endpoint
 app.post('/api/whatsapp/reaction', rateLimiter, async (req, res) => {
-  const { to, emoji, messageId, companyId } = req.body;
+  const { phone, emoji, messageId, companyId } = req.body;
 
-  if (!to || !emoji || !messageId || !companyId) {
+  if (!phone || !emoji || !messageId || !companyId) {
     return res.status(400).json({
       success: false,
-      error: 'Missing required fields: to, emoji, messageId, companyId'
+      error: 'Missing required fields: phone, emoji, messageId, companyId'
     });
   }
 
   try {
-    logger.info(`🔵 Reaction API called:`, { to, emoji, messageId, companyId });
+    logger.info(`🔵 Reaction API called:`, { phone, emoji, messageId, companyId });
 
     // In BAILEYS_STANDALONE mode, proxy to baileys-service
     if (process.env.BAILEYS_STANDALONE === 'true') {
-      const axios = require('axios');
       const baileysPort = process.env.BAILEYS_PORT || 3003;
 
       try {
         await axios.post(
           `http://localhost:${baileysPort}/reaction`,
-          { phone: to, emoji, messageId },
+          { phone, emoji, messageId, companyId },
           { timeout: 10000 }
         );
 
-        logger.info(`✅ Reaction ${emoji} sent to ${to} via baileys-service`);
+        logger.info(`✅ Reaction ${emoji} sent to ${phone} via baileys-service`);
         return res.json({ success: true });
       } catch (proxyError) {
         logger.error(`Failed to proxy reaction to baileys-service:`, proxyError.message);
+        const errorMessage = process.env.NODE_ENV === 'production'
+          ? 'Failed to send reaction through baileys-service'
+          : proxyError.message;
         return res.status(500).json({
           success: false,
-          error: 'Failed to send reaction through baileys-service'
+          error: errorMessage
         });
       }
     }
@@ -270,9 +273,9 @@ app.post('/api/whatsapp/reaction', rateLimiter, async (req, res) => {
     // Fallback to local session pool (non-standalone mode)
     const { getSessionPool } = require('../integrations/whatsapp/session-pool');
     const sessionPool = getSessionPool();
-    const result = await sessionPool.sendReaction(companyId, to, emoji, messageId);
+    const result = await sessionPool.sendReaction(companyId, phone, emoji, messageId);
 
-    logger.info(`✅ Reaction ${emoji} sent to ${to} via API`);
+    logger.info(`✅ Reaction ${emoji} sent to ${phone} via API`);
     res.json({ success: true });
 
   } catch (error) {

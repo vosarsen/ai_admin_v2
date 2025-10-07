@@ -88,22 +88,22 @@ class WhatsAppAPIClient {
   /**
    * Send reaction via API
    */
-  async sendReaction(to, emoji, messageId, companyId) {
+  async sendReaction(phone, emoji, messageId, companyId) {
     if (!messageId) {
       logger.warn('Cannot send reaction without messageId');
       return { success: false, error: 'messageId is required for reactions' };
     }
-    
+
     if (!companyId) {
       logger.warn('Cannot send reaction without companyId');
       return { success: false, error: 'companyId is required for reactions' };
     }
-    
+
     try {
       const response = await axios.post(
         `${this.apiUrl}/api/whatsapp/reaction`,
         {
-          to,
+          phone,
           emoji,
           messageId,
           companyId: String(companyId)
@@ -114,8 +114,8 @@ class WhatsAppAPIClient {
           }
         }
       );
-      
-      logger.info(`✅ Reaction sent via API to ${to}`);
+
+      logger.info(`✅ Reaction sent via API to ${phone}`);
       return { success: true, data: response.data };
     } catch (error) {
       logger.error('Failed to send reaction via API:', error);

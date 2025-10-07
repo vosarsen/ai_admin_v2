@@ -159,6 +159,31 @@ async function startBaileysService() {
         const app = express();
         app.use(express.json());
 
+        // Simple in-memory rate limiter
+        const reactionRateLimiter = new Map(); // phone -> { count, resetTime }
+        const RATE_LIMIT_WINDOW = 60000; // 1 minute
+        const MAX_REACTIONS_PER_MINUTE = 10;
+
+        function checkRateLimit(phone) {
+            const now = Date.now();
+            const record = reactionRateLimiter.get(phone);
+
+            if (!record || now > record.resetTime) {
+                reactionRateLimiter.set(phone, {
+                    count: 1,
+                    resetTime: now + RATE_LIMIT_WINDOW
+                });
+                return true;
+            }
+
+            if (record.count >= MAX_REACTIONS_PER_MINUTE) {
+                return false;
+            }
+
+            record.count++;
+            return true;
+        }
+
         app.get('/health', (req, res) => {
             const status = pool.getSessionStatus(companyId);
             res.json({
@@ -203,7 +228,7 @@ async function startBaileysService() {
         // Endpoint to send reactions
         app.post('/reaction', async (req, res) => {
             try {
-                const { phone, emoji, messageId } = req.body;
+                const { phone, emoji, messageId, companyId: requestCompanyId } = req.body;
 
                 if (!phone || !emoji || !messageId) {
                     return res.status(400).json({
@@ -212,16 +237,28 @@ async function startBaileysService() {
                     });
                 }
 
-                logger.info(`❤️ Sending reaction ${emoji} to ${phone} via baileys-service`);
+                // Check rate limit
+                if (!checkRateLimit(phone)) {
+                    logger.warn(`⚠️ Rate limit exceeded for reactions to ${phone}`);
+                    return res.status(429).json({
+                        success: false,
+                        error: 'Too many reactions. Please try again later.'
+                    });
+                }
 
-                const result = await pool.sendReaction(companyId, phone, emoji, messageId);
+                // Use provided companyId or fallback to default
+                const targetCompanyId = requestCompanyId || companyId;
+
+                logger.info(`❤️ Sending reaction ${emoji} to ${phone} via baileys-service (company: ${targetCompanyId})`);
+
+                const result = await pool.sendReaction(targetCompanyId, phone, emoji, messageId);
 
                 res.json({
                     success: true,
                     phone,
                     emoji,
                     messageId,
-                    companyId
+                    companyId: targetCompanyId
                 });
             } catch (error) {
                 logger.error('Failed to send reaction:', error.message);
