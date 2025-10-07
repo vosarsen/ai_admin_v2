@@ -193,11 +193,18 @@ class WhatsAppSessionPool extends EventEmitter {
 
         // Mutex - prevent concurrent creation
         if (this.creatingSession.has(validatedId)) {
-            logger.warn(`Session creation already in progress for company ${validatedId}`);
+            logger.warn(`Session creation already in progress for company ${validatedId}, waiting for existing promise`);
             const promise = this.sessionCreationPromises.get(validatedId);
             if (promise) {
-                return await promise;
+                try {
+                    return await promise;
+                } catch (error) {
+                    // If the existing promise failed, allow retry
+                    logger.debug(`Existing session creation promise failed, will retry`);
+                }
             }
+            // If no promise or promise failed, throw error to prevent spam
+            throw new Error(`Session creation already in progress for company ${validatedId}`);
         }
 
         // Create promise for this session creation
@@ -452,6 +459,12 @@ class WhatsAppSessionPool extends EventEmitter {
 
                 // Обработка ошибки 515 (restartRequired) - переподключаемся немедленно
                 if (statusCode === DisconnectReason.restartRequired) {
+                    // Don't reconnect if we're already creating a session (prevents infinite loop)
+                    if (this.creatingSession.has(companyId)) {
+                        logger.warn(`Session creation already in progress for ${companyId}, skipping restart to prevent loop`);
+                        return;
+                    }
+
                     logger.info(`Restart required for company ${companyId}, reconnecting immediately...`);
                     await this.handleReconnect(companyId);
                     return;
@@ -460,6 +473,12 @@ class WhatsAppSessionPool extends EventEmitter {
                 const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
                 if (shouldReconnect) {
+                    // Don't reconnect if we're already creating a session (prevents infinite loop)
+                    if (this.creatingSession.has(companyId)) {
+                        logger.warn(`Session creation already in progress for ${companyId}, skipping reconnect to prevent loop`);
+                        return;
+                    }
+
                     logger.info(`Connection closed for company ${companyId}, will reconnect...`);
                     await this.handleReconnect(companyId);
                 } else {
