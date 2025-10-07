@@ -12,6 +12,37 @@ const { supabase } = require('../../database/supabase');
 const logger = require('../../utils/logger');
 
 /**
+ * Recursively revive Buffer objects from JSONB serialization
+ * PostgreSQL JSONB converts Buffer to {type: 'Buffer', data: [...]}
+ * This function converts them back to actual Buffer objects
+ *
+ * @param {any} obj - Object to process
+ * @returns {any} Object with revived Buffers
+ */
+function reviveBuffers(obj) {
+  if (!obj || typeof obj !== 'object') {
+    return obj;
+  }
+
+  // Check if this is a serialized Buffer object
+  if (obj.type === 'Buffer' && Array.isArray(obj.data)) {
+    return Buffer.from(obj.data);
+  }
+
+  // Recursively process arrays
+  if (Array.isArray(obj)) {
+    return obj.map(reviveBuffers);
+  }
+
+  // Recursively process plain objects
+  const revived = {};
+  for (const [key, value] of Object.entries(obj)) {
+    revived[key] = reviveBuffers(value);
+  }
+  return revived;
+}
+
+/**
  * Create database-backed auth state for Baileys
  *
  * @param {string} companyId - Company ID (e.g., '962302')
@@ -51,8 +82,8 @@ async function useSupabaseAuthState(companyId) {
       await saveCreds();
       logger.info(`✅ New credentials created for ${companyId}`);
     } else {
-      // Load existing credentials
-      creds = authData.creds;
+      // Load existing credentials and revive Buffer objects
+      creds = reviveBuffers(authData.creds);
       logger.info(`✅ Loaded existing credentials for ${companyId}`);
     }
   } catch (error) {
@@ -90,10 +121,11 @@ async function useSupabaseAuthState(companyId) {
         }
 
         // Convert array to object: { key_id: value }
+        // Also revive Buffer objects from JSONB serialization
         const result = {};
         if (data) {
           data.forEach(row => {
-            result[row.key_id] = row.value;
+            result[row.key_id] = reviveBuffers(row.value);
           });
         }
 
