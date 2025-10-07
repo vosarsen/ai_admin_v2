@@ -13,6 +13,7 @@ Quick reference for Claude Code when working with AI Admin v2.
 - `config/project-docs/CONTEXT.md` - Where we left off
 - `config/project-docs/TASK.md` - Current tasks
 - `docs/TROUBLESHOOTING.md` - Common issues
+- `docs/TELEGRAM_BOT_QUICK_REFERENCE.md` - 🤖 Telegram бот управление
 - `docs/marketplace/AUTHORIZATION_QUICK_REFERENCE.md` - ⚡ YClients авторизация
 
 ## 🔧 Essential MCP Servers
