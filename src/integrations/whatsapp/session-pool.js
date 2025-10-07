@@ -531,6 +531,12 @@ class WhatsAppSessionPool extends EventEmitter {
      * Handles reconnection with exponential backoff
      */
     async handleReconnect(companyId) {
+        // Check if session creation is already in progress
+        if (this.creatingSession.has(companyId)) {
+            logger.warn(`Session creation already in progress for ${companyId}, skipping reconnect`);
+            return;
+        }
+
         const attempts = this.reconnectAttempts.get(companyId) || 0;
 
         if (attempts >= this.maxReconnectAttempts) {
@@ -559,6 +565,8 @@ class WhatsAppSessionPool extends EventEmitter {
                 await this.createSession(companyId);
             } catch (error) {
                 logger.error(`Reconnection failed for company ${companyId}:`, error.message);
+                // Schedule next reconnect attempt
+                await this.handleReconnect(companyId);
             }
         }, delay);
 
@@ -586,6 +594,10 @@ class WhatsAppSessionPool extends EventEmitter {
         this.reconnectAttempts.delete(companyId);
         this.qrCodes.delete(companyId);
         this.qrCodes.delete(`pairing-${companyId}`);
+
+        // Clear circuit breaker data to prevent memory leaks
+        this.failureCount.delete(companyId);
+        this.lastFailureTime.delete(companyId);
 
         // Clear reconnect timer
         const timer = this.reconnectTimers.get(companyId);
