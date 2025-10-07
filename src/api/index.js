@@ -233,26 +233,48 @@ app.post('/api/sync/schedules', rateLimiter, validateApiKey, async (req, res) =>
 // WhatsApp reaction endpoint
 app.post('/api/whatsapp/reaction', rateLimiter, async (req, res) => {
   const { to, emoji, messageId, companyId } = req.body;
-  
+
   if (!to || !emoji || !messageId || !companyId) {
     return res.status(400).json({
       success: false,
       error: 'Missing required fields: to, emoji, messageId, companyId'
     });
   }
-  
+
   try {
     logger.info(`🔵 Reaction API called:`, { to, emoji, messageId, companyId });
-    
+
+    // In BAILEYS_STANDALONE mode, proxy to baileys-service
+    if (process.env.BAILEYS_STANDALONE === 'true') {
+      const axios = require('axios');
+      const baileysPort = process.env.BAILEYS_PORT || 3003;
+
+      try {
+        await axios.post(
+          `http://localhost:${baileysPort}/reaction`,
+          { phone: to, emoji, messageId },
+          { timeout: 10000 }
+        );
+
+        logger.info(`✅ Reaction ${emoji} sent to ${to} via baileys-service`);
+        return res.json({ success: true });
+      } catch (proxyError) {
+        logger.error(`Failed to proxy reaction to baileys-service:`, proxyError.message);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to send reaction through baileys-service'
+        });
+      }
+    }
+
+    // Fallback to local session pool (non-standalone mode)
     const { getSessionPool } = require('../integrations/whatsapp/session-pool');
     const sessionPool = getSessionPool();
-    
-    // Use the new sendReaction method that handles session creation automatically
     const result = await sessionPool.sendReaction(companyId, to, emoji, messageId);
-    
+
     logger.info(`✅ Reaction ${emoji} sent to ${to} via API`);
     res.json({ success: true });
-    
+
   } catch (error) {
     logger.error('Failed to send reaction:', error);
     res.status(500).json({
