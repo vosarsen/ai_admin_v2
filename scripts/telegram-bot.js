@@ -794,24 +794,436 @@ class TelegramBot {
   }
 }
 
+/**
+ * Proactive Monitor
+ * Автоматический мониторинг системы с алертами в Telegram
+ */
+class ProactiveMonitor {
+  constructor(telegramBot) {
+    this.bot = telegramBot;
+    this.isRunning = false;
+    this.intervals = [];
+
+    // Последние алерты для каждого типа (для cooldown)
+    this.lastAlerts = new Map();
+
+    // Cooldown periods (в миллисекундах)
+    this.cooldowns = {
+      whatsapp_down: 5 * 60 * 1000,        // 5 минут
+      database_down: 5 * 60 * 1000,        // 5 минут
+      high_queue: 5 * 60 * 1000,           // 5 минут
+      db_keys_overflow: 15 * 60 * 1000,    // 15 минут
+      high_memory: 15 * 60 * 1000,         // 15 минут
+      no_activity: 30 * 60 * 1000,         // 30 минут
+      high_error_rate: 30 * 60 * 1000      // 30 минут
+    };
+
+    // Thresholds
+    this.thresholds = {
+      queueSize: 50,
+      dbKeys: 200,
+      memory: 80,        // percent
+      noActivityMinutes: 30,
+      errorsPerHour: 10
+    };
+  }
+
+  /**
+   * Start proactive monitoring
+   */
+  start() {
+    if (this.isRunning) {
+      logger.warn('Proactive monitor already running');
+      return;
+    }
+
+    this.isRunning = true;
+    logger.info('🔍 Starting Proactive Monitor...');
+
+    // Critical checks every 1 minute
+    const criticalInterval = setInterval(() => this.checkCritical(), 60 * 1000);
+    this.intervals.push(criticalInterval);
+
+    // Important checks every 5 minutes
+    const importantInterval = setInterval(() => this.checkImportant(), 5 * 60 * 1000);
+    this.intervals.push(importantInterval);
+
+    // Daily summary at 9:00 AM Moscow time
+    this.scheduleDailySummary();
+
+    // Run initial check
+    this.checkCritical();
+
+    logger.info('✅ Proactive Monitor started');
+  }
+
+  /**
+   * Stop proactive monitoring
+   */
+  stop() {
+    this.isRunning = false;
+    this.intervals.forEach(interval => clearInterval(interval));
+    this.intervals = [];
+    logger.info('Proactive Monitor stopped');
+  }
+
+  /**
+   * Check if we should send alert (cooldown logic)
+   */
+  shouldAlert(type) {
+    const lastAlert = this.lastAlerts.get(type);
+    const cooldown = this.cooldowns[type] || 5 * 60 * 1000;
+
+    if (!lastAlert) {
+      this.lastAlerts.set(type, Date.now());
+      return true;
+    }
+
+    const timeSinceLastAlert = Date.now() - lastAlert;
+
+    if (timeSinceLastAlert >= cooldown) {
+      this.lastAlerts.set(type, Date.now());
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Critical checks (every 1 minute)
+   */
+  async checkCritical() {
+    try {
+      await Promise.all([
+        this.checkWhatsAppConnection(),
+        this.checkDatabaseConnection(),
+        this.checkHighQueue()
+      ]);
+    } catch (error) {
+      logger.error('Critical check failed:', error);
+    }
+  }
+
+  /**
+   * Important checks (every 5 minutes)
+   */
+  async checkImportant() {
+    try {
+      await Promise.all([
+        this.checkDatabaseKeys(),
+        this.checkMemoryUsage(),
+        this.checkActivity()
+      ]);
+    } catch (error) {
+      logger.error('Important check failed:', error);
+    }
+  }
+
+  /**
+   * Check WhatsApp connection
+   */
+  async checkWhatsAppConnection() {
+    try {
+      const response = await axios.get('http://localhost:3000/health', { timeout: 5000 });
+      const whatsapp = response.data?.checks?.whatsapp;
+
+      if (!whatsapp || !whatsapp.connected) {
+        if (this.shouldAlert('whatsapp_down')) {
+          await this.bot.sendMessage(ADMIN_CHAT_ID, `
+🚨 <b>КРИТИЧНО: WhatsApp отключен!</b>
+
+Статус: ${whatsapp?.status || 'unknown'}
+Время: ${new Date().toLocaleString('ru-RU')}
+
+<b>Действия:</b>
+1. Проверьте логи: /logs
+2. Проверьте статус: /health
+3. При необходимости: /restart whatsapp
+
+<i>Автоматический алерт</i>
+`);
+        }
+      }
+    } catch (error) {
+      logger.error('WhatsApp check failed:', error.message);
+    }
+  }
+
+  /**
+   * Check Database connection
+   */
+  async checkDatabaseConnection() {
+    try {
+      const response = await axios.get('http://localhost:3000/health', { timeout: 5000 });
+      const database = response.data?.checks?.database;
+
+      if (!database || !database.connected) {
+        if (this.shouldAlert('database_down')) {
+          await this.bot.sendMessage(ADMIN_CHAT_ID, `
+🔴 <b>КРИТИЧНО: База данных недоступна!</b>
+
+Статус: ${database?.status || 'unknown'}
+Время: ${new Date().toLocaleString('ru-RU')}
+
+<b>Действия:</b>
+1. Проверьте Supabase dashboard
+2. Проверьте логи: /logs
+3. Возможна проблема с сетью
+
+<i>Автоматический алерт</i>
+`);
+        }
+      }
+    } catch (error) {
+      logger.error('Database check failed:', error.message);
+    }
+  }
+
+  /**
+   * Check queue size
+   */
+  async checkHighQueue() {
+    try {
+      const response = await axios.get('http://localhost:3000/health', { timeout: 5000 });
+      const queue = response.data?.checks?.queue;
+
+      if (queue && queue.totalJobs > this.thresholds.queueSize) {
+        if (this.shouldAlert('high_queue')) {
+          await this.bot.sendMessage(ADMIN_CHAT_ID, `
+⚠️ <b>Высокая нагрузка очереди!</b>
+
+Сообщений в очереди: ${queue.totalJobs}
+Порог: ${this.thresholds.queueSize}
+Время: ${new Date().toLocaleString('ru-RU')}
+
+<b>Возможные причины:</b>
+• Много входящих сообщений
+• Медленная обработка AI
+• Проблемы с worker
+
+Проверьте: /queue
+
+<i>Автоматический алерт</i>
+`);
+        }
+      }
+    } catch (error) {
+      logger.error('Queue check failed:', error.message);
+    }
+  }
+
+  /**
+   * Check Database Auth State keys
+   */
+  async checkDatabaseKeys() {
+    try {
+      const { createClient } = require('@supabase/supabase-js');
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+      if (!supabaseUrl || !supabaseKey) return;
+
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const { count, error } = await supabase
+        .from('whatsapp_keys')
+        .select('*', { count: 'exact', head: true });
+
+      if (error) throw error;
+
+      if (count > this.thresholds.dbKeys) {
+        if (this.shouldAlert('db_keys_overflow')) {
+          await this.bot.sendMessage(ADMIN_CHAT_ID, `
+⚠️ <b>Database Auth State: Много ключей!</b>
+
+Ключей в БД: ${count}
+Порог: ${this.thresholds.dbKeys}
+Время: ${new Date().toLocaleString('ru-RU')}
+
+<b>Проблема:</b>
+TTL cleanup возможно не работает!
+
+<b>Действия:</b>
+1. Проверьте: /db_health
+2. Проверьте истёкшие ключи
+3. Возможно нужна ручная очистка
+
+<i>Автоматический алерт</i>
+`);
+        }
+      }
+    } catch (error) {
+      logger.error('Database keys check failed:', error.message);
+    }
+  }
+
+  /**
+   * Check memory usage
+   */
+  async checkMemoryUsage() {
+    try {
+      const response = await axios.get('http://localhost:3000/health', { timeout: 5000 });
+      const memory = response.data?.checks?.memory;
+
+      if (memory && parseFloat(memory.percentage) > this.thresholds.memory) {
+        if (this.shouldAlert('high_memory')) {
+          await this.bot.sendMessage(ADMIN_CHAT_ID, `
+⚠️ <b>Высокое использование памяти!</b>
+
+Использовано: ${memory.percentage}%
+Порог: ${this.thresholds.memory}%
+Память: ${memory.rssMB}MB
+Время: ${new Date().toLocaleString('ru-RU')}
+
+<b>Действия:</b>
+1. Проверьте статус: /status
+2. Возможно нужен restart
+3. Проверьте memory leaks
+
+<i>Автоматический алерт</i>
+`);
+        }
+      }
+    } catch (error) {
+      logger.error('Memory check failed:', error.message);
+    }
+  }
+
+  /**
+   * Check last activity (no messages processed)
+   */
+  async checkActivity() {
+    try {
+      const response = await axios.get('http://localhost:3000/health', { timeout: 5000 });
+      const activity = response.data?.checks?.lastActivity;
+
+      if (activity && activity.lastMessageMinutesAgo > this.thresholds.noActivityMinutes) {
+        if (this.shouldAlert('no_activity')) {
+          await this.bot.sendMessage(ADMIN_CHAT_ID, `
+⚠️ <b>Нет активности!</b>
+
+Последнее сообщение: ${activity.lastMessageMinutesAgo} мин назад
+Порог: ${this.thresholds.noActivityMinutes} мин
+Время: ${new Date().toLocaleString('ru-RU')}
+
+<b>Возможные причины:</b>
+• Система зависла
+• Нет входящих сообщений
+• Проблемы с WhatsApp webhook
+
+Проверьте: /health
+
+<i>Автоматический алерт</i>
+`, { silent: true });
+        }
+      }
+    } catch (error) {
+      logger.error('Activity check failed:', error.message);
+    }
+  }
+
+  /**
+   * Schedule daily summary at 9:00 AM Moscow time
+   */
+  scheduleDailySummary() {
+    const checkDailySummary = () => {
+      const now = new Date();
+      const moscowTime = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
+
+      // Check if it's 9:00 AM
+      if (moscowTime.getHours() === 9 && moscowTime.getMinutes() === 0) {
+        this.sendDailySummary();
+      }
+    };
+
+    // Check every minute
+    const summaryInterval = setInterval(checkDailySummary, 60 * 1000);
+    this.intervals.push(summaryInterval);
+  }
+
+  /**
+   * Send daily summary
+   */
+  async sendDailySummary() {
+    try {
+      const { createClient } = require('@supabase/supabase-js');
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+      if (!supabaseUrl || !supabaseKey) return;
+
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      // Get yesterday's date
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      yesterday.setHours(0, 0, 0, 0);
+
+      // Count bookings
+      const { count: bookings } = await supabase
+        .from('records')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', yesterday.toISOString())
+        .eq('company_id', 962302);
+
+      // Count new clients
+      const { count: newClients } = await supabase
+        .from('clients')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', yesterday.toISOString())
+        .eq('company_id', 962302);
+
+      // Get system uptime
+      const response = await axios.get('http://localhost:3000/health', { timeout: 5000 });
+      const uptime = Math.floor(response.data.uptime / 3600); // hours
+
+      await this.bot.sendMessage(ADMIN_CHAT_ID, `
+📊 <b>Ежедневная сводка AI Admin</b>
+
+📅 Вчера (${yesterday.toLocaleDateString('ru-RU')}):
+• Создано записей: ${bookings || 0}
+• Новых клиентов: ${newClients || 0}
+
+🔧 Система:
+• Uptime: ${uptime}ч
+• Статус: ${response.data.status === 'ok' ? '✅ OK' : '⚠️ Warning'}
+
+Для деталей: /stats yesterday
+
+<i>Ежедневная автоматическая сводка</i>
+`, { silent: true });
+
+    } catch (error) {
+      logger.error('Daily summary failed:', error.message);
+    }
+  }
+}
+
 // Запускаем бота
 if (require.main === module) {
   const bot = new TelegramBot();
+  const monitor = new ProactiveMonitor(bot);
 
   // Graceful shutdown
   process.on('SIGINT', async () => {
-    logger.info('Received SIGINT, stopping bot...');
+    logger.info('Received SIGINT, stopping bot and monitor...');
+    monitor.stop();
     await bot.stop();
     process.exit(0);
   });
 
   process.on('SIGTERM', async () => {
-    logger.info('Received SIGTERM, stopping bot...');
+    logger.info('Received SIGTERM, stopping bot and monitor...');
+    monitor.stop();
     await bot.stop();
     process.exit(0);
   });
 
-  bot.run().catch(error => {
+  // Start bot and monitor
+  bot.run().then(() => {
+    // Start proactive monitor after bot is running
+    monitor.start();
+  }).catch(error => {
     logger.error('Failed to start bot:', error);
     process.exit(1);
   });
