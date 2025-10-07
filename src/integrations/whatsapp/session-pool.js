@@ -26,6 +26,7 @@ const fs = require('fs-extra');
 const EventEmitter = require('events');
 const logger = require('../../utils/logger');
 const QRCode = require('qrcode');
+const { useSupabaseAuthState } = require('./auth-state-supabase');
 
 class WhatsAppSessionPool extends EventEmitter {
     constructor() {
@@ -269,13 +270,23 @@ class WhatsAppSessionPool extends EventEmitter {
                 this.sessions.delete(validatedId);
             }
 
-            // Auth data path for company
-            const authPath = path.join(this.baseAuthPath, `company_${validatedId}`);
-            await fs.ensureDir(authPath);
-            this.authPaths.set(validatedId, authPath);
+            // Feature flag: Use database-backed auth state or file-based
+            const useDatabaseAuth = process.env.USE_DATABASE_AUTH_STATE === 'true';
 
-            // Load or create auth state
-            const { state, saveCreds } = await useMultiFileAuthState(authPath);
+            let state, saveCreds;
+
+            if (useDatabaseAuth) {
+                // Database-backed auth state (production-ready)
+                logger.info(`🗄️  Using database auth state for company ${validatedId}`);
+                ({ state, saveCreds } = await useSupabaseAuthState(validatedId));
+            } else {
+                // File-based auth state (legacy)
+                logger.info(`📁 Using file auth state for company ${validatedId}`);
+                const authPath = path.join(this.baseAuthPath, `company_${validatedId}`);
+                await fs.ensureDir(authPath);
+                this.authPaths.set(validatedId, authPath);
+                ({ state, saveCreds } = await useMultiFileAuthState(authPath));
+            }
 
             // Get latest Baileys version for better compatibility
             const { version, isLatest } = await fetchLatestBaileysVersion();
