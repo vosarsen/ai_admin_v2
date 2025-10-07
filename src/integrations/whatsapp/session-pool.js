@@ -146,26 +146,11 @@ class WhatsAppSessionPool extends EventEmitter {
     }
 
     /**
-     * Gets or creates session for company with mutex protection
+     * Gets or creates session for company
+     * This is an alias for createSession with no options
      */
     async getOrCreateSession(companyId) {
-        const validatedId = this.validateCompanyId(companyId);
-
-        // Check existing session
-        if (this.sessions.has(validatedId)) {
-            const session = this.sessions.get(validatedId);
-            // Правильная проверка для Baileys - проверяем user вместо ws.readyState
-            if (session && session.user) {
-                logger.debug(`✅ Using existing session for company ${validatedId}`);
-                return session;
-            } else {
-                logger.info(`🔄 Session exists but not connected for company ${validatedId}`);
-            }
-        }
-
-        // Delegate to createSession which has proper mutex protection
-        // DO NOT duplicate mutex logic here to avoid race conditions
-        return await this.createSession(validatedId);
+        return await this.createSession(companyId, {});
     }
 
     /**
@@ -666,12 +651,8 @@ class WhatsAppSessionPool extends EventEmitter {
         return this.qrCodes.get(validatedId) || null;
     }
 
-    /**
-     * Creates new session (alias for getOrCreateSession)
-     */
-    async createSession(companyId) {
-        return this.getOrCreateSession(companyId);
-    }
+    // NOTE: createSession is defined earlier in the file with full mutex logic
+    // This alias has been removed to prevent recursion
 
     /**
      * Gets session status
