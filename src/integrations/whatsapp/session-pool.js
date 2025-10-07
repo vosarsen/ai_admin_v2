@@ -163,17 +163,8 @@ class WhatsAppSessionPool extends EventEmitter {
             }
         }
 
-        // Check if already creating this session (mutex)
-        if (this.creatingSession.has(validatedId)) {
-            logger.debug(`⏳ Waiting for session creation for company ${validatedId}`);
-            const promise = this.sessionCreationPromises.get(validatedId);
-            if (promise) {
-                return await promise;
-            }
-        }
-
-        // Create new session with mutex protection
-        logger.info(`🔄 Creating new session for company ${validatedId}`);
+        // Delegate to createSession which has proper mutex protection
+        // DO NOT duplicate mutex logic here to avoid race conditions
         return await this.createSession(validatedId);
     }
 
