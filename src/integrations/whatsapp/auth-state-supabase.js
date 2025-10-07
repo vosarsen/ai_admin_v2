@@ -12,8 +12,10 @@ const { supabase } = require('../../database/supabase');
 const logger = require('../../utils/logger');
 
 /**
- * Recursively revive Buffer objects from JSONB serialization
- * PostgreSQL JSONB converts Buffer to {type: 'Buffer', data: [...]}
+ * Recursively revive Buffer objects from JSON/JSONB serialization
+ * Buffer can be serialized in two formats:
+ * 1. PostgreSQL JSONB: {type: 'Buffer', data: [1,2,3,...]}  (array of bytes)
+ * 2. JSON.stringify:   {type: 'Buffer', data: "base64=="}   (base64 string)
  * This function converts them back to actual Buffer objects
  *
  * @param {any} obj - Object to process
@@ -25,8 +27,15 @@ function reviveBuffers(obj) {
   }
 
   // Check if this is a serialized Buffer object
-  if (obj.type === 'Buffer' && Array.isArray(obj.data)) {
-    return Buffer.from(obj.data);
+  if (obj.type === 'Buffer' && obj.data !== undefined) {
+    // Handle array format: {type: 'Buffer', data: [1,2,3]}
+    if (Array.isArray(obj.data)) {
+      return Buffer.from(obj.data);
+    }
+    // Handle base64 string format: {type: 'Buffer', data: "base64=="}
+    if (typeof obj.data === 'string') {
+      return Buffer.from(obj.data, 'base64');
+    }
   }
 
   // Recursively process arrays
