@@ -13,6 +13,7 @@ const criticalErrorLogger = require('../utils/critical-error-logger');
 const reminderContextTracker = require('../services/reminder/reminder-context-tracker');
 const { YclientsClient } = require('../integrations/yclients/client');
 const { createRedisClient } = require('../utils/redis-factory');
+const { startAutomaticCleanup } = require('../services/whatsapp/database-cleanup');
 
 /**
  * Упрощенный Message Worker для AI Admin v2
@@ -111,8 +112,14 @@ class MessageWorkerV2 {
       
       this.workers.push(worker);
     }
-    
+
     // Очистка кеша больше не нужна - используем Redis с TTL
+
+    // Start automatic cleanup of expired WhatsApp keys (if using database auth state)
+    if (process.env.USE_DATABASE_AUTH_STATE === 'true') {
+      logger.info('🤖 Database auth state enabled - starting automatic cleanup');
+      startAutomaticCleanup();
+    }
   }
 
   async processMessage(job) {
