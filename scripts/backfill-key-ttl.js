@@ -70,27 +70,34 @@ async function backfillTTL() {
     };
   });
 
-  // Update in batches
-  const BATCH_SIZE = 100;
+  // Update one by one (Supabase doesn't support batch UPDATE with filters)
   let updated = 0;
+  let errors = 0;
 
-  for (let i = 0; i < updates.length; i += BATCH_SIZE) {
-    const batch = updates.slice(i, i + BATCH_SIZE);
-
+  for (const update of updates) {
     const { error: updateError } = await supabase
       .from('whatsapp_keys')
-      .upsert(batch, {
-        onConflict: 'company_id,key_type,key_id',
-        ignoreDuplicates: false
-      });
+      .update({ expires_at: update.expires_at })
+      .eq('company_id', update.company_id)
+      .eq('key_type', update.key_type)
+      .eq('key_id', update.key_id);
 
     if (updateError) {
-      console.error(`❌ Error updating batch ${i}-${i + batch.length}:`, updateError.message);
-      continue;
+      errors++;
+      if (errors <= 5) {
+        console.error(`❌ Error updating ${update.key_type}/${update.key_id}:`, updateError.message);
+      }
+    } else {
+      updated++;
     }
 
-    updated += batch.length;
-    process.stdout.write(`\r⏳ Progress: ${updated}/${updates.length} (${Math.round(updated/updates.length*100)}%)`);
+    if (updated % 50 === 0) {
+      process.stdout.write(`\r⏳ Progress: ${updated}/${updates.length} (${Math.round(updated/updates.length*100)}%) ${errors ? `[${errors} errors]` : ''}`);
+    }
+  }
+
+  if (errors > 5) {
+    console.log(`\n⚠️  ${errors - 5} more errors (hidden)`);
   }
 
   console.log('\n\n✅ Backfill complete!');
