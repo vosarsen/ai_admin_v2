@@ -179,10 +179,28 @@ async function useSupabaseAuthState(companyId) {
                 updated_at: new Date().toISOString()
               };
 
-              // Set TTL for lid-mapping keys (7 days)
+              // Set TTL based on key type
+              const expiryDate = new Date();
+
               if (type.includes('lid-mapping')) {
-                const expiryDate = new Date();
-                expiryDate.setDate(expiryDate.getDate() + 7); // 7 days TTL
+                // LID mappings: 7 days (user identity mappings)
+                expiryDate.setDate(expiryDate.getDate() + 7);
+                record.expires_at = expiryDate.toISOString();
+              } else if (type === 'pre-key') {
+                // Pre-keys: 30 days (Signal Protocol keys)
+                expiryDate.setDate(expiryDate.getDate() + 30);
+                record.expires_at = expiryDate.toISOString();
+              } else if (type === 'session') {
+                // Session keys: 7 days (active conversations)
+                expiryDate.setDate(expiryDate.getDate() + 7);
+                record.expires_at = expiryDate.toISOString();
+              } else if (type === 'sender-key') {
+                // Sender keys: 7 days (group message encryption)
+                expiryDate.setDate(expiryDate.getDate() + 7);
+                record.expires_at = expiryDate.toISOString();
+              } else {
+                // All other keys (app, lid, pre): 30 days default
+                expiryDate.setDate(expiryDate.getDate() + 30);
                 record.expires_at = expiryDate.toISOString();
               }
 
