@@ -422,7 +422,7 @@ class TelegramBot {
     try {
       const { createClient } = require('@supabase/supabase-js');
       const supabaseUrl = process.env.SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const supabaseKey = process.env.SUPABASE_KEY;
 
       if (!supabaseUrl || !supabaseKey) {
         await this.sendMessage(chatId, '❌ Supabase credentials не настроены');
@@ -492,7 +492,7 @@ class TelegramBot {
     try {
       const { createClient } = require('@supabase/supabase-js');
       const supabaseUrl = process.env.SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const supabaseKey = process.env.SUPABASE_KEY;
 
       if (!supabaseUrl || !supabaseKey) {
         await this.sendMessage(chatId, '❌ Supabase credentials не настроены');
@@ -566,7 +566,7 @@ class TelegramBot {
     try {
       const { createClient } = require('@supabase/supabase-js');
       const supabaseUrl = process.env.SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const supabaseKey = process.env.SUPABASE_KEY;
 
       if (!supabaseUrl || !supabaseKey) {
         await this.sendMessage(chatId, '❌ Supabase credentials не настроены');
@@ -1019,7 +1019,7 @@ class ProactiveMonitor {
     try {
       const { createClient } = require('@supabase/supabase-js');
       const supabaseUrl = process.env.SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const supabaseKey = process.env.SUPABASE_KEY;
 
       if (!supabaseUrl || !supabaseKey) return;
 
@@ -1149,7 +1149,7 @@ RSS: ${memory.rssMB}MB
     try {
       const { createClient } = require('@supabase/supabase-js');
       const supabaseUrl = process.env.SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const supabaseKey = process.env.SUPABASE_KEY;
 
       if (!supabaseUrl || !supabaseKey) return;
 
