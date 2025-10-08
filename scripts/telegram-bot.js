@@ -822,7 +822,7 @@ class ProactiveMonitor {
     this.thresholds = {
       queueSize: 50,
       dbKeys: 200,
-      memory: 80,        // percent
+      memory: 90,        // percent (было 80%, увеличено до 90% чтобы не спамить)
       noActivityMinutes: 30,
       errorsPerHour: 10
     };
@@ -1072,7 +1072,8 @@ TTL cleanup возможно не работает!
 
 Использовано: ${memory.percentage}%
 Порог: ${this.thresholds.memory}%
-Память: ${memory.rssMB}MB
+Heap: ${memory.heapUsedMB}MB / ${memory.heapTotalMB}MB
+RSS: ${memory.rssMB}MB
 Время: ${new Date().toLocaleString('ru-RU')}
 
 <b>Действия:</b>
