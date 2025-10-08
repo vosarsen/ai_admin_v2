@@ -187,8 +187,8 @@ async function useSupabaseAuthState(companyId) {
                 expiryDate.setDate(expiryDate.getDate() + 7);
                 record.expires_at = expiryDate.toISOString();
               } else if (type === 'pre-key') {
-                // Pre-keys: 30 days (Signal Protocol keys)
-                expiryDate.setDate(expiryDate.getDate() + 30);
+                // Pre-keys: 7 days (refreshed frequently by WhatsApp)
+                expiryDate.setDate(expiryDate.getDate() + 7);
                 record.expires_at = expiryDate.toISOString();
               } else if (type === 'session') {
                 // Session keys: 7 days (active conversations)
@@ -199,8 +199,8 @@ async function useSupabaseAuthState(companyId) {
                 expiryDate.setDate(expiryDate.getDate() + 7);
                 record.expires_at = expiryDate.toISOString();
               } else {
-                // All other keys (app, lid, pre): 30 days default
-                expiryDate.setDate(expiryDate.getDate() + 30);
+                // All other keys (app, lid, pre): 14 days default
+                expiryDate.setDate(expiryDate.getDate() + 14);
                 record.expires_at = expiryDate.toISOString();
               }
 
