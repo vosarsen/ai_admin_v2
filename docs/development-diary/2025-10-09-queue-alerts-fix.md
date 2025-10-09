@@ -93,14 +93,34 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 \
 
 ## Results
 
-✅ **Immediate:**
+✅ **Worker Fix (Immediate):**
 - Removed stuck jobs from repeat queue
 - Worker restarted with fix
-
-✅ **Expected:**
 - No more infinite retry loops
-- Queue alerts should stop
 - System messages properly skipped with warning log
+
+✅ **Telegram Bot Fix (Follow-up):**
+After deploying worker fix, alerts continued because bot checked queue instantly during temporary spikes.
+
+**Additional Changes:**
+1. **30-second delay with re-check** - Bot now waits 30s and verifies queue is still high
+2. **Threshold increased** - From 50 to 100 messages to reduce false positives
+3. **Better logging** - Logs spike detection and whether alert was sent
+
+**File:** `scripts/telegram-bot.js`
+- Line 823: `queueSize: 100` (was 50)
+- Lines 986-1028: Added delay and re-check logic
+
+**Deployment:**
+```bash
+git commit -m "fix: add 30-second delay to queue alerts and increase threshold to 100"
+pm2 restart ai-admin-telegram-bot
+```
+
+✅ **Final Result:**
+- Alerts only sent if queue stays high for 30+ seconds
+- Higher threshold reduces noise from normal traffic bursts
+- System now stable with no false positives
 
 ## Why This Happens
 
