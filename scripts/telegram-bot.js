@@ -820,7 +820,7 @@ class ProactiveMonitor {
 
     // Thresholds
     this.thresholds = {
-      queueSize: 50,
+      queueSize: 100,    // Increased from 50 to 100 to reduce false positives from temporary spikes
       dbKeys: 200,
       memory: 90,        // percent (было 80%, увеличено до 90% чтобы не спамить)
       noActivityMinutes: 30,
@@ -981,6 +981,7 @@ class ProactiveMonitor {
 
   /**
    * Check queue size
+   * With 30-second delay to avoid false positives from temporary spikes
    */
   async checkHighQueue() {
     try {
@@ -988,11 +989,22 @@ class ProactiveMonitor {
       const queue = response.data?.checks?.queue;
 
       if (queue && queue.totalJobs > this.thresholds.queueSize) {
-        if (this.shouldAlert('high_queue')) {
-          await this.bot.sendMessage(ADMIN_CHAT_ID, `
+        // Wait 30 seconds and check again to avoid false positives
+        logger.info(`Queue spike detected: ${queue.totalJobs} jobs. Waiting 30s to confirm...`);
+
+        await new Promise(resolve => setTimeout(resolve, 30000));
+
+        // Re-check queue after delay
+        const retryResponse = await axios.get('http://localhost:3000/health', { timeout: 5000 });
+        const retryQueue = retryResponse.data?.checks?.queue;
+
+        // Only alert if queue is still high after 30 seconds
+        if (retryQueue && retryQueue.totalJobs > this.thresholds.queueSize) {
+          if (this.shouldAlert('high_queue')) {
+            await this.bot.sendMessage(ADMIN_CHAT_ID, `
 ⚠️ <b>Высокая нагрузка очереди!</b>
 
-Сообщений в очереди: ${queue.totalJobs}
+Сообщений в очереди: ${retryQueue.totalJobs}
 Порог: ${this.thresholds.queueSize}
 Время: ${new Date().toLocaleString('ru-RU')}
 
@@ -1003,8 +1015,11 @@ class ProactiveMonitor {
 
 Проверьте: /queue
 
-<i>Автоматический алерт</i>
+<i>Автоматический алерт (подтверждено через 30 сек)</i>
 `);
+          }
+        } else {
+          logger.info(`Queue cleared after 30s: ${retryQueue?.totalJobs || 0} jobs. No alert sent.`);
         }
       }
     } catch (error) {
