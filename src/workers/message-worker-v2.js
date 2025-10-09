@@ -130,10 +130,17 @@ class MessageWorkerV2 {
     const messageId = metadata.messageId || null;
     
     // Добавляем валидацию номера телефона
-    if (!from || from === '+' || from.length < 5) {
-      logger.error(`❌ Invalid phone number in job ${job.id}: "${from}"`);
-      logger.error('Full job data:', job.data);
-      throw new Error(`Invalid phone number: ${from}`);
+    if (!from || from === null || from === 'null' || from === '+' || (typeof from === 'string' && from.length < 5)) {
+      logger.warn(`⚠️ Skipping message with invalid phone number in job ${job.id}: "${from}"`);
+      logger.warn('Job metadata:', { messageId, metadata, companyId });
+      // Не выбрасываем ошибку - просто пропускаем и помечаем как успешно обработанное
+      // чтобы не создавать бесконечные retry
+      return {
+        success: true,
+        skipped: true,
+        reason: 'Invalid phone number',
+        processingTime: Date.now() - startTime
+      };
     }
     
     logger.info(`💬 Processing message from ${from}: "${message}"`);
