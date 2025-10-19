@@ -920,7 +920,7 @@ class ProactiveMonitor {
   }
 
   /**
-   * Check WhatsApp connection
+   * Check WhatsApp connection with retry logic to avoid false positives
    */
   async checkWhatsAppConnection() {
     try {
@@ -928,11 +928,26 @@ class ProactiveMonitor {
       const whatsapp = response.data?.checks?.whatsapp;
 
       if (!whatsapp || !whatsapp.connected) {
-        if (this.shouldAlert('whatsapp_down')) {
-          await this.bot.sendMessage(ADMIN_CHAT_ID, `
+        // First detection - wait 10 seconds and re-check to avoid false positives
+        logger.warn('WhatsApp appears disconnected. Waiting 10s to confirm...', {
+          status: whatsapp?.status,
+          message: whatsapp?.message
+        });
+
+        await new Promise(resolve => setTimeout(resolve, 10000));
+
+        // Retry check
+        const retryResponse = await axios.get('http://localhost:3000/health', { timeout: 5000 });
+        const retryWhatsapp = retryResponse.data?.checks?.whatsapp;
+
+        // Only alert if still disconnected after retry
+        if (!retryWhatsapp || !retryWhatsapp.connected) {
+          if (this.shouldAlert('whatsapp_down')) {
+            await this.bot.sendMessage(ADMIN_CHAT_ID, `
 🚨 <b>КРИТИЧНО: WhatsApp отключен!</b>
 
-Статус: ${whatsapp?.status || 'unknown'}
+Статус: ${retryWhatsapp?.status || 'unknown'}
+Сообщение: ${retryWhatsapp?.message || 'неизвестно'}
 Время: ${new Date().toLocaleString('ru-RU')}
 
 <b>Действия:</b>
@@ -940,8 +955,14 @@ class ProactiveMonitor {
 2. Проверьте статус: /health
 3. При необходимости: /restart whatsapp
 
-<i>Автоматический алерт</i>
+<i>Автоматический алерт (подтверждено через 10 сек)</i>
 `);
+          }
+        } else {
+          logger.info('WhatsApp reconnected after 10s. No alert sent.', {
+            status: retryWhatsapp.status,
+            message: retryWhatsapp.message
+          });
         }
       }
     } catch (error) {
