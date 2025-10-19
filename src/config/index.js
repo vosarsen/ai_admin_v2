@@ -62,12 +62,19 @@ module.exports = {
 
   get ai() {
     return {
+      // DeepSeek settings
       apiKey: getConfig('DEEPSEEK_API_KEY'),
       apiUrl: process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1/chat/completions',
       model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
       temperature: parseFloat(process.env.DEEPSEEK_TEMPERATURE) || 0.7,
       maxTokens: parseInt(process.env.DEEPSEEK_MAX_TOKENS) || 1500,
       timeout: 30000,
+
+      // Gemini settings
+      geminiApiKey: getConfig('GEMINI_API_KEY'),
+      geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+
+      // General AI settings
       provider: process.env.AI_PROVIDER || 'deepseek',
       promptVersion: process.env.AI_PROMPT_VERSION || 'react-prompt',
       promptABTest: process.env.AI_PROMPT_AB_TEST === 'true'
