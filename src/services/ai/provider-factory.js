@@ -15,7 +15,7 @@ class AIProviderFactory {
    */
   async getProvider(name = null) {
     const providerName = name || this.defaultProvider;
-    
+
     // Кэшируем провайдеров
     if (this.providers[providerName]) {
       return this.providers[providerName];
@@ -25,20 +25,33 @@ class AIProviderFactory {
       case 'deepseek':
         this.providers[providerName] = await this.createDeepSeekProvider();
         break;
-      
+
+      case 'gemini':
+      case 'gemini-flash':
+        this.providers[providerName] = await this.createGeminiProvider('gemini-2.5-flash');
+        break;
+
+      case 'gemini-pro':
+        this.providers[providerName] = await this.createGeminiProvider('gemini-2.5-pro');
+        break;
+
+      case 'gemini-flash-lite':
+        this.providers[providerName] = await this.createGeminiProvider('gemini-2.5-flash-lite');
+        break;
+
       case 'qwen':
       case 'qwen-plus':
         this.providers[providerName] = await this.createQwenProvider('qwen-plus');
         break;
-      
+
       case 'qwen-max':
         this.providers[providerName] = await this.createQwenProvider('qwen-max');
         break;
-      
+
       case 'qwen-turbo':
         this.providers[providerName] = await this.createQwenProvider('qwen-turbo');
         break;
-      
+
       default:
         throw new Error(`Unknown AI provider: ${providerName}`);
     }
@@ -85,6 +98,79 @@ class AIProviderFactory {
           };
         } catch (error) {
           logger.error('DeepSeek API error:', error);
+          throw error;
+        }
+      }
+    };
+  }
+
+  /**
+   * Создать Gemini провайдера
+   */
+  async createGeminiProvider(model) {
+    return {
+      name: `gemini-${model}`,
+      model,
+      async call(prompt, options = {}) {
+        const axios = require('axios');
+        const apiKey = process.env.GEMINI_API_KEY;
+
+        if (!apiKey) {
+          throw new Error('GEMINI_API_KEY is not configured');
+        }
+
+        try {
+          // Определяем нужен ли structured output
+          const useStructuredOutput = options.structuredOutput || options.jsonMode;
+
+          const requestBody = {
+            contents: [{
+              parts: [{
+                text: options.message ? `${prompt}\n\n${options.message}` : prompt
+              }]
+            }]
+          };
+
+          // Добавляем generationConfig для structured output
+          if (useStructuredOutput && options.responseSchema) {
+            requestBody.generationConfig = {
+              responseMimeType: 'application/json',
+              responseSchema: options.responseSchema,
+              temperature: options.temperature || 0.7,
+              maxOutputTokens: options.maxTokens || 1000
+            };
+          } else {
+            requestBody.generationConfig = {
+              temperature: options.temperature || 0.7,
+              maxOutputTokens: options.maxTokens || 1000
+            };
+          }
+
+          const response = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+            requestBody,
+            {
+              headers: {
+                'x-goog-api-key': apiKey,
+                'Content-Type': 'application/json'
+              },
+              timeout: 30000
+            }
+          );
+
+          const text = response.data.candidates[0].content.parts[0].text;
+
+          return {
+            text,
+            model,
+            usage: response.data.usageMetadata || {
+              promptTokenCount: 0,
+              candidatesTokenCount: 0,
+              totalTokenCount: 0
+            }
+          };
+        } catch (error) {
+          logger.error(`Gemini (${model}) API error:`, error.response?.data || error.message);
           throw error;
         }
       }
@@ -153,7 +239,15 @@ class AIProviderFactory {
    * Получить список доступных провайдеров
    */
   getAvailableProviders() {
-    return ['deepseek', 'qwen-plus', 'qwen-max', 'qwen-turbo'];
+    return [
+      'deepseek',
+      'gemini-flash',
+      'gemini-pro',
+      'gemini-flash-lite',
+      'qwen-plus',
+      'qwen-max',
+      'qwen-turbo'
+    ];
   }
 }
 
