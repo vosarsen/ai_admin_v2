@@ -155,12 +155,17 @@ class AIProviderFactory {
             timeout: 30000
           };
 
-          // Добавляем прокси если указан HTTPS_PROXY
+          // Добавляем прокси если указан HTTPS_PROXY или SOCKS_PROXY
           if (process.env.HTTPS_PROXY || process.env.https_proxy) {
             const { HttpsProxyAgent } = require('https-proxy-agent');
             const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy;
             axiosConfig.httpsAgent = new HttpsProxyAgent(proxyUrl);
-            logger.info(`Using proxy for Gemini API: ${proxyUrl}`);
+            logger.info(`Using HTTPS proxy for Gemini API: ${proxyUrl}`);
+          } else if (process.env.SOCKS_PROXY || process.env.socks_proxy) {
+            const { SocksProxyAgent } = require('socks-proxy-agent');
+            const proxyUrl = process.env.SOCKS_PROXY || process.env.socks_proxy;
+            axiosConfig.httpsAgent = new SocksProxyAgent(proxyUrl);
+            logger.info(`Using SOCKS proxy for Gemini API: ${proxyUrl}`);
           }
 
           const response = await axios.post(
