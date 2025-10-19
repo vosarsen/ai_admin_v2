@@ -146,16 +146,27 @@ class AIProviderFactory {
             };
           }
 
+          // Настройка прокси если указан в env
+          const axiosConfig = {
+            headers: {
+              'x-goog-api-key': apiKey,
+              'Content-Type': 'application/json'
+            },
+            timeout: 30000
+          };
+
+          // Добавляем прокси если указан HTTPS_PROXY
+          if (process.env.HTTPS_PROXY || process.env.https_proxy) {
+            const { HttpsProxyAgent } = require('https-proxy-agent');
+            const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy;
+            axiosConfig.httpsAgent = new HttpsProxyAgent(proxyUrl);
+            logger.info(`Using proxy for Gemini API: ${proxyUrl}`);
+          }
+
           const response = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
             requestBody,
-            {
-              headers: {
-                'x-goog-api-key': apiKey,
-                'Content-Type': 'application/json'
-              },
-              timeout: 30000
-            }
+            axiosConfig
           );
 
           const text = response.data.candidates[0].content.parts[0].text;
