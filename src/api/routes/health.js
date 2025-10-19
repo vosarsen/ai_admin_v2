@@ -144,35 +144,98 @@ async function checkDatabase() {
 
 async function checkWhatsApp() {
   try {
-    // Пробуем найти sessionPool в разных местах
-    let sessionPool = global.whatsappSessionPool;
+    // Check if running in Baileys standalone mode
+    const isStandalone = process.env.BAILEYS_STANDALONE === 'true';
+    const baileysServiceUrl = process.env.BAILEYS_SERVICE_URL || 'http://localhost:3003';
 
-    // Если не в global, попробуем получить из API сервера
-    if (!sessionPool) {
+    if (isStandalone) {
+      // For Baileys standalone, check the dedicated service
       try {
-        // Проверяем через HTTP запрос к внутреннему эндпоинту
+        const companyId = config.company?.id || '962302';
+
+        // Try checking status endpoint first (faster)
+        try {
+          const statusResponse = await axios.get(`${baileysServiceUrl}/status/${companyId}`, {
+            timeout: 5000,
+            validateStatus: () => true
+          });
+
+          if (statusResponse.status === 200 && statusResponse.data?.connected) {
+            return {
+              status: 'ok',
+              connected: true,
+              message: 'Baileys service connected',
+              mode: 'standalone'
+            };
+          }
+        } catch (statusError) {
+          // Status endpoint failed, try send test
+        }
+
+        // Fallback: try test message with higher timeout
         const testResponse = await axios.post('http://localhost:3000/api/whatsapp/sessions/962302/send', {
           phone: '79000000000',
           message: 'health_check_test',
-          dryRun: true  // Не отправляем реально
+          dryRun: true
         }, {
-          timeout: 2000,
-          validateStatus: () => true  // Принимаем любой статус
+          timeout: 5000,
+          validateStatus: () => true
         });
 
-        // Если получили ответ - WhatsApp вероятно работает
+        // If API responds at all, WhatsApp is probably working
         if (testResponse.status === 200 || testResponse.status === 400) {
           return {
             status: 'ok',
             connected: true,
-            message: 'WhatsApp API responding'
+            message: 'WhatsApp API responding',
+            mode: 'standalone'
+          };
+        }
+
+        return {
+          status: 'warning',
+          connected: false,
+          message: 'Baileys service not responding',
+          mode: 'standalone'
+        };
+      } catch (apiError) {
+        return {
+          status: 'warning',
+          connected: false,
+          message: `Baileys check failed: ${apiError.message}`,
+          mode: 'standalone'
+        };
+      }
+    }
+
+    // Non-standalone mode: check sessionPool
+    let sessionPool = global.whatsappSessionPool;
+
+    if (!sessionPool) {
+      // Try API check as fallback
+      try {
+        const testResponse = await axios.post('http://localhost:3000/api/whatsapp/sessions/962302/send', {
+          phone: '79000000000',
+          message: 'health_check_test',
+          dryRun: true
+        }, {
+          timeout: 5000,
+          validateStatus: () => true
+        });
+
+        if (testResponse.status === 200 || testResponse.status === 400) {
+          return {
+            status: 'ok',
+            connected: true,
+            message: 'WhatsApp API responding',
+            mode: 'integrated'
           };
         }
       } catch (apiError) {
-        // API не отвечает или ошибка
+        // Continue to file check
       }
 
-      // Проверяем наличие сессий через файловую систему
+      // Check for session files
       const fs = require('fs');
       const path = require('path');
       const sessionsPath = path.join(process.cwd(), 'sessions');
@@ -183,7 +246,8 @@ async function checkWhatsApp() {
           return {
             status: 'ok',
             connected: true,
-            message: `Found ${sessionDirs.length} session(s)`
+            message: `Found ${sessionDirs.length} session(s)`,
+            mode: 'integrated'
           };
         }
       }
@@ -191,7 +255,8 @@ async function checkWhatsApp() {
       return {
         status: 'warning',
         connected: false,
-        message: 'Cannot verify WhatsApp status'
+        message: 'Cannot verify WhatsApp status',
+        mode: 'integrated'
       };
     }
 
@@ -202,7 +267,8 @@ async function checkWhatsApp() {
       return {
         status: 'error',
         connected: false,
-        message: 'No active session'
+        message: 'No active session',
+        mode: 'integrated'
       };
     }
 
@@ -211,7 +277,8 @@ async function checkWhatsApp() {
     return {
       status: state === 'connected' ? 'ok' : 'error',
       connected: state === 'connected',
-      phoneNumber: session.sock.user?.id?.split(':')[0] || 'unknown'
+      phoneNumber: session.sock.user?.id?.split(':')[0] || 'unknown',
+      mode: 'integrated'
     };
   } catch (error) {
     return {
