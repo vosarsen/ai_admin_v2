@@ -93,8 +93,17 @@ module.exports = {
       messageQueue: process.env.QUEUE_MESSAGE_NAME || 'messages',
       maxConcurrentWorkers: parseInt(process.env.QUEUE_MAX_WORKERS) || 3,
       defaultJobOptions: {
-        removeOnComplete: parseInt(process.env.QUEUE_KEEP_COMPLETED) || 100,
-        removeOnFail: parseInt(process.env.QUEUE_KEEP_FAILED) || 50,
+        // Auto-remove completed jobs after 24 hours (86400 seconds)
+        // Keep max 100 jobs as backup limit
+        removeOnComplete: {
+          age: parseInt(process.env.QUEUE_KEEP_COMPLETED_SECONDS) || 86400, // 24 hours
+          count: parseInt(process.env.QUEUE_KEEP_COMPLETED_COUNT) || 100
+        },
+        // Auto-remove failed jobs after 7 days (604800 seconds)
+        removeOnFail: {
+          age: parseInt(process.env.QUEUE_KEEP_FAILED_SECONDS) || 604800, // 7 days
+          count: parseInt(process.env.QUEUE_KEEP_FAILED_COUNT) || 50
+        },
         attempts: parseInt(process.env.QUEUE_RETRY_ATTEMPTS) || 3,
         backoff: {
           type: 'exponential',
