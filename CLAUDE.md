@@ -59,17 +59,25 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "cd /opt/ai-admin && git pu
 
 ## 🏗️ Architecture
 
-**Current: v2 with Two-Stage Processing**
+**Current: v2 with Two-Stage Processing + Gemini**
 ```
 Message → Stage 1: Extract Commands (JSON) → Execute → Stage 2: Generate Response
-         ↓ 8 sec                              ↓ 0.01s   ↓ 5 sec
-         Total: ~13 seconds (vs 33 sec with ReAct)
+         ↓ ~5 sec (Gemini)                   ↓ 0.01s   ↓ ~4 sec (Gemini)
+         Total: ~9 seconds (2.6x faster than DeepSeek)
 ```
+
+**AI Provider: Google Gemini 2.5 Flash**
+- Via SOCKS5 proxy (Xray VPN) to bypass geo-blocking
+- USA server (us.cdn.stun.su) - 108ms latency
+- Cost: $29/month (vs $106/month with DeepSeek)
+- Speed: 2.6x faster (9s vs 24s)
 
 **Activate Two-Stage:**
 ```bash
 export USE_TWO_STAGE=true
 export AI_PROMPT_VERSION=two-stage
+export AI_PROVIDER=gemini-flash
+export SOCKS_PROXY=socks5://127.0.0.1:1080
 ```
 
 ## 🎯 Core Services
@@ -88,9 +96,18 @@ export AI_PROMPT_VERSION=two-stage
 # MUST be set in production
 BAILEYS_STANDALONE=true  # Prevents session conflicts
 
+# AI Provider (Gemini with VPN)
+AI_PROVIDER=gemini-flash
+GEMINI_API_KEY=***REMOVED***
+SOCKS_PROXY=socks5://127.0.0.1:1080
+
 # Redis ports
 Local: 6380 (SSH tunnel)
 Server: 6379 (direct)
+
+# VPN/Proxy
+Xray service: systemctl status xray
+Config: /usr/local/etc/xray/config.json
 ```
 
 ## 🐛 Troubleshooting
@@ -101,6 +118,8 @@ Server: 6379 (direct)
 3. Redis connection → Ensure tunnel: `./scripts/maintain-redis-tunnel.sh status`
 4. Too many Telegram alerts → See `docs/TELEGRAM_ALERTS_TROUBLESHOOTING.md`
 5. WhatsApp file accumulation → See `docs/WHATSAPP_MONITORING_GUIDE.md`
+6. **Gemini API errors** → Check VPN: `ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "systemctl status xray"`
+7. **Slow responses** → Test proxy: `curl -x socks5://127.0.0.1:1080 https://ipinfo.io/json`
 
 **PM2 monitoring:**
 ```bash
@@ -125,6 +144,8 @@ For more information, see:
 - `docs/MCP_SERVERS_GUIDE.md` - Complete MCP setup
 - `docs/SYNC_SYSTEM.md` - YClients sync details
 - `docs/AI_PROVIDERS_GUIDE.md` - AI provider configuration
+- `docs/GEMINI_INTEGRATION_GUIDE.md` - **Gemini setup and testing**
+- `docs/development-diary/2025-10-19-gemini-integration-with-vpn.md` - **Full Gemini deployment story**
 - `docs/WHATSAPP_MONITORING_GUIDE.md` - WhatsApp monitoring and file management
 - `docs/TELEGRAM_ALERTS_TROUBLESHOOTING.md` - Telegram alert troubleshooting
 - `docs/development-diary/` - Recent changes and decisions
@@ -172,5 +193,6 @@ GET https://api.yclients.com/api/v1/clients/{salon_id}
 Детали: `docs/marketplace/AUTHORIZATION_QUICK_REFERENCE.md`
 
 ---
-**Last updated:** October 02, 2025
+**Last updated:** October 19, 2025
 **Current branch:** feature/redis-context-cache
+**AI Provider:** Gemini 2.5 Flash (via USA VPN) - 2.6x faster, $77/month savings 🚀
