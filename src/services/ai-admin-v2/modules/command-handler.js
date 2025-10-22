@@ -453,7 +453,36 @@ class CommandHandler {
     if (params.service_id) {
       // Если передан ID услуги, ищем по ID
       service = context.services.find(s => s.yclients_id === parseInt(params.service_id));
-    } else if (serviceToSearch) {
+    } else if (context.lastSearch?.service_id && serviceToSearch) {
+      // 🎯 КРИТИЧНО: Если есть lastSearch, проверяем совпадает ли serviceToSearch
+      // Это означает что клиент УЖЕ искал эту услугу через EXPLAIN_SERVICE
+      const lastSearchService = context.services.find(s => s.yclients_id === context.lastSearch.service_id);
+      if (lastSearchService) {
+        const queryNormalized = serviceToSearch.toLowerCase().replace(/[^\wа-яё]/g, '');
+        const lastServiceNormalized = lastSearchService.title.toLowerCase().replace(/[^\wа-яё]/g, '');
+
+        // Если хотя бы одно слово совпадает - используем lastSearch (приоритет контексту!)
+        const queryWords = queryNormalized.split(/\s+/).filter(w => w.length > 2);
+        const lastServiceWords = lastServiceNormalized.split(/\s+/).filter(w => w.length > 2);
+        const hasCommonWord = queryWords.some(qw => lastServiceWords.some(lw => lw.includes(qw) || qw.includes(lw)));
+
+        if (hasCommonWord) {
+          service = lastSearchService;
+          logger.info('✅ Using service from lastSearch (context priority):', {
+            query: serviceToSearch,
+            lastSearchService: lastSearchService.title,
+            serviceId: lastSearchService.yclients_id
+          });
+        } else {
+          logger.warn('⚠️ serviceToSearch does not match lastSearch, using personalization:', {
+            query: serviceToSearch,
+            lastSearchService: lastSearchService.title
+          });
+        }
+      }
+    }
+
+    if (!service && serviceToSearch) {
       // Ищем по названию с персонализацией
       logger.info('Service search context check:', {
         hasClient: !!context.client,
@@ -493,11 +522,11 @@ class CommandHandler {
       } else {
         // Иначе используем обычный поиск
         service = serviceMatcher.findBestMatch(
-          serviceToSearch, 
+          serviceToSearch,
           context.services
         );
       }
-    } else if (context.lastSearch?.service_id) {
+    } else if (!service && context.lastSearch?.service_id) {
       // Используем услугу из последнего поиска
       service = context.services.find(s => s.yclients_id === context.lastSearch.service_id);
     }
