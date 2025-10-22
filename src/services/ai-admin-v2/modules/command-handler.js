@@ -197,7 +197,10 @@ class CommandHandler {
               results.push({
                 type: 'slots',
                 data: slotsResult.slots,
-                partialWindows: slotsResult.partialWindows
+                partialWindows: slotsResult.partialWindows,
+                // ✅ КРИТИЧНО: Передаём service и staff для Stage 2
+                service: slotsResult.service?.title || cmd.params.service_name,
+                staff: slotsResult.staff?.name || cmd.params.staff_name
               });
             }
 
