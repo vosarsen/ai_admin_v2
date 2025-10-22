@@ -733,35 +733,56 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
       const now = new Date();
       const date = formatDate(recordDate);
       const time = formatTime(recordDate);
-      const services = record.services?.map(s => s.title).join(', ') || 'Услуга';
       const staff = record.staff?.name || 'Мастер';
       const price = record.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0;
-      
+
       // Получаем информацию о компании и клиенте
       const companyInfo = await this.getCompanyInfo(record.company_id || config.yclients.companyId);
       const address = companyInfo?.address || '';
-      
+
       // Получаем имя клиента
       const clientName = record.client?.name || '';
-      
-      // Получаем склонения для услуги из БД
-      let serviceDeclensions = null;
-      if (record.services?.[0]?.id) {
-        try {
-          const { data: serviceData } = await supabase
-            .from('services')
-            .select('declensions')
-            .eq('yclients_id', record.services[0].id)
-            .eq('company_id', record.company_id || config.yclients.companyId)
-            .single();
-          
-          if (serviceData?.declensions) {
-            serviceDeclensions = serviceData.declensions;
+
+      // Получаем склонения для ВСЕХ услуг из БД
+      const servicesWithDeclensions = [];
+      if (record.services && record.services.length > 0) {
+        for (const service of record.services) {
+          const serviceInfo = {
+            id: service.id,
+            title: service.title,
+            cost: service.cost || 0,
+            declensions: null
+          };
+
+          // Пытаемся получить склонения из БД
+          if (service.id) {
+            try {
+              const { data: serviceData } = await supabase
+                .from('services')
+                .select('declensions')
+                .eq('yclients_id', service.id)
+                .eq('company_id', record.company_id || config.yclients.companyId)
+                .single();
+
+              if (serviceData?.declensions) {
+                serviceInfo.declensions = serviceData.declensions;
+              }
+            } catch (error) {
+              logger.debug(`Could not fetch declensions for service ${service.id}:`, error);
+            }
           }
-        } catch (error) {
-          logger.debug('Could not fetch service declensions:', error);
+
+          servicesWithDeclensions.push(serviceInfo);
         }
       }
+
+      // Для обратной совместимости создаем строку со всеми услугами
+      const services = servicesWithDeclensions.map(s => s.title).join(', ') || 'Услуга';
+
+      // Для одной услуги используем старую логику (склонения первой услуги)
+      const serviceDeclensions = servicesWithDeclensions.length > 0
+        ? servicesWithDeclensions[0].declensions
+        : null;
       
       // Получаем склонения для мастера из БД
       let staffDeclensions = null;
@@ -786,8 +807,9 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
       const templateData = {
         clientName: clientName,
         time: time,
-        service: services,
-        serviceDeclensions: serviceDeclensions, // Передаем склонения услуги
+        service: services, // Для обратной совместимости - строка со всеми услугами
+        serviceDeclensions: serviceDeclensions, // Склонения первой услуги для обратной совместимости
+        servicesWithDeclensions: servicesWithDeclensions, // НОВОЕ: массив всех услуг со склонениями
         staff: staff,
         staffDeclensions: staffDeclensions, // Передаем склонения мастера
         price: price,

@@ -92,86 +92,135 @@ function getRandomElement(array) {
 }
 
 /**
+ * Форматировать список услуг с правильными склонениями
+ * @param {Array} services - массив услуг с declensions
+ * @param {String} caseType - падеж (prepositional_na, accusative, nominative и т.д.)
+ * @returns {String} отформатированный список услуг
+ */
+function formatServicesInCase(services, caseType) {
+  if (!services || services.length === 0) {
+    return 'услугу';
+  }
+
+  // Если одна услуга - возвращаем ее в нужном падеже
+  if (services.length === 1) {
+    const service = services[0];
+    if (service.declensions && service.declensions[caseType]) {
+      return service.declensions[caseType];
+    }
+    // Если нет склонений, возвращаем название в нижнем регистре
+    return service.title.toLowerCase();
+  }
+
+  // Если несколько услуг - форматируем списком
+  const formattedServices = services.map(service => {
+    if (service.declensions && service.declensions[caseType]) {
+      return service.declensions[caseType];
+    }
+    return service.title.toLowerCase();
+  });
+
+  // Возвращаем список с буллетами
+  return formattedServices.map(s => `• ${s}`).join('\n');
+}
+
+/**
+ * Проверить, является ли строка списком с буллетами
+ */
+function isMultilineList(text) {
+  return text.includes('\n•');
+}
+
+/**
  * Заменить плейсхолдеры в шаблоне
  */
 function fillTemplate(template, data) {
   let result = template;
-  
+
   // Заменяем плейсхолдеры
   result = result.replace(/{name}/g, data.clientName || 'дорогой клиент');
   result = result.replace(/{time}/g, data.time);
-  
+
   // Обрабатываем склонения мастера
   if (data.staffDeclensions) {
     // "у {staff}" - используем prepositional_u (у Сергея, у Али)
-    result = result.replace(/у {staff}/g, 
+    result = result.replace(/у {staff}/g,
       data.staffDeclensions.prepositional_u || `у ${data.staff}`);
-    
+
     // "Мастер {staff}" - именительный падеж
-    result = result.replace(/[Мм]астер {staff}/g, 
+    result = result.replace(/[Мм]астер {staff}/g,
       `мастер ${data.staffDeclensions.nominative || data.staff}`);
-    
+
     // Остальные {staff} - именительный падеж
-    result = result.replace(/{staff}/g, 
+    result = result.replace(/{staff}/g,
       data.staffDeclensions.nominative || data.staff);
   } else {
     // Если склонений нет, используем имя как есть
     result = result.replace(/{staff}/g, data.staff);
   }
-  
-  // Используем склонения для услуг, если есть
-  if (data.serviceDeclensions) {
-    // Определяем нужный падеж по контексту
-    
-    // "на {service}" - предложный падеж с предлогом НА
-    result = result.replace(/на {service}/g, 
-      `на ${data.serviceDeclensions.prepositional_na || data.serviceDeclensions.prepositional || data.service.toLowerCase()}`);
-    
+
+  // НОВАЯ ЛОГИКА: Используем массив услуг со склонениями
+  const services = data.servicesWithDeclensions || [];
+
+  if (services.length > 0) {
+    // Определяем нужный падеж по контексту и используем formatServicesInCase
+
+    // "на {service}" - предложный падеж с предлогом НА (винительный падеж)
+    result = result.replace(/на {service}/g,
+      `на ${formatServicesInCase(services, 'prepositional_na')}`);
+
     // "о записи на {service}" - предложный падеж с предлогом НА
     result = result.replace(/записи на {service}/g,
-      `записи на ${data.serviceDeclensions.prepositional_na || data.serviceDeclensions.prepositional || data.service.toLowerCase()}`);
-    
+      `записи на ${formatServicesInCase(services, 'prepositional_na')}`);
+
     // "про {service}" - винительный падеж
-    result = result.replace(/про {service}/g, 
-      `про ${data.serviceDeclensions.accusative || data.service.toLowerCase()}`);
-    
+    result = result.replace(/про {service}/g,
+      `про ${formatServicesInCase(services, 'accusative')}`);
+
     // "для {service}" - родительный падеж
-    result = result.replace(/для {service}/g, 
-      `для ${data.serviceDeclensions.genitive || data.service.toLowerCase()}`);
-    
+    result = result.replace(/для {service}/g,
+      `для ${formatServicesInCase(services, 'genitive')}`);
+
     // "до {service}" - родительный падеж
-    result = result.replace(/до {service}/g, 
-      `до ${data.serviceDeclensions.genitive || data.service.toLowerCase()}`);
-    
+    result = result.replace(/до {service}/g,
+      `до ${formatServicesInCase(services, 'genitive')}`);
+
     // "к {service}" - дательный падеж
     result = result.replace(/к {service}/g,
-      `к ${data.serviceDeclensions.dative || data.service.toLowerCase()}`);
-    
+      `к ${formatServicesInCase(services, 'dative')}`);
+
     // "{service} запланирована" или "у вас {service}" - именительный падеж
     result = result.replace(/\{service\} запланирована/g,
-      `${data.serviceDeclensions.nominative || data.service.toLowerCase()} запланирована`);
-    
+      `${formatServicesInCase(services, 'nominative')} запланирована`);
+
     result = result.replace(/у вас {service}/g,
-      `у вас ${data.serviceDeclensions.nominative || data.service.toLowerCase()}`);
-    
+      `у вас ${formatServicesInCase(services, 'nominative')}`);
+
     result = result.replace(/вас ждёт {service}/g,
-      `вас ждёт ${data.serviceDeclensions.nominative || data.service.toLowerCase()}`);
-    
+      `вас ждёт ${formatServicesInCase(services, 'nominative')}`);
+
     result = result.replace(/начнётся {service}/g,
-      `начнётся ${data.serviceDeclensions.nominative || data.service.toLowerCase()}`);
-    
+      `начнётся ${formatServicesInCase(services, 'nominative')}`);
+
     result = result.replace(/у вас запланирована {service}/g,
-      `у вас запланирована ${data.serviceDeclensions.nominative || data.service.toLowerCase()}`);
-    
+      `у вас запланирована ${formatServicesInCase(services, 'nominative')}`);
+
     // Оставшиеся {service} без предлогов - обычно именительный или винительный
-    result = result.replace(/{service}/g, 
-      data.serviceDeclensions.nominative || data.service.toLowerCase());
-      
+    result = result.replace(/{service}/g,
+      formatServicesInCase(services, 'nominative'));
+
   } else {
-    // Если склонений нет, используем название как есть, но в нижнем регистре
-    result = result.replace(/{service}/g, data.service.toLowerCase());
+    // Фоллбэк на старую логику если нет массива услуг
+    if (data.serviceDeclensions) {
+      result = result.replace(/на {service}/g,
+        `на ${data.serviceDeclensions.prepositional_na || data.serviceDeclensions.prepositional || data.service.toLowerCase()}`);
+      result = result.replace(/{service}/g,
+        data.serviceDeclensions.nominative || data.service.toLowerCase());
+    } else {
+      result = result.replace(/{service}/g, data.service.toLowerCase());
+    }
   }
-  
+
   return result;
 }
 
@@ -181,13 +230,28 @@ function fillTemplate(template, data) {
 function generateDayBeforeReminder(data) {
   const template = getRandomElement(dayBeforeTemplates);
   const ending = getRandomElement(dayBeforeEndings);
-  
+
   const mainText = fillTemplate(template, data);
-  
+
   // Собираем полное сообщение
   let message = mainText + '\n\n';
-  
-  // Добавляем детали только если их нет в основном тексте
+
+  // Если услуга указана списком (несколько услуг), не дублируем её в деталях
+  const isMultiService = data.servicesWithDeclensions && data.servicesWithDeclensions.length > 1;
+
+  // Если в mainText уже есть список услуг (буллеты), не добавляем их повторно
+  const hasServiceList = isMultilineList(mainText);
+
+  // Добавляем детали
+  if (!hasServiceList && isMultiService) {
+    // Если список услуг не в основном тексте, добавляем его
+    message += 'Услуги:\n';
+    data.servicesWithDeclensions.forEach(service => {
+      message += `• ${service.title}\n`;
+    });
+    message += '\n';
+  }
+
   message += `Мастер: ${data.staff}\n`;
   if (data.price > 0) {
     message += `Стоимость: ${data.price} руб.\n`;
@@ -196,7 +260,7 @@ function generateDayBeforeReminder(data) {
     message += `\nЖдём вас по адресу: ${data.address}\n`;
   }
   message += '\n' + ending;
-  
+
   return message;
 }
 
@@ -206,16 +270,33 @@ function generateDayBeforeReminder(data) {
 function generateTwoHoursReminder(data) {
   const template = getRandomElement(twoHoursTemplates);
   const ending = getRandomElement(twoHoursEndings);
-  
+
   const mainText = fillTemplate(template, data);
-  
+
   // Собираем полное сообщение
   let message = mainText + '\n';
+
+  // Если услуга указана списком (несколько услуг), не дублируем её в деталях
+  const isMultiService = data.servicesWithDeclensions && data.servicesWithDeclensions.length > 1;
+
+  // Если в mainText уже есть список услуг (буллеты), не добавляем их повторно
+  const hasServiceList = isMultilineList(mainText);
+
+  // Добавляем детали
+  if (!hasServiceList && isMultiService) {
+    // Если список услуг не в основном тексте, добавляем его
+    message += '\nУслуги:\n';
+    data.servicesWithDeclensions.forEach(service => {
+      message += `• ${service.title}\n`;
+    });
+    message += '\n';
+  }
+
   if (data.address) {
     message += `Адрес: ${data.address}\n`;
   }
   message += '\n' + ending;
-  
+
   return message;
 }
 
