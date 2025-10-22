@@ -978,7 +978,38 @@ class CommandHandler {
     
     // Если передан service_name вместо service_id, ищем услугу
     let serviceId = params.service_id;
-    if (params.service_name && !params.service_id) {
+
+    // 🎯 КРИТИЧНО: Если есть lastSearch с service_id, используем его НАПРЯМУЮ
+    // Это означает, что клиент уже выбрал услугу через SEARCH_SLOTS/EXPLAIN_SERVICE
+    if (!params.service_id && context.lastSearch?.service_id && params.service_name) {
+      // Проверяем, что service_name примерно совпадает с lastSearch
+      const lastSearchService = context.services.find(s => s.yclients_id === context.lastSearch.service_id);
+      if (lastSearchService) {
+        const queryNormalized = params.service_name.toLowerCase().replace(/[^\wа-яё]/g, ' ').trim();
+        const lastServiceNormalized = lastSearchService.title.toLowerCase().replace(/[^\wа-яё]/g, ' ').trim();
+
+        // Если хотя бы одно слово совпадает - используем lastSearch (приоритет контексту!)
+        const queryWords = queryNormalized.split(/\s+/);
+        const lastServiceWords = lastServiceNormalized.split(/\s+/);
+        const hasCommonWord = queryWords.some(qw => lastServiceWords.some(lw => lw.includes(qw) || qw.includes(lw)));
+
+        if (hasCommonWord) {
+          serviceId = context.lastSearch.service_id;
+          logger.info('✅ Using service_id from lastSearch (context priority):', {
+            query: params.service_name,
+            lastSearchService: lastSearchService.title,
+            serviceId: serviceId
+          });
+        } else {
+          logger.warn('⚠️ service_name does not match lastSearch, using personalization:', {
+            query: params.service_name,
+            lastSearchService: lastSearchService.title
+          });
+        }
+      }
+    }
+
+    if (params.service_name && !serviceId) {
       // ПЕРСОНАЛИЗАЦИЯ: Используем персонализированный поиск для CREATE_BOOKING
       let service;
       if (context.client) {
@@ -998,15 +1029,15 @@ class CommandHandler {
         }
       } else {
         service = serviceMatcher.findBestMatch(
-          params.service_name, 
+          params.service_name,
           context.services
         );
       }
-      
+
       if (service) {
         serviceId = service.yclients_id;
-        logger.info('Found service by name:', { 
-          query: params.service_name, 
+        logger.info('Found service by name:', {
+          query: params.service_name,
           found: service.title,
           serviceId: service.yclients_id
         });
@@ -1014,7 +1045,7 @@ class CommandHandler {
     } else if (params.service_id === 'last') {
       // Если AI передал "last", используем данные из последнего поиска
       serviceId = context.lastSearch?.service_id;
-    } else {
+    } else if (params.service_id) {
       serviceId = parseInt(params.service_id);
     }
     

@@ -133,11 +133,14 @@ ${client?.favorite_staff_ids?.length ? `- Любимые мастера клие
 - Числа 1-12 без "утра" = дневное время (13:00-24:00)
 
 3. ПОДТВЕРЖДЕНИЯ И КОНТЕКСТ:
-- lastService + указание времени → CREATE_BOOKING
+- lastService + указание времени → CREATE_BOOKING с service_name=lastService
 - "Да"/"давайте"/"хорошо" + есть lastTime → CREATE_BOOKING с данными из контекста
 - ПЕРЕНОС: previousBotMessage с "перенос" + подтверждение → RESCHEDULE_BOOKING
 - ⚠️ КРИТИЧНО: Всегда используй lastService, lastDate, lastStaff из контекста - НЕ меняй их!
-- ⚠️ КРИТИЧНО: Если есть lastService + утвердительный ответ ("Да", "можно", "давай") → ВСЕГДА используй lastService, НЕ ищи другую услугу!
+- ⚠️ КРИТИЧНО: Если есть lastService + утвердительный ответ ("Да", "можно", "давай") + время →
+  CREATE_BOOKING с service_name=lastService (НЕ ищи другую услугу, НЕ используй персонализацию!)
+- ⚠️ КРИТИЧНО: Если proposedSlots содержит слоты + утвердительный ответ с временем →
+  CREATE_BOOKING с service_name из proposedSlots (НЕ меняй услугу!)
 
 4. ОТВЕТ НА ВОПРОС О ИМЕНИ:
 - Если lastCommand="CLIENT_NAME_REQUIRED" → извлекай ТОЛЬКО имя
@@ -170,6 +173,7 @@ ${client?.favorite_staff_ids?.length ? `- Любимые мастера клие
    lastDate="завтра", "Запиши на 15:00" → date="завтра" (НЕ "сегодня"!)
    proposedSlots есть, "да/давайте" → используй слот из proposedSlots
    lastService="экспресс-стрижка", "Да. Сегодня можно?" → SEARCH_SLOTS с service_name="экспресс-стрижка" (НЕ меняй на другую услугу!)
+   lastService="экспресс-стрижка", proposedSlots=[17:00, 17:30...], "на 5 вечера давай" → CREATE_BOOKING с service_name="экспресс-стрижка", time="17:00" (НЕ меняй услугу!)
 
 4. Ответ на имя (lastCommand="CLIENT_NAME_REQUIRED")
    "Наталия" → CREATE_BOOKING с client_name="Наталия" и всеми данными из контекста
