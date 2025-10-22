@@ -265,7 +265,8 @@ class MessageWorkerV2 {
         // Сообщение уже обработано через rapid-fire в webhook
         const result = await aiAdminV2.processMessage(message, from, companyId, {
           shouldAskHowToHelp,
-          isThankYouMessage: isThankYou
+          isThankYouMessage: isThankYou,
+          messageId: messageId // Передаем messageId для реакций на подтверждения
         });
           
           if (!result.success) {
