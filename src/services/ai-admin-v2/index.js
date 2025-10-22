@@ -23,6 +23,8 @@ const contextManager = require('./modules/context-manager-v2');
 const performanceMetrics = require('./modules/performance-metrics');
 const prometheusMetrics = require('./modules/prometheus-metrics');
 const ClientPersonalizationService = require('../personalization/client-personalization');
+// Импортируем обработчик подтверждений напоминаний
+const reminderResponseHandler = require('../reminder/reminder-response-handler');
 
 /**
  * AI Admin v2 - единый сервис управления AI администратором
@@ -87,9 +89,22 @@ class AIAdminV2 {
     try {
       // Валидация входных данных
       this.validateInput(message, phone, companyId);
-      
+
       logger.info(`🤖 AI Admin v2 processing: "${message}" from ${phone}`);
-      
+
+      // 0. ПЕРЕД ВСЕМ: Проверяем ответ на напоминание (должно быть ДО вызова AI)
+      const reminderResult = await reminderResponseHandler.handleResponse(
+        phone,
+        message,
+        options.messageId // передаем messageId для реакции
+      );
+
+      if (reminderResult.confirmed) {
+        // Клиент подтвердил визит - возвращаем короткий ответ
+        logger.info(`✅ Visit confirmed for ${phone}, sending short response`);
+        return '❤️ Отлично! Ждём вас!';
+      }
+
       // 1. Проверяем ожидающую отмену записи (через v2)
       const cleanPhone = InternationalPhone.normalize(phone) || phone.replace('@c.us', '');
       const dialogContext = await contextServiceV2.getDialogContext(cleanPhone, companyId);
