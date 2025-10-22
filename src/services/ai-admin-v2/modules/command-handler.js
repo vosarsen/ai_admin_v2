@@ -33,7 +33,7 @@ class CommandHandler {
     
     const commands = [];
     // Безопасный regex с ограничением длины параметров
-    const commandRegex = /\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|CANCEL_BOOKING|SAVE_CLIENT_NAME|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING|CHECK_STAFF_SCHEDULE)([^\]]{0,500})\]/g;
+    const commandRegex = /\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|EXPLAIN_SERVICE|SHOW_PORTFOLIO|CANCEL_BOOKING|SAVE_CLIENT_NAME|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING|CHECK_STAFF_SCHEDULE)([^\]]{0,500})\]/g;
     
     let match;
     let matchCount = 0;
@@ -255,6 +255,11 @@ class CommandHandler {
             results.push({ type: 'booking_rescheduled', data: rescheduleResult });
             break;
             
+          case 'EXPLAIN_SERVICE':
+            const serviceExplanation = await this.explainService(cmd.params, context);
+            results.push({ type: 'service_explanation', data: serviceExplanation });
+            break;
+
           case 'CHECK_STAFF_SCHEDULE':
             const scheduleResult = await this.checkStaffSchedule(cmd.params, context);
 
@@ -1562,7 +1567,8 @@ class CommandHandler {
         price_min: s.price_min || s.price || 0,
         price_max: s.price_max || s.price || s.price_min || 0,
         duration: s.duration || 60,
-        category: s.category_title
+        category: s.category_title,
+        description: s.description || null // Добавляем описание услуги
       })),
       categorized: categorizedPrices // Новое поле с категоризацией
     };
@@ -2291,6 +2297,50 @@ class CommandHandler {
   }
 
   /**
+   * Объяснить что такое услуга
+   */
+  async explainService(params, context) {
+    const { service_name } = params;
+
+    if (!service_name) {
+      return {
+        error: 'service_name_required',
+        message: 'Не указано название услуги'
+      };
+    }
+
+    logger.info(`EXPLAIN_SERVICE called for: ${service_name}`);
+
+    // Используем ServiceMatcher для поиска услуги
+    const serviceMatcher = require('./service-matcher');
+    const matches = serviceMatcher.findTopMatches(service_name, context.services, 1);
+
+    if (matches.length === 0) {
+      return {
+        error: 'service_not_found',
+        query: service_name,
+        message: `Услуга "${service_name}" не найдена`
+      };
+    }
+
+    const service = matches[0];
+
+    // Возвращаем детальную информацию об услуге
+    return {
+      service: {
+        title: service.title,
+        price_min: service.price_min || service.price || 0,
+        price_max: service.price_max || service.price || service.price_min || 0,
+        duration: service.duration || 60,
+        category: service.category_title,
+        description: service.description || null,
+        // Добавляем список мастеров, кто может выполнить услугу
+        staff: service.raw_data?.staff?.map(s => s.name) || []
+      }
+    };
+  }
+
+  /**
    * Проверить расписание мастера
    */
   async checkStaffSchedule(params, context) {
@@ -2470,7 +2520,7 @@ class CommandHandler {
 
   removeCommands(response) {
     // Убираем команды в квадратных скобках
-    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|SAVE_CLIENT_NAME|CANCEL_BOOKING|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING|CHECK_STAFF_SCHEDULE|SHOWBOOKINGS)[^\]]*\]/g, '');
+    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|EXPLAIN_SERVICE|SHOW_PORTFOLIO|SAVE_CLIENT_NAME|CANCEL_BOOKING|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING|CHECK_STAFF_SCHEDULE|SHOWBOOKINGS)[^\]]*\]/g, '');
     
     // Убираем технические фразы в скобках (расширенный список)
     cleaned = cleaned.replace(/\([^)]*(?:клиент|тестовое|команду|обратите внимание|поскольку|После выполнения|если.*работает|Если.*работает|После проверки|продолжить запись|предложить альтернативы|сразу запишем)[^)]*\)/gi, '');
