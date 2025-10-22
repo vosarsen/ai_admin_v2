@@ -63,7 +63,27 @@ class TwoStageProcessor {
       
       // Парсим JSON ответ
       const commands = this.parseCommandsResponse(commandsResponse);
-      
+
+      // 🎯 КРИТИЧНО: Перезаписываем service_name в CREATE_BOOKING если есть lastSearch
+      // AI иногда игнорирует lastService и использует персонализацию
+      if (commands.length > 0 && context.lastSearch?.service) {
+        for (const cmd of commands) {
+          if (cmd.name === 'CREATE_BOOKING' && cmd.params?.service_name) {
+            const lastSearchService = context.lastSearch.service;
+            // Проверяем что service_name не совпадает с lastSearch
+            const paramServiceNormalized = cmd.params.service_name.toLowerCase().replace(/[^\wа-яё]/g, '');
+            const lastSearchNormalized = lastSearchService.toLowerCase().replace(/[^\wа-яё]/g, '');
+
+            if (paramServiceNormalized !== lastSearchNormalized) {
+              logger.warn(`⚠️ Stage 1 extracted wrong service_name="${cmd.params.service_name}", overriding with lastSearch="${lastSearchService}"`);
+              cmd.params.service_name = lastSearchService;
+            } else {
+              logger.info(`✅ Stage 1 service_name="${cmd.params.service_name}" matches lastSearch`);
+            }
+          }
+        }
+      }
+
       const stage1Time = Date.now() - stage1Start;
       logger.info(`✅ Stage 1 completed in ${stage1Time}ms, found ${commands.length} commands`);
       this.performanceMetrics.stage1Times.push(stage1Time);
