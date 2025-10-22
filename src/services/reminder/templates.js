@@ -112,7 +112,7 @@ function formatServicesInCase(services, caseType) {
     return service.title.toLowerCase();
   }
 
-  // Если несколько услуг - форматируем списком
+  // Если несколько услуг - форматируем через запятую с "и" перед последней
   const formattedServices = services.map(service => {
     if (service.declensions && service.declensions[caseType]) {
       return service.declensions[caseType];
@@ -120,15 +120,16 @@ function formatServicesInCase(services, caseType) {
     return service.title.toLowerCase();
   });
 
-  // Возвращаем список с буллетами
-  return formattedServices.map(s => `• ${s}`).join('\n');
-}
-
-/**
- * Проверить, является ли строка списком с буллетами
- */
-function isMultilineList(text) {
-  return text.includes('\n•');
+  // Соединяем через запятую, добавляя "и" перед последним элементом
+  if (formattedServices.length === 2) {
+    // Для двух услуг: "стрижку и моделирование бороды"
+    return `${formattedServices[0]} и ${formattedServices[1]}`;
+  } else {
+    // Для трёх и более: "стрижку, моделирование бороды, укладку и воск"
+    const allButLast = formattedServices.slice(0, -1).join(', ');
+    const last = formattedServices[formattedServices.length - 1];
+    return `${allButLast} и ${last}`;
+  }
 }
 
 /**
@@ -236,22 +237,7 @@ function generateDayBeforeReminder(data) {
   // Собираем полное сообщение
   let message = mainText + '\n\n';
 
-  // Если услуга указана списком (несколько услуг), не дублируем её в деталях
-  const isMultiService = data.servicesWithDeclensions && data.servicesWithDeclensions.length > 1;
-
-  // Если в mainText уже есть список услуг (буллеты), не добавляем их повторно
-  const hasServiceList = isMultilineList(mainText);
-
   // Добавляем детали
-  if (!hasServiceList && isMultiService) {
-    // Если список услуг не в основном тексте, добавляем его
-    message += 'Услуги:\n';
-    data.servicesWithDeclensions.forEach(service => {
-      message += `• ${service.title}\n`;
-    });
-    message += '\n';
-  }
-
   message += `Мастер: ${data.staff}\n`;
   if (data.price > 0) {
     message += `Стоимость: ${data.price} руб.\n`;
@@ -275,22 +261,6 @@ function generateTwoHoursReminder(data) {
 
   // Собираем полное сообщение
   let message = mainText + '\n';
-
-  // Если услуга указана списком (несколько услуг), не дублируем её в деталях
-  const isMultiService = data.servicesWithDeclensions && data.servicesWithDeclensions.length > 1;
-
-  // Если в mainText уже есть список услуг (буллеты), не добавляем их повторно
-  const hasServiceList = isMultilineList(mainText);
-
-  // Добавляем детали
-  if (!hasServiceList && isMultiService) {
-    // Если список услуг не в основном тексте, добавляем его
-    message += '\nУслуги:\n';
-    data.servicesWithDeclensions.forEach(service => {
-      message += `• ${service.title}\n`;
-    });
-    message += '\n';
-  }
 
   if (data.address) {
     message += `Адрес: ${data.address}\n`;
