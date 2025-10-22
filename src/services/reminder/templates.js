@@ -165,32 +165,12 @@ function fillTemplate(template, data) {
 
   if (services.length > 0) {
     // Определяем нужный падеж по контексту и используем formatServicesInCase
+    // ВАЖНО: Обрабатываем более специфичные паттерны ПЕРВЫМИ!
 
-    // "на {service}" - предложный падеж с предлогом НА (винительный падеж)
-    result = result.replace(/на {service}/g,
-      `на ${formatServicesInCase(services, 'prepositional_na')}`);
+    // 1. Именительный падеж (самые специфичные паттерны)
+    result = result.replace(/у вас запланирована {service}/g,
+      `у вас запланирована ${formatServicesInCase(services, 'nominative')}`);
 
-    // "о записи на {service}" - предложный падеж с предлогом НА
-    result = result.replace(/записи на {service}/g,
-      `записи на ${formatServicesInCase(services, 'prepositional_na')}`);
-
-    // "про {service}" - винительный падеж
-    result = result.replace(/про {service}/g,
-      `про ${formatServicesInCase(services, 'accusative')}`);
-
-    // "для {service}" - родительный падеж
-    result = result.replace(/для {service}/g,
-      `для ${formatServicesInCase(services, 'genitive')}`);
-
-    // "до {service}" - родительный падеж
-    result = result.replace(/до {service}/g,
-      `до ${formatServicesInCase(services, 'genitive')}`);
-
-    // "к {service}" - дательный падеж
-    result = result.replace(/к {service}/g,
-      `к ${formatServicesInCase(services, 'dative')}`);
-
-    // "{service} запланирована" или "у вас {service}" - именительный падеж
     result = result.replace(/\{service\} запланирована/g,
       `${formatServicesInCase(services, 'nominative')} запланирована`);
 
@@ -203,10 +183,28 @@ function fillTemplate(template, data) {
     result = result.replace(/начнётся {service}/g,
       `начнётся ${formatServicesInCase(services, 'nominative')}`);
 
-    result = result.replace(/у вас запланирована {service}/g,
-      `у вас запланирована ${formatServicesInCase(services, 'nominative')}`);
+    // 2. Родительный падеж
+    result = result.replace(/для {service}/g,
+      `для ${formatServicesInCase(services, 'genitive')}`);
 
-    // Оставшиеся {service} без предлогов - обычно именительный или винительный
+    result = result.replace(/до {service}/g,
+      `до ${formatServicesInCase(services, 'genitive')}`);
+
+    // 3. Дательный падеж
+    result = result.replace(/к {service}/g,
+      `к ${formatServicesInCase(services, 'dative')}`);
+
+    // 4. Винительный падеж (с предлогом НА) - после именительного!
+    result = result.replace(/записи на {service}/g,
+      `записи на ${formatServicesInCase(services, 'prepositional_na')}`);
+
+    result = result.replace(/на {service}/g,
+      `на ${formatServicesInCase(services, 'prepositional_na')}`);
+
+    result = result.replace(/про {service}/g,
+      `про ${formatServicesInCase(services, 'accusative')}`);
+
+    // 5. Оставшиеся {service} без предлогов - обычно именительный
     result = result.replace(/{service}/g,
       formatServicesInCase(services, 'nominative'));
 
