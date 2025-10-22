@@ -124,7 +124,15 @@ class ReminderResponseHandler {
   async _updateBookingStatus(recordId) {
     try {
       // attendance = 2 означает "Подтвердил запись"
-      const result = await this.yclientsClient.updateBookingStatus(recordId, 2);
+      const companyId = this.yclientsClient.config.companyId;
+
+      logger.info(`📝 Updating booking ${recordId} in company ${companyId} to attendance=2`);
+
+      const result = await this.yclientsClient.updateRecord(
+        companyId,
+        recordId,
+        { attendance: 2 }
+      );
 
       if (!result.success) {
         logger.error(`YClients API error when updating booking ${recordId}:`, result.error);
