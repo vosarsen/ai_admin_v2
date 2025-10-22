@@ -2325,6 +2325,25 @@ class CommandHandler {
 
     const service = matches[0];
 
+    // ✅ СОХРАНЯЕМ услугу в контекст после объяснения
+    // Теперь когда клиент ответит "Да, записывай", система будет знать о какой услуге речь
+    try {
+      logger.info(`💾 Saving explained service to context: ${service.title}`);
+
+      await contextServiceV2.updateDialogContext(context.phone, context.company.id, {
+        selection: {
+          service: service.title,  // Фиксируем услугу в контексте
+          lastCommand: 'EXPLAIN_SERVICE',
+          explainedServiceAt: new Date().toISOString()
+        }
+      });
+
+      logger.info(`✅ Context updated: service="${service.title}" saved for ${context.phone}`);
+    } catch (error) {
+      logger.error('Failed to save explained service to context:', error);
+      // Не блокируем ответ, если не удалось сохранить контекст
+    }
+
     // Возвращаем детальную информацию об услуге
     return {
       service: {
