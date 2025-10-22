@@ -148,6 +148,7 @@ For more information, see:
 - `docs/development-diary/2025-10-19-gemini-integration-with-vpn.md` - **Full Gemini deployment story**
 - `docs/WHATSAPP_MONITORING_GUIDE.md` - WhatsApp monitoring and file management
 - `docs/TELEGRAM_ALERTS_TROUBLESHOOTING.md` - Telegram alert troubleshooting
+- `docs/features/EXPLAIN_SERVICE_COMMAND.md` - **📖 Контекстные описания услуг (NEW!)**
 - `docs/development-diary/` - Recent changes and decisions
 - `docs/marketplace/` - YClients Marketplace интеграция и авторизация
 
@@ -193,6 +194,7 @@ GET https://api.yclients.com/api/v1/clients/{salon_id}
 Детали: `docs/marketplace/AUTHORIZATION_QUICK_REFERENCE.md`
 
 ---
-**Last updated:** October 19, 2025
+**Last updated:** October 22, 2025
 **Current branch:** feature/redis-context-cache
 **AI Provider:** Gemini 2.5 Flash (via USA VPN) - 2.6x faster, $77/month savings 🚀
+**Latest feature:** EXPLAIN_SERVICE command - контекстные описания услуг 📖
