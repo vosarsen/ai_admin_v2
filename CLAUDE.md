@@ -89,6 +89,7 @@ export SOCKS_PROXY=socks5://127.0.0.1:1080
 | Booking Monitor | `src/services/booking-monitor/` | Reminders & notifications |
 | WhatsApp Client | `src/integrations/whatsapp/` | Baileys integration |
 | Context Service | `src/services/context/` | Redis conversation cache |
+| **Schedules Sync** | `src/sync/schedules-sync.js` | **Гибридная синхронизация расписаний** |
 
 ## ⚠️ Critical Configuration
 
@@ -110,6 +111,23 @@ Xray service: systemctl status xray
 Config: /usr/local/etc/xray/config.json
 ```
 
+## 🔄 Data Synchronization
+
+**Hybrid Schedules Sync (NEW!):**
+```bash
+# FULL sync (30 days) - automatic at 05:00 or manual:
+curl -X POST http://localhost:3000/api/sync/schedules
+
+# TODAY-ONLY sync (today+tomorrow) - automatic hourly 8-23 or manual:
+curl -X POST http://localhost:3000/api/sync/schedules/today
+```
+
+**Schedule:**
+- **FULL**: 05:00 daily (30 days ahead)
+- **TODAY-ONLY**: Every hour 08:00-23:00 (today+tomorrow)
+- **Result**: Max 1 hour delay vs 24 hours before
+- **Details**: `docs/development-diary/2025-10-23-hybrid-schedules-sync.md`
+
 ## 🐛 Troubleshooting
 
 **Common issues:**
@@ -120,6 +138,7 @@ Config: /usr/local/etc/xray/config.json
 5. WhatsApp file accumulation → See `docs/WHATSAPP_MONITORING_GUIDE.md`
 6. **Gemini API errors** → Check VPN: `ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "systemctl status xray"`
 7. **Slow responses** → Test proxy: `curl -x socks5://127.0.0.1:1080 https://ipinfo.io/json`
+8. **Outdated schedules** → Manual sync: `POST /api/sync/schedules/today` (see Data Synchronization above)
 
 **PM2 monitoring:**
 ```bash
@@ -146,9 +165,10 @@ For more information, see:
 - `docs/AI_PROVIDERS_GUIDE.md` - AI provider configuration
 - `docs/GEMINI_INTEGRATION_GUIDE.md` - **Gemini setup and testing**
 - `docs/development-diary/2025-10-19-gemini-integration-with-vpn.md` - **Full Gemini deployment story**
+- `docs/development-diary/2025-10-23-hybrid-schedules-sync.md` - **🔄 Гибридная синхронизация расписаний (NEW!)**
 - `docs/WHATSAPP_MONITORING_GUIDE.md` - WhatsApp monitoring and file management
 - `docs/TELEGRAM_ALERTS_TROUBLESHOOTING.md` - Telegram alert troubleshooting
-- `docs/features/EXPLAIN_SERVICE_COMMAND.md` - **📖 Контекстные описания услуг (NEW!)**
+- `docs/features/EXPLAIN_SERVICE_COMMAND.md` - **📖 Контекстные описания услуг**
 - `docs/development-diary/` - Recent changes and decisions
 - `docs/marketplace/` - YClients Marketplace интеграция и авторизация
 
@@ -194,7 +214,7 @@ GET https://api.yclients.com/api/v1/clients/{salon_id}
 Детали: `docs/marketplace/AUTHORIZATION_QUICK_REFERENCE.md`
 
 ---
-**Last updated:** October 22, 2025
+**Last updated:** October 23, 2025
 **Current branch:** feature/redis-context-cache
 **AI Provider:** Gemini 2.5 Flash (via USA VPN) - 2.6x faster, $77/month savings 🚀
-**Latest feature:** EXPLAIN_SERVICE command - контекстные описания услуг 📖
+**Latest feature:** Hybrid Schedules Sync - max 1 hour delay vs 24 hours 🔄
