@@ -62,7 +62,7 @@ class ReminderResponseHandler {
         };
       }
 
-      const { recordId } = context.booking;
+      const { recordId, companyId } = context.booking;
 
       if (!recordId) {
         logger.error('No recordId in booking context', { context });
@@ -73,10 +73,19 @@ class ReminderResponseHandler {
         };
       }
 
-      logger.info(`📝 Processing confirmation for booking ${recordId}`);
+      if (!companyId) {
+        logger.error('No companyId in booking context', { context });
+        return {
+          handled: true,
+          confirmed: false,
+          error: 'No companyId in context - multi-tenant system requires companyId'
+        };
+      }
+
+      logger.info(`📝 Processing confirmation for booking ${recordId} in company ${companyId}`);
 
       // 3. Обновляем статус в YClients (attendance = 2 "подтвержден")
-      const updateResult = await this._updateBookingStatus(recordId);
+      const updateResult = await this._updateBookingStatus(recordId, companyId);
 
       if (!updateResult.success) {
         logger.error(`Failed to update booking ${recordId} status:`, updateResult.error);
@@ -119,13 +128,22 @@ class ReminderResponseHandler {
 
   /**
    * Обновить статус записи в YClients
+   * @param {string} recordId - ID записи
+   * @param {string} companyId - ID компании (из контекста напоминания)
    * @private
    */
-  async _updateBookingStatus(recordId) {
+  async _updateBookingStatus(recordId, companyId) {
     try {
-      // attendance = 2 означает "Подтвердил запись"
-      // Берём companyId напрямую из process.env для надёжности
-      const companyId = process.env.YCLIENTS_COMPANY_ID || config.yclients.companyId || '962302';
+      // ВАЖНО: companyId приходит из контекста напоминания
+      // Это критично для multi-tenant системы - НЕ ХАРДКОДИТЬ!
+      if (!companyId) {
+        const error = 'CRITICAL: companyId not provided! Cannot update booking in multi-tenant system.';
+        logger.error(error, { recordId });
+        return {
+          success: false,
+          error: error
+        };
+      }
 
       logger.info(`📝 Updating booking ${recordId} in company ${companyId} to attendance=2`);
 
@@ -183,10 +201,9 @@ class ReminderResponseHandler {
   _sanitizePhone(phone) {
     if (!phone) return 'unknown';
     const digits = phone.replace(/\D/g, '');
-    if (digits.length > 6) {
-      return `${digits.substring(0, 3)}****${digits.substring(digits.length - 2)}`;
-    }
-    return 'phone_****';
+
+    // Все реальные телефоны содержат минимум 6 цифр
+    return `${digits.substring(0, 3)}****${digits.substring(digits.length - 2)}`;
   }
 
   /**

@@ -39,9 +39,9 @@ class ReminderContextTracker {
           return false;
         }
       }
-      
+
       const key = `${this.redisPrefix}${phone}`;
-      
+
       const context = {
         type: reminderType, // 'day_before', '2hours'
         sentAt: new Date().toISOString(),
@@ -49,16 +49,18 @@ class ReminderContextTracker {
           recordId: bookingData.record_id || bookingData.id,
           datetime: bookingData.datetime,
           serviceName: bookingData.service_name,
-          staffName: bookingData.staff_name
+          staffName: bookingData.staff_name,
+          companyId: bookingData.company_id // КРИТИЧНО для multi-tenant системы
         },
         awaitingConfirmation: true
       };
 
       await this.redis.set(key, JSON.stringify(context), 'EX', this.ttl);
-      
+
       logger.info(`📝 Saved reminder context for ${phone}:`, {
         type: reminderType,
-        recordId: context.booking.recordId
+        recordId: context.booking.recordId,
+        companyId: context.booking.companyId
       });
 
       return true;

@@ -839,7 +839,8 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
         record_id: record.id,
         datetime: record.datetime,
         service_name: services,
-        staff_name: staff
+        staff_name: staff,
+        company_id: record.company_id || config.yclients.companyId // КРИТИЧНО для multi-tenant
       }, reminderType);
       
       // Сохраняем информацию об отправке в БД
