@@ -11,10 +11,10 @@ async function test() {
   // 1. Создаём контекст напоминания
   console.log('1. Creating reminder context...');
   await reminderContextTracker.saveReminderContext(testPhone, {
-    recordId: testRecordId,
+    record_id: testRecordId,  // Важно: должно быть record_id или id
     datetime: '2025-10-23T14:00:00+03:00',
-    serviceName: 'МУЖСКАЯ СТРИЖКА',
-    staffName: 'Бари'
+    service_name: 'МУЖСКАЯ СТРИЖКА',
+    staff_name: 'Бари'
   }, 'day_before');
   console.log('✅ Context created\n');
 
