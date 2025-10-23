@@ -123,17 +123,9 @@ class ReminderResponseHandler {
    */
   async _updateBookingStatus(recordId) {
     try {
-      // === DEBUG: Проверяем что у нас есть ===
-      logger.info('=== DEBUG _updateBookingStatus ===');
-      logger.info('this.yclientsClient:', !!this.yclientsClient);
-      logger.info('this.yclientsClient.config:', this.yclientsClient?.config);
-
-      const appConfig = require('../../config');
-      logger.info('config.yclients.companyId from config:', appConfig.yclients.companyId);
-
       // attendance = 2 означает "Подтвердил запись"
-      const companyId = this.yclientsClient.config.companyId;
-      logger.info('Extracted companyId:', companyId);
+      // Берём companyId напрямую из config чтобы избежать проблем с undefined
+      const companyId = config.yclients.companyId;
 
       logger.info(`📝 Updating booking ${recordId} in company ${companyId} to attendance=2`);
 
