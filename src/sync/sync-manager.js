@@ -45,13 +45,14 @@ class SyncManager {
     
     // Расписание синхронизации (Moscow time UTC+3)
     this.schedule = {
-      services: '0 1 * * *',     // 01:00 - Услуги (раз в день)
-      staff: '0 2 * * *',        // 02:00 - Мастера (раз в день)
-      clients: '0 3 * * *',      // 03:00 - Клиенты (раз в день)
-      visits: '0 4 * * *',       // 04:00 - История визитов (раз в день)
-      schedules: '0 */4 * * *',  // Каждые 4 часа - Расписания
-      company: '0 0 * * 0',      // 00:00 воскресенье - Компания (раз в неделю)
-      bookings: '*/15 * * * *'   // Каждые 15 минут - Активные записи
+      services: '0 1 * * *',          // 01:00 - Услуги (раз в день)
+      staff: '0 2 * * *',             // 02:00 - Мастера (раз в день)
+      clients: '0 3 * * *',           // 03:00 - Клиенты (раз в день)
+      visits: '0 4 * * *',            // 04:00 - История визитов (раз в день)
+      schedules: '0 5 * * *',         // 05:00 - Расписания ПОЛНАЯ синхронизация (30 дней)
+      schedulesToday: '0 8-23 * * *', // 08:00-23:00 каждый час - Расписания ИНКРЕМЕНТАЛЬНАЯ (сегодня+завтра)
+      company: '0 0 * * 0',           // 00:00 воскресенье - Компания (раз в неделю)
+      bookings: '*/15 * * * *'        // Каждые 15 минут - Активные записи
     };
   }
 
@@ -214,11 +215,19 @@ class SyncManager {
       }, { timezone: 'Europe/Moscow' })
     );
     
-    // Расписания - каждые 4 часа
+    // Расписания ПОЛНАЯ - ежедневно в 05:00
     this.cronJobs.push(
       cron.schedule(this.schedule.schedules, async () => {
-        logger.info('⏰ Running scheduled schedules sync...');
+        logger.info('⏰ Running scheduled FULL schedules sync (30 days)...');
         await this.syncSchedules();
+      }, { timezone: 'Europe/Moscow' })
+    );
+
+    // Расписания ИНКРЕМЕНТАЛЬНАЯ - каждый час с 08:00 до 23:00
+    this.cronJobs.push(
+      cron.schedule(this.schedule.schedulesToday, async () => {
+        logger.info('🔄 Running scheduled TODAY-ONLY schedules sync (today+tomorrow)...');
+        await this.syncSchedulesToday();
       }, { timezone: 'Europe/Moscow' })
     );
     
@@ -317,15 +326,29 @@ class SyncManager {
   }
 
   /**
-   * Синхронизация расписаний
+   * Синхронизация расписаний (полная на 30 дней)
    */
   async syncSchedules() {
     try {
-      logger.info('⏰ Syncing schedules...');
+      logger.info('⏰ Syncing schedules (FULL - 30 days)...');
       const result = await this.modules.schedules.sync();
       return { success: true, ...result };
     } catch (error) {
       logger.error('Schedules sync failed:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Синхронизация расписаний (инкрементальная - сегодня + завтра)
+   */
+  async syncSchedulesToday() {
+    try {
+      logger.info('🔄 Syncing schedules (TODAY-ONLY - today+tomorrow)...');
+      const result = await this.modules.schedules.syncTodayOnly();
+      return { success: true, ...result };
+    } catch (error) {
+      logger.error('Today-only schedules sync failed:', error);
       return { success: false, error: error.message };
     }
   }
