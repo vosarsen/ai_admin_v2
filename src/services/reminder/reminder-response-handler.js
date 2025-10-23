@@ -124,8 +124,8 @@ class ReminderResponseHandler {
   async _updateBookingStatus(recordId) {
     try {
       // attendance = 2 означает "Подтвердил запись"
-      // Берём companyId напрямую из process.env для надёжности
-      const companyId = process.env.YCLIENTS_COMPANY_ID || config.yclients.companyId || '962302';
+      // ВАЖНО: хардкодим 962302 т.к. config не загружается правильно в worker контексте
+      const companyId = '962302';
 
       logger.info(`📝 Updating booking ${recordId} in company ${companyId} to attendance=2`);
 
