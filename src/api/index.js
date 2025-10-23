@@ -211,19 +211,39 @@ app.get('/api/sync/status', rateLimiter, async (req, res) => {
   }
 });
 
-// Manual schedule sync
+// Manual schedule sync (FULL - 30 days)
 app.post('/api/sync/schedules', rateLimiter, validateApiKey, async (req, res) => {
   try {
-    logger.info('Manual schedule sync requested');
+    logger.info('Manual FULL schedule sync requested (30 days)');
     const syncManager = getSyncManager();
     const result = await syncManager.syncSchedules();
     res.json({
       success: true,
-      message: 'Schedule sync initiated',
+      message: 'Full schedule sync initiated (30 days)',
       result
     });
   } catch (error) {
     logger.error('Manual sync error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Manual schedule sync (TODAY-ONLY - today + tomorrow)
+app.post('/api/sync/schedules/today', rateLimiter, validateApiKey, async (req, res) => {
+  try {
+    logger.info('Manual TODAY-ONLY schedule sync requested (today+tomorrow)');
+    const syncManager = getSyncManager();
+    const result = await syncManager.syncSchedulesToday();
+    res.json({
+      success: true,
+      message: 'Today-only schedule sync initiated (today+tomorrow)',
+      result
+    });
+  } catch (error) {
+    logger.error('Manual today-only sync error:', error);
     res.status(500).json({
       success: false,
       error: error.message
