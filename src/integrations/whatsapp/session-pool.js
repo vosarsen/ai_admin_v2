@@ -551,6 +551,29 @@ class WhatsAppSessionPool extends EventEmitter {
             logger.debug(`Messages updated for company ${companyId}:`, updates.length);
         });
 
+        // Handle incoming reactions from clients
+        sock.ev.on('messages.reaction', async (reaction) => {
+            logger.info(`👍 Reaction received for company ${companyId}:`, {
+                from: reaction.key.remoteJid,
+                emoji: reaction.reaction?.text,
+                messageId: reaction.key.id
+            });
+
+            // Only process reactions from clients (not our own reactions)
+            if (!reaction.key.fromMe && reaction.reaction) {
+                logger.info(`✅ Emitting reaction event for company ${companyId}`);
+                this.emit('reaction', {
+                    companyId,
+                    reaction: {
+                        from: reaction.key.remoteJid,
+                        emoji: reaction.reaction.text,
+                        messageId: reaction.key.id,
+                        timestamp: Date.now()
+                    }
+                });
+            }
+        });
+
         // Handle errors
         sock.ev.on('error', (error) => {
             logger.error(`Session error for company ${companyId}:`, error);
@@ -619,6 +642,7 @@ class WhatsAppSessionPool extends EventEmitter {
                     session.ev.removeAllListeners('creds.update');
                     session.ev.removeAllListeners('messages.upsert');
                     session.ev.removeAllListeners('messages.update');
+                    session.ev.removeAllListeners('messages.reaction');
                     session.ev.removeAllListeners('error');
                 }
 

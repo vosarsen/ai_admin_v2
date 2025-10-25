@@ -100,6 +100,38 @@ async function startBaileysService() {
             }
         });
 
+        pool.on('reaction', async ({ companyId: cId, reaction }) => {
+            if (cId !== companyId) return;
+
+            const from = reaction.from;
+            const emoji = reaction.emoji;
+            const messageId = reaction.messageId;
+
+            logger.info(`👍 Reaction received from ${from}: ${emoji}`);
+
+            // Forward to webhook for processing
+            try {
+                const axios = require('axios');
+                const phone = from.replace('@s.whatsapp.net', '');
+
+                await axios.post('http://localhost:3000/webhook/whatsapp/reaction', {
+                    from: phone,
+                    emoji: emoji,
+                    messageId: messageId,
+                    timestamp: reaction.timestamp || Date.now()
+                }, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Source': 'baileys-service'
+                    }
+                });
+
+                logger.info(`✅ Reaction forwarded to webhook for processing`);
+            } catch (error) {
+                logger.error('Failed to forward reaction to webhook:', error.message);
+            }
+        });
+
         pool.on('logout', ({ companyId: cId }) => {
             if (cId !== companyId) return;
             isConnected = false;
