@@ -128,33 +128,54 @@ router.post('/webhook/whatsapp/reaction', rateLimiter, validateWebhookSignature,
             // Продолжаем, но возвращаем ошибку
           }
 
-        } else if (reactionType === 'NEGATIVE') {
-          logger.info(`👎 Negative reaction - client may want to cancel/reschedule`);
+        } else if (reactionType === 'NEGATIVE' || reactionType === 'NEUTRAL') {
+          logger.info(`${reactionType === 'NEGATIVE' ? '👎' : '😐'} ${reactionType} reaction - asking for clarification`);
 
-          // Для негативных реакций можно добавить логику:
-          // - отправить сообщение с предложением перенести запись
-          // - или просто зафиксировать негативную реакцию
+          try {
+            // Получаем информацию о записи для формирования сообщения
+            const booking = reminderContext.booking;
+            const bookingDate = new Date(booking.datetime);
+            const dateStr = bookingDate.toLocaleDateString('ru-RU', {
+              day: 'numeric',
+              month: 'long',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
 
-          // Пока просто логируем и очищаем контекст
-          await reminderContextTracker.clearContext(from);
+            // Формируем вежливое сообщение с предложением помощи
+            const clarificationMessage = reactionType === 'NEGATIVE'
+              ? `Понял вас. Вижу, что запись ${dateStr} вам не подходит. Хотите перенести на другое время? Просто напишите когда вам удобно, и я помогу с переносом.`
+              : `Вижу вашу реакцию на напоминание о записи ${dateStr}. Всё в силе? Если нужно перенести запись, просто напишите когда вам удобно.`;
 
-          return res.json({
-            success: true,
-            action: 'negative_reaction_noted',
-            reactionType,
-            processingTime: Date.now() - startTime
-          });
+            // Отправляем сообщение клиенту
+            await whatsappClient.sendMessage(from, clarificationMessage);
+            logger.info(`✉️ Sent clarification message to ${from}`);
 
-        } else {
-          // Нейтральная реакция - просто фиксируем
-          logger.info(`😐 Neutral reaction - just noting it`);
+            // НЕ очищаем контекст напоминания - ждём ответа клиента
+            // Контекст нужен для обработки последующего диалога о переносе
 
-          return res.json({
-            success: true,
-            action: 'neutral_reaction_noted',
-            reactionType,
-            processingTime: Date.now() - startTime
-          });
+            return res.json({
+              success: true,
+              action: reactionType === 'NEGATIVE' ? 'negative_reaction_clarification_sent' : 'neutral_reaction_clarification_sent',
+              reactionType,
+              messageSent: true,
+              processingTime: Date.now() - startTime
+            });
+
+          } catch (error) {
+            logger.error('Error sending clarification message:', error);
+
+            // В случае ошибки всё равно очищаем контекст
+            await reminderContextTracker.clearContext(from);
+
+            return res.json({
+              success: false,
+              action: 'clarification_failed',
+              error: error.message,
+              processingTime: Date.now() - startTime
+            });
+          }
+
         }
       }
     }
