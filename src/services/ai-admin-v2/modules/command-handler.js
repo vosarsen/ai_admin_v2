@@ -2196,57 +2196,80 @@ class CommandHandler {
       
       // Проверяем доступность нового времени
       const staffId = bookingToReschedule.staff?.id || bookingToReschedule.staff_id;
-      const serviceIds = bookingToReschedule.services?.map(s => s.id) || [];
-      
+      const serviceId = bookingToReschedule.services?.[0]?.id || null;
+      const recordId = bookingToReschedule.id;
+
       logger.info('🔍 Checking slot availability for reschedule', {
         staffId,
         date: targetDate,
         time: time,
-        serviceIds
+        serviceId,
+        excludeRecordId: recordId
       });
-      
-      // Получаем доступные слоты
-      const yclientsClient = bookingService.getYclientsClient();
-      const slotsResult = await yclientsClient.getAvailableSlots(
+
+      // Получаем длительность услуги для валидации
+      let serviceDuration = null;
+      if (serviceId) {
+        try {
+          const servicesResult = await bookingService.getServices({ service_id: serviceId }, companyId);
+          if (servicesResult.success && servicesResult.data && servicesResult.data.length > 0) {
+            serviceDuration = servicesResult.data[0].seance_length;
+            logger.info(`Service duration for validation: ${serviceDuration / 60} minutes`);
+          }
+        } catch (err) {
+          logger.warn('Could not get service duration for validation:', err.message);
+        }
+      }
+
+      // Получаем доступные слоты с валидацией, ИСКЛЮЧАЯ текущую запись клиента
+      const slotsResult = await bookingService.getAvailableSlots(
         staffId,
         targetDate,
-        { service_ids: serviceIds },
-        companyId
+        serviceId,
+        companyId,
+        true, // validateSlots = true
+        serviceDuration,
+        null, // service object
+        recordId // excludeRecordId - исключаем текущую запись!
       );
-      
-      if (slotsResult.success && Array.isArray(slotsResult.data)) {
+
+      if (slotsResult.success) {
+        const slots = Array.isArray(slotsResult.data) ? slotsResult.data :
+                     (slotsResult.data.data ? slotsResult.data.data : []);
+
         // Проверяем, есть ли нужное время в доступных слотах
         const requestedTime = time;
-        const slotAvailable = slotsResult.data.some(slot => {
+        const slotAvailable = slots.some(slot => {
           const slotTime = slot.time || slot;
           return slotTime === requestedTime || slotTime === `${requestedTime}:00`;
         });
-        
+
         if (!slotAvailable) {
           // Находим ближайшие доступные слоты
-          const nearbySlots = slotsResult.data
+          const nearbySlots = slots
             .map(slot => slot.time || slot)
-            .filter(time => {
-              const slotHour = parseInt(time.split(':')[0]);
+            .filter(slotTime => {
+              const slotHour = parseInt(slotTime.split(':')[0]);
               const requestedHour = parseInt(requestedTime.split(':')[0]);
               return Math.abs(slotHour - requestedHour) <= 2; // В пределах 2 часов
             })
             .slice(0, 3);
-          
+
           return {
             success: false,
             slotNotAvailable: true,
             requestedTime: requestedTime,
             nearbySlots: nearbySlots,
             message: `К сожалению, время ${requestedTime} уже занято.`,
-            suggestions: nearbySlots.length > 0 
+            suggestions: nearbySlots.length > 0
               ? `Доступное время поблизости: ${nearbySlots.join(', ')}`
               : 'В этот день нет доступного времени рядом с желаемым.'
           };
         }
       }
-      
+
       // Пытаемся перенести запись через простой API
+      const yclientsClient = bookingService.getYclientsClient();
       const rescheduleResult = await yclientsClient.rescheduleRecord(
         companyId,
         recordId,
