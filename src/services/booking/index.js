@@ -129,7 +129,7 @@ class BookingService {
     }
   }
 
-  async getAvailableSlots(staffId, date, serviceId, companyId = config.yclients.companyId, validateSlots = false, serviceDuration = null, service = null) {
+  async getAvailableSlots(staffId, date, serviceId, companyId = config.yclients.companyId, validateSlots = false, serviceDuration = null, service = null, excludeRecordId = null) {
     try {
       // Слоты всегда получаем из YClients (они динамические)
       const result = await this.getYclientsClient().getAvailableSlots(staffId, date, { service_id: serviceId }, companyId);
@@ -141,6 +141,10 @@ class BookingService {
 
         if (slots.length > 0) {
           logger.info(`Validating ${slots.length} slots for staff ${staffId} on ${date}`);
+
+          if (excludeRecordId) {
+            logger.info(`Excluding record ID ${excludeRecordId} from validation (rescheduling)`);
+          }
 
           // Получаем информацию о рабочих часах компании (упрощенно используем стандартные)
           // TODO: Получить из базы данных или API реальные рабочие часы
@@ -169,7 +173,8 @@ class BookingService {
             date,
             serviceDuration,
             workingHours,
-            serviceData  // Передаем данные услуги для проверки временных ограничений
+            serviceData,  // Передаем данные услуги для проверки временных ограничений
+            excludeRecordId  // Исключаем текущую запись при переносе
           );
 
           // Возвращаем результат с валидированными слотами
