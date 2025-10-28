@@ -2197,7 +2197,6 @@ class CommandHandler {
       // Проверяем доступность нового времени
       const staffId = bookingToReschedule.staff?.id || bookingToReschedule.staff_id;
       const serviceId = bookingToReschedule.services?.[0]?.id || null;
-      const recordId = bookingToReschedule.id;
 
       logger.info('🔍 Checking slot availability for reschedule', {
         staffId,
