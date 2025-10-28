@@ -8,11 +8,22 @@ class SlotValidator {
    * @param {Array} existingBookings - Существующие записи мастера
    * @param {number} serviceDuration - Длительность услуги в секундах
    * @param {Object} workingHours - Рабочие часы {start: 'HH:mm', end: 'HH:mm'}
+   * @param {number} excludeRecordId - ID записи для исключения (при переносе)
    * @returns {Array} Отфильтрованные действительно доступные слоты
    */
-  validateSlots(slots, existingBookings = [], serviceDuration = null, workingHours = null) {
+  validateSlots(slots, existingBookings = [], serviceDuration = null, workingHours = null, excludeRecordId = null) {
     if (!slots || !Array.isArray(slots) || slots.length === 0) {
       return [];
+    }
+
+    // Если передан excludeRecordId, фильтруем записи
+    if (excludeRecordId) {
+      logger.info(`Excluding record ID ${excludeRecordId} from validation (rescheduling)`);
+      existingBookings = existingBookings.filter(booking =>
+        booking.id !== excludeRecordId &&
+        booking.record_id !== excludeRecordId &&
+        booking.yclients_id !== excludeRecordId
+      );
     }
 
     logger.info(`Validating ${slots.length} slots against ${existingBookings.length} existing bookings`);
@@ -411,7 +422,7 @@ class SlotValidator {
   /**
    * Валидирует и фильтрует слоты с учетом реальной доступности
    */
-  async validateSlotsWithBookings(slots, yclientsClient, companyId, staffId, date, serviceDuration = null, workingHours = null, service = null) {
+  async validateSlotsWithBookings(slots, yclientsClient, companyId, staffId, date, serviceDuration = null, workingHours = null, service = null, excludeRecordId = null) {
     // Получаем существующие записи
     const existingBookings = await this.getStaffBookings(
       yclientsClient,
@@ -421,7 +432,7 @@ class SlotValidator {
     );
 
     // Валидируем слоты с учетом длительности услуги и рабочих часов
-    let validSlots = this.validateSlots(slots, existingBookings, serviceDuration, workingHours);
+    let validSlots = this.validateSlots(slots, existingBookings, serviceDuration, workingHours, excludeRecordId);
 
     // Дополнительно проверяем ограничения услуги
     if (service) {
