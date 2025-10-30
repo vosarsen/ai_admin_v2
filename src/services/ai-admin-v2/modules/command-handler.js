@@ -573,14 +573,14 @@ class CommandHandler {
     }
     
     // Если мастер не указан, используем любимых мастеров клиента
-    const staffToCheck = targetStaff ? [targetStaff] : 
-      (context.client?.favorite_staff_ids?.length ? 
-        context.staff.filter(s => context.client.favorite_staff_ids.includes(s.yclients_id)) : 
+    const staffToCheck = targetStaff ? [targetStaff] :
+      (context.client?.favorite_staff_ids?.length ?
+        context.staff.filter(s => context.client.favorite_staff_ids.includes(s.yclients_id)) :
         context.staff.slice(0, 3)); // Берем топ-3 мастеров
-    
+
     // Проверяем слоты для нескольких мастеров
     const allSlots = [];
-    
+
     // Логируем дату для отладки (используем dateToSearch который может быть из params или контекста)
     const parsedDate = formatter.parseRelativeDate(dateToSearch);
     logger.info('SEARCH_SLOTS date parsing:', {
@@ -589,7 +589,40 @@ class CommandHandler {
       params: params,
       fromContext: dateToSearch === context.redisContext?.selection?.date
     });
-    
+
+    // КРИТИЧЕСКОЕ ЛОГИРОВАНИЕ: выбор мастеров для поиска
+    logger.info('🔍 Staff selection for slot search:', {
+      service: service?.title,
+      serviceId: service?.yclients_id,
+      date: dateToSearch,
+      totalStaffInContext: context.staff?.length || 0,
+      staffToCheckCount: staffToCheck?.length || 0,
+      targetStaff: targetStaff?.name,
+      favoriteStaffIds: context.client?.favorite_staff_ids,
+      selectedStaff: staffToCheck?.map(s => ({
+        id: s.yclients_id,
+        name: s.name
+      })) || []
+    });
+
+    // Проверка на пустой массив
+    if (!staffToCheck || staffToCheck.length === 0) {
+      logger.error('❌ CRITICAL: No staff available for slot search!', {
+        contextStaffLength: context.staff?.length || 0,
+        contextStaffSample: context.staff?.slice(0, 3).map(s => ({ id: s.yclients_id, name: s.name })),
+        targetStaff: targetStaff?.name,
+        favoriteStaffIds: context.client?.favorite_staff_ids
+      });
+
+      return {
+        service,
+        staff: null,
+        slots: [],
+        partialWindows: [],
+        error: 'No staff available for this service'
+      };
+    }
+
     for (const staff of staffToCheck) {
       try {
         // ВАЖНО: Проверяем слоты передавая и serviceId и staffId
