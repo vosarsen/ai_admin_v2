@@ -165,7 +165,8 @@ For more information, see:
 - `docs/AI_PROVIDERS_GUIDE.md` - AI provider configuration
 - `docs/GEMINI_INTEGRATION_GUIDE.md` - **Gemini setup and testing**
 - `docs/development-diary/2025-10-19-gemini-integration-with-vpn.md` - **Full Gemini deployment story**
-- `docs/development-diary/2025-10-23-hybrid-schedules-sync.md` - **🔄 Гибридная синхронизация расписаний (NEW!)**
+- `docs/development-diary/2025-10-23-hybrid-schedules-sync.md` - **🔄 Гибридная синхронизация расписаний**
+- `docs/development-diary/2025-10-28-reschedule-booking-fix.md` - **📅 Исправление переноса записей (NEW!)**
 - `docs/WHATSAPP_MONITORING_GUIDE.md` - WhatsApp monitoring and file management
 - `docs/TELEGRAM_ALERTS_TROUBLESHOOTING.md` - Telegram alert troubleshooting
 - `docs/features/EXPLAIN_SERVICE_COMMAND.md` - **📖 Контекстные описания услуг**
@@ -214,7 +215,7 @@ GET https://api.yclients.com/api/v1/clients/{salon_id}
 Детали: `docs/marketplace/AUTHORIZATION_QUICK_REFERENCE.md`
 
 ---
-**Last updated:** October 23, 2025
+**Last updated:** October 28, 2025
 **Current branch:** feature/redis-context-cache
 **AI Provider:** Gemini 2.5 Flash (via USA VPN) - 2.6x faster, $77/month savings 🚀
-**Latest feature:** Hybrid Schedules Sync - max 1 hour delay vs 24 hours 🔄
+**Latest feature:** RESCHEDULE_BOOKING - исправлена обработка переноса записей 📅
