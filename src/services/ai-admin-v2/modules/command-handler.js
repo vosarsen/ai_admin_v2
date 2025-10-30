@@ -625,6 +625,14 @@ class CommandHandler {
 
     for (const staff of staffToCheck) {
       try {
+        logger.info('🔎 Checking slots for staff:', {
+          staffId: staff.yclients_id,
+          staffName: staff.name,
+          serviceId: service?.yclients_id,
+          serviceName: service?.title,
+          date: parsedDate
+        });
+
         // ВАЖНО: Проверяем слоты передавая и serviceId и staffId
         // YClients API вернет слоты только если мастер оказывает услугу
         const result = await bookingService.findSuitableSlot({
@@ -634,7 +642,13 @@ class CommandHandler {
           preferredDate: parsedDate,
           timePreference: params.time_preference
         });
-        
+
+        logger.info('📊 Slot search result for staff:', {
+          staffName: staff.name,
+          slotsFound: result.data?.data?.length || result.data?.length || 0,
+          hasData: !!result.data
+        });
+
         // Проверяем структуру результата
         const slots = result.data?.data || result.data || [];
         
