@@ -251,13 +251,34 @@ class DataLoader {
    * Загрузка персонала компании
    */
   async loadStaff(companyId) {
-    const { data } = await supabase
+    logger.info('📥 Loading staff from database', { companyId });
+
+    const { data, error } = await supabase
       .from('staff')
       .select('*')
       .eq('company_id', companyId)
       .eq('is_active', true)
       .order('rating', { ascending: false });
-    
+
+    if (error) {
+      logger.error('❌ Error loading staff:', {
+        companyId,
+        error: error.message,
+        code: error.code
+      });
+      return [];
+    }
+
+    logger.info('✅ Staff loaded successfully', {
+      companyId,
+      count: data?.length || 0,
+      staff: data?.map(s => ({
+        id: s.yclients_id,
+        name: s.name,
+        is_active: s.is_active
+      })) || []
+    });
+
     return data || [];
   }
 
