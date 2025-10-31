@@ -92,6 +92,24 @@ function getRandomElement(array) {
 }
 
 /**
+ * Склонение существительного в зависимости от числа
+ * @param {Number} count - количество
+ * @param {String} one - форма для 1 (стрижка)
+ * @param {String} two - форма для 2-4 (стрижки)
+ * @param {String} five - форма для 5+ (стрижек)
+ * @returns {String} правильная форма
+ */
+function pluralize(count, one, two, five) {
+  const n = Math.abs(count) % 100;
+  const n1 = n % 10;
+
+  if (n > 10 && n < 20) return five;
+  if (n1 > 1 && n1 < 5) return two;
+  if (n1 === 1) return one;
+  return five;
+}
+
+/**
  * Форматировать список услуг с правильными склонениями
  * @param {Array} services - массив услуг с declensions
  * @param {String} caseType - падеж (prepositional_na, accusative, nominative и т.д.)
@@ -102,32 +120,92 @@ function formatServicesInCase(services, caseType) {
     return 'услугу';
   }
 
-  // Если одна услуга - возвращаем ее в нужном падеже
-  if (services.length === 1) {
-    const service = services[0];
-    if (service.declensions && service.declensions[caseType]) {
-      return service.declensions[caseType];
-    }
-    // Если нет склонений, возвращаем название в нижнем регистре
-    return service.title.toLowerCase();
-  }
+  // Группируем одинаковые услуги и подсчитываем количество
+  const serviceCounts = new Map();
 
-  // Если несколько услуг - форматируем через запятую с "и" перед последней
-  const formattedServices = services.map(service => {
-    if (service.declensions && service.declensions[caseType]) {
-      return service.declensions[caseType];
+  services.forEach(service => {
+    const key = service.title;
+    if (!serviceCounts.has(key)) {
+      serviceCounts.set(key, { service, count: 0 });
     }
-    return service.title.toLowerCase();
+    serviceCounts.get(key).count++;
   });
 
-  // Соединяем через запятую, добавляя "и" перед последним элементом
-  if (formattedServices.length === 2) {
-    // Для двух услуг: "стрижку и моделирование бороды"
-    return `${formattedServices[0]} и ${formattedServices[1]}`;
+  // Форматируем каждую группу услуг
+  const formattedGroups = [];
+
+  for (const { service, count } of serviceCounts.values()) {
+    let serviceName;
+
+    if (service.declensions && service.declensions[caseType]) {
+      serviceName = service.declensions[caseType];
+    } else {
+      serviceName = service.title.toLowerCase();
+    }
+
+    if (count > 1) {
+      // Определяем правильное склонение для множественного числа
+      // Для этого нужно использовать специальное поле declensions.plural
+      let pluralForm = serviceName;
+
+      if (service.declensions && service.declensions.plural && service.declensions.plural[caseType]) {
+        pluralForm = service.declensions.plural[caseType];
+      } else {
+        // Простая эвристика для русского языка
+        // Преобразуем в множественное число на основе падежа
+        // Используем [а-яё]+ для русских букв вместо \w
+
+        // Винительный падеж (на что?)
+        if (caseType === 'accusative' || caseType === 'prepositional_na') {
+          pluralForm = serviceName
+            .replace(/ую\s+([а-яё]+)у$/iu, 'ые $1и')      // мужскую стрижку -> мужские стрижки
+            .replace(/ий\s+([а-яё]+)$/iu, 'ие $1ы')       // мужской массаж -> мужские массажи
+            .replace(/ую\s+([а-яё]+)ию$/iu, 'ые $1ии')    // базовую процедуру -> базовые процедуры
+            .replace(/ое\s+([а-яё]+)ие$/iu, 'ые $1ия');   // базовое покрытие -> базовые покрытия
+        }
+        // Именительный падеж (что?)
+        else if (caseType === 'nominative') {
+          pluralForm = serviceName
+            .replace(/ая\s+([а-яё]+)а$/iu, 'ые $1и')      // мужская стрижка -> мужские стрижки
+            .replace(/ий\s+([а-яё]+)$/iu, 'ие $1и')       // мужской массаж -> мужские массажи
+            .replace(/ое\s+([а-яё]+)е$/iu, 'ые $1я');     // базовое покрытие -> базовые покрытия
+        }
+        // Родительный падеж (чего?)
+        else if (caseType === 'genitive') {
+          pluralForm = serviceName
+            .replace(/ой\s+([а-яё]+)и$/iu, 'ых $1ек')     // мужской стрижки -> мужских стрижек
+            .replace(/ого\s+([а-яё]+)а$/iu, 'ых $1ей');   // мужского массажа -> мужских массажей
+        }
+        // Дательный падеж (чему?)
+        else if (caseType === 'dative') {
+          pluralForm = serviceName
+            .replace(/ой\s+([а-яё]+)е$/iu, 'ым $1ам')     // мужской стрижке -> мужским стрижкам
+            .replace(/ому\s+([а-яё]+)у$/iu, 'ым $1ам');   // мужскому массажу -> мужским массажам
+        }
+        // Предложный падеж (о чём?)
+        else if (caseType === 'prepositional') {
+          pluralForm = serviceName
+            .replace(/ой\s+([а-яё]+)е$/iu, 'ых $1ах')     // о мужской стрижке -> о мужских стрижках
+            .replace(/ом\s+([а-яё]+)е$/iu, 'ых $1ах');    // о мужском массаже -> о мужских массажах
+        }
+      }
+
+      formattedGroups.push(`${count} ${pluralForm}`);
+    } else {
+      formattedGroups.push(serviceName);
+    }
+  }
+
+  // Соединяем группы услуг
+  if (formattedGroups.length === 1) {
+    return formattedGroups[0];
+  } else if (formattedGroups.length === 2) {
+    // Для двух групп: "2 мужские стрижки и моделирование бороды"
+    return `${formattedGroups[0]} и ${formattedGroups[1]}`;
   } else {
-    // Для трёх и более: "стрижку, моделирование бороды, укладку и воск"
-    const allButLast = formattedServices.slice(0, -1).join(', ');
-    const last = formattedServices[formattedServices.length - 1];
+    // Для трёх и более: "2 стрижки, моделирование бороды и укладку"
+    const allButLast = formattedGroups.slice(0, -1).join(', ');
+    const last = formattedGroups[formattedGroups.length - 1];
     return `${allButLast} и ${last}`;
   }
 }
