@@ -8,7 +8,7 @@
 ```bash
 git clone https://github.com/vosarsen/ai_admin_v2.git
 cd ai_admin_v2
-git checkout feature/redis-context-cache
+git checkout main  # Теперь работаем в main, feature ветки создаются по мере необходимости
 ```
 
 2. Прочитай файл TEAM_SETUP.md - там подробная инструкция:
@@ -41,8 +41,9 @@ mv ~/Downloads/.env.team-safe .env
 
 - **ВСЕГДА** начинай работу с команды: "Прочитай CLAUDE.md"
 - **НИКОГДА** не тестируй на реальных клиентах, только на номере: 89686484488
-- **ВСЕГДА** работай в ветке: feature/redis-context-cache
-- **ЧАСТО** синхронизируйся: `./scripts/sync-for-team.sh`
+- **GitHub Flow**: Создавай короткие feature ветки из main (1-7 дней макс)
+- **ЧАСТО** синхронизируйся: `git pull origin main`
+- **Читай** `docs/GIT_WORKFLOW_STRATEGY.md` и `docs/GIT_QUICK_REFERENCE.md`
 
 ## Основные команды для Claude Code:
 
