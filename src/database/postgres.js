@@ -5,67 +5,78 @@ const { Pool } = require('pg');
 const config = require('../config');
 const logger = require('../utils/logger');
 
-// Валидация конфигурации
-if (!config.database.postgresPassword) {
-  logger.error('❌ Критическая ошибка: не настроена переменная POSTGRES_PASSWORD');
-  logger.error('Убедитесь что установлена переменная окружения');
+// Проверка: нужен ли PostgreSQL
+const usePostgres = !config.database.useLegacySupabase;
+
+// Валидация конфигурации (только если используем PostgreSQL)
+if (usePostgres && !config.database.postgresPassword) {
+  logger.error('❌ Критическая ошибка: POSTGRES_PASSWORD не установлен');
+  logger.error('Убедитесь что установлена переменная окружения POSTGRES_PASSWORD');
+  logger.error('Или используйте USE_LEGACY_SUPABASE=true для работы с Supabase');
   process.exit(1);
 }
 
-// Создание connection pool
-const pool = new Pool({
-  host: config.database.postgresHost,
-  port: config.database.postgresPort,
-  database: config.database.postgresDatabase,
-  user: config.database.postgresUser,
-  password: config.database.postgresPassword,
+let pool = null;
 
-  // Connection pool settings
-  max: 20, // Максимум connections
-  idleTimeoutMillis: 30000, // 30 секунд
-  connectionTimeoutMillis: 5000, // 5 секунд timeout
+// Создание connection pool (только если используем PostgreSQL)
+if (usePostgres) {
+  pool = new Pool({
+    host: config.database.postgresHost,
+    port: config.database.postgresPort,
+    database: config.database.postgresDatabase,
+    user: config.database.postgresUser,
+    password: config.database.postgresPassword,
 
-  // Statement timeout (для защиты от долгих запросов)
-  statement_timeout: 10000, // 10 секунд
+    // Connection pool settings
+    max: 20, // Максимум connections
+    idleTimeoutMillis: 30000, // 30 секунд
+    connectionTimeoutMillis: 5000, // 5 секунд timeout
 
-  // SSL (если нужно)
-  ssl: process.env.POSTGRES_SSL === 'true' ? { rejectUnauthorized: false } : false,
-});
+    // Statement timeout (увеличен до 30 сек для миграций)
+    statement_timeout: 30000, // 30 секунд
 
-// Обработка ошибок pool
-pool.on('error', (err, client) => {
-  logger.error('❌ Unexpected error on idle PostgreSQL client:', err);
-});
+    // SSL (если нужно)
+    ssl: process.env.POSTGRES_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  });
 
-// Проверка подключения при старте
-pool.query('SELECT NOW() as current_time, version() as pg_version', (err, res) => {
-  if (err) {
-    logger.error('❌ Failed to connect to Timeweb PostgreSQL:', err.message);
-    logger.error('Connection details:', {
-      host: config.database.postgresHost,
-      port: config.database.postgresPort,
-      database: config.database.postgresDatabase,
-      user: config.database.postgresUser,
-    });
-  } else {
-    logger.info('✅ Connected to Timeweb PostgreSQL');
-    logger.info('   Current time:', res.rows[0].current_time);
-    logger.info('   PostgreSQL version:', res.rows[0].pg_version.split(',')[0]);
-  }
-});
+  // Обработка ошибок pool
+  pool.on('error', (err, client) => {
+    logger.error('❌ Unexpected error on idle PostgreSQL client:', err);
+  });
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  logger.info('Closing PostgreSQL connection pool...');
-  await pool.end();
-  logger.info('PostgreSQL connection pool closed');
-});
+  // Проверка подключения при старте
+  pool.query('SELECT NOW() as current_time, version() as pg_version', (err, res) => {
+    if (err) {
+      logger.error('❌ Failed to connect to Timeweb PostgreSQL:', err.message);
+      logger.error('Connection details:', {
+        host: config.database.postgresHost,
+        port: config.database.postgresPort,
+        database: config.database.postgresDatabase,
+        user: config.database.postgresUser,
+      });
+    } else {
+      logger.info('✅ Connected to Timeweb PostgreSQL');
+      logger.info('   Current time:', res.rows[0].current_time);
+      logger.info('   PostgreSQL version:', res.rows[0].pg_version.split(',')[0]);
+    }
+  });
 
-process.on('SIGTERM', async () => {
-  logger.info('Closing PostgreSQL connection pool...');
-  await pool.end();
-  logger.info('PostgreSQL connection pool closed');
-});
+  // Graceful shutdown (только если pool создан)
+  process.on('SIGINT', async () => {
+    logger.info('Closing PostgreSQL connection pool...');
+    await pool.end();
+    logger.info('PostgreSQL connection pool closed');
+  });
+
+  process.on('SIGTERM', async () => {
+    logger.info('Closing PostgreSQL connection pool...');
+    await pool.end();
+    logger.info('PostgreSQL connection pool closed');
+  });
+} else {
+  logger.info('ℹ️  PostgreSQL module loaded but not initialized (USE_LEGACY_SUPABASE=true)');
+  logger.info('   Using Supabase instead. Set USE_LEGACY_SUPABASE=false to enable PostgreSQL.');
+}
 
 /**
  * Выполнить SQL запрос
@@ -74,6 +85,10 @@ process.on('SIGTERM', async () => {
  * @returns {Promise<Object>} - Результат запроса
  */
 async function query(text, params) {
+  if (!pool) {
+    throw new Error('PostgreSQL pool not initialized. Set USE_LEGACY_SUPABASE=false to enable.');
+  }
+
   const start = Date.now();
 
   try {
@@ -106,6 +121,9 @@ async function query(text, params) {
  * @returns {Promise<Object>} - PostgreSQL client
  */
 async function getClient() {
+  if (!pool) {
+    throw new Error('PostgreSQL pool not initialized. Set USE_LEGACY_SUPABASE=false to enable.');
+  }
   return await pool.connect();
 }
 
@@ -115,6 +133,10 @@ async function getClient() {
  * @returns {Promise<any>} - Результат транзакции
  */
 async function transaction(callback) {
+  if (!pool) {
+    throw new Error('PostgreSQL pool not initialized. Set USE_LEGACY_SUPABASE=false to enable.');
+  }
+
   const client = await pool.connect();
 
   try {
@@ -135,7 +157,15 @@ async function transaction(callback) {
  * @returns {Object} - Статистика pool
  */
 function getPoolStats() {
+  if (!pool) {
+    return {
+      enabled: false,
+      message: 'PostgreSQL pool not initialized (USE_LEGACY_SUPABASE=true)',
+    };
+  }
+
   return {
+    enabled: true,
     total: pool.totalCount,
     idle: pool.idleCount,
     waiting: pool.waitingCount,
@@ -148,4 +178,5 @@ module.exports = {
   getClient,
   transaction,
   getPoolStats,
+  isEnabled: usePostgres,
 };
