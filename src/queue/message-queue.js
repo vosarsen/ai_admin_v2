@@ -1,16 +1,19 @@
 // src/queue/message-queue.js
 const { Queue } = require('bullmq');
 const config = require('../config');
+const { getBullMQRedisConfig } = require('../config/redis-config');
 const logger = require('../utils/logger');
 
 class MessageQueue {
   constructor() {
     this.queues = new Map();
-    this.connection = {
-      host: '127.0.0.1',
-      port: 6379,
-      password: config.redis.password
-    };
+    this.connection = getBullMQRedisConfig();
+    
+    logger.debug('MessageQueue Redis config:', {
+      host: this.connection.host,
+      port: this.connection.port,
+      hasPassword: !!this.connection.password
+    });
   }
 
   /**
@@ -85,35 +88,6 @@ class MessageQueue {
       return { success: true, jobId: job.id };
     } catch (error) {
       logger.error('Failed to add message to queue:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  /**
-   * Add reminder to queue
-   */
-  async addReminder(data, scheduledTime) {
-    try {
-      const queue = this.getQueue(config.queue.reminderQueue);
-      const delay = scheduledTime.getTime() - Date.now();
-      
-      if (delay < 0) {
-        logger.warn('Reminder scheduled for past time, sending immediately');
-      }
-
-      const job = await queue.add('send-reminder', data, {
-        delay: Math.max(0, delay),
-        attempts: 5,
-        backoff: {
-          type: 'fixed',
-          delay: 60000 // 1 minute between retries
-        }
-      });
-
-      logger.info(`⏰ Reminder scheduled for ${scheduledTime.toISOString()}, job ID: ${job.id}`);
-      return { success: true, jobId: job.id };
-    } catch (error) {
-      logger.error('Failed to schedule reminder:', error);
       return { success: false, error: error.message };
     }
   }

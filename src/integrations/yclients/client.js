@@ -194,11 +194,21 @@ class YclientsClient {
    * 🛍️ Получить услуги (с фильтрацией по времени/мастеру)
    */
   async getServices(params = {}, companyId = this.config.companyId) {
-    const endpoint = params.datetime || params.staff_id 
+    const endpoint = params.datetime || params.staff_id
       ? YclientsClient.ENDPOINTS.bookServices(companyId)
       : YclientsClient.ENDPOINTS.services(companyId);
 
     return this.get(endpoint, params, {
+      cacheTtl: 1800 // Услуги кэшируются на 30 минут
+    });
+  }
+
+  /**
+   * 📚 Получить услуги для записи (book_services endpoint)
+   * Используется для получения полной информации о композитных услугах
+   */
+  async getBookServices(companyId = this.config.companyId, params = {}) {
+    return this.get(YclientsClient.ENDPOINTS.bookServices(companyId), params, {
       cacheTtl: 1800 // Услуги кэшируются на 30 минут
     });
   }
@@ -240,6 +250,11 @@ class YclientsClient {
         const queryParams = {
           ...params
         };
+        
+        // Исправляем service_id если он передан как вложенный объект
+        if (queryParams.service_id && typeof queryParams.service_id === 'object') {
+          queryParams.service_id = queryParams.service_id.service_id;
+        }
         
         const endpoint = YclientsClient.ENDPOINTS.bookTimes(companyId, staffId, date);
         const fullUrl = `${this.config.baseUrl}/${endpoint}`;
@@ -737,11 +752,14 @@ class YclientsClient {
         queryParams
       );
 
-      if (result.success && result.data) {
-        logger.info(`✅ Found ${result.data.length} records`);
+      // YClients API возвращает вложенную структуру: { success: true, data: { success: true, data: [...] } }
+      const records = result.data?.data || result.data || [];
+      
+      if (result.success && records) {
+        logger.info(`✅ Found ${Array.isArray(records) ? records.length : 'undefined'} records`);
         return {
           success: true,
-          data: result.data
+          data: Array.isArray(records) ? records : []
         };
       }
 
@@ -946,6 +964,41 @@ class YclientsClient {
       };
     } catch (error) {
       logger.error('Error updating visit status:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Упрощенный метод для обновления статуса записи
+   * @param {number} recordId - ID записи
+   * @param {number} attendance - Статус: 2=подтвердил, 1=пришел, 0=ожидание, -1=не пришел
+   */
+  async updateBookingStatus(recordId, attendance) {
+    try {
+      logger.info(`📝 Updating booking ${recordId} status to attendance=${attendance}`);
+      
+      const attendanceMap = {
+        2: 'Подтвержден',
+        1: 'Пришел',
+        0: 'Ожидание',
+        '-1': 'Не пришел'
+      };
+      
+      // Используем updateRecord с нужными параметрами
+      const result = await this.updateRecord(this.companyId, recordId, {
+        attendance: attendance
+      });
+      
+      if (result.success) {
+        logger.info(`✅ Booking ${recordId} status updated to: ${attendanceMap[attendance]}`);
+      }
+      
+      return result;
+    } catch (error) {
+      logger.error(`Error updating booking ${recordId} status:`, error);
       return {
         success: false,
         error: error.message

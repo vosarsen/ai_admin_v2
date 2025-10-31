@@ -15,30 +15,31 @@ const logger = require('../../utils/logger');
 class SmartCache {
   constructor() {
     this.redis = null;
+    
+    // Fallback кэш в памяти при недоступности Redis
+    this.memoryCache = new Map();
+    this.memoryCacheTTL = 60000; // 1 минута по умолчанию
+    this.memoryCacheMaxSize = 100; // Максимум 100 записей в памяти
+    
     this.stats = {
       hits: 0,
       misses: 0,
       computeTime: 0,
-      popularKeys: new Map()
+      popularKeys: new Map(),
+      memoryFallbackUsed: 0
     };
     this.initPromise = this.initialize();
+    
+    // Периодическая очистка статистики для предотвращения memory leak
+    this.cleanupInterval = setInterval(() => {
+      this._cleanupStats();
+      this._cleanupMemoryCache();
+    }, 60 * 60 * 1000); // Каждый час
   }
 
   async initialize() {
     try {
-      // Временный фикс: переопределяем REDIS_URL для сервера
-      const originalRedisUrl = process.env.REDIS_URL;
-      if (originalRedisUrl && originalRedisUrl.includes('6380')) {
-        process.env.REDIS_URL = 'redis://localhost:6379';
-      }
-      
       this.redis = createRedisClient('smart-cache');
-      
-      // Восстанавливаем оригинальное значение
-      if (originalRedisUrl) {
-        process.env.REDIS_URL = originalRedisUrl;
-      }
-      
       logger.info('🧠 Smart Cache initialized');
     } catch (error) {
       logger.error('Failed to initialize Smart Cache:', error);
@@ -55,7 +56,7 @@ class SmartCache {
     const startTime = Date.now();
     
     try {
-      // 1. Проверяем кэш
+      // 1. Проверяем Redis кэш
       const cached = await this.redis.get(key);
       if (cached) {
         this.stats.hits++;
@@ -64,17 +65,32 @@ class SmartCache {
         return JSON.parse(cached);
       }
 
-      // 2. Cache miss - вычисляем значение
+      // 2. Cache miss - проверяем memory fallback
+      const memoryCached = this._getFromMemoryCache(key);
+      if (memoryCached) {
+        this.stats.hits++;
+        this.stats.memoryFallbackUsed++;
+        logger.debug(`💾 Memory cache HIT for key: ${key}`);
+        return memoryCached;
+      }
+
+      // 3. Cache miss - вычисляем значение
       this.stats.misses++;
       logger.debug(`🔄 Cache MISS for key: ${key}, computing...`);
       
       const result = await computeFn();
       
-      // 3. Определяем TTL на основе популярности и типа данных
+      // 4. Определяем TTL на основе популярности и типа данных
       const ttl = this._calculateSmartTTL(key, options);
       
-      // 4. Сохраняем в кэш
-      await this.redis.setex(key, ttl, JSON.stringify(result));
+      // 5. Сохраняем в Redis и memory cache
+      try {
+        await this.redis.setex(key, ttl, JSON.stringify(result));
+      } catch (redisError) {
+        logger.warn(`Failed to save to Redis, using memory cache: ${redisError.message}`);
+        // Если Redis недоступен, сохраняем в memory cache
+        this._saveToMemoryCache(key, result, ttl * 1000); // TTL в миллисекундах
+      }
       
       const computeTime = Date.now() - startTime;
       this.stats.computeTime += computeTime;
@@ -86,8 +102,15 @@ class SmartCache {
     } catch (error) {
       logger.error(`Cache error for key ${key}:`, error);
       
-      // Fallback: выполняем computeFn без кэширования
+      // Fallback: проверяем memory cache еще раз
+      const memoryCached = this._getFromMemoryCache(key);
+      if (memoryCached) {
+        return memoryCached;
+      }
+      
+      // Выполняем computeFn и сохраняем в memory cache
       const result = await computeFn();
+      this._saveToMemoryCache(key, result, this.memoryCacheTTL);
       return result;
     }
   }
@@ -294,18 +317,25 @@ class SmartCache {
   }
 
   /**
-   * Отслеживание популярности ключей
+   * Отслеживание популярности ключей с защитой от memory leak
    */
   _updatePopularity(key) {
     const current = this.stats.popularKeys.get(key) || 0;
     this.stats.popularKeys.set(key, current + 1);
     
-    // Очищаем старые ключи (оставляем топ 1000)
-    if (this.stats.popularKeys.size > 1000) {
+    // Проактивная очистка для предотвращения memory leak
+    // Очищаем при достижении 500 ключей (раньше было 1000)
+    if (this.stats.popularKeys.size > 500) {
+      // Сохраняем только топ 100 самых популярных
       const sorted = Array.from(this.stats.popularKeys.entries())
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 1000);
+        .slice(0, 100);
+      
+      // Очищаем старую Map полностью для освобождения памяти
+      this.stats.popularKeys.clear();
       this.stats.popularKeys = new Map(sorted);
+      
+      logger.debug(`Cleaned popularity cache, kept top ${sorted.length} keys`);
     }
   }
 
@@ -317,9 +347,100 @@ class SmartCache {
   }
 
   /**
+   * Получить данные из memory cache
+   */
+  _getFromMemoryCache(key) {
+    const entry = this.memoryCache.get(key);
+    if (!entry) return null;
+    
+    // Проверяем TTL
+    if (Date.now() > entry.expiresAt) {
+      this.memoryCache.delete(key);
+      return null;
+    }
+    
+    return entry.data;
+  }
+  
+  /**
+   * Сохранить данные в memory cache
+   */
+  _saveToMemoryCache(key, data, ttl) {
+    // Ограничиваем размер memory cache
+    if (this.memoryCache.size >= this.memoryCacheMaxSize) {
+      // Удаляем самые старые записи
+      const toDelete = Math.floor(this.memoryCacheMaxSize / 4); // Удаляем 25%
+      const keys = Array.from(this.memoryCache.keys()).slice(0, toDelete);
+      keys.forEach(k => this.memoryCache.delete(k));
+      logger.debug(`Memory cache cleanup: removed ${toDelete} old entries`);
+    }
+    
+    this.memoryCache.set(key, {
+      data,
+      expiresAt: Date.now() + (ttl || this.memoryCacheTTL),
+      createdAt: Date.now()
+    });
+  }
+  
+  /**
+   * Очистка устаревших записей из memory cache
+   */
+  _cleanupMemoryCache() {
+    const now = Date.now();
+    let cleaned = 0;
+    
+    this.memoryCache.forEach((entry, key) => {
+      if (now > entry.expiresAt) {
+        this.memoryCache.delete(key);
+        cleaned++;
+      }
+    });
+    
+    if (cleaned > 0) {
+      logger.debug(`Memory cache cleanup: removed ${cleaned} expired entries`);
+    }
+  }
+  
+  /**
+   * Периодическая очистка статистики
+   */
+  _cleanupStats() {
+    // Сбрасываем счетчики если они слишком большие
+    if (this.stats.hits > 1000000) {
+      this.stats.hits = Math.floor(this.stats.hits / 10);
+      this.stats.misses = Math.floor(this.stats.misses / 10);
+      this.stats.computeTime = Math.floor(this.stats.computeTime / 10);
+      this.stats.memoryFallbackUsed = Math.floor(this.stats.memoryFallbackUsed / 10);
+      logger.info('Reset cache statistics to prevent overflow');
+    }
+    
+    // Очищаем старые ключи с низкой популярностью
+    const threshold = 2; // Минимум 2 обращения чтобы остаться
+    const keysToDelete = [];
+    
+    this.stats.popularKeys.forEach((count, key) => {
+      if (count < threshold) {
+        keysToDelete.push(key);
+      }
+    });
+    
+    keysToDelete.forEach(key => this.stats.popularKeys.delete(key));
+    
+    if (keysToDelete.length > 0) {
+      logger.debug(`Removed ${keysToDelete.length} unpopular keys from statistics`);
+    }
+  }
+
+  /**
    * Graceful shutdown
    */
   async destroy() {
+    // Очищаем интервал очистки
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    
     if (this.redis) {
       await this.redis.quit();
       logger.info('💥 Smart Cache destroyed');

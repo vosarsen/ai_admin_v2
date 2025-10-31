@@ -1,722 +1,221 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Quick reference for Claude Code when working with AI Admin v2.
 
-## 🔄 Project Awareness & Context
+## 🚀 Quick Start
 
-**IMPORTANT**: Before starting any work, ALWAYS:
-1. Run `./start-work.sh` to get current project status
-2. Read `CONTEXT.md` for where we left off last time
-3. Read `PLANNING.md` to understand the project architecture and design principles
-4. Check `TASK.md` to see current tasks, completed work, and known issues
-5. Review `RECOMMENDATIONS.md` for improvement ideas
-6. Check `docs/TROUBLESHOOTING.md` if encountering issues
-7. Review relevant examples in `examples/` folder for established patterns
-8. Check `INITIAL.md` if working on a new feature request
-9. Review `docs/development-diary/` for historical context and decisions
-
-**AFTER completing any feature or significant work**:
-- Create a development diary entry in `docs/development-diary/YYYY-MM-DD-feature-name.md`
-- This helps maintain project history and share knowledge for future development
-
-## 🔧 MCP Servers Usage (CRITICAL - USE THESE INSTEAD OF SSH/SCRIPTS)
-
-**ALWAYS USE MCP SERVERS** for direct service access. These are faster and more reliable than SSH commands:
-
-### Available MCP Servers:
-
-1. **@logs** - Direct server logs access
-   - Use for: Checking PM2 logs, searching errors, monitoring services
-   - Example: `@logs logs_tail service:ai-admin-worker-v2 lines:50`
-   - **REPLACES**: `ssh root@46.149.70.219 "pm2 logs ..."`
-
-2. **@whatsapp** - WhatsApp testing
-   - Use for: Sending test messages, checking bot responses, running scenarios
-   - Example: `@whatsapp send_message phone:79001234567 message:"Привет! Хочу записаться"`
-   - **REPLACES**: `node test-direct-webhook.js` and other test scripts
-
-3. **@supabase** - Direct database access
-   - Use for: Querying tables, checking data, database operations
-   - Example: `@supabase query_table table:clients filters:{"phone":"79001234567"}`
-   - **REPLACES**: SSH + psql commands or Supabase dashboard
-
-4. **@yclients** - YClients API access
-   - Use for: Getting services, checking slots, creating bookings
-   - Example: `@yclients get_available_slots date:2025-07-29`
-   - **REPLACES**: Curl commands to YClients API
-
-5. **@redis** - Redis cache management
-   - Use for: Checking/clearing context, testing conversation flow
-   - Example: `@redis get_context phone:79001234567`
-   - **REPLACES**: redis-cli commands
-   - **REQUIRES**: SSH tunnel on port 6380 (run `./scripts/maintain-redis-tunnel.sh start`)
-
-### When to Use MCP:
-- **ALWAYS** for checking logs - use @logs instead of SSH
-- **ALWAYS** for database queries - use @supabase instead of psql
-- **ALWAYS** for testing WhatsApp - use @whatsapp instead of test scripts
-- **ALWAYS** for Redis operations - use @redis instead of redis-cli
-- **ONLY for debugging** YClients API - use @yclients to check raw API responses
-
-### ⚠️ IMPORTANT: Testing Bot Functionality
-**NEVER use MCP servers to test bot features!** MCP servers are for debugging and infrastructure access only.
-
-To test bot functionality:
-1. **Use @whatsapp** to send messages to the bot
-2. **Check bot responses** with @logs or @whatsapp get_last_response
-3. **Verify database changes** with @supabase
-4. **Check conversation context** with @redis
-
-Example of CORRECT bot testing:
-```
-# 1. Send test message to bot
-@whatsapp send_message phone:79001234567 message:"Хочу отменить запись"
-
-# 2. Check bot's response
-@whatsapp get_last_response phone:79001234567
-
-# 3. Check logs for processing details
-@logs logs_tail service:ai-admin-worker-v2 lines:50
-
-# 4. Verify context if needed
-@redis get_context phone:79001234567
-```
-
-Example of INCORRECT testing:
-```
-# ❌ WRONG - This tests YClients API directly, not our bot!
-@yclients search_clients search:79001234567
-```
-
-### MCP Usage Examples:
-
-```
-# Check recent errors (instead of SSH + pm2 logs)
-@logs logs_errors service:ai-admin-worker-v2 minutes:30
-
-# Test WhatsApp message (instead of node test-direct-webhook.js)
-@whatsapp send_message phone:79001234567 message:"Привет! Хочу записаться на стрижку завтра в 15:00"
-
-# Check client in database (instead of psql or Supabase dashboard)
-@supabase query_table table:clients filters:{"phone":"79001234567"}
-
-# Get available slots (instead of YClients API curl)
-@yclients get_available_slots date:2025-07-29 service_ids:[45]
-
-# Check conversation context (instead of redis-cli)
-@redis get_context phone:79001234567
-
-# Clear context for testing (instead of redis-cli DEL)
-@redis clear_context phone:79001234567
-
-# Run full booking scenario
-@whatsapp run_scenario scenario:booking_flow phone:79001234567
-
-# Check if YClients integration received any webhooks
-@logs logs_search pattern:"yclients" service:ai-admin-api lines:5
-```
-
-### Important Notes:
-- MCP servers provide real-time access to production services
-- No need to copy/paste long SSH commands
-- Results are returned directly in the conversation
-- Always prefer MCP over traditional tools when available
-
-## Working Environment
-
-- **Local directory**: /Users/vosarsen/Documents/GitHub/ai_admin_v2
-- **Server**: ssh root@46.149.70.219
-- **Server path**: /opt/ai-admin
-- **SSH Key**: Available at `~/.ssh/id_ed25519_ai_admin` (use with `-i` flag)
-- **SSH Command**: `ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219`
-
-## Development Workflow
-
-We use a strict workflow for all changes:
-
-1. **Local** - analyze and modify files locally
-2. **Commit & Push** - git add, commit with descriptive message, push to GitHub
-3. **Server** - git pull from server, test changes, check logs
-4. **Development Diary** - create entry in `docs/development-diary/` after implementing features
-5. **Iterate** - if issues found, repeat from step 1
-
-**Important**: 
-- Files in local directory and server are synchronized through Git
-- We use `TodoWrite` for task tracking throughout the conversation
-- NEVER modify files directly on server
-- ALWAYS test on server after pushing changes
-- **ALWAYS create development diary entry** after implementing new features or fixing significant bugs
-  - Format: `docs/development-diary/YYYY-MM-DD-feature-name.md`
-  - Include: context, what was done, technical details, problems & solutions, lessons learned
-
-## Project Overview
-
-AI Admin v2 is a production-ready WhatsApp AI Assistant for beauty salons. It uses simplified AI-First architecture where a single AI call handles all decision-making, replacing the previous 5-6 step pipeline. The system is multi-tenant ready and scalable from 30 to 10,000+ companies. 
-
-## Current Status
-
-### Migration v1 → v2 Completed
-- **Production now runs on v2 architecture** (as of July 13, 2024)
-- Worker: `ai-admin-worker-v2` (not v1)
-- All messages processed through AI Admin v2
-
-### Known Issues Fixed
-1. ✅ ecosystem.config.js updated to use v2 worker
-2. ✅ Fixed `context is not defined` error
-3. ✅ Fixed `query.from is not a function` 
-4. ✅ Fixed table name: schedules → staff_schedules
-5. ✅ Fixed missing clients handling with maybeSingle()
-6. ✅ Fixed undefined checks in sortServicesForClient
-7. ✅ Fixed `AIService.generateResponse` error - now using `_callAI` method
-8. ✅ Fixed Redis port conflict (6380 vs 6379) with temporary override
-
-
-### Important Configuration Notes
-- **Redis Port**: Local development uses port 6380 (for SSH tunnel), but server uses 6379
-- **Temporary Fix**: `smart-cache.js` and `redis-factory.js` have temporary overrides for port 6380→6379
-- **TODO**: Create separate environment configs for local vs production Redis URLs
-
-### ✅ FIXED: Rapid-Fire Protection (July 23, 2025)
-- **Problem**: Messages sent in parts were NOT combined
-- **Solution**: Implemented Redis-based batching
-- **Status**: Deployed to production and working!
-- **Details**: 
-  - Messages are batched for up to 10 seconds
-  - All clients now use `/webhook/whatsapp/batched`
-  - Batch processor runs as separate PM2 process
-  - See: `docs/development-diary/2025-07-23-redis-batching-implementation.md`
-
-## Architecture (v2)
-
-### Old Architecture (v1):
-```
-Message → AI Service → NLU Service → EntityExtractor → ActionResolver → ResponseGenerator → Action
-```
-
-### New Architecture (v2):
-```
-Message → AI Admin v2 (full context) → Actions → Response
-```
-
-Key features:
-- **Single AI Call**: One comprehensive AI request with full context
-- **Command-Based**: AI embeds commands like [SEARCH_SLOTS], [CREATE_BOOKING] in responses
-- **Business Type Adaptation**: Automatic detection and terminology adjustment
-- **Parallel Context Loading**: All data loaded upfront in parallel
-- **5-Minute Context Cache**: Reduces database calls
-
-## Key Commands
-
-### Development (v2)
+**Before starting work:**
 ```bash
-# Start v2 workers (recommended)
-node src/workers/index-v2.js       # Start v2 workers
-npm run worker:v2                  # Alternative if configured in package.json
-
-# Or use old workers
-node src/workers/index.js          # Start v1 workers (legacy)
-
-# Development mode
-npm run dev                        # Start API server with nodemon
-npm test                          # Run all Jest tests
-npm run test:unit                 # Run unit tests only
-npm run test:integration          # Run integration tests
-npm run test:watch                # Run tests in watch mode
+./start-work.sh  # Get project status and recent changes
 ```
 
-### Testing Specific Features
-```bash
-node test-architecture-simple.js    # Test core architecture
-node test-proactive-ai.js          # Test AI suggestions
-node test-monitoring-simple.js     # Test monitoring system
-node test-booking-flow.js          # Test booking scenarios
-node test-queue-simple.js          # Test queue processing
-```
+**Key documentation to check:**
+- `config/project-docs/CONTEXT.md` - Where we left off
+- `config/project-docs/TASK.md` - Current tasks
+- `docs/TROUBLESHOOTING.md` - Common issues
+- `docs/TELEGRAM_BOT_QUICK_REFERENCE.md` - 🤖 Telegram бот управление
+- `docs/marketplace/AUTHORIZATION_QUICK_REFERENCE.md` - ⚡ YClients авторизация
 
-### Production
-```bash
-npm start               # Start production server
-pm2 start ecosystem.config.js      # Start with PM2
-pm2 status             # View process status
-pm2 logs               # View logs
-node scripts/monitor.js # Real-time monitoring dashboard
-```
+## 🔧 Essential MCP Servers
 
-### Scripts
-```bash
-node scripts/check-env.js          # Validate environment configuration
-node scripts/deploy.sh             # Deploy to production
-node scripts/backup-redis.js       # Backup Redis data
-node scripts/yclients-api-test.js  # Test YClients integration
-```
+Use MCP servers instead of SSH/scripts for faster access:
 
-## Core Services
+| Server | Purpose | Example |
+|--------|---------|---------|
+| @logs | PM2 logs | `@logs logs_tail service:ai-admin-worker-v2 lines:50` |
+| @whatsapp | Test messages | `@whatsapp send_message phone:79001234567 message:"Test"` |
+| @supabase | Database | `@supabase query_table table:clients filters:{"phone":"79001234567"}` |
+| @redis | Context cache | `@redis get_context phone:79001234567` |
 
-### AI Admin v2 (`src/services/ai-admin-v2/`)
-- **Single unified AI service** replacing the old pipeline
-- Handles all AI operations in one call
-- Supports commands: [SEARCH_SLOTS], [CREATE_BOOKING], [SHOW_PRICES], [SHOW_PORTFOLIO]
-- Automatic business type detection and adaptation
-- 5-minute context caching for performance
+**Redis tunnel required:** `./scripts/maintain-redis-tunnel.sh start`
 
-### MessageQueue (`src/queue/`)
-- Handles message queuing with BullMQ
-- Implements rapid-fire protection
-- Manages worker job distribution
+## 📍 Environment
 
-### BookingService (`src/services/booking/`)
-- Handles all booking operations
-- Integrates with YClients API
-- Manages booking state and validation
+- **Local:** /Users/vosarsen/Documents/GitHub/ai_admin_v2
+- **Server:** `ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219`
+- **Server path:** /opt/ai-admin
+- **WhatsApp:** +79936363848
+- **Test phone:** 89686484488 (для тестирования - ТОЛЬКО этот номер!)
 
-### ContextService (`src/services/context/`)
-- Manages conversation context in Redis
-- Handles user preferences and history
-- Implements context expiration (30 days)
+⚠️ **ВАЖНО:** НИКОГДА не тестируй на реальных клиентах! Используй только тестовый номер 89686484488.
 
-### WhatsAppClient (`src/integrations/whatsapp/`)
-- WhatsApp message handling
-- Supports both Venom Bot and WhatsApp Business API
-- Message formatting and media handling
+## 🔄 Development Workflow
 
-### Business Types Configuration (`src/config/business-types.js`)
-- Defines terminology and behavior for different beauty businesses
-- Supported types: barbershop, nails, massage, epilation, brows, beauty
-- Customizes greetings, confirmations, and communication style
-
-## Database Schema
-
-The system uses Supabase (PostgreSQL) with the following key tables:
-- `companies`: Multi-tenant company data (1 row)
-- `bookings`: Booking records and history (0 rows)
-- `clients`: Client information and preferences (1,361 rows)
-- `services`: Available services catalog (45 rows)
-- `staff`: Staff members/masters (3 rows)
-- `staff_schedules`: Working schedules (110 rows)
-- `messages`: Message history and analytics (0 rows)
-- `actions`: AI action tracking (0 rows)
-- `dialog_contexts`: Conversation contexts (21 rows)
-- `company_sync_status`: Sync status tracking (0 rows)
-
-### MCP (Model Context Protocol) Integration
-
-**📚 MCP Setup Guide**: See [docs/mcp-servers-guide-v2.md](docs/mcp-servers-guide-v2.md) for the correct setup using CLI commands.
-
-**⚠️ IMPORTANT**: MCP servers must be configured using `claude mcp add` commands, NOT by editing JSON files!
-
-#### Quick Setup:
-```bash
-# Run this to set up all MCP servers
-./docs/mcp-setup-commands.sh
-```
-
-#### Available MCP Servers:
-1. **@test-simple** - Basic test server (use to verify MCP is working)
-2. **@redis** - Redis cache management (requires SSH tunnel on port 6380)
-3. **@supabase** - Direct database access
-4. **@whatsapp** - WhatsApp testing
-5. **@yclients** - YClients API access
-6. **@logs** - Server logs via SSH
-
-#### Usage:
-- Check status: Type `/mcp` in Claude Code
-- List servers: `claude mcp list`
-- Add server: `claude mcp add <name> <command> [args...]`
-- Remove server: `claude mcp remove <name>`
-
-**Redis Tunnel Required**:
-```bash
-./scripts/maintain-redis-tunnel.sh start
-```
-
-### YClients API Documentation
-
-The complete YClients API documentation is available in `YCLIENTS_API.md` file (35k lines, parsed from https://developers.yclients.com/ru).
-
-**Quick access tools:**
-1. **Structure file**: `docs/yclients-api-structure.md` - структура всего файла с номерами строк
-2. **Index file**: `docs/yclients-api-index.md` - основные endpoints и примеры поиска
-3. **Search script**: `scripts/search-yclients-api.js` - для быстрого поиска в документации
-
-**Примеры использования поиска:**
-```bash
-# Найти всё про создание записи
-node scripts/search-yclients-api.js "book_record"
-
-# Показать все POST endpoints
-node scripts/search-yclients-api.js --endpoints POST
-
-# Поиск по ключевому слову
-node scripts/search-yclients-api.js "Создать запись"
-```
-
-**Основные endpoints для AI Admin:**
-- Authorization: POST `/api/v1/auth`
-- Get services: GET `/api/v1/book_services/{company_id}`
-- Get time slots: GET `/api/v1/book_times/{company_id}`
-- Create booking: POST `/api/v1/book_record/{company_id}`
-- Check booking: POST `/api/v1/book_check/{company_id}`
-
-**Поиск в документации через Grep:**
-```bash
-# Найти параметры для создания записи
-grep -A 50 "Создать запись на сеанс" YCLIENTS_API.md
-
-# Найти все про определенный endpoint
-grep -B 5 -A 20 "book_times" YCLIENTS_API.md
-```
-
-No additional MCP integration needed for YClients documentation access.
-
-**ВАЖНО**: При работе с YClients API всегда использовать документацию:
-1. Проверить структуру в `docs/yclients-api-structure.md` для поиска нужного раздела
-2. Найти точный метод и параметры в `YCLIENTS_API.md` используя номера строк
-3. Обратить внимание на экранирование (`book\_record` вместо `book_record`)
-4. Проверить обязательные параметры и формат данных (ISO8601 для дат, формат телефона и т.д.)
-
-## Environment Configuration
-
-Key environment variables:
-- `AI_PROVIDER`: AI service provider (default: deepseek)
-- `DEEPSEEK_API_KEY`: DeepSeek API key
-- `DEEPSEEK_MODEL`: AI model (default: deepseek-chat)
-- `YCLIENTS_API_KEY`: YClients CRM API key
-- `REDIS_URL`: Redis connection URL
-- `SUPABASE_URL`: Supabase project URL
-- `SUPABASE_KEY`: Supabase service key
-- `WHATSAPP_PROVIDER`: WhatsApp provider (venom/business-api)
-- `SECRET_KEY`: HMAC authentication key
-
-## Testing Approach
-
-- **Unit Tests**: Test individual services and utilities
-- **Integration Tests**: Test API endpoints and service interactions
-- **End-to-End Tests**: Test complete booking flows
-- **Performance Tests**: Monitor response times and throughput
-
-When adding new features:
-1. Write unit tests for new service methods
-2. Add integration tests for new API endpoints
-3. Update end-to-end tests if flow changes
-4. Run performance tests to ensure no regression
-
-## Performance Targets
-
-- Message throughput: 100-200 msg/min (3 workers)
-- Response time: 2-5 seconds average
-- Cache hit rate: >70%
-- Memory usage: <150MB per worker
-- Error rate: <2%
-
-## Security Considerations
-
-- All webhooks use HMAC-SHA256 authentication
-- Redis requires password authentication in production
-- Rate limiting: 30 requests/minute per phone number
-- Input validation on all user inputs
-- Secrets encrypted with AES-256-GCM
-
-## Deployment
-
-The system uses PM2 for process management:
-```javascript
-// ecosystem.config.js defines:
-- api: API server instance
-- worker: Message processing workers (3 instances)
-- reminder: Reminder worker (1 instance)
-```
-
-For scaling:
-- Increase worker instances in ecosystem.config.js
-- Add Redis replicas for read scaling
-- Use load balancer for API servers
-- Monitor with `node scripts/monitor.js`
-
-## Database Optimization
-
-### План оптимизации производительности
-
-#### ✅ Выполнено:
-1. **Индексы созданы** в Supabase (ускорение запросов в 10-100x)
-   - `idx_services_company_active` - поиск услуг
-   - `idx_staff_company_active` - поиск мастеров  
-   - `idx_clients_phone_company` - поиск клиентов
-   - `idx_dialog_contexts_user` - контекст диалогов
-
-#### 🚀 Текущая проблема:
-- **Высокая латентность** до Supabase из России (150-200ms на запрос)
-- Индексы помогают, но не решают проблему сетевой задержки
-
-#### 💡 План действий:
-
-**1. Быстрый фикс (5 минут)** - добавить простой кэш в `loadFullContext`:
-```javascript
-// В начале метода loadFullContext
-if (!this._cache) this._cache = {};
-const key = `${phone}_${companyId}`;
-const now = Date.now();
-
-if (this._cache[key] && now - this._cache[key].time < 300000) { // 5 минут
-  logger.debug('Using cached context');
-  return this._cache[key].data;
-}
-
-// В конце метода
-this._cache[key] = { data: context, time: now };
-```
-
-**2. Redis кэширование (1 час)**:
-- Использовать готовый `optimized-supabase.js`
-- Настроить Redis: `apt-get install redis-server`
-- Заменить импорты в AI Admin v2
-
-**3. Локальная репликация (1 неделя)**:
-- Синхронизировать критичные данные локально
-- Обновлять каждые 5-10 минут
-- Запросы будут выполняться за 1-10ms
-
-**4. Миграция на локальную БД (1 месяц)**:
-- Полностью убрать зависимость от Supabase
-- PostgreSQL на сервере
-- Прямая синхронизация с YClients
-
-### Ожидаемые результаты:
-- **Сейчас**: 200-500ms на запрос
-- **С кэшем**: 5-20ms на повторные запросы (cache hit 70-90%)
-- **С локальной БД**: 1-10ms всегда
-
-### Команды для оптимизации:
-```bash
-# Создать индексы (уже выполнено)
-scripts/database/create-indexes-working.sql
-
-# Проверить производительность
-node scripts/test-server-performance.js
-
-# Мониторинг
-npm run monitor
-```
-
-### Файлы оптимизации:
-- `src/database/optimized-supabase.js` - клиент с Redis кэшем
-- `scripts/database/` - SQL скрипты для индексов
-- `PERFORMANCE_ANALYSIS.md` - детальный анализ
-
-## Troubleshooting
-
-### If getting "Извините, произошла ошибка" responses:
-1. Check logs: `ssh root@46.149.70.219 "pm2 logs ai-admin-worker-v2 --lines 50"`
-2. Common causes:
-   - Database connection issues
-   - Missing data in tables
-   - Undefined object properties
-3. v2 now has error handling for all database operations
-
-### Testing Changes
-1. Send test message in WhatsApp
-2. Check logs for errors
-3. If error - fix locally, commit, push, pull on server, restart worker
-
-## Development Guidelines
-
-## No Hardcoding Policy
-**ВАЖНО**: В проекте ЗАПРЕЩЕНО использовать хардкод. Все значения должны быть:
-- Настраиваемыми через конфигурацию (`src/config/`)
-- Передаваемыми как параметры
-- Определенными в константах или enum
-- Загружаемыми из базы данных
-
-Примеры что НЕ делать:
-```javascript
-// ❌ ПЛОХО
-title: 'Beauty Salon'
-timezone: 'Europe/Moscow'
-address: 'Не указан'
-
-// ✅ ХОРОШО
-title: config.company?.defaultTitle || 'Салон красоты'
-timezone: config.app?.timezone || 'Europe/Moscow'
-address: data.address || ''
-```
-
-# Common Development Tasks
-
-### Adding a New AI Command (v2)
-1. Update `src/services/ai-admin-v2/index.js` to add command in prompt
-2. Implement command extraction regex in `extractCommands()`
-3. Add command execution logic in `executeCommands()`
-4. Test with appropriate message scenarios
-
-### Adding a New Business Type
-1. Add configuration to `src/config/business-types.js`
-2. Define: terminology, greetings, confirmations, rules
-3. Update business type detection logic in AI Admin v2
-4. Test with company of that type
-
-### Modifying Message Flow (v2)
-1. Update `src/workers/message-worker-v2.js` for processing logic
-2. Modify `src/queue/message-queue.js` if queue behavior changes
-3. Update rapid-fire protection in `shouldProcessMessage()`
-4. Test with `node test-queue-simple.js`
-
-### Switching Between v1 and v2
-```bash
-# To use v2 (recommended):
-node src/workers/index-v2.js
-
-# To use v1 (legacy):
-node src/workers/index.js
-
-# Both versions can run in parallel on different queues if needed
-```
-
-## Debugging
-
-- Enable debug logs: `DEBUG=ai-admin:* npm run dev`
-- Monitor Redis: `redis-cli monitor`
-- View queue dashboard: `http://localhost:3000/admin/queues`
-- Check health: `curl http://localhost:3000/health`
-- Real-time monitoring: `node scripts/monitor.js`
-
-### v2 Specific Logs
-Logs will show:
-- Business type detection
-- Commands AI decided to execute
-- Command execution results
-- Context caching hits/misses
-- Single AI call performance metrics
-
-Example v2 logs:
-```
-🤖 AI Admin v2 processing: "хочу записаться" from 79001234567
-Loading full context from database...
-Business type detected: barbershop
-Executing command: SEARCH_SLOTS
-✅ AI Admin v2 completed in 523ms
-🤖 Bot response to 79001234567: "Привет! Вот доступные слоты для записи..."
-```
-
-## MCP Integration & Testing
-
-### MCP Servers Setup (July 17, 2024)
-MCP (Model Context Protocol) servers are configured for direct access to services:
-
-1. **MCP WhatsApp** (`mcp-whatsapp/`) - Testing WhatsApp integration
-2. **MCP YClients** (`mcp-yclients/`) - Direct YClients API access  
-3. **MCP Supabase** (`mcp-supabase/`) - Direct database queries
-4. **MCP Redis** (`mcp-redis/`) - Redis cache access
-
-**📚 For detailed MCP configuration guide, see: [docs/mcp-configuration-guide.md](docs/mcp-configuration-guide.md)**
-
-#### MCP Redis Setup (IMPORTANT)
-MCP Redis requires SSH tunnel to remote server. The tunnel is **automatically maintained**:
-
-**Usage in Claude Code:**
-1. Use `/mcp` command to access MCP servers
-2. Redis commands available:
-   - `@redis get_context phone:79001234567` - get conversation context
-   - `@redis clear_context phone:79001234567` - clear context (reset dialog)
-   - `@redis set_booking_stage` - set booking stage for testing
-   - `@redis list_active_contexts` - list all active conversations
-   - `@redis simulate_returning_client` - make client appear as returning
-   - `@redis get_all_keys pattern:*` - get Redis keys by pattern
-
-**Automatic SSH Tunnel:**
-- Tunnel runs on `localhost:6380 → 46.149.70.219:6379`
-- Auto-starts on system boot (via launchd)
-- Auto-restarts on connection failure
-- Check status: `./scripts/maintain-redis-tunnel.sh status`
-- View logs: `tail -f ~/.redis-tunnel.log`
-
-**Manual Control (if needed):**
-```bash
-# Quick start tunnel
-./setup-redis-tunnel.sh quick
-
-# Install as system service (already done)
-./setup-redis-tunnel.sh install
-
-# Uninstall service
-./setup-redis-tunnel.sh uninstall
-```
-
-**IMPORTANT**: Always use MCP Redis (`@redis` commands) for context manipulation during testing!
-
-### Testing WhatsApp Bot
-
-#### Quick Test Commands
-```bash
-# Send single test message
-node test-direct-webhook.js
-
-# Run full booking scenario
-node test-booking-scenario.js
-
-# Check Venom-bot status
-node test-venom-check.js
-
-# Direct message through Venom
-./test-venom-direct.sh
-```
-
-#### Important Testing Notes
-1. **Test from different number** - Bot can't reply to itself (+79686484488)
-2. **Use client number** like 79001234567 for testing
-3. **Bot responses are now logged** with prefix `🤖 Bot response to`
-
-#### Recent Fixes (July 17, 2024)
-1. **Fixed imports**:
-   - `ai-admin-v2/index.js`: Fixed AIService import (singleton, not constructor)
-   - `data-loader.js`: Fixed Supabase import (destructured)
-
-2. **Added response logging**:
-   - In `message-worker-v2.js`: Logs full bot response text
-   - In `whatsapp/client.js`: Logs message preview
-   - Error responses also logged
-
-3. **Current Issues**:
-   - Worker v2 sends error message due to AIService issues
-   - But logging now works to see all bot responses
-
-#### Viewing Bot Responses
-```bash
-# See bot responses in logs
-ssh root@46.149.70.219 "tail -100 /root/.pm2/logs/ai-admin-worker-v2-out.log | grep '🤖 Bot response'"
-
-# See message previews
-ssh root@46.149.70.219 "tail -100 /root/.pm2/logs/ai-admin-worker-v2-out.log | grep 'messagePreview'"
-```
-
-### MCP Configuration Notes
-
-**Important**: MCP servers are configured in `~/.config/claude/mcp.json` (NOT in the project directory)
-
-**Known Issues**:
-1. Environment variable expansion (`${VAR}`) doesn't work - use hardcoded values
-2. WhatsApp MCP requires correct `AI_ADMIN_API_URL` pointing to remote server
-3. Redis MCP requires SSH tunnel on port 6380 (not default 6379)
-
-**To update MCP configuration**:
-```bash
-# Edit Claude's config file
-vi ~/.config/claude/mcp.json
-
-# Then restart Claude Code
-```
-
-### Quick Deployment Flow
 ```bash
 # 1. Make changes locally
-# 2. Commit
+# 2. Commit immediately
 git add -A && git commit -m "fix: description"
 
-# 3. Copy files to server (since git push needs auth)
-scp src/path/to/file.js root@46.149.70.219:/opt/ai-admin/src/path/to/file.js
+# 3. Push to GitHub
+git push origin feature/redis-context-cache
 
-# 4. Restart worker
-ssh root@46.149.70.219 "pm2 restart ai-admin-worker-v2"
+# 4. Deploy to server
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "cd /opt/ai-admin && git pull && pm2 restart all"
 
-# 5. Test and check logs
-node test-direct-webhook.js
-ssh root@46.149.70.219 "pm2 logs ai-admin-worker-v2 --lines 50"
+# 5. Test via MCP
+@whatsapp send_message phone:89686484488 message:"Test"
+@logs logs_tail service:ai-admin-worker-v2 lines:50
 ```
+
+## 🏗️ Architecture
+
+**Current: v2 with Two-Stage Processing + Gemini**
+```
+Message → Stage 1: Extract Commands (JSON) → Execute → Stage 2: Generate Response
+         ↓ ~5 sec (Gemini)                   ↓ 0.01s   ↓ ~4 sec (Gemini)
+         Total: ~9 seconds (2.6x faster than DeepSeek)
+```
+
+**AI Provider: Google Gemini 2.5 Flash**
+- Via SOCKS5 proxy (Xray VPN) to bypass geo-blocking
+- USA server (us.cdn.stun.su) - 108ms latency
+- Cost: $29/month (vs $106/month with DeepSeek)
+- Speed: 2.6x faster (9s vs 24s)
+
+**Activate Two-Stage:**
+```bash
+export USE_TWO_STAGE=true
+export AI_PROMPT_VERSION=two-stage
+export AI_PROVIDER=gemini-flash
+export SOCKS_PROXY=socks5://127.0.0.1:1080
+```
+
+## 🎯 Core Services
+
+| Service | Location | Purpose |
+|---------|----------|---------|
+| AI Admin v2 | `src/services/ai-admin-v2/` | Main AI orchestrator |
+| Message Queue | `src/queue/` | BullMQ message handling |
+| Booking Monitor | `src/services/booking-monitor/` | Reminders & notifications |
+| WhatsApp Client | `src/integrations/whatsapp/` | Baileys integration |
+| Context Service | `src/services/context/` | Redis conversation cache |
+| **Schedules Sync** | `src/sync/schedules-sync.js` | **Гибридная синхронизация расписаний** |
+
+## ⚠️ Critical Configuration
+
+```bash
+# MUST be set in production
+BAILEYS_STANDALONE=true  # Prevents session conflicts
+
+# AI Provider (Gemini with VPN)
+AI_PROVIDER=gemini-flash
+GEMINI_API_KEY=AIzaSyD1Pnxdz8wZ6CsaDddUxxIG3fMg69kQkkU
+SOCKS_PROXY=socks5://127.0.0.1:1080
+
+# Redis ports
+Local: 6380 (SSH tunnel)
+Server: 6379 (direct)
+
+# VPN/Proxy
+Xray service: systemctl status xray
+Config: /usr/local/etc/xray/config.json
+```
+
+## 🔄 Data Synchronization
+
+**Hybrid Schedules Sync (NEW!):**
+```bash
+# FULL sync (30 days) - automatic at 05:00 or manual:
+curl -X POST http://localhost:3000/api/sync/schedules
+
+# TODAY-ONLY sync (today+tomorrow) - automatic hourly 8-23 or manual:
+curl -X POST http://localhost:3000/api/sync/schedules/today
+```
+
+**Schedule:**
+- **FULL**: 05:00 daily (30 days ahead)
+- **TODAY-ONLY**: Every hour 08:00-23:00 (today+tomorrow)
+- **Result**: Max 1 hour delay vs 24 hours before
+- **Details**: `docs/development-diary/2025-10-23-hybrid-schedules-sync.md`
+
+## 🐛 Troubleshooting
+
+**Common issues:**
+1. "Извините, произошла ошибка" → Check logs: `@logs logs_tail service:ai-admin-worker-v2`
+2. Session errors → Check Baileys cleanup: `ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "ls -1 /opt/ai-admin/baileys_sessions/company_* | wc -l"`
+3. Redis connection → Ensure tunnel: `./scripts/maintain-redis-tunnel.sh status`
+4. Too many Telegram alerts → See `docs/TELEGRAM_ALERTS_TROUBLESHOOTING.md`
+5. WhatsApp file accumulation → See `docs/WHATSAPP_MONITORING_GUIDE.md`
+6. **Gemini API errors** → Check VPN: `ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "systemctl status xray"`
+7. **Slow responses** → Test proxy: `curl -x socks5://127.0.0.1:1080 https://ipinfo.io/json`
+8. **Outdated schedules** → Manual sync: `POST /api/sync/schedules/today` (see Data Synchronization above)
+
+**PM2 monitoring:**
+```bash
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 status"
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 logs --err --lines 50"
+```
+
+## 📊 Monitoring & Alerts
+
+**WhatsApp file monitoring thresholds:**
+- ✅ OK: < 200 files
+- ⚠️ WARNING: 200+ files (alert 1/hour)
+- 🟠 CRITICAL: 250+ files (alert 1/30min)
+- 🔴 EMERGENCY: 300+ files (alert 1/15min)
+
+**Note:** We tested with 230 files without issues. The "device_removed" warnings are precautionary, not based on hard limits.
+
+## 📚 Detailed Documentation
+
+For more information, see:
+- `docs/ARCHITECTURE.md` - Full system architecture
+- `docs/MCP_SERVERS_GUIDE.md` - Complete MCP setup
+- `docs/SYNC_SYSTEM.md` - YClients sync details
+- `docs/AI_PROVIDERS_GUIDE.md` - AI provider configuration
+- `docs/GEMINI_INTEGRATION_GUIDE.md` - **Gemini setup and testing**
+- `docs/development-diary/2025-10-19-gemini-integration-with-vpn.md` - **Full Gemini deployment story**
+- `docs/development-diary/2025-10-23-hybrid-schedules-sync.md` - **🔄 Гибридная синхронизация расписаний**
+- `docs/development-diary/2025-10-28-reschedule-booking-fix.md` - **📅 Исправление переноса записей (NEW!)**
+- `docs/WHATSAPP_MONITORING_GUIDE.md` - WhatsApp monitoring and file management
+- `docs/TELEGRAM_ALERTS_TROUBLESHOOTING.md` - Telegram alert troubleshooting
+- `docs/features/EXPLAIN_SERVICE_COMMAND.md` - **📖 Контекстные описания услуг**
+- `docs/development-diary/` - Recent changes and decisions
+- `docs/marketplace/` - YClients Marketplace интеграция и авторизация
+
+## 🚫 Important Rules
+
+1. **No hardcoding** - Use config files or environment variables
+2. **Commit after EVERY change** - Don't accumulate changes
+3. **Test in production** - Local testing isn't enough
+4. **Use MCP servers** - Faster than SSH/scripts
+5. **Document success only** - Create diary entries after fixes work
+
+## 📂 Project Structure
+
+```
+/
+├── src/              # Source code
+├── scripts/          # Utility scripts
+├── mcp/             # MCP servers
+├── docs/            # Documentation
+├── config/          # Configuration
+│   └── project-docs/  # Project management (CONTEXT, TASK, etc.)
+├── examples/        # Code patterns
+├── archive/         # Old files (reference only)
+└── tests/           # Test files
+```
+
+## 🔑 YClients Marketplace Authorization
+
+**ВАЖНО: НЕ нужен User Token для маркетплейса!**
+
+```javascript
+// Для работы с API салона через маркетплейс достаточно:
+headers = {
+  'Authorization': `Bearer ${PARTNER_TOKEN}`,  // Только Partner Token!
+  'Accept': 'application/vnd.yclients.v2+json'
+}
+
+// Все API endpoints работают с salon_id после подключения:
+GET/POST https://api.yclients.com/api/v1/records/{salon_id}
+GET https://api.yclients.com/api/v1/clients/{salon_id}
+```
+
+Детали: `docs/marketplace/AUTHORIZATION_QUICK_REFERENCE.md`
+
+---
+**Last updated:** October 28, 2025
+**Current branch:** feature/redis-context-cache
+**AI Provider:** Gemini 2.5 Flash (via USA VPN) - 2.6x faster, $77/month savings 🚀
+**Latest feature:** RESCHEDULE_BOOKING - исправлена обработка переноса записей 📅

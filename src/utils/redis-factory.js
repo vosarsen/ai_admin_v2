@@ -2,21 +2,19 @@
 const Redis = require('ioredis');
 const config = require('../config');
 const logger = require('./logger');
+const { getCircuitBreaker } = require('./circuit-breaker');
 
 /**
  * Create a Redis client with authentication and error handling
  */
 function createRedisClient(role = 'default') {
-  // Validate Redis password is configured
-  if (!config.redis.password && config.app.env === 'production') {
-    throw new Error('Redis password is required in production. Please set REDIS_PASSWORD environment variable.');
-  }
-
   // Используем централизованную конфигурацию
   const { getRedisConfig } = require('../config/redis-config');
+  
   const clientOptions = {
     ...getRedisConfig(),
-    lazyConnect: true // Don't connect immediately
+    lazyConnect: true, // Don't connect immediately
+    connectionName: `${role}-${Date.now()}` // Для идентификации в логах
   };
 
   // Add specific logger
@@ -60,10 +58,74 @@ function createRedisClient(role = 'default') {
   // Test connection
   client.connect().catch(err => {
     redisLogger.error(`Failed to connect to Redis (role: ${role}):`, err);
-    throw err;
+    // Не бросаем ошибку сразу, даем Circuit Breaker обработать
   });
 
-  return client;
+  // Оборачиваем клиента в Circuit Breaker для критичных операций
+  const breaker = getCircuitBreaker(`redis-${role}`, {
+    failureThreshold: 3,
+    resetTimeout: 30000, // 30 секунд
+    timeout: 5000 // 5 секунд на операцию
+  });
+
+  // Создаем proxy для автоматического применения Circuit Breaker
+  const wrappedClient = new Proxy(client, {
+    get(target, prop) {
+      // Специальная обработка для pipeline и multi - они возвращают объекты с методами
+      if (prop === 'pipeline' || prop === 'multi') {
+        return (...args) => {
+          // Возвращаем оригинальный pipeline/multi без обертки
+          // так как они имеют свою цепочку методов
+          const pipelineOrMulti = target[prop](...args);
+          
+          // Оборачиваем только метод exec в Circuit Breaker
+          const originalExec = pipelineOrMulti.exec.bind(pipelineOrMulti);
+          pipelineOrMulti.exec = async () => {
+            try {
+              return await breaker.execute(() => originalExec());
+            } catch (error) {
+              if (error.code === 'CIRCUIT_OPEN') {
+                redisLogger.warn(`Redis circuit breaker is OPEN for ${role}, pipeline/multi failed`);
+                return null;
+              }
+              throw error;
+            }
+          };
+          
+          return pipelineOrMulti;
+        };
+      }
+      
+      // Для обычных методов Redis применяем Circuit Breaker
+      if (typeof target[prop] === 'function') {
+        const originalMethod = target[prop].bind(target);
+        
+        // Критичные методы, которые должны работать через Circuit Breaker
+        const criticalMethods = ['get', 'set', 'setex', 'hgetall', 'hset', 'del', 'expire', 'exec', 'watch', 'lrange', 'lpush', 'ltrim'];
+        
+        if (criticalMethods.includes(prop)) {
+          return async (...args) => {
+            try {
+              return await breaker.execute(() => originalMethod(...args));
+            } catch (error) {
+              if (error.code === 'CIRCUIT_OPEN') {
+                redisLogger.warn(`Redis circuit breaker is OPEN for ${role}, using fallback`);
+                // Можем вернуть null или кэшированные данные
+                return null;
+              }
+              throw error;
+            }
+          };
+        }
+        
+        return originalMethod;
+      }
+      
+      return target[prop];
+    }
+  });
+
+  return wrappedClient;
 }
 
 /**

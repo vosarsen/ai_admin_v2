@@ -8,6 +8,33 @@ lerna-debug.log*
 
 # Temporary files
 temp/
+*.tmp
+*.bak
+*.backup
+*.swp
+*.swo
+*~
+
+# MCP test files
+mcp-test-config.json
+
+# Redis tunnel logs
+.redis-tunnel.log
+
+# Local test data
+test-data/
+
+# WhatsApp sessions
+venom-bot-session/
+tokens/
+
+# Development environment
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
@@ -141,8 +168,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# Legacy files
-legacy/
 
 # MCP logs and local data
 mcp/*/node_modules/
@@ -161,3 +186,22 @@ scripts/deployment/start-local.sh
 
 # Redis tunnel logs
 .redis-tunnel.log
+
+# Kultura analytics (local only)
+kultura-analytics/
+
+# Archive directories
+archive/logs/
+archive/old-tests/
+archive/old-scripts/
+archive/legacy-code/
+
+# Session files
+sessions/
+*.session
+*.auth
+
+# Sync and log files
+sync-log.txt
+*.sync.log
+*-sync.log

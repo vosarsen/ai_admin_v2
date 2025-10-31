@@ -1,0 +1,233 @@
+{
+  "tested": 34,
+  "results": {
+    "working": [
+      {
+        "success": true,
+        "model": "qwen-plus",
+        "time": 1088,
+        "hasCommand": true,
+        "preview": "[SEARCH_SLOTS date:\"2025-08-04\"]"
+      },
+      {
+        "success": true,
+        "model": "qwen3-coder-plus",
+        "time": 1165,
+        "hasCommand": true,
+        "preview": "[SEARCH_SLOTS date:\"2025-08-03\"]"
+      },
+      {
+        "success": true,
+        "model": "qwen-vl-max",
+        "time": 1412,
+        "hasCommand": true,
+        "preview": "Конечно, давайте проверим доступные слоты для записи на стрижку завтра. [SEARCH_SLOTS date:\"2025-08-..."
+      },
+      {
+        "success": true,
+        "model": "qwen-turbo",
+        "time": 1452,
+        "hasCommand": false,
+        "preview": "Для записи на стрижку завтра, мне нужно больше информации. Пожалуйста, уточните:\n\n1. Какой у вас тип..."
+      },
+      {
+        "success": true,
+        "model": "qwen2.5-7b-instruct",
+        "time": 1599,
+        "hasCommand": true,
+        "preview": "Извините, но я не могу записать вас на стрижку напрямую, так как у меня нет доступа к системам брони..."
+      },
+      {
+        "success": true,
+        "model": "qwen-vl-plus",
+        "time": 1603,
+        "hasCommand": false,
+        "preview": "Для записи на стрижку завтра, 3 августа 2025 года, я могу помочь вам найти свободные слоты. Однако, ..."
+      },
+      {
+        "success": true,
+        "model": "qwen2.5-72b-instruct",
+        "time": 1676,
+        "hasCommand": true,
+        "preview": "Конечно, давайте подберем удобное для вас время. Для этого мне нужно узнать доступные слоты на завтр..."
+      },
+      {
+        "success": true,
+        "model": "qwen2-7b-instruct",
+        "time": 2148,
+        "hasCommand": false,
+        "preview": "Извините, но для того чтобы записаться на стрижку, мне нужно знать, какие услуги предлагает конкретн..."
+      },
+      {
+        "success": true,
+        "model": "qwen-max",
+        "time": 2398,
+        "hasCommand": true,
+        "preview": "Чтобы записаться на стрижку завтра, мне нужно проверить доступные слоты для записи. Давайте я посмот..."
+      },
+      {
+        "success": true,
+        "model": "qwen2.5-14b-instruct",
+        "time": 2837,
+        "hasCommand": false,
+        "preview": "Конечно, для записи на стрижку завтра вам нужно найти ближайший салон красоты и выбрать удобное врем..."
+      },
+      {
+        "success": true,
+        "model": "qwen3-30b-a3b",
+        "time": 3372,
+        "hasCommand": true,
+        "streaming": true,
+        "preview": "[SEARCH_SLOTS date:\"2025-08-03\"]  \nПожалуйста, подождите, я проверяю доступные слоты на завтра (03.0..."
+      },
+      {
+        "success": true,
+        "model": "qwen2.5-32b-instruct",
+        "time": 3441,
+        "hasCommand": true,
+        "preview": "Конечно, я помогу вам с этим. Сначала мне нужно уточнить дату. Если сегодня 2025-08-02, то ваше \"зав..."
+      },
+      {
+        "success": true,
+        "model": "qwen2-72b-instruct",
+        "time": 3777,
+        "hasCommand": true,
+        "preview": "Извините, но как виртуальный ассистент, я не могу выполнить прямые бронирования или записи. Однако я..."
+      },
+      {
+        "success": true,
+        "model": "qwen3-235b-a22b",
+        "time": 4626,
+        "hasCommand": true,
+        "streaming": true,
+        "preview": "[SEARCH_SLOTS date:\"2025-08-04\"]"
+      }
+    ],
+    "notFound": [
+      {
+        "success": false,
+        "model": "qwen3-30b-a3b-instruct",
+        "error": "The model `qwen3-30b-a3b-instruct` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen3-coder",
+        "error": "The model `qwen3-coder` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen3-235b-a22b-instruct",
+        "error": "The model `qwen3-235b-a22b-instruct` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen2.5-3b-instruct",
+        "error": "The model `qwen2.5-3b-instruct` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen2.5-1.5b-instruct",
+        "error": "The model `qwen2.5-1.5b-instruct` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen2.5-0.5b-instruct",
+        "error": "The model `qwen2.5-0.5b-instruct` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen2.5-coder-32b-instruct",
+        "error": "The model `qwen2.5-coder-32b-instruct` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen2.5-coder-14b-instruct",
+        "error": "The model `qwen2.5-coder-14b-instruct` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen2.5-coder-7b-instruct",
+        "error": "The model `qwen2.5-coder-7b-instruct` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen2.5-coder-3b-instruct",
+        "error": "The model `qwen2.5-coder-3b-instruct` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen2.5-coder-1.5b-instruct",
+        "error": "The model `qwen2.5-coder-1.5b-instruct` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen2.5-math-72b-instruct",
+        "error": "The model `qwen2.5-math-72b-instruct` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen2.5-math-7b-instruct",
+        "error": "The model `qwen2.5-math-7b-instruct` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen2.5-math-1.5b-instruct",
+        "error": "The model `qwen2.5-math-1.5b-instruct` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen-long",
+        "error": "The model `qwen-long` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen2-1.5b-instruct",
+        "error": "The model `qwen2-1.5b-instruct` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen2-0.5b-instruct",
+        "error": "The model `qwen2-0.5b-instruct` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwen-audio-turbo",
+        "error": "The model `qwen-audio-turbo` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      },
+      {
+        "success": false,
+        "model": "qwq-32b-preview",
+        "error": "The model `qwq-32b-preview` does not exist or you do not have access to it.",
+        "code": "model_not_found"
+      }
+    ],
+    "needsStreaming": [],
+    "otherErrors": [
+      {
+        "success": false,
+        "model": "qwen2-57b-a14b-instruct",
+        "error": "Unsupported model `qwen2-57b-a14b-instruct` for OpenAI compatibility mode.",
+        "code": "model_not_supported"
+      }
+    ]
+  },
+  "timestamp": "2025-08-02T15:00:42.487Z"
+}
