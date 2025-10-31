@@ -1,4 +1,5 @@
 const logger = require('../../../utils/logger').child({ module: 'ai-admin-v2:formatter' });
+const scheduleAnalyzer = require('./schedule-analyzer');
 
 class Formatter {
   /**
@@ -39,7 +40,15 @@ class Formatter {
       return "Сегодня никто не работает";
     }
     
-    const workingStaffIds = todaySchedule.map(s => s.staff_id);
+    // Фильтруем только работающих мастеров с доступными слотами
+    const workingSchedules = todaySchedule.filter(s => s.is_working && s.has_booking_slots);
+    
+    if (workingSchedules.length === 0) {
+      logger.warn(`No staff with available slots today (${today})`);
+      return "Сегодня никто не работает";
+    }
+    
+    const workingStaffIds = workingSchedules.map(s => s.staff_id);
     
     logger.info(`Staff IDs from schedule:`, workingStaffIds);
     logger.info(`Staff list IDs:`, staffList.map(s => ({ id: s.yclients_id, name: s.name })));
@@ -82,9 +91,18 @@ class Formatter {
     
     return workingStaff.map(staff => {
       const schedule = todaySchedule.find(s => s.staff_id === staff.yclients_id);
-      // Временно убираем время, так как в БД нет start_time и end_time
-      // const timeRange = schedule ? `${schedule.start_time}-${schedule.end_time}` : '';
-      return `- ${staff.name}`;
+      
+      // Получаем слоты мастера из working_hours
+      const staffSlots = schedule?.working_hours?.seances || [];
+      
+      // Анализируем рабочие часы мастера
+      const workingHours = scheduleAnalyzer.analyzeStaffWorkingHours(staffSlots, staff.name);
+      
+      if (workingHours.isWorking) {
+        return `- ${staff.name} (работает с ${workingHours.startTime} до ${workingHours.endTime})`;
+      } else {
+        return `- ${staff.name} (не работает)`;
+      }
     }).join('\n');
   }
 
@@ -95,8 +113,15 @@ class Formatter {
     const days = Object.keys(scheduleByDate).sort().slice(0, 30);
     return days.map(date => {
       const daySchedule = scheduleByDate[date];
+      // Фильтруем только работающих мастеров с доступными слотами
+      const workingStaff = daySchedule.filter(s => s.is_working && s.has_booking_slots);
+      
+      if (workingStaff.length === 0) {
+        return `${this.formatDateForDisplay(date)}: никто не работает`;
+      }
+      
       const staffNames = this.getStaffNames(
-        daySchedule.map(s => s.staff_id), 
+        workingStaff.map(s => s.staff_id), 
         staffList
       );
       return `${this.formatDateForDisplay(date)}: ${staffNames}`;
@@ -340,12 +365,11 @@ class Formatter {
   }
 
   /**
-   * Группировка слотов по времени дня
+   * Группировка слотов по времени дня (оптимизированная версия)
    */
   groupSlotsByTimeOfDay(slots) {
     logger.info('groupSlotsByTimeOfDay called with slots:', {
-      totalSlots: slots.length,
-      slots: slots.map(s => s.time || s.datetime?.split('T')[1]?.substring(0, 5))
+      totalSlots: slots.length
     });
     
     const groups = {
@@ -354,114 +378,120 @@ class Formatter {
       evening: []   // после 17:00
     };
     
-    // Сортируем слоты по времени
-    const sortedSlots = slots.sort((a, b) => {
-      const timeA = a.time || (a.datetime ? a.datetime.split(' ')[1].substring(0, 5) : '');
-      const timeB = b.time || (b.datetime ? b.datetime.split(' ')[1].substring(0, 5) : '');
-      return timeA.localeCompare(timeB);
-    });
+    // Оптимизированная обработка без создания лишних объектов
+    const processedSlots = [];
     
-    // Группируем слоты по периодам дня
+    for (const slot of slots) {
+      // Извлекаем время один раз
+      let timeStr = slot.time;
+      if (!timeStr && slot.datetime) {
+        // Оптимизированное извлечение времени
+        const tIndex = slot.datetime.indexOf('T');
+        if (tIndex !== -1) {
+          timeStr = slot.datetime.substring(tIndex + 1, tIndex + 6);
+        } else if (slot.datetime.indexOf(' ') !== -1) {
+          timeStr = slot.datetime.split(' ')[1]?.substring(0, 5);
+        }
+      }
+      
+      if (!timeStr) continue;
+      
+      // Быстрое извлечение часа без split
+      const colonIndex = timeStr.indexOf(':');
+      if (colonIndex === -1) continue;
+      
+      const hour = parseInt(timeStr.substring(0, colonIndex));
+      const minutes = parseInt(timeStr.substring(colonIndex + 1, colonIndex + 3));
+      
+      if (isNaN(hour) || isNaN(minutes)) continue;
+      
+      const hourDecimal = hour + (minutes / 60);
+      
+      // Добавляем в соответствующую группу
+      const slotInfo = { time: timeStr, hour, minutes, hourDecimal, slot };
+      
+      if (hour < 12) {
+        processedSlots.push({ ...slotInfo, period: 'morning' });
+      } else if (hour < 17) {
+        processedSlots.push({ ...slotInfo, period: 'day' });
+      } else {
+        processedSlots.push({ ...slotInfo, period: 'evening' });
+      }
+    }
+    
+    // Сортируем один раз все слоты
+    processedSlots.sort((a, b) => a.hourDecimal - b.hourDecimal);
+    
+    // Группируем отсортированные слоты
     const periodSlots = {
       morning: [],
       day: [],
       evening: []
     };
     
-    sortedSlots.forEach(slot => {
-      const time = slot.time || (slot.datetime ? slot.datetime.split('T')[1]?.substring(0, 5) : '');
-      if (!time) return;
-      
-      const hour = parseInt(time.split(':')[0]);
-      const minutes = parseInt(time.split(':')[1]);
-      const hourDecimal = hour + (minutes / 60);
-      
-      if (hour < 12) {
-        periodSlots.morning.push({ time, hour, minutes, hourDecimal, slot });
-      } else if (hour < 17) {
-        periodSlots.day.push({ time, hour, minutes, hourDecimal, slot });
-      } else {
-        periodSlots.evening.push({ time, hour, minutes, hourDecimal, slot });
-      }
-    });
+    for (const slot of processedSlots) {
+      periodSlots[slot.period].push(slot);
+    }
     
-    // Выбираем слоты с промежутками для вариативности (минимум 1 час между слотами)
+    // Оптимизированная функция выбора слотов с промежутками
     const selectSlotsWithGaps = (slots, maxCount) => {
       if (slots.length === 0) return [];
       if (slots.length === 1) return [slots[0].time];
-      
-      const selected = [];
-      let lastSelectedHourDecimal = -999; // Начальное значение для сравнения
-      
-      logger.info('selectSlotsWithGaps called:', { 
-        slotsCount: slots.length, 
-        maxCount,
-        slots: slots.map(s => ({ time: s.time, hourDecimal: s.hourDecimal }))
-      });
       
       // Если слотов меньше или равно maxCount, возвращаем все
       if (slots.length <= maxCount) {
         return slots.map(s => s.time);
       }
       
-      // Если слотов больше чем нужно, выбираем с промежутками
+      // Оптимизированный алгоритм выбора с промежутками
+      const selected = [];
       const minGap = 1.0; // Минимальный промежуток 1 час
+      let lastSelectedHourDecimal = -999;
       
-      for (let i = 0; i < slots.length; i++) {
+      // Берем первый слот
+      selected.push(slots[0].time);
+      lastSelectedHourDecimal = slots[0].hourDecimal;
+      
+      // Проходим по остальным слотам
+      for (let i = 1; i < slots.length && selected.length < maxCount; i++) {
         const slot = slots[i];
-        if (selected.length >= maxCount) {
-          logger.info('Reached maxCount, stopping selection');
-          break;
-        }
-        
         const gap = slot.hourDecimal - lastSelectedHourDecimal;
-        logger.info(`Checking slot ${i+1}/${slots.length}:`, { 
-          time: slot.time, 
-          hourDecimal: slot.hourDecimal,
-          lastSelectedHourDecimal,
-          gap,
-          willSelect: gap >= minGap,
-          currentSelectedCount: selected.length,
-          maxCount
-        });
         
-        // Проверяем что прошло минимум 1 час с последнего выбранного слота
         if (gap >= minGap) {
           selected.push(slot.time);
           lastSelectedHourDecimal = slot.hourDecimal;
-          logger.info(`Selected slot ${selected.length}/${maxCount}:`, slot.time);
         }
       }
       
       // Если выбрали меньше чем нужно, добавляем еще слоты
       if (selected.length < maxCount) {
-        // Берем слоты которые еще не выбраны
-        const remainingSlots = slots.filter(s => !selected.includes(s.time));
+        // Оптимизированный алгоритм: используем Set для быстрого поиска
+        const selectedSet = new Set(selected);
         const slotsToAdd = maxCount - selected.length;
         
-        // Добавляем оставшиеся слоты равномерно
-        if (remainingSlots.length > 0) {
-          const step = Math.max(1, Math.floor(remainingSlots.length / slotsToAdd));
-          for (let i = 0; i < remainingSlots.length && selected.length < maxCount; i += step) {
-            selected.push(remainingSlots[i].time);
-            logger.info(`Added additional slot ${selected.length}/${maxCount}:`, remainingSlots[i].time);
+        // Равномерно распределяем оставшиеся слоты
+        let addedCount = 0;
+        const step = Math.ceil(slots.length / slotsToAdd);
+        
+        for (let i = 0; i < slots.length && addedCount < slotsToAdd; i += step) {
+          if (!selectedSet.has(slots[i].time)) {
+            selected.push(slots[i].time);
+            addedCount++;
           }
         }
       }
       
-      // Сортируем выбранные слоты по времени
-      selected.sort();
-      
       return selected;
     };
     
-    // Формируем финальные группы с вариативностью (2-3 слота в каждом периоде)
-    groups.morning = selectSlotsWithGaps(periodSlots.morning, 3);
-    groups.day = selectSlotsWithGaps(periodSlots.day, 3);
-    groups.evening = selectSlotsWithGaps(periodSlots.evening, 3);
+    // Передаем AI полный список слотов без фильтрации
+    // AI сам решит какие слоты показать пользователю
+    groups.morning = periodSlots.morning.map(s => s.time);
+    groups.day = periodSlots.day.map(s => s.time);
+    groups.evening = periodSlots.evening.map(s => s.time);
     
     // Подробный дебаг для отладки
-    logger.info('Slot gap selection detailed debug:', {
+    logger.info('Full slots without filtering:', {
       morning: {
         input: periodSlots.morning.map(s => ({ 
           time: s.time, 
@@ -673,6 +703,79 @@ class Formatter {
     
     return errorMessages[error.code] || errorMessages.default;
   }
+  /**
+   * Применение форматирования в зависимости от типа бизнеса
+   */
+  applyBusinessTypeFormatting(text, businessType) {
+    if (!text || !businessType) return text;
+    
+    // Получаем терминологию для типа бизнеса
+    const businessLogic = require('./business-logic');
+    const terminology = businessLogic.getBusinessTerminology(businessType);
+    
+    // Применяем замены в тексте в зависимости от типа бизнеса
+    let formattedText = text;
+    
+    switch (businessType) {
+      case 'barbershop':
+        // Заменяем общие термины на барбершоп-специфичные
+        formattedText = formattedText
+          .replace(/мастер(?!а)/gi, 'барбер')
+          .replace(/мастера/gi, 'барбера')
+          .replace(/салон/gi, 'барбершоп')
+          .replace(/записаться/gi, 'забронировать время');
+        break;
+        
+      case 'nails':
+        // Специфика для ногтевого сервиса
+        formattedText = formattedText
+          .replace(/салон/gi, 'студия')
+          .replace(/парикмахер/gi, 'мастер маникюра');
+        break;
+        
+      case 'massage':
+        // Специфика для массажа
+        formattedText = formattedText
+          .replace(/салон/gi, 'кабинет')
+          .replace(/мастер/gi, 'массажист')
+          .replace(/стрижка/gi, 'массаж');
+        break;
+        
+      case 'epilation':
+        // Специфика для эпиляции
+        formattedText = formattedText
+          .replace(/салон/gi, 'студия эпиляции')
+          .replace(/парикмахер/gi, 'мастер эпиляции');
+        break;
+        
+      case 'brows':
+        // Специфика для бровей
+        formattedText = formattedText
+          .replace(/салон/gi, 'студия красоты')
+          .replace(/мастер/gi, 'бровист');
+        break;
+        
+      case 'beauty':
+        // Общий салон красоты - минимальные изменения
+        formattedText = formattedText
+          .replace(/барбершоп/gi, 'салон красоты');
+        break;
+    }
+    
+    // Применяем стиль общения из терминологии
+    if (terminology.communicationStyle === 'дружелюбным и неформальным') {
+      // Делаем текст более неформальным
+      formattedText = formattedText
+        .replace(/Здравствуйте/gi, 'Привет')
+        .replace(/До свидания/gi, 'Пока')
+        .replace(/Вы /g, 'ты ')
+        .replace(/Вас /g, 'тебя ')
+        .replace(/Ваш/gi, 'твой');
+    }
+    
+    return formattedText;
+  }
+
   /**
    * Форматирование подтверждения переноса записи
    */

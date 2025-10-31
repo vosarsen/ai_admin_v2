@@ -1,209 +1,259 @@
 // src/utils/circuit-breaker.js
+/**
+ * Circuit Breaker для защиты от каскадных сбоев
+ * 
+ * Состояния:
+ * - CLOSED: Нормальная работа, все запросы проходят
+ * - OPEN: Сервис недоступен, запросы блокируются
+ * - HALF_OPEN: Пробное восстановление, пропускаем один запрос
+ */
+
+const EventEmitter = require('events');
 const logger = require('./logger');
 
-/**
- * Circuit Breaker implementation for fault tolerance
- */
-class CircuitBreaker {
+const STATE = {
+  CLOSED: 'closed',
+  OPEN: 'open',
+  HALF_OPEN: 'half_open'
+};
+
+class CircuitBreaker extends EventEmitter {
   constructor(options = {}) {
-    this.name = options.name || 'default';
-    this.timeout = options.timeout || 10000; // 10 seconds
-    this.errorThreshold = options.errorThreshold || 5;
-    this.resetTimeout = options.resetTimeout || 60000; // 1 minute
-    this.monitoringPeriod = options.monitoringPeriod || 10000; // 10 seconds
+    super();
     
-    // State management
-    this.state = 'CLOSED'; // CLOSED, OPEN, HALF_OPEN
+    // Конфигурация
+    this.name = options.name || 'default';
+    this.failureThreshold = options.failureThreshold || 5; // Открываем после N ошибок
+    this.resetTimeout = options.resetTimeout || 60000; // 60 секунд до попытки восстановления
+    this.successThreshold = options.successThreshold || 2; // N успехов для закрытия из half-open
+    this.timeout = options.timeout || 10000; // Таймаут операции
+    
+    // Состояние
+    this.state = STATE.CLOSED;
     this.failures = 0;
     this.successes = 0;
-    this.lastFailureTime = null;
     this.nextAttempt = Date.now();
+    this.lastError = null;
     
-    // Monitoring
-    this.callCount = 0;
-    this.errorCount = 0;
-    this.lastResetTime = Date.now();
+    // Статистика
+    this.stats = {
+      totalRequests: 0,
+      successfulRequests: 0,
+      failedRequests: 0,
+      rejectedRequests: 0,
+      stateChanges: []
+    };
+    
+    this.logger = logger.child({ module: 'circuit-breaker', name: this.name });
+    
+    // Регистрация в мониторе если доступен
+    // TODO: Implement monitor registration
+    // this._registerMonitor();
   }
 
   /**
-   * Execute function with circuit breaker protection
+   * Выполнить операцию через Circuit Breaker
    */
-  async execute(fn) {
-    // Check if circuit is open
-    if (this.state === 'OPEN') {
+  async execute(operation) {
+    this.stats.totalRequests++;
+    
+    // Проверяем состояние
+    if (this.state === STATE.OPEN) {
       if (Date.now() < this.nextAttempt) {
+        // Еще рано пробовать
+        this.stats.rejectedRequests++;
         const error = new Error(`Circuit breaker is OPEN for ${this.name}`);
         error.code = 'CIRCUIT_OPEN';
+        error.lastError = this.lastError;
         throw error;
       }
       
-      // Try half-open
-      this.state = 'HALF_OPEN';
-      logger.info(`Circuit breaker ${this.name} attempting half-open`);
+      // Переходим в HALF_OPEN для пробного запроса
+      this._changeState(STATE.HALF_OPEN);
     }
     
-    this.callCount++;
-    
     try {
-      // Execute with timeout
-      logger.debug(`Circuit breaker ${this.name} executing function`);
-      const result = await this._executeWithTimeout(fn);
+      // Добавляем таймаут к операции
+      const result = await this._executeWithTimeout(operation);
       
-      // Success handling
-      logger.debug(`Circuit breaker ${this.name} execution successful`);
+      // Успешное выполнение
       this._onSuccess();
       return result;
-    } catch (error) {
-      // Failure handling
-      logger.error(`Circuit breaker ${this.name} execution failed:`, {
-        errorType: typeof error,
-        errorConstructor: error?.constructor?.name,
-        errorString: String(error),
-        errorMessage: error?.message,
-        errorCode: error?.code,
-        isNull: error === null,
-        isUndefined: error === undefined
-      });
       
+    } catch (error) {
+      // Ошибка выполнения
       this._onFailure(error);
       throw error;
     }
   }
 
   /**
-   * Execute function with timeout
+   * Выполнить операцию с таймаутом
    */
-  async _executeWithTimeout(fn) {
+  async _executeWithTimeout(operation) {
     return new Promise(async (resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error(`Circuit breaker timeout for ${this.name}`));
+      const timeoutId = setTimeout(() => {
+        reject(new Error(`Operation timeout after ${this.timeout}ms`));
       }, this.timeout);
       
       try {
-        const result = await fn();
-        clearTimeout(timer);
+        const result = await operation();
+        clearTimeout(timeoutId);
         resolve(result);
       } catch (error) {
-        clearTimeout(timer);
+        clearTimeout(timeoutId);
         reject(error);
       }
     });
   }
 
   /**
-   * Handle successful execution
+   * Обработка успешного выполнения
    */
   _onSuccess() {
+    this.stats.successfulRequests++;
     this.failures = 0;
     
-    if (this.state === 'HALF_OPEN') {
-      this.successes++;
+    switch (this.state) {
+      case STATE.HALF_OPEN:
+        this.successes++;
+        if (this.successes >= this.successThreshold) {
+          // Достаточно успехов, закрываем circuit
+          this._changeState(STATE.CLOSED);
+        }
+        break;
       
-      // Need multiple successes to fully close
-      if (this.successes >= 3) {
-        this.state = 'CLOSED';
-        this.successes = 0;
-        logger.info(`Circuit breaker ${this.name} is now CLOSED`);
-      }
+      case STATE.CLOSED:
+        // Все хорошо, ничего не делаем
+        break;
     }
   }
 
   /**
-   * Handle failed execution
+   * Обработка ошибки
    */
   _onFailure(error) {
+    this.stats.failedRequests++;
     this.failures++;
-    this.errorCount++;
-    this.lastFailureTime = Date.now();
+    this.lastError = error;
     
-    logger.error(`Circuit breaker ${this.name} failure:`, {
-      errorType: typeof error,
-      errorConstructor: error?.constructor?.name,
-      errorString: String(error),
-      errorMessage: error?.message,
-      errorCode: error?.code,
-      errorStack: error?.stack,
-      errorResponse: error?.response?.data,
-      errorStatus: error?.response?.status,
-      isNull: error === null,
-      isUndefined: error === undefined,
-      hasOwnProperties: error ? Object.getOwnPropertyNames(error) : 'N/A',
-      failures: this.failures,
-      state: this.state
+    switch (this.state) {
+      case STATE.HALF_OPEN:
+        // Пробный запрос не удался, открываем circuit снова
+        this._changeState(STATE.OPEN);
+        break;
+      
+      case STATE.CLOSED:
+        if (this.failures >= this.failureThreshold) {
+          // Слишком много ошибок, открываем circuit
+          this._changeState(STATE.OPEN);
+        }
+        break;
+    }
+  }
+
+  /**
+   * Изменить состояние Circuit Breaker
+   */
+  _changeState(newState) {
+    const oldState = this.state;
+    this.state = newState;
+    
+    // Сбрасываем счетчики при смене состояния
+    switch (newState) {
+      case STATE.CLOSED:
+        this.failures = 0;
+        this.successes = 0;
+        this.logger.info(`Circuit breaker CLOSED for ${this.name}`);
+        break;
+      
+      case STATE.OPEN:
+        this.nextAttempt = Date.now() + this.resetTimeout;
+        this.successes = 0;
+        this.logger.warn(`Circuit breaker OPEN for ${this.name}, retry in ${this.resetTimeout}ms`);
+        break;
+      
+      case STATE.HALF_OPEN:
+        this.successes = 0;
+        this.logger.info(`Circuit breaker HALF_OPEN for ${this.name}, testing...`);
+        break;
+    }
+    
+    // Записываем в статистику
+    this.stats.stateChanges.push({
+      from: oldState,
+      to: newState,
+      timestamp: new Date().toISOString(),
+      reason: this.lastError?.message
     });
     
-    if (this.state === 'HALF_OPEN') {
-      // Immediately open on half-open failure
-      this._open();
-    } else if (this.failures >= this.errorThreshold) {
-      // Open circuit after threshold
-      this._open();
+    // Ограничиваем историю изменений
+    if (this.stats.stateChanges.length > 100) {
+      this.stats.stateChanges = this.stats.stateChanges.slice(-50);
     }
   }
 
   /**
-   * Open the circuit
+   * Получить текущее состояние
    */
-  _open() {
-    this.state = 'OPEN';
-    this.nextAttempt = Date.now() + this.resetTimeout;
-    this.successes = 0;
-    
-    logger.warn(`Circuit breaker ${this.name} is now OPEN. Next attempt at ${new Date(this.nextAttempt).toISOString()}`);
-  }
-
-  /**
-   * Get circuit breaker status
-   */
-  getStatus() {
-    const now = Date.now();
-    const monitoringDuration = now - this.lastResetTime;
-    
-    // Reset counters if monitoring period passed
-    if (monitoringDuration > this.monitoringPeriod) {
-      this.callCount = 0;
-      this.errorCount = 0;
-      this.lastResetTime = now;
-    }
-    
+  getState() {
     return {
-      name: this.name,
       state: this.state,
       failures: this.failures,
-      callCount: this.callCount,
-      errorCount: this.errorCount,
-      errorRate: this.callCount > 0 ? (this.errorCount / this.callCount) : 0,
-      lastFailureTime: this.lastFailureTime,
-      nextAttempt: this.state === 'OPEN' ? this.nextAttempt : null
+      successes: this.successes,
+      nextAttempt: this.state === STATE.OPEN ? this.nextAttempt : null,
+      lastError: this.lastError?.message
     };
   }
 
   /**
-   * Force reset circuit breaker
+   * Получить статистику
+   */
+  getStats() {
+    const successRate = this.stats.totalRequests > 0
+      ? (this.stats.successfulRequests / this.stats.totalRequests * 100).toFixed(2)
+      : 0;
+    
+    return {
+      ...this.stats,
+      successRate: `${successRate}%`,
+      currentState: this.state,
+      recentStateChanges: this.stats.stateChanges.slice(-5)
+    };
+  }
+
+  /**
+   * Принудительно сбросить состояние
    */
   reset() {
-    this.state = 'CLOSED';
+    this._changeState(STATE.CLOSED);
     this.failures = 0;
     this.successes = 0;
-    this.lastFailureTime = null;
-    this.nextAttempt = Date.now();
-    
-    logger.info(`Circuit breaker ${this.name} has been reset`);
+    this.lastError = null;
+    this.logger.info(`Circuit breaker manually reset for ${this.name}`);
+  }
+
+  /**
+   * Проверить доступность без выполнения операции
+   */
+  isAvailable() {
+    if (this.state === STATE.CLOSED) return true;
+    if (this.state === STATE.HALF_OPEN) return true;
+    if (this.state === STATE.OPEN && Date.now() >= this.nextAttempt) return true;
+    return false;
   }
 }
 
-/**
- * Circuit breaker factory
- */
+// Фабрика для создания Circuit Breaker'ов
 class CircuitBreakerFactory {
   constructor() {
     this.breakers = new Map();
   }
 
   /**
-   * Get or create circuit breaker
+   * Получить или создать Circuit Breaker
    */
-  getBreaker(name, options = {}) {
+  get(name, options = {}) {
     if (!this.breakers.has(name)) {
       this.breakers.set(name, new CircuitBreaker({ name, ...options }));
     }
@@ -211,25 +261,32 @@ class CircuitBreakerFactory {
   }
 
   /**
-   * Get all circuit breakers status
+   * Получить статистику всех breaker'ов
    */
-  getAllStatus() {
-    const status = {};
-    for (const [name, breaker] of this.breakers) {
-      status[name] = breaker.getStatus();
-    }
-    return status;
+  getAllStats() {
+    const stats = {};
+    this.breakers.forEach((breaker, name) => {
+      stats[name] = breaker.getStats();
+    });
+    return stats;
   }
 
   /**
-   * Reset all circuit breakers
+   * Сбросить все breaker'ы
    */
   resetAll() {
-    for (const breaker of this.breakers.values()) {
-      breaker.reset();
-    }
+    this.breakers.forEach(breaker => breaker.reset());
   }
 }
 
-// Export singleton factory
-module.exports = new CircuitBreakerFactory();
+// Экспортируем singleton фабрику
+const factory = new CircuitBreakerFactory();
+
+// Добавляем метод getBreaker для обратной совместимости
+factory.getBreaker = factory.get;
+
+module.exports = {
+  CircuitBreaker,
+  CircuitBreakerFactory: factory,
+  getCircuitBreaker: (name, options) => factory.get(name, options)
+};

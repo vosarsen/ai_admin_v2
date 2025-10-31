@@ -38,20 +38,35 @@ router.post('/webhook/whatsapp/batched', rateLimiter, validateWebhookSignature, 
       await batchService.initialize();
       batchServiceInitialized = true;
     }
+    // Логируем входящий запрос для диагностики
+    logger.info('📨 Webhook received request:', {
+      body: req.body,
+      headers: {
+        'x-signature': req.headers['x-signature']?.substring(0, 10) + '...',
+        'x-timestamp': req.headers['x-timestamp']
+      }
+    });
+    
     // Поддержка разных форматов входных данных
     let messages = [];
     let from = null;
     let companyId = config.yclients.companyId;
     
-    // Формат 1: { from, message, timestamp }
+    // Формат 1: { from, message, timestamp, messageId }
     if (req.body.from && req.body.message) {
       messages = [{
         from: req.body.from,
         body: req.body.message,
         type: 'chat',
+        messageId: req.body.messageId || req.body.id || null, // Поддержка разных форматов
         timestamp: req.body.timestamp || new Date().toISOString()
       }];
       from = req.body.from;
+      logger.info('📝 Format 1 detected - single message:', {
+        from,
+        messageId: req.body.messageId || req.body.id,
+        messagePreview: req.body.message?.substring(0, 50)
+      });
     }
     // Формат 2: { messages: [...], companyId }
     else if (req.body.messages && Array.isArray(req.body.messages)) {
@@ -85,6 +100,13 @@ router.post('/webhook/whatsapp/batched', rateLimiter, validateWebhookSignature, 
       }
       
       try {
+        // Проверяем, что номер телефона валидный
+        if (!msgFrom || msgFrom === '+' || msgFrom.length < 5) {
+          logger.warn(`⚠️ Invalid phone number detected: "${msgFrom}"`);
+          logger.warn('Full message data:', message);
+          continue;
+        }
+        
         // Просто добавляем в Redis батч
         await batchService.addMessage(
           msgFrom,
@@ -93,6 +115,7 @@ router.post('/webhook/whatsapp/batched', rateLimiter, validateWebhookSignature, 
           {
             timestamp: message.timestamp || new Date().toISOString(),
             type: message.type || 'chat',
+            messageId: message.messageId || null, // Добавляем messageId
             originalWebhook: 'whatsapp-batched'
           }
         );

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp QR Code - AI Admin</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: #25D366;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .company-info {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            font-size: 18px;
+            color: #555;
+        }
+
+        .company-info strong {
+            color: #333;
+        }
+
+        .qr-container {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 30px;
+            margin: 30px 0;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .qr-code {
+            max-width: 280px;
+        }
+
+        .loading {
+            text-align: center;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .instructions {
+            background: #e8f4f8;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .instructions h3 {
+            color: #0c5460;
+            margin-bottom: 10px;
+        }
+
+        .instructions ol {
+            text-align: left;
+            color: #0c5460;
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin: 8px 0;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+
+        .status.waiting {
+            background: #fff3cd;
+            color: #856404;
+            display: block;
+        }
+
+        .timer {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .alternative-method {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: background 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">📱</div>
+        <h1>Подключение WhatsApp</h1>
+
+        <div class="company-info" id="companyInfo">
+            <strong>Компания:</strong> <span id="companyId">Loading...</span>
+        </div>
+
+        <div class="qr-container" id="qrContainer">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Генерация QR кода...</p>
+            </div>
+        </div>
+
+        <div class="timer" id="timer"></div>
+
+        <div class="instructions">
+            <h3>📱 Как подключить:</h3>
+            <ol>
+                <li>Откройте WhatsApp на телефоне</li>
+                <li>Нажмите на три точки → <strong>Связанные устройства</strong></li>
+                <li>Нажмите <strong>Связать устройство</strong></li>
+                <li>Отсканируйте QR код</li>
+            </ol>
+        </div>
+
+        <div class="status" id="status"></div>
+
+        <div class="alternative-method">
+            <p style="color: #666;">Не можете отсканировать QR код?</p>
+            <a href="#" class="btn-secondary" id="pairingLink">Использовать код подключения</a>
+        </div>
+    </div>
+
+    <script>
+        // Get company ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const companyId = urlParams.get('company') || '962302';
+
+        // Display company ID
+        document.getElementById('companyId').textContent = `ID: ${companyId}`;
+
+        // Set pairing code link
+        document.getElementById('pairingLink').href = `/whatsapp-pairing.html?company=${companyId}`;
+
+        let checkInterval;
+        let refreshInterval;
+        let countdownInterval;
+        let refreshTime = 60;
+
+        async function loadQR() {
+            try {
+                const response = await fetch(`/api/whatsapp/sessions/${companyId}/qr`);
+                const data = await response.json();
+
+                const container = document.getElementById('qrContainer');
+                const statusDiv = document.getElementById('status');
+
+                if (data.success && data.data && data.data.qr) {
+                    container.innerHTML = `<img src="${data.data.qr}" alt="WhatsApp QR Code" class="qr-code">`;
+                    statusDiv.className = 'status waiting';
+                    statusDiv.textContent = '⏳ Ожидание сканирования QR кода...';
+                    startTimer();
+                    checkConnection();
+                } else if (data.data && data.data.connected) {
+                    container.innerHTML = '<div style="font-size: 60px;">✅</div>';
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✅ WhatsApp уже подключен!';
+                    clearIntervals();
+                } else {
+                    throw new Error(data.error || 'No QR code available');
+                }
+            } catch (error) {
+                const container = document.getElementById('qrContainer');
+                container.innerHTML = '<div style="color: #dc3545;">❌ Ошибка загрузки QR кода</div>';
+
+                const statusDiv = document.getElementById('status');
+                statusDiv.className = 'status error';
+                statusDiv.textContent = error.message;
+            }
+        }
+
+        function startTimer() {
+            refreshTime = 60;
+            const timerDiv = document.getElementById('timer');
+
+            countdownInterval = setInterval(() => {
+                refreshTime--;
+                timerDiv.textContent = `⏱ Обновление через ${refreshTime} сек`;
+
+                if (refreshTime <= 0) {
+                    clearInterval(countdownInterval);
+                    loadQR();
+                }
+            }, 1000);
+        }
+
+        async function checkConnection() {
+            checkInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/whatsapp/sessions/${companyId}/status`);
+                    const data = await response.json();
+
+                    if (data.connected) {
+                        const container = document.getElementById('qrContainer');
+                        container.innerHTML = '<div style="font-size: 60px;">✅</div>';
+
+                        const statusDiv = document.getElementById('status');
+                        statusDiv.className = 'status success';
+                        statusDiv.textContent = '🎉 WhatsApp успешно подключен!';
+
+                        clearIntervals();
+
+                        // Redirect to test page
+                        setTimeout(() => {
+                            if (confirm('WhatsApp подключен! Перейти к тестированию?')) {
+                                window.location.href = `/test-whatsapp.html?company=${companyId}`;
+                            }
+                        }, 2000);
+                    }
+                } catch (error) {
+                    console.error('Check connection error:', error);
+                }
+            }, 2000);
+        }
+
+        function clearIntervals() {
+            if (checkInterval) clearInterval(checkInterval);
+            if (refreshInterval) clearInterval(refreshInterval);
+            if (countdownInterval) clearInterval(countdownInterval);
+            document.getElementById('timer').textContent = '';
+        }
+
+        // Load QR on page load
+        loadQR();
+
+        // Refresh QR every 60 seconds
+        refreshInterval = setInterval(loadQR, 60000);
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', clearIntervals);
+    </script>
+</body>
+</html>

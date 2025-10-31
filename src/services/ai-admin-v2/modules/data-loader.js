@@ -1,17 +1,56 @@
 const { supabase } = require('../../../database/supabase');
 const logger = require('../../../utils/logger').child({ module: 'ai-admin-v2:data-loader' });
-const companyInfoSync = require('../../../sync/company-info-sync');
+const { CompanyInfoSync } = require('../../../sync/company-info-sync');
+const companyInfoSync = new CompanyInfoSync();
+const InternationalPhone = require('../../../utils/international-phone');
 
 class DataLoader {
+  /**
+   * Валидация входных данных
+   * Supabase использует параметризованные запросы, поэтому санитизация не нужна
+   */
+  validateInput(input, type = 'any') {
+    if (input === null || input === undefined) return input;
+    
+    // Валидация по типу
+    switch (type) {
+      case 'companyId':
+        // Преобразуем строку в число для companyId
+        const numValue = typeof input === 'string' ? parseInt(input, 10) : input;
+        if (isNaN(numValue)) {
+          throw new Error(`Invalid ${type}: ${input}`);
+        }
+        return numValue;
+      
+      case 'number':
+        if (typeof input !== 'number' || isNaN(input)) {
+          throw new Error(`Invalid ${type}: ${input}`);
+        }
+        return input;
+      
+      case 'phone':
+        if (typeof input !== 'string' || !input.match(/^\+?\d{10,15}$/)) {
+          logger.warn(`Invalid phone format: ${input}`);
+        }
+        return input;
+      
+      default:
+        return input;
+    }
+  }
+
   /**
    * Загрузка информации о компании
    */
   async loadCompany(companyId) {
     try {
+      // Валидация входных данных
+      const safeCompanyId = this.validateInput(companyId, 'companyId');
+      
       const { data, error } = await supabase
         .from('companies')
         .select('*')
-        .eq('company_id', companyId)
+        .eq('company_id', safeCompanyId)
         .single();
       
       if (error && error.code === 'PGRST116') {
@@ -52,13 +91,14 @@ class DataLoader {
       logger.error(`Error loading company ${companyId}:`, error);
       
       // Возвращаем минимальные данные чтобы бот продолжил работать
+      const config = require('../../../config');
       return {
         company_id: companyId,
-        title: 'Салон красоты',
-        address: 'Адрес не указан',
-        phone: '',
-        timezone: 'Europe/Moscow',
-        working_hours: {
+        title: config.company?.defaultTitle || 'Салон красоты',
+        address: config.company?.defaultAddress || '',
+        phone: config.company?.defaultPhone || '',
+        timezone: config.app?.timezone || 'Europe/Moscow',
+        working_hours: config.company?.defaultWorkingHours || {
           monday: { start: '10:00', end: '22:00' },
           tuesday: { start: '10:00', end: '22:00' },
           wednesday: { start: '10:00', end: '22:00' },
@@ -114,24 +154,75 @@ class DataLoader {
   }
 
   /**
-   * Загрузка информации о клиенте
+   * Загрузка информации о клиенте с обогащением данных
    */
   async loadClient(phone, companyId) {
     try {
-      // Убираем @c.us если есть
-      const cleanPhone = phone.replace('@c.us', '');
+      // Валидация входных данных
+      const safePhone = this.validateInput(phone, 'phone');
+      const safeCompanyId = this.validateInput(companyId, 'companyId');
       
-      // Ищем по phone (без +)
+      // Убираем @c.us если есть, но оставляем + для raw_phone
+      const cleanPhone = safePhone.replace('@c.us', '');
+      
+      // Добавляем + если его нет (для поиска по raw_phone)
+      const phoneWithPlus = cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`;
+      
+      logger.info(`Searching for client with raw_phone: ${phoneWithPlus} in company: ${safeCompanyId}`);
+
+      // Ищем по raw_phone (с +)
       const { data, error } = await supabase
         .from('clients')
         .select('*')
-        .eq('phone', cleanPhone)
-        .eq('company_id', companyId)
+        .eq('raw_phone', phoneWithPlus)
+        .eq('company_id', safeCompanyId)
         .maybeSingle();
       
       if (error) {
         logger.error('Error loading client:', error);
         return null;
+      }
+      
+      if (data) {
+        logger.info(`✅ Client found: ${data.name} (${data.phone})`, {
+          visitHistoryLength: data.visit_history?.length || 0,
+          lastServices: data.last_services || [],
+          visitCount: data.visit_count || 0
+        });
+
+        // Маппинг полей для совместимости с персонализацией
+        if (data.visit_history) {
+          data.visits = data.visit_history; // Для ServiceMatcher.calculatePersonalizationScore
+        }
+        if (data.services_amount) {
+          data.average_check = Math.round(data.services_amount / (data.visit_count || 1));
+        }
+        
+        // Загружаем имена мастеров для favorite_staff_ids
+        if (data.favorite_staff_ids && data.favorite_staff_ids.length > 0) {
+          const staffNames = await this.getStaffNamesByIds(data.favorite_staff_ids, safeCompanyId);
+          data.favorite_staff_names = staffNames;
+          logger.debug(`Mapped favorite staff: ${staffNames.join(', ')}`);
+        }
+        
+        // Загружаем названия услуг для last_service_ids
+        if (data.last_service_ids && data.last_service_ids.length > 0) {
+          const serviceNames = await this.getServiceNamesByIds(data.last_service_ids, safeCompanyId);
+          data.favorite_services = serviceNames; // Используем как любимые услуги
+          logger.debug(`Mapped favorite services: ${serviceNames.join(', ')}`);
+        }
+        
+        // Анализируем паттерны посещений
+        data.visit_patterns = this.analyzeVisitPatterns(data);
+        
+        logger.debug(`Client data mapped for personalization:`, {
+          has_visits: !!data.visits,
+          visit_count: data.visit_count,
+          average_check: data.average_check,
+          has_patterns: !!data.visit_patterns
+        });
+      } else {
+        logger.debug(`No client found for raw_phone: ${phoneWithPlus}`);
       }
       
       return data;
@@ -160,14 +251,86 @@ class DataLoader {
    * Загрузка персонала компании
    */
   async loadStaff(companyId) {
-    const { data } = await supabase
+    logger.info('📥 Loading staff from database', { companyId });
+
+    const { data, error } = await supabase
       .from('staff')
       .select('*')
       .eq('company_id', companyId)
       .eq('is_active', true)
       .order('rating', { ascending: false });
-    
+
+    if (error) {
+      logger.error('❌ Error loading staff:', {
+        companyId,
+        error: error.message,
+        code: error.code
+      });
+      return [];
+    }
+
+    logger.info('✅ Staff loaded successfully', {
+      companyId,
+      count: data?.length || 0,
+      staff: data?.map(s => ({
+        id: s.yclients_id,
+        name: s.name,
+        is_active: s.is_active
+      })) || []
+    });
+
     return data || [];
+  }
+
+  /**
+   * Загрузка записей клиента
+   */
+  async loadBookings(clientId, companyId) {
+    try {
+      if (!clientId) {
+        logger.debug('No clientId provided for loadBookings');
+        return [];
+      }
+      
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('company_id', companyId)
+        .gte('appointment_datetime', new Date().toISOString())
+        .order('appointment_datetime', { ascending: true })
+        .limit(10);
+      
+      if (error) {
+        // Если таблица не существует, просто возвращаем пустой массив
+        if (error.code === '42P01') {
+          logger.debug('Bookings table does not exist yet');
+        } else {
+          logger.error('Error loading bookings:', error);
+        }
+        return [];
+      }
+      
+      return data || [];
+    } catch (error) {
+      logger.error('Error in loadBookings:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Загрузка последних сообщений
+   */
+  async loadRecentMessages(phone, companyId) {
+    try {
+      // В текущей версии сообщения хранятся в Redis контексте
+      // Этот метод возвращает пустой массив для совместимости
+      logger.debug('loadRecentMessages called - messages are in Redis context');
+      return [];
+    } catch (error) {
+      logger.error('Error in loadRecentMessages:', error);
+      return [];
+    }
   }
 
   /**
@@ -175,8 +338,8 @@ class DataLoader {
    */
   async loadConversation(phone, companyId) {
     try {
-      // Убираем @c.us если есть
-      const cleanPhone = phone.replace('@c.us', '');
+      // Нормализуем номер телефона к международному формату
+      const cleanPhone = InternationalPhone.normalize(phone) || phone.replace('@c.us', '');
       
       const { data, error } = await supabase
         .from('dialog_contexts')
@@ -261,7 +424,6 @@ class DataLoader {
       .in('staff_id', staffIds)
       .gte('date', today.toISOString().split('T')[0])
       .lte('date', weekLater.toISOString().split('T')[0])
-      .eq('is_working', true)
       .order('date', { ascending: true });
     
     if (error) {
@@ -292,22 +454,168 @@ class DataLoader {
   }
 
   /**
+   * Получить имена мастеров по их ID
+   */
+  async getStaffNamesByIds(staffIds, companyId) {
+    try {
+      const { data, error } = await supabase
+        .from('staff')
+        .select('id, name')
+        .eq('company_id', companyId)
+        .in('id', staffIds);
+      
+      if (error || !data) {
+        logger.error('Error loading staff names:', error);
+        return [];
+      }
+      
+      return data.map(staff => staff.name);
+    } catch (error) {
+      logger.error('Error in getStaffNamesByIds:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Получить названия услуг по их ID
+   */
+  async getServiceNamesByIds(serviceIds, companyId) {
+    try {
+      const { data, error } = await supabase
+        .from('services')
+        .select('id, title')
+        .eq('company_id', companyId)
+        .in('id', serviceIds);
+      
+      if (error || !data) {
+        logger.error('Error loading service names:', error);
+        return [];
+      }
+      
+      return data.map(service => service.title);
+    } catch (error) {
+      logger.error('Error in getServiceNamesByIds:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Анализ паттернов посещений клиента
+   */
+  analyzeVisitPatterns(clientData) {
+    try {
+      const patterns = {
+        averageFrequency: null,
+        preferredDayOfWeek: null,
+        preferredTimeOfDay: null,
+        lastVisitDaysAgo: null,
+        nextExpectedVisit: null,
+        serviceStaffPairs: {}
+      };
+      
+      // Вычисляем дни с последнего визита
+      if (clientData.last_visit_date) {
+        const lastVisit = new Date(clientData.last_visit_date);
+        const today = new Date();
+        const diffTime = Math.abs(today - lastVisit);
+        patterns.lastVisitDaysAgo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      }
+      
+      // Анализируем историю посещений
+      if (clientData.visit_history && Array.isArray(clientData.visit_history)) {
+        const visits = clientData.visit_history;
+        
+        // Частота посещений (средний интервал между визитами)
+        if (visits.length > 1) {
+          const sortedVisits = visits.sort((a, b) => new Date(a.date) - new Date(b.date));
+          let totalDays = 0;
+          for (let i = 1; i < sortedVisits.length; i++) {
+            const diff = new Date(sortedVisits[i].date) - new Date(sortedVisits[i-1].date);
+            totalDays += diff / (1000 * 60 * 60 * 24);
+          }
+          patterns.averageFrequency = Math.round(totalDays / (sortedVisits.length - 1));
+          
+          // Прогнозируем следующий визит
+          if (patterns.lastVisitDaysAgo && patterns.averageFrequency) {
+            const daysUntilNext = patterns.averageFrequency - patterns.lastVisitDaysAgo;
+            if (daysUntilNext > 0) {
+              patterns.nextExpectedVisit = `через ${daysUntilNext} дней`;
+            } else {
+              patterns.nextExpectedVisit = 'пора записаться';
+            }
+          }
+        }
+        
+        // Предпочитаемый день недели
+        const dayCount = {};
+        const timeCount = { morning: 0, afternoon: 0, evening: 0 };
+        
+        visits.forEach(visit => {
+          if (visit.date) {
+            const date = new Date(visit.date);
+            const dayOfWeek = date.getDay();
+            dayCount[dayOfWeek] = (dayCount[dayOfWeek] || 0) + 1;
+            
+            // Анализ времени
+            if (visit.time) {
+              const hour = parseInt(visit.time.split(':')[0]);
+              if (hour < 12) timeCount.morning++;
+              else if (hour < 18) timeCount.afternoon++;
+              else timeCount.evening++;
+            }
+          }
+          
+          // Собираем связки услуга-мастер
+          if (visit.service && visit.staff) {
+            const key = `${visit.service}_${visit.staff}`;
+            patterns.serviceStaffPairs[key] = (patterns.serviceStaffPairs[key] || 0) + 1;
+          }
+        });
+        
+        // Находим самый популярный день
+        const maxDay = Object.keys(dayCount).reduce((a, b) => 
+          dayCount[a] > dayCount[b] ? a : b, null);
+        if (maxDay) {
+          const days = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+          patterns.preferredDayOfWeek = days[maxDay];
+        }
+        
+        // Находим предпочитаемое время
+        const maxTime = Object.keys(timeCount).reduce((a, b) => 
+          timeCount[a] > timeCount[b] ? a : b, null);
+        if (maxTime) {
+          patterns.preferredTimeOfDay = maxTime === 'morning' ? 'утро' : 
+                                       maxTime === 'afternoon' ? 'день' : 'вечер';
+        }
+      }
+      
+      return patterns;
+    } catch (error) {
+      logger.error('Error analyzing visit patterns:', error);
+      return null;
+    }
+  }
+
+  /**
    * Сохранение контекста диалога
    */
   async saveContext(phone, companyId, context, result) {
     try {
-      const cleanPhone = phone.replace('@c.us', '');
+      // Валидация входных данных
+      const safePhone = this.validateInput(phone, 'phone');
+      const safeCompanyId = this.validateInput(companyId, 'companyId');
+      const cleanPhone = safePhone.replace('@c.us', '');
       
       // Добавляем новое сообщение в историю
       const messages = context.conversation || [];
       messages.push({
         role: 'user',
-        content: context.currentMessage,
+        content: this.validateInput(context.currentMessage),
         timestamp: new Date().toISOString()
       });
       messages.push({
         role: 'assistant',
-        content: result.response,
+        content: this.validateInput(result.response),
         timestamp: new Date().toISOString()
       });
       
@@ -328,21 +636,28 @@ class DataLoader {
         });
       
       // ВАЖНО: Также сохраняем контекст в Redis для быстрого доступа
-      const contextService = require('../../context');
+      const contextServiceV2 = require('../../context/context-service-v2');
       
-      // Сохраняем информацию о последней команде и услуге
-      const contextData = {
-        lastCommand: result.executedCommands?.[0]?.command || null,
-        lastService: result.executedCommands?.[0]?.params?.service_name || null,
-        lastStaff: result.executedCommands?.[0]?.params?.staff_name || null,
-        lastMessageTime: new Date().toISOString(),
-        recentMessages: recentMessages.slice(-5), // Последние 5 сообщений для контекста
+      // Сохраняем информацию о последней команде и услуге через updateDialogContext
+      const contextUpdates = {
+        selection: {
+          lastCommand: result.executedCommands?.[0]?.command || null,
+          lastService: result.executedCommands?.[0]?.params?.service_name || null,
+          lastStaff: result.executedCommands?.[0]?.params?.staff_name || null,
+        },
         clientName: context.client?.name || null
       };
       
-      await contextService.setContext(cleanPhone, companyId, {
-        data: contextData
-      });
+      await contextServiceV2.updateDialogContext(cleanPhone, companyId, contextUpdates);
+      
+      // Добавляем сообщения в историю
+      for (const msg of recentMessages.slice(-5)) {
+        await contextServiceV2.addMessage(cleanPhone, companyId, {
+          text: msg.content,
+          type: msg.role === 'user' ? 'incoming' : 'outgoing',
+          timestamp: msg.timestamp || new Date().toISOString()
+        });
+      }
       
       logger.info('Context saved to both Supabase and Redis');
     } catch (error) {

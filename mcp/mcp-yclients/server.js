@@ -451,6 +451,239 @@ server.registerTool("check_booking",
   }
 );
 
+// Analytics tools
+server.registerTool("get_overall_analytics",
+  {
+    title: "Get Overall Analytics",
+    description: "Get overall company analytics for a period",
+    inputSchema: {
+      date_from: z.string().describe('Start date (YYYY-MM-DD)'),
+      date_to: z.string().describe('End date (YYYY-MM-DD)'),
+      company_id: z.number()
+        .optional()
+        .default(DEFAULT_COMPANY_ID)
+        .describe('Company ID'),
+      staff_id: z.number()
+        .optional()
+        .describe('Staff ID for filtering'),
+      position_id: z.number()
+        .optional()
+        .describe('Position ID for filtering'),
+      user_id: z.number()
+        .optional()
+        .describe('User ID for filtering')
+    }
+  },
+  async ({ date_from, date_to, company_id, staff_id, position_id, user_id }) => {
+    const params = new URLSearchParams({
+      date_from,
+      date_to
+    });
+    
+    if (staff_id) params.append('staff_id', staff_id.toString());
+    if (position_id) params.append('position_id', position_id.toString());
+    if (user_id) params.append('user_id', user_id.toString());
+
+    const result = await makeYClientsRequest(`/company/${company_id}/analytics/overall?${params}`);
+    
+    const data = result.data;
+    return {
+      content: [{
+        type: "text",
+        text: `📊 Аналитика за период ${date_from} - ${date_to}:
+
+💰 ВЫРУЧКА:
+- Общая: ${data.income_total_stats.current_sum} ₽ (${data.income_total_stats.change_percent > 0 ? '+' : ''}${data.income_total_stats.change_percent}%)
+- Услуги: ${data.income_services_stats.current_sum} ₽ (${data.income_services_stats.change_percent > 0 ? '+' : ''}${data.income_services_stats.change_percent}%)
+- Товары: ${data.income_goods_stats.current_sum} ₽ (${data.income_goods_stats.change_percent > 0 ? '+' : ''}${data.income_goods_stats.change_percent}%)
+- Средний чек: ${data.income_average_stats.current_sum} ₽ (${data.income_average_stats.change_percent > 0 ? '+' : ''}${data.income_average_stats.change_percent}%)
+
+📈 ЗАПИСИ:
+- Всего: ${data.record_stats.current_total_count} (${data.record_stats.change_percent > 0 ? '+' : ''}${data.record_stats.change_percent}%)
+- Выполнено: ${data.record_stats.current_completed_count} (${data.record_stats.current_completed_percent}%)
+- Ожидается: ${data.record_stats.current_pending_count} (${data.record_stats.current_pending_percent}%)
+- Отменено: ${data.record_stats.current_canceled_count} (${data.record_stats.current_canceled_percent}%)
+
+👥 КЛИЕНТЫ:
+- Всего: ${data.client_stats.total_count}
+- Новых: ${data.client_stats.new_count} (${data.client_stats.new_percent}%)
+- Постоянных: ${data.client_stats.return_count} (${data.client_stats.return_percent}%)
+- Активных: ${data.client_stats.active_count}
+- Потерянных: ${data.client_stats.lost_count} (${data.client_stats.lost_percent}%)
+
+📊 ЗАГРУЖЕННОСТЬ:
+- Текущий период: ${data.fullness_stats.current_percent}%
+- Предыдущий период: ${data.fullness_stats.previous_percent}%
+- Изменение: ${data.fullness_stats.change_percent > 0 ? '+' : ''}${data.fullness_stats.change_percent}%`
+      }]
+    };
+  }
+);
+
+server.registerTool("get_income_daily",
+  {
+    title: "Get Daily Income",
+    description: "Get income data by days",
+    inputSchema: {
+      date_from: z.string().describe('Start date (YYYY-MM-DD)'),
+      date_to: z.string().describe('End date (YYYY-MM-DD)'),
+      company_id: z.number()
+        .optional()
+        .default(DEFAULT_COMPANY_ID)
+        .describe('Company ID'),
+      staff_id: z.number()
+        .optional()
+        .describe('Staff ID for filtering')
+    }
+  },
+  async ({ date_from, date_to, company_id, staff_id }) => {
+    const params = new URLSearchParams({
+      date_from,
+      date_to
+    });
+    
+    if (staff_id) params.append('staff_id', staff_id.toString());
+
+    const result = await makeYClientsRequest(`/company/${company_id}/analytics/overall/charts/income_daily?${params}`);
+    
+    const incomeData = result[0]?.data || [];
+    const formattedData = incomeData.map(([timestamp, amount]) => {
+      const date = new Date(timestamp);
+      return `${date.toISOString().split('T')[0]}: ${amount} ₽`;
+    });
+
+    return {
+      content: [{
+        type: "text",
+        text: `💰 Выручка по дням (${date_from} - ${date_to}):\n\n${formattedData.join('\n')}`
+      }]
+    };
+  }
+);
+
+server.registerTool("get_records_daily",
+  {
+    title: "Get Daily Records",
+    description: "Get records count by days",
+    inputSchema: {
+      date_from: z.string().describe('Start date (YYYY-MM-DD)'),
+      date_to: z.string().describe('End date (YYYY-MM-DD)'),
+      company_id: z.number()
+        .optional()
+        .default(DEFAULT_COMPANY_ID)
+        .describe('Company ID'),
+      staff_id: z.number()
+        .optional()
+        .describe('Staff ID for filtering')
+    }
+  },
+  async ({ date_from, date_to, company_id, staff_id }) => {
+    const params = new URLSearchParams({
+      date_from,
+      date_to
+    });
+    
+    if (staff_id) params.append('staff_id', staff_id.toString());
+
+    const result = await makeYClientsRequest(`/company/${company_id}/analytics/overall/charts/records_daily?${params}`);
+    
+    const recordsData = result[0]?.data || [];
+    const formattedData = recordsData.map(([timestamp, count]) => {
+      const date = new Date(timestamp);
+      return `${date.toISOString().split('T')[0]}: ${count} записей`;
+    });
+
+    return {
+      content: [{
+        type: "text",
+        text: `📅 Записи по дням (${date_from} - ${date_to}):\n\n${formattedData.join('\n')}`
+      }]
+    };
+  }
+);
+
+server.registerTool("get_record_sources",
+  {
+    title: "Get Record Sources",
+    description: "Get booking sources breakdown",
+    inputSchema: {
+      date_from: z.string().describe('Start date (YYYY-MM-DD)'),
+      date_to: z.string().describe('End date (YYYY-MM-DD)'),
+      company_id: z.number()
+        .optional()
+        .default(DEFAULT_COMPANY_ID)
+        .describe('Company ID')
+    }
+  },
+  async ({ date_from, date_to, company_id }) => {
+    const params = new URLSearchParams({
+      date_from,
+      date_to
+    });
+
+    const result = await makeYClientsRequest(`/company/${company_id}/analytics/overall/charts/record_source?${params}`);
+    
+    const sources = result.map(item => `${item.label}: ${item.data} записей`);
+
+    return {
+      content: [{
+        type: "text",
+        text: `📱 Источники записей (${date_from} - ${date_to}):\n\n${sources.join('\n')}`
+      }]
+    };
+  }
+);
+
+server.registerTool("get_z_report",
+  {
+    title: "Get Z-Report",
+    description: "Get Z-report for a date",
+    inputSchema: {
+      date: z.string().describe('Report date (YYYY-MM-DD)'),
+      company_id: z.number()
+        .optional()
+        .default(DEFAULT_COMPANY_ID)
+        .describe('Company ID'),
+      staff_id: z.number()
+        .optional()
+        .describe('Staff ID for filtering')
+    }
+  },
+  async ({ date, company_id, staff_id }) => {
+    const params = staff_id ? `?staff_id=${staff_id}` : '';
+    const result = await makeYClientsRequest(`/company/${company_id}/z_report/by_day/${date}${params}`);
+    
+    const report = result.data;
+    const stats = report.stats;
+    const paids = report.paids;
+
+    return {
+      content: [{
+        type: "text",
+        text: `📊 Z-отчет за ${date}:
+
+📈 ОБЩАЯ СТАТИСТИКА:
+- Клиентов: ${stats.clients}
+- Средний чек: ${stats.clients_average} ${report.currency}
+- Записей: ${stats.records} (средний чек: ${stats.records_average} ${report.currency})
+- С клиентами: ${stats.visit_records} (средний чек: ${stats.visit_records_average} ${report.currency})
+- Без клиентов: ${stats.non_visit_records}
+
+💰 ДОХОДЫ:
+- Услуги: ${stats.targets} шт. на ${stats.targets_paid} ${report.currency}
+- Товары: ${stats.goods} шт. на ${stats.goods_paid} ${report.currency}
+- Сертификаты: ${stats.certificates} шт. на ${stats.certificates_paid} ${report.currency}
+- Абонементы: ${stats.abonement} шт. на ${stats.abonement_paid} ${report.currency}
+
+💳 ОПЛАТЫ:
+${paids.accounts.map(acc => `- ${acc.title}: ${acc.amount} ${report.currency}`).join('\n')}
+
+📊 ИТОГО: ${paids.total.amount} ${report.currency}`
+      }]
+    };
+  }
+);
+
 // Start the server
 async function main() {
   const transport = new StdioServerTransport();
