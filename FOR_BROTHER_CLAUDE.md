@@ -16,17 +16,23 @@ git checkout feature/redis-context-cache
 cat TEAM_SETUP.md
 ```
 
-3. Установи зависимости:
+3. **ВАЖНО! Настрой свои данные в git:**
+```bash
+git config --global user.name "Arbak"
+git config --global user.email "arbak@example.com"  # Укажи свой email
+```
+
+4. Установи зависимости:
 ```bash
 npm install
 ```
 
-4. Попроси у брата файл `.env.team-safe` через AirDrop и переименуй его:
+5. Попроси у брата файл `.env.team-safe` через AirDrop и переименуй его:
 ```bash
 mv ~/Downloads/.env.team-safe .env
 ```
 
-5. Запусти скрипт настройки:
+6. Запусти скрипт настройки:
 ```bash
 ./scripts/setup-for-team.sh
 ```
