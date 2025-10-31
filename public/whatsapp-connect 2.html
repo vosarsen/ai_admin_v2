@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Connection - AI Admin</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .company-id {
+            background: #f0f0f0;
+            padding: 10px 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+            font-weight: bold;
+            color: #764ba2;
+        }
+        
+        .qr-container {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 320px;
+            position: relative;
+        }
+        
+        #qrcode {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #666;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .status {
+            margin-top: 30px;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        .status.connecting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .instructions {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .instructions h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .instructions ol {
+            margin-left: 20px;
+            color: #666;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+        }
+        
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 20px;
+            width: 100%;
+            transition: background 0.3s;
+        }
+        
+        .refresh-btn:hover {
+            background: #5a67d8;
+        }
+        
+        .refresh-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .error-message {
+            background: #fee;
+            color: #c00;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 WhatsApp Authentication</h1>
+        <p class="subtitle">AI Admin Bot Connection</p>
+        
+        <div class="company-id" id="companyInfo">
+            Loading company information...
+        </div>
+        
+        <div class="qr-container">
+            <div id="qrcode"></div>
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Loading QR Code...</p>
+            </div>
+        </div>
+        
+        <div id="status" class="status connecting">
+            ⏳ Initializing...
+        </div>
+        
+        <button class="refresh-btn" onclick="refreshQR()" id="refreshBtn">
+            🔄 Refresh QR Code
+        </button>
+        
+        <div class="instructions">
+            <h3>📱 How to connect:</h3>
+            <ol>
+                <li>Open WhatsApp on your phone</li>
+                <li>Go to Settings → Linked Devices</li>
+                <li>Tap "Link a Device"</li>
+                <li>Scan this QR code</li>
+            </ol>
+        </div>
+    </div>
+    
+    <script>
+        // Get company ID from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const COMPANY_ID = urlParams.get('company') || '962302';
+        const API_BASE = window.location.origin;
+        let qrCodeInstance = null;
+        let checkInterval = null;
+        
+        // Display company ID
+        document.getElementById('companyInfo').textContent = `Company ID: ${COMPANY_ID}`;
+        
+        async function fetchQRCode() {
+            try {
+                const response = await fetch(`${API_BASE}/webhook/whatsapp/baileys/qr/${COMPANY_ID}`);
+                const data = await response.json();
+                
+                if (data.success && data.qr) {
+                    displayQR(data.qr);
+                    updateStatus('⏳ Scan the QR code with WhatsApp', 'connecting');
+                    startStatusCheck();
+                } else {
+                    throw new Error(data.error || 'Failed to get QR code');
+                }
+            } catch (error) {
+                console.error('Error fetching QR:', error);
+                updateStatus('❌ Error: ' + error.message, 'error');
+                document.getElementById('loading').style.display = 'none';
+                
+                // Show retry message
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.textContent = 'If the QR code doesn\'t appear, the session might already be connected. Check the status or refresh the page.';
+                document.querySelector('.qr-container').appendChild(errorDiv);
+            }
+        }
+        
+        function displayQR(qrData) {
+            document.getElementById('loading').style.display = 'none';
+            
+            // Clear existing QR code
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = '';
+            
+            // Create new QR code
+            qrCodeInstance = new QRCode(qrContainer, {
+                text: qrData,
+                width: 256,
+                height: 256,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        }
+        
+        async function checkStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/webhook/whatsapp/baileys/status/${COMPANY_ID}`);
+                const data = await response.json();
+                
+                if (data.success && data.status) {
+                    if (data.status.connected) {
+                        updateStatus('✅ WhatsApp Connected! Phone: ' + (data.status.user?.id || 'Unknown'), 'connected');
+                        stopStatusCheck();
+                        
+                        // Hide QR code and show success
+                        document.getElementById('qrcode').innerHTML = '<p style="color: #28a745; font-size: 18px;">✅ Successfully Connected!</p>';
+                        document.getElementById('refreshBtn').disabled = true;
+                        
+                        // Show connected phone number
+                        if (data.status.user?.id) {
+                            const phoneDiv = document.createElement('div');
+                            phoneDiv.style.marginTop = '10px';
+                            phoneDiv.style.fontSize = '14px';
+                            phoneDiv.style.color = '#666';
+                            phoneDiv.textContent = 'Connected to: ' + data.status.user.id;
+                            document.getElementById('qrcode').appendChild(phoneDiv);
+                        }
+                    } else {
+                        // Still connecting
+                        updateStatus('⏳ Waiting for authentication...', 'connecting');
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking status:', error);
+            }
+        }
+        
+        function startStatusCheck() {
+            if (checkInterval) clearInterval(checkInterval);
+            // Check status immediately
+            checkStatus();
+            // Then check every 2 seconds
+            checkInterval = setInterval(checkStatus, 2000);
+        }
+        
+        function stopStatusCheck() {
+            if (checkInterval) {
+                clearInterval(checkInterval);
+                checkInterval = null;
+            }
+        }
+        
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = 'status ' + type;
+        }
+        
+        function refreshQR() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('qrcode').innerHTML = '';
+            document.getElementById('refreshBtn').disabled = true;
+            
+            // Remove any error messages
+            const errorMsg = document.querySelector('.error-message');
+            if (errorMsg) errorMsg.remove();
+            
+            setTimeout(() => {
+                fetchQRCode();
+                document.getElementById('refreshBtn').disabled = false;
+            }, 1000);
+        }
+        
+        // Auto-refresh QR every 60 seconds if not connected
+        setInterval(() => {
+            const status = document.getElementById('status').textContent;
+            if (!status.includes('Connected') && !document.getElementById('refreshBtn').disabled) {
+                refreshQR();
+            }
+        }, 60000);
+        
+        // Initial load
+        fetchQRCode();
+        
+        // Check if already connected on page load
+        checkStatus();
+    </script>
+</body>
+</html>

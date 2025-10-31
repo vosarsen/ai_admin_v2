@@ -1,0 +1,570 @@
+openapi: 3.0.0
+info:
+  title: WhatsApp API - AI Admin v2
+  version: 2.0.0
+  description: Multi-tenant WhatsApp integration API built on Baileys
+  contact:
+    name: API Support
+    email: support@company.com
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000/api/whatsapp
+    description: Development server
+  - url: https://api.ai-admin.com/api/whatsapp
+    description: Production server
+
+tags:
+  - name: Messages
+    description: Send and manage messages
+  - name: Sessions
+    description: Manage WhatsApp sessions
+  - name: Authentication
+    description: QR codes and pairing codes
+  - name: Health
+    description: System health and diagnostics
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    Success:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Operation successful"
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: "MESSAGE_SEND_ERROR"
+            message:
+              type: string
+              example: "Failed to send message"
+            details:
+              type: object
+            isRetryable:
+              type: boolean
+              example: true
+            retryAfter:
+              type: integer
+              example: 60
+
+    SendMessageRequest:
+      type: object
+      required:
+        - phone
+        - message
+      properties:
+        phone:
+          type: string
+          pattern: '^\d{10,15}$'
+          example: "79001234567"
+          description: Phone number without + or spaces
+        message:
+          type: string
+          minLength: 1
+          maxLength: 4096
+          example: "Hello World"
+        companyId:
+          type: string
+          example: "962302"
+          description: Company ID for multi-tenant
+
+    SendMediaRequest:
+      type: object
+      required:
+        - phone
+        - mediaUrl
+        - type
+      properties:
+        phone:
+          type: string
+          pattern: '^\d{10,15}$'
+          example: "79001234567"
+        mediaUrl:
+          type: string
+          format: uri
+          example: "https://example.com/image.jpg"
+        type:
+          type: string
+          enum: [image, video, audio, document]
+          example: "image"
+        caption:
+          type: string
+          maxLength: 1024
+          example: "Check this out!"
+        companyId:
+          type: string
+          example: "962302"
+
+    SessionStatus:
+      type: object
+      properties:
+        connected:
+          type: boolean
+          example: true
+        status:
+          type: string
+          enum: [connected, connecting, disconnected]
+          example: "connected"
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              example: "79686484488@s.whatsapp.net"
+            name:
+              type: string
+              example: "AI Admin Bot"
+        connectedAt:
+          type: string
+          format: date-time
+          example: "2025-09-19T10:30:00Z"
+
+    QRCodeResponse:
+      type: object
+      properties:
+        qr:
+          type: string
+          example: "2@AHR0cHM6Ly93ZWIud2hhdHNhcHAu..."
+        attempts:
+          type: integer
+          example: 1
+          description: Number of QR generation attempts
+
+    PairingCodeRequest:
+      type: object
+      required:
+        - phoneNumber
+      properties:
+        phoneNumber:
+          type: string
+          pattern: '^\d{10,15}$'
+          example: "79001234567"
+
+    PairingCodeResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          example: "ABCD-EFGH"
+        expiresIn:
+          type: integer
+          example: 60
+          description: Expiration time in seconds
+        phoneNumber:
+          type: string
+          example: "79001234567"
+
+    HealthResponse:
+      type: object
+      properties:
+        initialized:
+          type: boolean
+          example: true
+        provider:
+          type: string
+          example: "baileys"
+        defaultCompany:
+          type: string
+          example: "962302"
+        totalSessions:
+          type: integer
+          example: 5
+        connectedSessions:
+          type: integer
+          example: 4
+        uptime:
+          type: integer
+          example: 86400
+        memoryUsage:
+          type: string
+          example: "120MB"
+
+    DiagnoseRequest:
+      type: object
+      required:
+        - phone
+      properties:
+        phone:
+          type: string
+          pattern: '^\d{10,15}$'
+          example: "79001234567"
+        companyId:
+          type: string
+          example: "962302"
+
+    DiagnoseResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        companyId:
+          type: string
+        phone:
+          type: string
+        problem:
+          type: string
+          example: "No problems detected"
+        status:
+          type: string
+          example: "healthy"
+        checks:
+          type: object
+
+paths:
+  /send:
+    post:
+      summary: Send text message
+      tags: [Messages]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '200':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          messageId:
+                            type: string
+                            example: "3A0BD8F5E8B9C4D2E1F3"
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds to wait before retrying
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /send-media:
+    post:
+      summary: Send media message
+      tags: [Messages]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMediaRequest'
+      responses:
+        '200':
+          description: Media sent successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          messageId:
+                            type: string
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /sessions:
+    get:
+      summary: Get all sessions
+      tags: [Sessions]
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: List of all sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/SessionStatus'
+                  summary:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      connected:
+                        type: integer
+
+  /sessions/{companyId}/status:
+    get:
+      summary: Get session status
+      tags: [Sessions]
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: companyId
+          required: true
+          schema:
+            type: string
+          example: "962302"
+      responses:
+        '200':
+          description: Session status
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SessionStatus'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /sessions/{companyId}/initialize:
+    post:
+      summary: Initialize company session
+      tags: [Sessions]
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: companyId
+          required: true
+          schema:
+            type: string
+          example: "962302"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                usePairingCode:
+                  type: boolean
+                  example: false
+                phoneNumber:
+                  type: string
+                  example: "79001234567"
+      responses:
+        '200':
+          description: Session initialized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+
+  /sessions/{companyId}/disconnect:
+    post:
+      summary: Disconnect session
+      tags: [Sessions]
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: companyId
+          required: true
+          schema:
+            type: string
+          example: "962302"
+      responses:
+        '200':
+          description: Session disconnected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+
+  /sessions/{companyId}/qr:
+    get:
+      summary: Get QR code
+      tags: [Authentication]
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: companyId
+          required: true
+          schema:
+            type: string
+          example: "962302"
+      responses:
+        '200':
+          description: QR code data
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/QRCodeResponse'
+
+  /sessions/{companyId}/pairing-code:
+    post:
+      summary: Request pairing code
+      tags: [Authentication]
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: companyId
+          required: true
+          schema:
+            type: string
+          example: "962302"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PairingCodeRequest'
+      responses:
+        '200':
+          description: Pairing code generated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PairingCodeResponse'
+        '429':
+          description: Rate limit for pairing codes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /health:
+    get:
+      summary: System health check
+      tags: [Health]
+      responses:
+        '200':
+          description: System health status
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/HealthResponse'
+
+  /diagnose:
+    post:
+      summary: Diagnose connection issues
+      tags: [Health]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiagnoseRequest'
+      responses:
+        '200':
+          description: Diagnostic results
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DiagnoseResponse'
+
+  /retry:
+    post:
+      summary: Retry failed message with exponential backoff
+      tags: [Messages]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '200':
+          description: Message sent after retry
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          messageId:
+                            type: string
+                          attempts:
+                            type: integer
+                            description: Number of attempts made

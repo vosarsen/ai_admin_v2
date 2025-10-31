@@ -39,23 +39,57 @@ Use MCP servers instead of SSH/scripts for faster access:
 
 ⚠️ **ВАЖНО:** НИКОГДА не тестируй на реальных клиентах! Используй только тестовый номер 89686484488.
 
-## 🔄 Development Workflow
+## 🔄 Development Workflow (GitHub Flow)
+
+**Правила:**
+- `main` = единственная долгоживущая ветка (production-ready)
+- Короткие feature ветки (1-7 дней макс)
+- Pull Requests для каждой фичи
+- Merge в main после review
 
 ```bash
-# 1. Make changes locally
-# 2. Commit immediately
-git add -A && git commit -m "fix: description"
+# 1. Новая задача → новая ветка из main
+git checkout main
+git pull origin main
+git checkout -b feature/task-name  # или fix/, docs/, refactor/
 
-# 3. Push to GitHub
-git push origin feature/redis-context-cache
+# 2. Работа + коммиты
+git add -A && git commit -m "feat: описание"
 
-# 4. Deploy to server
-ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "cd /opt/ai-admin && git pull && pm2 restart all"
+# 3. Push и создать PR
+git push origin feature/task-name
+# Создать Pull Request на GitHub
 
-# 5. Test via MCP
+# 4. После review и merge → Deploy
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "cd /opt/ai-admin && git pull origin main && pm2 restart all"
+
+# 5. Удалить merged ветку
+git branch -d feature/task-name
+
+# 6. Test via MCP
 @whatsapp send_message phone:89686484488 message:"Test"
 @logs logs_tail service:ai-admin-worker-v2 lines:50
 ```
+
+**Именование веток:**
+- `feature/` - новая функциональность
+- `fix/` - исправление бага
+- `docs/` - только документация
+- `refactor/` - рефакторинг
+
+**Commit messages (Conventional Commits):**
+```
+feat: добавлена новая фича
+fix: исправлен баг
+docs: обновлена документация
+refactor: рефакторинг кода
+test: добавлены тесты
+chore: обновление зависимостей
+```
+
+**См. подробнее:**
+- `docs/GIT_WORKFLOW_STRATEGY.md` - полная стратегия
+- `docs/GIT_QUICK_REFERENCE.md` - краткая шпаргалка
 
 ## 🏗️ Architecture
 
@@ -215,7 +249,7 @@ GET https://api.yclients.com/api/v1/clients/{salon_id}
 Детали: `docs/marketplace/AUTHORIZATION_QUICK_REFERENCE.md`
 
 ---
-**Last updated:** October 28, 2025
-**Current branch:** feature/redis-context-cache
+**Last updated:** October 31, 2025
+**Current branch:** main (GitHub Flow с короткими feature ветками)
 **AI Provider:** Gemini 2.5 Flash (via USA VPN) - 2.6x faster, $77/month savings 🚀
-**Latest feature:** RESCHEDULE_BOOKING - исправлена обработка переноса записей 📅
+**Latest change:** Переход на GitHub Flow - все 690 коммитов из feature/redis-context-cache объединены в main 🎉
