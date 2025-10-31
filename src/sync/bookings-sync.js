@@ -150,9 +150,34 @@ class BookingsSync {
    */
   transformBooking(ycBooking) {
     const services = ycBooking.services || [];
-    const serviceNames = services.map(s => s.title).filter(Boolean);
-    const totalCost = services.reduce((sum, s) => sum + (s.cost || 0), 0);
-    
+
+    // Обрабатываем amount: если amount > 1, дублируем услугу
+    const serviceNames = [];
+    const serviceIds = [];
+
+    services.forEach(service => {
+      const amount = service.amount || 1;
+      const title = service.title;
+      const id = service.id;
+
+      if (amount > 1) {
+        // Если amount > 1, добавляем услугу amount раз
+        for (let i = 0; i < amount; i++) {
+          if (title) serviceNames.push(title);
+          if (id) serviceIds.push(id);
+        }
+      } else {
+        // Если amount = 1 или не указан, добавляем один раз
+        if (title) serviceNames.push(title);
+        if (id) serviceIds.push(id);
+      }
+    });
+
+    const totalCost = services.reduce((sum, s) => {
+      const amount = s.amount || 1;
+      return sum + ((s.cost || 0) * amount);
+    }, 0);
+
     return {
       yclients_record_id: ycBooking.id,
       company_id: this.config.COMPANY_ID,
@@ -162,10 +187,13 @@ class BookingsSync {
       staff_id: ycBooking.staff?.id || null,
       staff_name: ycBooking.staff?.name || '',
       services: serviceNames,
-      service_ids: services.map(s => s.id).filter(Boolean),
+      service_ids: serviceIds,
       datetime: ycBooking.datetime,
       date: ycBooking.date,
-      duration: services.reduce((sum, s) => sum + (s.seance_length || 0), 0),
+      duration: services.reduce((sum, s) => {
+        const amount = s.amount || 1;
+        return sum + ((s.seance_length || 0) * amount);
+      }, 0),
       cost: totalCost,
       prepaid: ycBooking.prepaid || 0,
       status: this.mapStatus(ycBooking),

@@ -135,15 +135,27 @@ class ClientRecordsSync {
       
       // Обрабатываем услуги
       if (record.services && Array.isArray(record.services)) {
-        visit.services = record.services.map(service => ({
-          id: service.id,
-          title: service.title,
-          cost: service.cost,
-          discount: service.discount || 0,
-          duration: service.seance_length
-        }));
-        
-        visit.cost = record.services.reduce((sum, s) => sum + (s.cost || 0), 0);
+        visit.services = [];
+
+        record.services.forEach(service => {
+          const amount = service.amount || 1;
+
+          // Если amount > 1, добавляем услугу amount раз
+          for (let i = 0; i < amount; i++) {
+            visit.services.push({
+              id: service.id,
+              title: service.title,
+              cost: service.cost,
+              discount: service.discount || 0,
+              duration: service.seance_length
+            });
+          }
+        });
+
+        visit.cost = record.services.reduce((sum, s) => {
+          const amount = s.amount || 1;
+          return sum + ((s.cost || 0) * amount);
+        }, 0);
       }
       
       // Информация о мастере
