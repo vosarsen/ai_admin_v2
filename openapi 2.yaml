@@ -1,0 +1,707 @@
+openapi: 3.0.3
+info:
+  title: AI Admin v2 API
+  description: |
+    WhatsApp AI Assistant для салонов красоты. 
+    
+    Система предоставляет API для интеграции с WhatsApp Business API, 
+    обработки сообщений через AI и автоматического управления записями 
+    в салонах красоты через YClients.
+    
+    ## Основные возможности:
+    - Прием и обработка WhatsApp сообщений
+    - AI-powered диалоги для записи на услуги
+    - Автоматическая синхронизация с YClients
+    - Мониторинг и метрики системы
+    
+    ## Аутентификация:
+    - Webhooks защищены HMAC-SHA256 подписью
+    - API endpoints требуют API ключ
+  version: 2.0.0
+  contact:
+    name: AI Admin Support
+    email: support@ai-admin.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.ai-admin.com
+    description: Production server
+  - url: http://localhost:3000
+    description: Development server
+
+tags:
+  - name: WhatsApp
+    description: WhatsApp webhooks и messaging
+  - name: Monitoring
+    description: Мониторинг и метрики системы
+  - name: Sync
+    description: Синхронизация данных с YClients
+  - name: Calendar
+    description: Календарные приглашения
+  - name: YClients
+    description: YClients интеграция и webhooks
+
+security:
+  - apiKey: []
+
+paths:
+  /health:
+    get:
+      summary: Проверка здоровья системы
+      description: Возвращает статус всех критичных сервисов
+      tags:
+        - Monitoring
+      security: []
+      responses:
+        '200':
+          description: Система работает нормально
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+              example:
+                status: ok
+                services:
+                  whatsapp: connected
+                  database: connected
+                  redis: connected
+                  ai: operational
+                queue:
+                  messages: 5
+                  processing: 2
+                uptime: 86400
+        '503':
+          description: Один или несколько сервисов недоступны
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /webhook/whatsapp:
+    post:
+      summary: Webhook для приема сообщений WhatsApp
+      description: |
+        Принимает входящие сообщения от WhatsApp Business API.
+        Сообщения добавляются в очередь для обработки AI.
+      tags:
+        - WhatsApp
+      security:
+        - hmacSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WhatsAppMessage'
+            examples:
+              textMessage:
+                summary: Текстовое сообщение
+                value:
+                  id: msg_123
+                  from: "79001234567@c.us"
+                  body: "Хочу записаться на стрижку завтра в 15:00"
+                  type: "chat"
+                  timestamp: 1627849200
+              mediaMessage:
+                summary: Сообщение с медиа
+                value:
+                  id: msg_124
+                  from: "79001234567@c.us"
+                  body: "Хочу такую прическу"
+                  type: "image"
+                  mimetype: "image/jpeg"
+                  data: "base64_encoded_image_data"
+      responses:
+        '200':
+          description: Сообщение принято и добавлено в очередь
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  messageId:
+                    type: string
+                    example: "msg_123"
+                  jobId:
+                    type: string
+                    example: "job_456"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /webhook/whatsapp/batched:
+    post:
+      summary: Батчевый webhook для WhatsApp
+      description: |
+        Принимает сообщения для батчевой обработки.
+        Используется для объединения сообщений, отправленных по частям.
+      tags:
+        - WhatsApp
+      security:
+        - hmacSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WhatsAppMessage'
+      responses:
+        '200':
+          description: Сообщение добавлено в батч
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  batchId:
+                    type: string
+                  willProcessAt:
+                    type: string
+                    format: date-time
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /webhook/whatsapp/batched/stats:
+    get:
+      summary: Статистика батчевой обработки
+      description: Возвращает статистику по батчам сообщений
+      tags:
+        - WhatsApp
+        - Monitoring
+      responses:
+        '200':
+          description: Статистика батчей
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activeBatches:
+                    type: integer
+                    example: 3
+                  pendingMessages:
+                    type: integer
+                    example: 12
+                  processedToday:
+                    type: integer
+                    example: 1543
+
+  /api/send-message:
+    post:
+      summary: Отправить сообщение в WhatsApp
+      description: |
+        Endpoint для ручной отправки сообщений. 
+        Используется для тестирования и административных целей.
+      tags:
+        - WhatsApp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+                - message
+              properties:
+                phone:
+                  type: string
+                  pattern: '^79[0-9]{9}$'
+                  example: "79001234567"
+                message:
+                  type: string
+                  example: "Ваша запись подтверждена на завтра 15:00"
+                companyId:
+                  type: integer
+                  example: 962302
+      responses:
+        '200':
+          description: Сообщение отправлено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  messageId:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/metrics:
+    get:
+      summary: Метрики системы
+      description: Возвращает метрики очередей, производительности и статистику
+      tags:
+        - Monitoring
+      responses:
+        '200':
+          description: Метрики системы
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemMetrics'
+
+  /api/circuit-breakers:
+    get:
+      summary: Статус circuit breakers
+      description: Показывает состояние всех circuit breakers в системе
+      tags:
+        - Monitoring
+      responses:
+        '200':
+          description: Статус circuit breakers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  circuitBreakers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        state:
+                          type: string
+                          enum: [closed, open, half-open]
+                        failures:
+                          type: integer
+                        lastFailure:
+                          type: string
+                          format: date-time
+
+  /api/sync/status:
+    get:
+      summary: Статус синхронизации
+      description: Возвращает статус синхронизации с YClients
+      tags:
+        - Sync
+      responses:
+        '200':
+          description: Статус синхронизации
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lastSync:
+                    type: string
+                    format: date-time
+                  nextSync:
+                    type: string
+                    format: date-time
+                  status:
+                    type: string
+                    enum: [idle, syncing, error]
+                  statistics:
+                    type: object
+                    properties:
+                      services:
+                        type: integer
+                      staff:
+                        type: integer
+                      schedules:
+                        type: integer
+
+  /api/sync/schedules:
+    post:
+      summary: Запустить синхронизацию расписаний
+      description: Вручную запускает синхронизацию расписаний с YClients
+      tags:
+        - Sync
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                companyId:
+                  type: integer
+                  example: 962302
+                days:
+                  type: integer
+                  minimum: 1
+                  maximum: 60
+                  default: 30
+                  example: 30
+      responses:
+        '200':
+          description: Синхронизация запущена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  jobId:
+                    type: string
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/calendar/generate-ics-link:
+    post:
+      summary: Создать ссылку на календарное приглашение
+      description: Генерирует токен для скачивания .ics файла с деталями записи
+      tags:
+        - Calendar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - booking
+              properties:
+                booking:
+                  $ref: '#/components/schemas/BookingDetails'
+                companyName:
+                  type: string
+                  example: "Барбершоп Premium"
+      responses:
+        '200':
+          description: Ссылка создана
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  link:
+                    type: string
+                    format: uri
+                    example: "https://api.ai-admin.com/api/calendar/download/token_abc123"
+                  expiresAt:
+                    type: string
+                    format: date-time
+
+  /api/calendar/download/{token}:
+    get:
+      summary: Скачать календарное приглашение
+      description: Скачивает .ics файл по токену
+      tags:
+        - Calendar
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "token_abc123"
+      responses:
+        '200':
+          description: ICS файл
+          content:
+            text/calendar:
+              schema:
+                type: string
+                example: |
+                  BEGIN:VCALENDAR
+                  VERSION:2.0
+                  PRODID:-//AI Admin//Booking System//RU
+                  BEGIN:VEVENT
+                  SUMMARY:Стрижка в Барбершоп Premium
+                  DTSTART:20250730T150000
+                  DTEND:20250730T160000
+                  LOCATION:ул. Пушкина, д. 10
+                  END:VEVENT
+                  END:VCALENDAR
+        '404':
+          description: Токен не найден или истек
+
+  /webhook/yclients:
+    post:
+      summary: Webhook для событий YClients
+      description: |
+        Принимает события от YClients:
+        - Создание записи
+        - Изменение записи
+        - Отмена записи
+        - Изменение услуг
+      tags:
+        - YClients
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/YClientsWebhookEvent'
+      responses:
+        '200':
+          description: Событие обработано
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API ключ для доступа к защищенным endpoints
+    
+    hmacSignature:
+      type: apiKey
+      in: header
+      name: X-Hub-Signature
+      description: HMAC-SHA256 подпись для webhook валидации
+    
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Bearer токен для YClients webhooks
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, error]
+        services:
+          type: object
+          properties:
+            whatsapp:
+              type: string
+              enum: [connected, disconnected, error]
+            database:
+              type: string
+              enum: [connected, disconnected, error]
+            redis:
+              type: string
+              enum: [connected, disconnected, error]
+            ai:
+              type: string
+              enum: [operational, degraded, error]
+        queue:
+          type: object
+          properties:
+            messages:
+              type: integer
+              description: Сообщений в очереди
+            processing:
+              type: integer
+              description: Обрабатывается сейчас
+        uptime:
+          type: integer
+          description: Время работы в секундах
+
+    WhatsAppMessage:
+      type: object
+      required:
+        - id
+        - from
+        - body
+        - type
+      properties:
+        id:
+          type: string
+          description: Уникальный ID сообщения
+        from:
+          type: string
+          pattern: '^79[0-9]{9}@c\.us$'
+          description: Номер отправителя в формате WhatsApp
+        body:
+          type: string
+          description: Текст сообщения
+        type:
+          type: string
+          enum: [chat, image, document, audio, video, location]
+          description: Тип сообщения
+        timestamp:
+          type: integer
+          description: Unix timestamp
+        author:
+          type: string
+          description: Имя отправителя (если есть)
+        mimetype:
+          type: string
+          description: MIME тип для медиа сообщений
+        data:
+          type: string
+          description: Base64 данные для медиа
+
+    SystemMetrics:
+      type: object
+      properties:
+        queue:
+          type: object
+          properties:
+            waiting:
+              type: integer
+            active:
+              type: integer
+            completed:
+              type: integer
+            failed:
+              type: integer
+        performance:
+          type: object
+          properties:
+            avgResponseTime:
+              type: number
+              description: Среднее время ответа в мс
+            messagesPerMinute:
+              type: number
+            successRate:
+              type: number
+              minimum: 0
+              maximum: 100
+        workers:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              status:
+                type: string
+                enum: [idle, busy, error]
+              processed:
+                type: integer
+              uptime:
+                type: integer
+
+    BookingDetails:
+      type: object
+      required:
+        - datetime
+        - services
+        - staff
+      properties:
+        record_id:
+          type: string
+        datetime:
+          type: string
+          format: date-time
+        services:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              title:
+                type: string
+              cost:
+                type: number
+        staff:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+        client:
+          type: object
+          properties:
+            name:
+              type: string
+            phone:
+              type: string
+        address:
+          type: string
+        comment:
+          type: string
+
+    YClientsWebhookEvent:
+      type: object
+      required:
+        - event
+        - data
+      properties:
+        event:
+          type: string
+          enum: 
+            - record.created
+            - record.changed
+            - record.deleted
+            - service.created
+            - service.changed
+            - staff.created
+            - staff.changed
+        resource:
+          type: string
+          enum: [record, service, staff, client]
+        resource_id:
+          type: integer
+        company_id:
+          type: integer
+        data:
+          type: object
+          description: Данные события (зависят от типа)
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Сообщение об ошибке
+        errorCode:
+          type: string
+          description: Код ошибки
+        requestId:
+          type: string
+          description: ID запроса для отладки
+
+  responses:
+    BadRequest:
+      description: Неверный запрос
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Invalid phone number format"
+            errorCode: "INVALID_PHONE"
+            requestId: "req_123"
+
+    Unauthorized:
+      description: Неавторизован
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Invalid HMAC signature"
+            errorCode: "INVALID_SIGNATURE"
+            requestId: "req_124"
+
+    TooManyRequests:
+      description: Слишком много запросов
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Rate limit exceeded. Try again in 60 seconds"
+            errorCode: "RATE_LIMIT_EXCEEDED"
+            requestId: "req_125"

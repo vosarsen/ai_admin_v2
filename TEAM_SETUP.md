@@ -13,8 +13,8 @@ cd ~/Documents/GitHub
 git clone https://github.com/vosarsen/ai_admin_v2.git
 cd ai_admin_v2
 
-# Переключиться на рабочую ветку
-git checkout feature/redis-context-cache
+# Переключиться на main (теперь работаем здесь!)
+git checkout main
 ```
 
 ### 2. Настройка окружения
@@ -125,7 +125,7 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "echo 'Подключени
 ./scripts/sync-for-team.sh
 
 # Или вручную
-git pull origin feature/redis-context-cache
+git pull origin main
 ```
 
 ### Отправка изменений
@@ -140,7 +140,7 @@ git commit -m "fix: описание исправления"
 git commit -m "feat: описание новой функции"
 
 # Отправить на GitHub
-git push origin feature/redis-context-cache
+git push origin main
 ```
 
 ### Локальная разработка
@@ -180,7 +180,7 @@ npm run lint
 1. **НИКОГДА** не тестируйте на реальных клиентах!
    - Используйте только тестовый номер: 89686484488
 
-2. **Всегда** работайте в ветке `feature/redis-context-cache`
+2. **Всегда** работайте в ветке `main`
 
 3. **Коммитьте часто** - после каждого логического изменения
 
