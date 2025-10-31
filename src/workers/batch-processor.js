@@ -25,6 +25,21 @@ class BatchProcessor {
       logger.info('Waiting 2 seconds for Redis sync...');
       await new Promise(resolve => setTimeout(resolve, 2000));
       
+      // Добавляем диагностику Redis соединения
+      logger.info('Testing Redis connection from batch processor...');
+      const testKey = 'test:batch-processor:' + Date.now();
+      await batchService.redis.set(testKey, 'test', 'EX', 10);
+      const testValue = await batchService.redis.get(testKey);
+      logger.info(`Redis test result: ${testValue === 'test' ? 'OK' : 'FAILED'}`);
+      
+      // Проверяем какие ключи видны
+      const allKeys = await batchService.redis.keys('*');
+      const rapidKeys = allKeys.filter(k => k.includes('rapid'));
+      logger.info(`Initial Redis scan: total ${allKeys.length} keys, rapid-fire: ${rapidKeys.length}`);
+      if (rapidKeys.length > 0) {
+        logger.info(`Found rapid-fire keys on start: ${rapidKeys.join(', ')}`);
+      }
+      
       this.isRunning = true;
       logger.info('Batch processor started');
 

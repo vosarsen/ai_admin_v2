@@ -1,197 +1,281 @@
-// src/sync/sync-manager.js
-const logger = require('../utils/logger');
-const { UniversalYclientsSync } = require('../../universal-yclients-sync');
+/**
+ * Централизованное управление синхронизацией данных YClients → Supabase
+ * 
+ * Координирует работу всех модулей синхронизации и управляет расписанием
+ */
+
+// Загружаем переменные окружения если еще не загружены
+if (!process.env.YCLIENTS_BEARER_TOKEN) {
+  require('dotenv').config();
+}
+
+const logger = require('../utils/logger').child({ module: 'sync-manager' });
+const cron = require('node-cron');
+
+// Импортируем модули синхронизации
+const { CompanyInfoSync } = require('./company-info-sync');
+const { ServicesSync } = require('./services-sync');
+const { StaffSync } = require('./staff-sync');
+const { ClientsSyncOptimized } = require('./clients-sync-optimized');
+const { SchedulesSync } = require('./schedules-sync');
+const { ClientRecordsSync } = require('./client-records-sync');
+const { BookingsSync } = require('./bookings-sync');
+const VisitsSync = require('./visits-sync');
 
 /**
- * 🔄 SYNC MANAGER - Централизованное управление синхронизацией
- * 
- * Интегрирует синхронизацию YClients -> Supabase в основное приложение
- * 
- * ФУНКЦИИ:
- * ✅ Автоматический запуск синхронизации при старте приложения
- * ✅ Периодическая синхронизация по расписанию
- * ✅ On-demand синхронизация через API endpoints
- * ✅ Мониторинг статуса синхронизации
- * ✅ Graceful shutdown при остановке приложения
+ * Менеджер синхронизации данных
  */
 class SyncManager {
   constructor() {
-    this.syncInstance = null;
     this.isInitialized = false;
-    this.syncInterval = null;
-    this.lastSyncStatus = {};
+    this.isRunning = false;
+    this.cronJobs = [];
+    
+    // Инициализируем модули синхронизации
+    this.modules = {
+      company: new CompanyInfoSync(),
+      services: new ServicesSync(),
+      staff: new StaffSync(),
+      clients: new ClientsSyncOptimized(), // Используем оптимизированную версию
+      schedules: new SchedulesSync(),
+      clientRecords: new ClientRecordsSync(),
+      bookings: new BookingsSync(), // Новый модуль для активных записей
+      visits: new VisitsSync() // Синхронизация истории визитов
+    };
+    
+    // Расписание синхронизации (Moscow time UTC+3)
+    this.schedule = {
+      services: '0 1 * * *',          // 01:00 - Услуги (раз в день)
+      staff: '0 2 * * *',             // 02:00 - Мастера (раз в день)
+      clients: '0 3 * * *',           // 03:00 - Клиенты (раз в день)
+      visits: '0 4 * * *',            // 04:00 - История визитов (раз в день)
+      schedules: '0 5 * * *',         // 05:00 - Расписания ПОЛНАЯ синхронизация (30 дней)
+      schedulesToday: '0 8-23 * * *', // 08:00-23:00 каждый час - Расписания ИНКРЕМЕНТАЛЬНАЯ (сегодня+завтра)
+      company: '0 0 * * 0',           // 00:00 воскресенье - Компания (раз в неделю)
+      bookings: '*/15 * * * *'        // Каждые 15 минут - Активные записи
+    };
   }
 
   /**
    * Инициализация менеджера синхронизации
    */
   async initialize() {
-    try {
-      if (this.isInitialized) {
-        logger.info('Sync manager already initialized');
-        return;
-      }
+    if (this.isInitialized) {
+      logger.info('Sync manager already initialized');
+      return;
+    }
 
+    try {
       logger.info('🔄 Initializing sync manager...');
       
-      // Создаем экземпляр синхронизатора
-      this.syncInstance = new UniversalYclientsSync();
+      // Проверяем необходимость начальной синхронизации
+      const needsInitialSync = await this.checkNeedsInitialSync();
       
-      // Проверяем статус последней синхронизации
-      const status = await this.syncInstance.getSyncStatus();
-      this.lastSyncStatus = this._processSyncStatus(status);
-      
-      logger.info('📊 Last sync status:', {
-        company: await this._getCompanySyncStatus(),
-        services: this.lastSyncStatus.services?.last_sync_at || 'never',
-        staff: this.lastSyncStatus.staff?.last_sync_at || 'never',
-        clients: this.lastSyncStatus.clients?.last_sync_at || 'never',
-        appointments: this.lastSyncStatus.appointments_cache?.last_sync_at || 'never'
-      });
-
-      // Проверяем, нужна ли начальная синхронизация
-      const needsInitialSync = await this._checkNeedsInitialSync();
       if (needsInitialSync) {
-        logger.info('🚀 Running initial sync...');
+        logger.info('📊 Running initial synchronization...');
         await this.runFullSync();
       }
-
-      // Запускаем периодическую синхронизацию
-      this._startPeriodicSync();
       
-      // НЕ запускаем встроенный cron scheduler, используем наш периодический sync
-      // который более гибкий и частый для актуальности данных
-      // this.syncInstance.startScheduledSync();
+      // Запускаем периодическую синхронизацию
+      this.startScheduledSync();
       
       this.isInitialized = true;
       logger.info('✅ Sync manager initialized successfully');
-
+      
     } catch (error) {
-      logger.error('Failed to initialize sync manager:', error);
+      logger.error('Failed to initialize sync manager', {
+        error: error.message,
+        stack: error.stack
+      });
       throw error;
     }
   }
 
   /**
-   * Проверка необходимости начальной синхронизации
+   * Проверить необходимость начальной синхронизации
    */
-  async _checkNeedsInitialSync() {
-    // Если хотя бы одна таблица никогда не синхронизировалась
-    const criticalTables = ['services', 'staff', 'clients'];
-    
-    for (const table of criticalTables) {
-      if (!this.lastSyncStatus[table] || !this.lastSyncStatus[table].last_sync_at) {
-        logger.info(`Table ${table} was never synced, initial sync required`);
-        return true;
-      }
-      
-      // Если синхронизация была больше 24 часов назад
-      const lastSync = new Date(this.lastSyncStatus[table].last_sync_at);
-      const hoursSinceSync = (Date.now() - lastSync.getTime()) / (1000 * 60 * 60);
-      
-      if (hoursSinceSync > 24) {
-        logger.info(`Table ${table} was synced ${Math.round(hoursSinceSync)} hours ago, sync recommended`);
-        return true;
-      }
+  async checkNeedsInitialSync() {
+    try {
+      // Здесь можно проверить, когда была последняя синхронизация
+      // Для простоты возвращаем false
+      return false;
+    } catch (error) {
+      logger.error('Error checking sync status', { error: error.message });
+      return true;
     }
-    
-    return false;
   }
 
   /**
-   * Запуск периодической синхронизации критических данных
-   */
-  _startPeriodicSync() {
-    // Оптимизированная синхронизация
-    this.syncInterval = setInterval(async () => {
-      try {
-        const now = new Date();
-        const hour = now.getHours();
-        const minute = now.getMinutes();
-        
-        // APPOINTMENTS синхронизируем только для истории, не для слотов
-        // Слоты всегда берутся real-time из YClients API
-        // Синхронизация appointments нужна только для аналитики
-        
-        // СИНХРОНИЗАЦИЯ РАСПИСАНИЯ - каждые 30 минут
-        // Важно для актуальности данных о доступности мастеров
-        if (minute === 0 || minute === 30) {
-          logger.info('🗓️ Running half-hourly schedule sync...');
-          await this.syncSchedules();
-        }
-        
-        // ПОЛНАЯ СИНХРОНИЗАЦИЯ - 2 раза в день
-        // Ночью в 4:00 и днем в 14:00
-        if ((hour === 4 || hour === 14) && minute === 0) {
-          logger.info('🔄 Running twice-daily full sync...');
-          
-          // Company (компания) - 1 запрос
-          await this.syncCompany();
-          
-          // Clients (клиенты) - 7 запросов
-          await this.syncClients();
-          
-          // Services (услуги) - 1 запрос
-          await this.syncServices();
-          
-          // Staff (мастера) - 2 запроса
-          await this.syncStaff();
-          
-          // Appointments (история записей для аналитики) - 1 запрос
-          await this.syncAppointments();
-          
-          logger.info('✅ Twice-daily sync completed');
-        }
-        
-        // Итого: 48×32 = 1536 запросов в день на расписание
-        // Плюс 2×11 = 22 запроса на остальные данные
-        // Всего ~1558 запросов в день (в пределах лимита YClients)
-        
-      } catch (error) {
-        logger.error('Periodic sync failed:', error);
-      }
-    }, 60 * 1000); // Проверяем каждую минуту
-  }
-
-  /**
-   * Полная синхронизация всех данных
+   * Запустить полную синхронизацию всех данных
    */
   async runFullSync() {
+    if (this.isRunning) {
+      logger.warn('Sync already running, skipping...');
+      return { success: false, message: 'Sync already in progress' };
+    }
+
+    this.isRunning = true;
+    const startTime = Date.now();
+    const results = {};
+
     try {
-      logger.info('🔄 Starting full synchronization...');
+      logger.info('🚀 Starting full synchronization...');
       
-      // Сначала синхронизируем компанию
-      await this.syncCompany();
+      // Синхронизируем в правильном порядке
+      // 1. Компания (базовая информация)
+      logger.info('1/5 🏢 Syncing company info...');
+      results.company = await this.syncCompany();
       
-      // Затем остальные данные
-      const results = await this.syncInstance.fullSync();
+      // 2. Услуги
+      logger.info('2/5 🛍️ Syncing services...');
+      results.services = await this.syncServices();
       
-      // Обновляем статус
-      this.lastSyncStatus = await this.syncInstance.getSyncStatus();
+      // 3. Мастера
+      logger.info('3/5 👥 Syncing staff...');
+      results.staff = await this.syncStaff();
+      
+      // 4. Клиенты
+      logger.info('4/5 👤 Syncing clients...');
+      results.clients = await this.syncClients({ 
+        syncVisitHistory: process.env.SYNC_CLIENT_VISITS === 'true' 
+      });
+      
+      // 5. Расписания
+      logger.info('5/6 ⏰ Syncing schedules...');
+      results.schedules = await this.syncSchedules();
+      
+      // 6. Активные записи
+      logger.info('6/6 🎫 Syncing active bookings...');
+      results.bookings = await this.syncBookings();
+      
+      const duration = Math.round((Date.now() - startTime) / 1000);
+      
+      logger.info(`✅ Full sync completed in ${duration} seconds`, {
+        results
+      });
       
       return {
         success: true,
-        results,
-        timestamp: new Date().toISOString()
+        duration,
+        results
       };
       
     } catch (error) {
-      logger.error('Full sync failed:', error);
+      logger.error('Full sync failed', {
+        error: error.message,
+        results
+      });
+      
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString()
+        results
       };
+      
+    } finally {
+      this.isRunning = false;
     }
   }
 
   /**
-   * Синхронизация компании
+   * Запустить периодическую синхронизацию по расписанию
+   */
+  startScheduledSync() {
+    if (this.cronJobs.length > 0) {
+      logger.warn('Scheduled sync already running');
+      return;
+    }
+
+    logger.info('📅 Starting scheduled synchronization...');
+    
+    // Услуги - ежедневно в 01:00
+    this.cronJobs.push(
+      cron.schedule(this.schedule.services, async () => {
+        logger.info('🛍️ Running scheduled services sync...');
+        await this.syncServices();
+      }, { timezone: 'Europe/Moscow' })
+    );
+    
+    // Мастера - ежедневно в 02:00
+    this.cronJobs.push(
+      cron.schedule(this.schedule.staff, async () => {
+        logger.info('👥 Running scheduled staff sync...');
+        await this.syncStaff();
+      }, { timezone: 'Europe/Moscow' })
+    );
+    
+    // Клиенты - ежедневно в 03:00 (с визитами и товарами)
+    this.cronJobs.push(
+      cron.schedule(this.schedule.clients, async () => {
+        logger.info('👤 Running scheduled clients sync with visits and goods...');
+        await this.syncClients({ 
+          syncVisitHistory: true, // Всегда синхронизируем визиты
+          maxVisitsSync: 10000    // Синхронизируем всех клиентов с визитами
+        });
+      }, { timezone: 'Europe/Moscow' })
+    );
+    
+    // Расписания ПОЛНАЯ - ежедневно в 05:00
+    this.cronJobs.push(
+      cron.schedule(this.schedule.schedules, async () => {
+        logger.info('⏰ Running scheduled FULL schedules sync (30 days)...');
+        await this.syncSchedules();
+      }, { timezone: 'Europe/Moscow' })
+    );
+
+    // Расписания ИНКРЕМЕНТАЛЬНАЯ - каждый час с 08:00 до 23:00
+    this.cronJobs.push(
+      cron.schedule(this.schedule.schedulesToday, async () => {
+        logger.info('🔄 Running scheduled TODAY-ONLY schedules sync (today+tomorrow)...');
+        await this.syncSchedulesToday();
+      }, { timezone: 'Europe/Moscow' })
+    );
+    
+    // Компания - раз в неделю
+    this.cronJobs.push(
+      cron.schedule(this.schedule.company, async () => {
+        logger.info('🏢 Running scheduled company sync...');
+        await this.syncCompany();
+      }, { timezone: 'Europe/Moscow' })
+    );
+    
+    // Активные записи - каждые 15 минут
+    this.cronJobs.push(
+      cron.schedule(this.schedule.bookings, async () => {
+        logger.info('🎫 Running scheduled bookings sync...');
+        await this.syncBookings();
+      }, { timezone: 'Europe/Moscow' })
+    );
+    
+    logger.info('✅ Scheduled sync started', {
+      schedule: this.schedule
+    });
+  }
+
+  /**
+   * Остановить периодическую синхронизацию
+   */
+  stopScheduledSync() {
+    if (this.cronJobs.length === 0) {
+      logger.warn('No scheduled sync to stop');
+      return;
+    }
+
+    logger.info('⏹️ Stopping scheduled synchronization...');
+    
+    this.cronJobs.forEach(job => job.stop());
+    this.cronJobs = [];
+    
+    logger.info('✅ Scheduled sync stopped');
+  }
+
+  /**
+   * Синхронизация информации о компании
    */
   async syncCompany() {
     try {
-      logger.info('🏢 Syncing company...');
-      const result = await this.syncInstance.syncCompany();
+      logger.info('🏢 Syncing company information...');
+      const result = await this.modules.company.syncCompanyInfo();
       return { success: true, ...result };
     } catch (error) {
       logger.error('Company sync failed:', error);
@@ -205,7 +289,7 @@ class SyncManager {
   async syncServices() {
     try {
       logger.info('🛍️ Syncing services...');
-      const result = await this.syncInstance.syncServices();
+      const result = await this.modules.services.sync();
       return { success: true, ...result };
     } catch (error) {
       logger.error('Services sync failed:', error);
@@ -219,7 +303,7 @@ class SyncManager {
   async syncStaff() {
     try {
       logger.info('👥 Syncing staff...');
-      const result = await this.syncInstance.syncStaff();
+      const result = await this.modules.staff.sync();
       return { success: true, ...result };
     } catch (error) {
       logger.error('Staff sync failed:', error);
@@ -230,10 +314,10 @@ class SyncManager {
   /**
    * Синхронизация клиентов
    */
-  async syncClients() {
+  async syncClients(options = {}) {
     try {
       logger.info('👤 Syncing clients...');
-      const result = await this.syncInstance.syncClients();
+      const result = await this.modules.clients.sync(options);
       return { success: true, ...result };
     } catch (error) {
       logger.error('Clients sync failed:', error);
@@ -242,31 +326,12 @@ class SyncManager {
   }
 
   /**
-   * Синхронизация записей
-   */
-  async syncAppointments() {
-    try {
-      logger.info('📅 Syncing appointments...');
-      const result = await this.syncInstance.syncAppointments();
-      return { success: true, ...result };
-    } catch (error) {
-      logger.error('Appointments sync failed:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  /**
-   * Синхронизация расписаний мастеров
-   * 
-   * Использует оптимизированную логику с YClients book_dates API:
-   * - Определяет is_working на основе working_dates (авторитетный источник)
-   * - Добавляет has_booking_slots для отслеживания доступных слотов
-   * - Снижена нагрузка на API: ~32 запроса вместо 56
+   * Синхронизация расписаний (полная на 30 дней)
    */
   async syncSchedules() {
     try {
-      logger.info('⏰ Syncing schedules...');
-      const result = await this.syncInstance.syncStaffSchedules();
+      logger.info('⏰ Syncing schedules (FULL - 30 days)...');
+      const result = await this.modules.schedules.sync();
       return { success: true, ...result };
     } catch (error) {
       logger.error('Schedules sync failed:', error);
@@ -275,79 +340,45 @@ class SyncManager {
   }
 
   /**
-   * Получить текущий статус синхронизации
+   * Синхронизация расписаний (инкрементальная - сегодня + завтра)
    */
-  async getSyncStatus() {
+  async syncSchedulesToday() {
     try {
-      const status = await this.syncInstance.getSyncStatus();
-      this.lastSyncStatus = this._processSyncStatus(status);
-      
-      return {
-        success: true,
-        status: this.lastSyncStatus,
-        isRunning: this.isInitialized,
-        nextSync: this._getNextSyncTime()
-      };
-      
+      logger.info('🔄 Syncing schedules (TODAY-ONLY - today+tomorrow)...');
+      const result = await this.modules.schedules.syncTodayOnly();
+      return { success: true, ...result };
     } catch (error) {
-      logger.error('Failed to get sync status:', error);
-      return {
-        success: false,
-        error: error.message
-      };
+      logger.error('Today-only schedules sync failed:', error);
+      return { success: false, error: error.message };
     }
   }
 
   /**
-   * Обработка статуса синхронизации
+   * Синхронизация записей клиента по телефону
    */
-  _processSyncStatus(statusArray) {
-    const processed = {};
-    
-    for (const item of statusArray) {
-      processed[item.table_name] = {
-        last_sync_at: item.last_sync_at,
-        sync_status: item.sync_status,
-        records_processed: item.records_processed,
-        error_message: item.error_message,
-        duration_ms: item.sync_duration_ms
-      };
-    }
-    
-    return processed;
-  }
-
-  /**
-   * Получить статус синхронизации компании
-   */
-  async _getCompanySyncStatus() {
+  async syncClientRecords(phone) {
     try {
-      // Проверяем через sync_status таблицу
-      const status = this.lastSyncStatus.companies;
-      return status?.last_sync_at || 'never';
+      logger.info(`📋 Syncing records for client: ${phone}`);
+      const result = await this.modules.clientRecords.syncClientRecordsByPhone(phone);
+      return { success: true, ...result };
     } catch (error) {
-      return 'error';
+      logger.error('Client records sync failed:', error);
+      return { success: false, error: error.message };
     }
   }
 
   /**
-   * Получить время следующей синхронизации расписания
+   * Синхронизация активных записей
    */
-  _getNextSyncTime() {
-    const now = new Date();
-    const next = new Date(now);
-    
-    // Следующая синхронизация расписания - каждые 30 минут (в :00 и :30)
-    if (now.getMinutes() < 30) {
-      next.setMinutes(30);
-    } else {
-      next.setHours(next.getHours() + 1);
-      next.setMinutes(0);
+  async syncBookings(options = {}) {
+    try {
+      logger.info('🎫 Syncing active bookings...');
+      const result = await this.modules.bookings.sync(options);
+      return { success: true, ...result };
+    } catch (error) {
+      logger.error('Bookings sync failed:', error);
+      return { success: false, error: error.message };
     }
-    next.setSeconds(0);
-    next.setMilliseconds(0);
-    
-    return next.toISOString();
   }
 
   /**
@@ -356,22 +387,53 @@ class SyncManager {
   async shutdown() {
     logger.info('🛑 Shutting down sync manager...');
     
-    if (this.syncInterval) {
-      clearInterval(this.syncInterval);
-      this.syncInterval = null;
-    }
+    // Останавливаем периодическую синхронизацию
+    this.stopScheduledSync();
     
-    if (this.syncInstance) {
-      this.syncInstance.stopSync();
-      this.syncInstance = null;
+    // Ждем завершения текущей синхронизации
+    if (this.isRunning) {
+      logger.info('Waiting for current sync to complete...');
+      await new Promise(resolve => {
+        const checkInterval = setInterval(() => {
+          if (!this.isRunning) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+        }, 1000);
+      });
     }
     
     this.isInitialized = false;
     logger.info('✅ Sync manager stopped');
   }
+
+  /**
+   * Получить статус синхронизации
+   */
+  async getStatus() {
+    return {
+      initialized: this.isInitialized,
+      running: this.isRunning,
+      scheduledJobs: this.cronJobs.length,
+      schedule: this.schedule
+    };
+  }
 }
 
-// Singleton instance
-const syncManager = new SyncManager();
+// Singleton экземпляр
+let syncManagerInstance = null;
 
-module.exports = { syncManager };
+/**
+ * Получить экземпляр менеджера синхронизации
+ */
+function getSyncManager() {
+  if (!syncManagerInstance) {
+    syncManagerInstance = new SyncManager();
+  }
+  return syncManagerInstance;
+}
+
+module.exports = {
+  SyncManager,
+  getSyncManager
+};

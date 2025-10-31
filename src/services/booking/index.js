@@ -6,6 +6,10 @@ const logger = require('../../utils/logger');
 const DataTransformers = require('../../utils/data-transformers');
 const { format, addDays, subDays, parse, isAfter, isBefore } = require('date-fns');
 const { utcToZonedTime, zonedTimeToUtc } = require('date-fns-tz');
+const { RetryHandler } = require('../../utils/retry-handler');
+const criticalErrorLogger = require('../../utils/critical-error-logger');
+const bookingOwnership = require('./booking-ownership');
+const slotValidator = require('./slot-validator');
 
 class BookingService {
   constructor() {
@@ -21,6 +25,15 @@ class BookingService {
       afternoon: { start: 12, end: 18 },    // 12:00-18:00
       evening: { start: 18, end: 23 }       // 18:00-23:00
     };
+    
+    // Retry handler для критичных операций
+    this.retryHandler = new RetryHandler({
+      maxRetries: 3,
+      initialDelay: 1000,
+      maxDelay: 5000,
+      retryableErrors: ['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNRESET'],
+      retryableStatusCodes: [408, 429, 500, 502, 503, 504]
+    });
   }
 
   getYclientsClient() {
@@ -86,12 +99,27 @@ class BookingService {
   async getServices(filters = {}, companyId = config.yclients.companyId) {
     try {
       // Сначала пробуем получить из Supabase
-      const result = await this.dataLayer.getServices(filters, companyId);
+      // Важно: dataLayer.getServices ожидает companyId первым параметром
+      const result = await this.dataLayer.getServices(companyId, false);
+
+      // Фильтруем результаты если нужно
       if (result.success && result.data && result.data.length > 0) {
-        logger.info(`✅ Services loaded from Supabase: ${result.data.length}`);
-        return result;
+        let filteredData = result.data;
+
+        // Применяем фильтры если они есть
+        if (filters.service_id) {
+          filteredData = filteredData.filter(s =>
+            s.yclients_id === filters.service_id ||
+            s.id === filters.service_id
+          );
+        }
+
+        if (filteredData.length > 0) {
+          logger.info(`✅ Services loaded from Supabase: ${filteredData.length}`);
+          return { success: true, data: filteredData };
+        }
       }
-      
+
       // Если в Supabase пусто, получаем из YClients
       logger.info('📱 Services not found in Supabase, fetching from YClients...');
       return await this.getYclientsClient().getServices(filters, companyId);
@@ -101,10 +129,65 @@ class BookingService {
     }
   }
 
-  async getAvailableSlots(staffId, date, serviceId, companyId = config.yclients.companyId) {
+  async getAvailableSlots(staffId, date, serviceId, companyId = config.yclients.companyId, validateSlots = false, serviceDuration = null, service = null, excludeRecordId = null) {
     try {
       // Слоты всегда получаем из YClients (они динамические)
-      return await this.getYclientsClient().getAvailableSlots(staffId, date, serviceId, companyId);
+      const result = await this.getYclientsClient().getAvailableSlots(staffId, date, { service_id: serviceId }, companyId);
+
+      // Если нужна валидация и запрос успешен
+      if (validateSlots && result.success && result.data) {
+        const slots = Array.isArray(result.data) ? result.data :
+                     (result.data.data ? result.data.data : []);
+
+        if (slots.length > 0) {
+          logger.info(`Validating ${slots.length} slots for staff ${staffId} on ${date}`);
+
+          if (excludeRecordId) {
+            logger.info(`Excluding record ID ${excludeRecordId} from validation (rescheduling)`);
+          }
+
+          // Получаем информацию о рабочих часах компании (упрощенно используем стандартные)
+          // TODO: Получить из базы данных или API реальные рабочие часы
+          const workingHours = { start: '09:00', end: '22:00' };
+
+          // Если услуга не передана, но есть serviceId, попробуем получить из БД
+          let serviceData = service;
+          if (!serviceData && serviceId) {
+            try {
+              const servicesResult = await this.getServices({ service_id: serviceId }, companyId);
+              if (servicesResult.success && servicesResult.data && servicesResult.data.length > 0) {
+                serviceData = servicesResult.data[0];
+                logger.info(`Loaded service data for validation: ${serviceData.title}`);
+              }
+            } catch (err) {
+              logger.warn(`Could not load service data for ID ${serviceId}:`, err.message);
+            }
+          }
+
+          // Валидируем слоты с учетом существующих записей, длительности услуги и рабочих часов
+          const validSlots = await slotValidator.validateSlotsWithBookings(
+            slots,
+            this.getYclientsClient(),
+            companyId,
+            staffId,
+            date,
+            serviceDuration,
+            workingHours,
+            serviceData,  // Передаем данные услуги для проверки временных ограничений
+            excludeRecordId  // Исключаем текущую запись при переносе
+          );
+
+          // Возвращаем результат с валидированными слотами
+          return {
+            ...result,
+            data: Array.isArray(result.data) ? validSlots : { ...result.data, data: validSlots },
+            originalCount: slots.length,
+            validatedCount: validSlots.length
+          };
+        }
+      }
+
+      return result;
     } catch (error) {
       logger.error('Error getting available slots:', error);
       return { success: false, error: error.message };
@@ -138,6 +221,23 @@ class BookingService {
       
       logger.info(`🎯 Searching slots for service ${actualServiceId} on ${targetDate}`);
       
+      // Получаем информацию об услуге для определения её длительности
+      let serviceDuration = 3600; // По умолчанию 60 минут
+      try {
+        // Важно: передаем companyId как число, а не объект
+        const serviceResult = await this.getServices({ service_id: actualServiceId }, String(companyId));
+        if (serviceResult.success && serviceResult.data && serviceResult.data.length > 0) {
+          const service = serviceResult.data.find(s => s.yclients_id === actualServiceId || s.id === actualServiceId);
+          if (service) {
+            // Получаем длительность из raw_data или основного поля
+            serviceDuration = service.raw_data?.duration || service.duration || service.seance_length || 3600;
+            logger.info(`📏 Service duration for ${actualServiceId}: ${serviceDuration / 60} minutes`);
+          }
+        }
+      } catch (error) {
+        logger.warn(`Failed to get service duration, using default: ${error.message}`);
+      }
+      
       // Если нет staffId, ищем слоты у всех мастеров
       if (!staffId) {
         logger.info(`👥 No specific staff requested, searching all available staff`);
@@ -166,8 +266,10 @@ class BookingService {
             const staffSlots = await this.getAvailableSlots(
               staffMember.yclients_id,
               targetDate,
-              { service_id: actualServiceId },
-              companyId
+              actualServiceId,
+              companyId,
+              true, // Включаем валидацию слотов
+              serviceDuration // Передаем длительность услуги
             );
             
             if (staffSlots.success && staffSlots.data) {
@@ -196,12 +298,69 @@ class BookingService {
         
         if (allSlots.length === 0) {
           logger.warn(`❌ No available slots found for any staff`);
+
+          // Пытаемся найти частично доступные окна для всех мастеров
+          let allPartialWindows = [];
+          if (serviceDuration) {
+            try {
+              for (const staffMember of staffResult.data) {
+                // Получаем все слоты без валидации
+                const allSlotsResult = await this.getAvailableSlots(
+                  staffMember.yclients_id,
+                  targetDate,
+                  actualServiceId,
+                  companyId,
+                  false // Без валидации
+                );
+
+                if (allSlotsResult.success && allSlotsResult.data) {
+                  const rawSlots = Array.isArray(allSlotsResult.data) ? allSlotsResult.data :
+                                  (allSlotsResult.data.data ? allSlotsResult.data.data : []);
+
+                  // Получаем существующие записи
+                  const existingBookings = await slotValidator.getStaffBookings(
+                    this.getYclientsClient(),
+                    companyId,
+                    staffMember.yclients_id,
+                    targetDate
+                  );
+
+                  // Находим частично доступные окна
+                  const partialWindows = slotValidator.findPartiallyAvailableWindows(
+                    rawSlots,
+                    existingBookings,
+                    serviceDuration,
+                    { start: '09:00', end: '22:00' }
+                  );
+
+                  // Добавляем информацию о мастере к каждому окну
+                  if (partialWindows.length > 0) {
+                    const windowsWithStaff = partialWindows.map(window => ({
+                      ...window,
+                      staff_id: staffMember.yclients_id,
+                      staff_name: staffMember.name,
+                      staff_rating: staffMember.rating
+                    }));
+                    allPartialWindows.push(...windowsWithStaff);
+                  }
+                }
+              }
+
+              if (allPartialWindows.length > 0) {
+                logger.info(`Found ${allPartialWindows.length} partially available windows across all staff`);
+              }
+            } catch (error) {
+              logger.warn('Failed to find partial windows:', error.message);
+            }
+          }
+
           return {
             success: false,
             error: 'No available slots found',
             reason: 'fully_booked',
             data: [],
-            checkedStaffCount: staffResult.data.length
+            checkedStaffCount: staffResult.data.length,
+            partialWindows: allPartialWindows
           };
         }
         
@@ -238,11 +397,40 @@ class BookingService {
         };
       }
       
-      const slotsResult = await this.getAvailableSlots(
-        staffId,
-        targetDate,
-        { service_id: actualServiceId },
-        companyId
+      // Получаем данные услуги для валидации
+      let serviceData = null;
+      if (actualServiceId) {
+        try {
+          const servicesResult = await this.getServices({ service_id: actualServiceId }, companyId);
+          if (servicesResult.success && servicesResult.data && servicesResult.data.length > 0) {
+            serviceData = servicesResult.data[0];
+            logger.info(`Loaded service "${serviceData.title}" for slot validation`);
+          }
+        } catch (err) {
+          logger.warn(`Could not load service data for ID ${actualServiceId}:`, err.message);
+        }
+      }
+
+      const slotsResult = await this.retryHandler.execute(
+        async () => {
+          const result = await this.getAvailableSlots(
+            staffId,
+            targetDate,
+            actualServiceId,
+            companyId,
+            true, // Включаем валидацию слотов
+            serviceDuration, // Передаем длительность услуги
+            serviceData // Передаем данные услуги для проверки ограничений
+          );
+
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to get available slots');
+          }
+
+          return result;
+        },
+        'getAvailableSlots',
+        { companyId, date: targetDate, staffId, serviceId: actualServiceId }
       );
 
       if (!slotsResult.success || !slotsResult.data) {
@@ -262,12 +450,56 @@ class BookingService {
       
       if (availableSlots.length === 0) {
         logger.warn(`❌ All slots are booked for staff ${staffId}`);
+
+        // Пытаемся найти частично доступные окна
+        let partialWindows = [];
+        if (serviceDuration) {
+          try {
+            // Получаем все слоты без валидации для анализа
+            const allSlotsResult = await this.getAvailableSlots(
+              staffId,
+              targetDate,
+              actualServiceId,
+              companyId,
+              false // Без валидации
+            );
+
+            if (allSlotsResult.success && allSlotsResult.data) {
+              const allSlots = Array.isArray(allSlotsResult.data) ? allSlotsResult.data :
+                              (allSlotsResult.data.data ? allSlotsResult.data.data : []);
+
+              // Получаем существующие записи для анализа
+              const existingBookings = await slotValidator.getStaffBookings(
+                this.getYclientsClient(),
+                companyId,
+                staffId,
+                targetDate
+              );
+
+              // Находим частично доступные окна
+              partialWindows = slotValidator.findPartiallyAvailableWindows(
+                allSlots,
+                existingBookings,
+                serviceDuration,
+                { start: '09:00', end: '22:00' }
+              );
+
+              if (partialWindows.length > 0) {
+                logger.info(`Found ${partialWindows.length} partially available windows`);
+              }
+            }
+          } catch (error) {
+            logger.warn('Failed to find partial windows:', error.message);
+          }
+        }
+
         return {
           success: false,
           error: 'All slots are booked',
           reason: 'fully_booked',
           data: [],
-          alternativeSlots: slotsData // Возвращаем все слоты как альтернативы
+          alternativeSlots: slotsData, // Возвращаем все слоты как альтернативы
+          partialWindows: partialWindows
         };
       }
 
@@ -304,11 +536,107 @@ class BookingService {
 
   async createBooking(bookingData, companyId = config.yclients.companyId) {
     try {
-      // Бронирование всегда создаем через YClients
-      return await this.getYclientsClient().createBooking(bookingData, companyId);
+      logger.info('🔄 Creating booking with retry mechanism', {
+        companyId,
+        hasServices: !!bookingData.appointments,
+        servicesCount: bookingData.appointments?.length
+      });
+      
+      // Используем retry handler для создания записи
+      const result = await this.retryHandler.execute(
+        async () => {
+          const response = await this.getYclientsClient().createBooking(bookingData, companyId);
+          
+          // Проверяем успешность ответа
+          if (!response.success) {
+            // Логируем полный ответ для диагностики
+            logger.error('❌ Booking creation failed:', {
+              response: response,
+              errorType: typeof response.error,
+              bookingData: bookingData
+            });
+            
+            // Получаем текст ошибки (может быть строкой или объектом)
+            const errorMessage = typeof response.error === 'string' 
+              ? response.error 
+              : (response.error?.message || JSON.stringify(response.error) || 'Booking creation failed');
+            
+            // Если ошибка временная (например, слот занят), не повторяем
+            if (errorMessage && (
+              errorMessage.includes('занят') ||
+              errorMessage.includes('недоступ') ||
+              errorMessage.includes('не работает')
+            )) {
+              throw Object.assign(new Error(errorMessage), { retryable: false });
+            }
+            
+            // Для других ошибок позволяем retry
+            throw new Error(errorMessage);
+          }
+          
+          return response;
+        },
+        'createBooking',
+        { companyId, clientPhone: bookingData.phone }
+      );
+      
+      logger.info('✅ Booking created successfully', {
+        recordId: result.data?.record_id,
+        companyId
+      });
+      
+      // Сохраняем владение записью
+      if (result.data?.record_id && bookingData.phone) {
+        try {
+          await bookingOwnership.saveBookingOwnership(
+            result.data.record_id,
+            bookingData.phone,
+            {
+              client_id: bookingData.client_id,
+              client_name: bookingData.full_name,
+              datetime: bookingData.datetime,
+              service: bookingData.appointments?.[0]?.services?.[0]?.title,
+              staff: bookingData.appointments?.[0]?.staff?.name,
+              company_id: companyId
+            }
+          );
+        } catch (error) {
+          logger.warn('Failed to save booking ownership:', error.message);
+          // Не прерываем процесс, так как запись уже создана
+        }
+      }
+      
+      return result;
     } catch (error) {
-      logger.error('Error creating booking:', error);
-      return { success: false, error: error.message };
+      // Проверяем, была ли это не-повторяемая ошибка
+      if (error.retryable === false) {
+        logger.warn('Non-retryable booking error:', error.message);
+        return { success: false, error: error.message };
+      }
+      
+      logger.error('Error creating booking after retries:', error);
+      
+      // Логируем критичную ошибку создания записи
+      await criticalErrorLogger.logCriticalError(error, {
+        operation: 'createBooking',
+        service: 'booking',
+        companyId,
+        clientPhone: bookingData.phone,
+        clientName: bookingData.fullname,
+        bookingData: {
+          hasAppointments: !!bookingData.appointments,
+          appointmentsCount: bookingData.appointments?.length,
+          services: bookingData.appointments?.map(a => a.services),
+          datetime: bookingData.appointments?.[0]?.datetime
+        },
+        retryAttempts: this.retryHandler.maxRetries,
+        errorAfterRetries: true
+      });
+      
+      return { 
+        success: false, 
+        error: error.message || 'Не удалось создать запись. Попробуйте позже.' 
+      };
     }
   }
 
@@ -339,8 +667,35 @@ class BookingService {
     try {
       logger.info(`📋 Getting bookings for client ${phone} at company ${companyId}`);
       
-      // Получаем записи через YClients API
-      // Ищем записи только в будущем - нет смысла искать прошедшие записи для переноса
+      // Сначала проверяем в нашем кэше владения записями
+      const cachedBookings = await bookingOwnership.getClientBookings(phone);
+      if (cachedBookings && cachedBookings.length > 0) {
+        logger.info(`✅ Found ${cachedBookings.length} bookings in ownership cache`);
+        
+        // Получаем детали записей из YClients для актуальной информации
+        const detailedBookings = [];
+        for (const cached of cachedBookings) {
+          try {
+            const details = await this.getYclientsClient().getRecord(companyId, cached.id);
+            if (details.success && details.data) {
+              detailedBookings.push(details.data);
+            }
+          } catch (error) {
+            logger.warn(`Failed to get details for booking ${cached.id}:`, error.message);
+          }
+        }
+        
+        if (detailedBookings.length > 0) {
+          return { 
+            success: true, 
+            bookings: detailedBookings,
+            source: 'ownership_cache'
+          };
+        }
+      }
+      
+      // Fallback: получаем записи через YClients API
+      logger.info('Falling back to YClients API search');
       const bookings = await this.getYclientsClient().getRecords(companyId, {
         client_phone: phone,
         start_date: format(new Date(), 'yyyy-MM-dd'), // Начинаем с сегодня
@@ -363,14 +718,41 @@ class BookingService {
       const bookingsList = Array.isArray(bookings.data) ? bookings.data : 
                           (bookings.data.data ? bookings.data.data : []);
       
+      // ВАЖНО: Дополнительно проверяем, что запись действительно принадлежит этому клиенту
+      // YClients API иногда возвращает записи других клиентов
+      const InternationalPhone = require('../../utils/international-phone');
+      const normalizedPhone = InternationalPhone.normalize(phone);
+      
       // Фильтруем только активные записи (не отмененные и не прошедшие)
       const activeBookings = bookingsList.filter(booking => {
+        // Проверяем телефон клиента в записи
+        if (booking.client && booking.client.phone) {
+          const bookingPhone = InternationalPhone.normalize(booking.client.phone);
+          if (!InternationalPhone.equals(bookingPhone, normalizedPhone)) {
+            logger.warn(`⚠️ Skipping booking ${booking.id} - belongs to different client`, {
+              requestedPhone: phone,
+              bookingPhone: booking.client.phone,
+              clientName: booking.client.name
+            });
+            return false;
+          }
+        }
+        
+        // Проверяем статус attendance (пропускаем записи со статусом "не пришел" = -1)
+        if (booking.attendance === -1 || booking.visit_attendance === -1) {
+          logger.info(`⚠️ Skipping booking ${booking.id} - already cancelled (no-show status)`, {
+            attendance: booking.attendance,
+            visit_attendance: booking.visit_attendance
+          });
+          return false;
+        }
+        
         const bookingDate = new Date(booking.datetime);
         const now = new Date();
         return bookingDate > now && booking.deleted === false;
       });
 
-      logger.info(`✅ Found ${activeBookings.length} active bookings for ${phone}`);
+      logger.info(`✅ Found ${activeBookings.length} active bookings for ${phone} (filtered ${bookingsList.length - activeBookings.length} invalid/past bookings)`);
       
       return { 
         success: true, 
@@ -394,6 +776,14 @@ class BookingService {
       
       if (softCancelResult.success) {
         logger.info(`✅ Successfully soft-canceled booking ${recordId} (status: не пришел)`);
+        
+        // Удаляем из сервиса владения
+        try {
+          await bookingOwnership.removeBooking(recordId);
+        } catch (error) {
+          logger.warn('Failed to remove booking ownership:', error.message);
+        }
+        
         return softCancelResult;
       }
       
@@ -403,6 +793,13 @@ class BookingService {
 
       if (deleteResult.success) {
         logger.info(`✅ Successfully deleted booking ${recordId}`);
+        
+        // Удаляем из сервиса владения
+        try {
+          await bookingOwnership.removeBooking(recordId);
+        } catch (error) {
+          logger.warn('Failed to remove booking ownership:', error.message);
+        }
       } else {
         logger.error(`❌ Failed to cancel booking ${recordId}: ${deleteResult.error}`);
       }

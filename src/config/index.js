@@ -1,6 +1,7 @@
 // src/config/index.js
 require('dotenv').config();
 const secureConfig = require('./secure-config');
+const envConfig = require('./environments');
 
 // Helper to get config value with secure fallback
 const getConfig = (key) => secureConfig.get(key) || process.env[key];
@@ -11,14 +12,15 @@ module.exports = {
     return {
       env: process.env.NODE_ENV || 'development',
       port: parseInt(process.env.PORT) || 3000,
-      logLevel: process.env.LOG_LEVEL || 'info',
-      version: process.env.npm_package_version || '2.0.0'
+      logLevel: process.env.LOG_LEVEL || envConfig.logging?.level || 'info',
+      version: process.env.npm_package_version || '2.0.0',
+      timezone: 'Europe/Moscow'
     };
   },
 
   get redis() {
     return {
-      url: process.env.REDIS_URL || 'redis://localhost:6379',
+      url: process.env.REDIS_URL || envConfig.redis.url,
       password: getConfig('REDIS_PASSWORD'),
       options: {
         connectTimeout: parseInt(process.env.REDIS_CONNECT_TIMEOUT) || 10000,
@@ -31,12 +33,15 @@ module.exports = {
 
   get whatsapp() {
     return {
+      provider: process.env.WHATSAPP_PROVIDER || 'baileys', // 'baileys' or 'venom'
       venomServerUrl: process.env.VENOM_SERVER_URL || 'http://localhost:3001',
       apiKey: getConfig('VENOM_API_KEY'),
       secretKey: getConfig('VENOM_SECRET_KEY'),
       webhookUrl: process.env.WEBHOOK_URL,
       timeout: parseInt(process.env.VENOM_TIMEOUT) || 30000,
-      retries: parseInt(process.env.VENOM_MAX_RETRIES) || 3
+      retries: parseInt(process.env.VENOM_MAX_RETRIES) || 3,
+      sessionsPath: process.env.WHATSAPP_SESSIONS_PATH || './sessions',
+      multiTenant: process.env.WHATSAPP_MULTI_TENANT === 'true'
     };
   },
 
@@ -57,12 +62,22 @@ module.exports = {
 
   get ai() {
     return {
+      // DeepSeek settings
       apiKey: getConfig('DEEPSEEK_API_KEY'),
       apiUrl: process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1/chat/completions',
       model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
       temperature: parseFloat(process.env.DEEPSEEK_TEMPERATURE) || 0.7,
       maxTokens: parseInt(process.env.DEEPSEEK_MAX_TOKENS) || 1500,
-      timeout: 30000
+      timeout: 30000,
+
+      // Gemini settings
+      geminiApiKey: getConfig('GEMINI_API_KEY'),
+      geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+
+      // General AI settings
+      provider: process.env.AI_PROVIDER || 'deepseek',
+      promptVersion: process.env.AI_PROMPT_VERSION || 'react-prompt',
+      promptABTest: process.env.AI_PROMPT_AB_TEST === 'true'
     };
   },
 
@@ -76,11 +91,19 @@ module.exports = {
   get queue() {
     return {
       messageQueue: process.env.QUEUE_MESSAGE_NAME || 'messages',
-      reminderQueue: process.env.QUEUE_REMINDER_NAME || 'reminders',
       maxConcurrentWorkers: parseInt(process.env.QUEUE_MAX_WORKERS) || 3,
       defaultJobOptions: {
-        removeOnComplete: parseInt(process.env.QUEUE_KEEP_COMPLETED) || 100,
-        removeOnFail: parseInt(process.env.QUEUE_KEEP_FAILED) || 50,
+        // Auto-remove completed jobs after 24 hours (86400 seconds)
+        // Keep max 100 jobs as backup limit
+        removeOnComplete: {
+          age: parseInt(process.env.QUEUE_KEEP_COMPLETED_SECONDS) || 86400, // 24 hours
+          count: parseInt(process.env.QUEUE_KEEP_COMPLETED_COUNT) || 100
+        },
+        // Auto-remove failed jobs after 7 days (604800 seconds)
+        removeOnFail: {
+          age: parseInt(process.env.QUEUE_KEEP_FAILED_SECONDS) || 604800, // 7 days
+          count: parseInt(process.env.QUEUE_KEEP_FAILED_COUNT) || 50
+        },
         attempts: parseInt(process.env.QUEUE_RETRY_ATTEMPTS) || 3,
         backoff: {
           type: 'exponential',

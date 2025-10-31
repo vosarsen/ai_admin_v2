@@ -2,64 +2,208 @@ const logger = require('../../../utils/logger').child({ module: 'ai-admin-v2:com
 const bookingService = require('../../booking');
 const formatter = require('./formatter');
 const serviceMatcher = require('./service-matcher');
-const contextService = require('../../context');
+const contextServiceV2 = require('../../context/context-service-v2');
+const errorMessages = require('../../../utils/error-messages');
+const FuzzyMatcher = require('../../../utils/fuzzy-matcher');
+const businessLogic = require('./business-logic');
+const { formatHumanDate, formatWorkingDays } = require('../../../utils/date-formatter');
+const serviceSearchConfig = require('../../../config/service-search');
+const InternationalPhone = require('../../../utils/international-phone');
 // dateParser теперь используется из formatter
 
 class CommandHandler {
   /**
-   * Извлечение команд из ответа AI
+   * Извлечение команд из ответа AI с защитой от DoS
    */
   extractCommands(response) {
+    // Защита от слишком больших ответов
+    const MAX_RESPONSE_LENGTH = 10000;
+    const MAX_COMMANDS = 10;
+    const MAX_PARAM_LENGTH = 500;
+    
+    if (!response || typeof response !== 'string') {
+      logger.warn('Invalid response type for command extraction');
+      return [];
+    }
+    
+    if (response.length > MAX_RESPONSE_LENGTH) {
+      logger.warn(`Response too long (${response.length} chars), truncating to ${MAX_RESPONSE_LENGTH}`);
+      response = response.substring(0, MAX_RESPONSE_LENGTH);
+    }
+    
     const commands = [];
-    const commandRegex = /\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|CANCEL_BOOKING|SAVE_CLIENT_NAME|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING|CHECK_STAFF_SCHEDULE)([^\]]*)\]/g;
+    // Безопасный regex с ограничением длины параметров
+    const commandRegex = /\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|EXPLAIN_SERVICE|SHOW_PORTFOLIO|CANCEL_BOOKING|SAVE_CLIENT_NAME|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING|CHECK_STAFF_SCHEDULE)([^\]]{0,500})\]/g;
     
     let match;
-    while ((match = commandRegex.exec(response)) !== null) {
-      const [fullMatch, command, paramsString] = match;
-      const params = this.parseCommandParams(paramsString);
+    let matchCount = 0;
+    
+    while ((match = commandRegex.exec(response)) !== null && matchCount < MAX_COMMANDS) {
+      matchCount++;
       
-      commands.push({
-        command,
-        params,
-        originalText: fullMatch
-      });
+      const [fullMatch, command, paramsString] = match;
+      
+      // Дополнительная проверка длины параметров
+      if (paramsString && paramsString.length > MAX_PARAM_LENGTH) {
+        logger.warn(`Command params too long for ${command}, skipping`);
+        continue;
+      }
+      
+      try {
+        const params = this.parseCommandParams(paramsString);
+        
+        commands.push({
+          command,
+          params,
+          originalText: fullMatch
+        });
+      } catch (error) {
+        logger.error(`Failed to parse command params for ${command}:`, error);
+        continue;
+      }
+    }
+    
+    if (matchCount >= MAX_COMMANDS) {
+      logger.warn(`Too many commands found (${matchCount}), limiting to ${MAX_COMMANDS}`);
     }
     
     return commands;
   }
 
   /**
-   * Парсинг параметров команды
+   * Парсинг параметров команды с защитой от атак
    */
   parseCommandParams(paramsString) {
     const params = {};
     if (!paramsString) return params;
     
+    // Ограничения для защиты
+    const MAX_PARAMS = 10;
+    const MAX_KEY_LENGTH = 50;
+    const MAX_VALUE_LENGTH = 200;
+    
+    // Санитизация входной строки
+    paramsString = paramsString.substring(0, 500);
+    
     // Разбираем параметры вида key: value или key=value
     const paramRegex = /(\w+)[:=]\s*([^,]+)/g;
     let match;
-    while ((match = paramRegex.exec(paramsString)) !== null) {
+    let paramCount = 0;
+    
+    while ((match = paramRegex.exec(paramsString)) !== null && paramCount < MAX_PARAMS) {
+      paramCount++;
+      
       const [, key, value] = match;
-      params[key.trim()] = value.trim();
+      const cleanKey = key.trim().substring(0, MAX_KEY_LENGTH);
+      const cleanValue = value.trim().substring(0, MAX_VALUE_LENGTH);
+      
+      // Базовая санитизация значений
+      params[cleanKey] = this.sanitizeValue(cleanValue);
+    }
+    
+    if (paramCount >= MAX_PARAMS) {
+      logger.warn(`Too many params found (${paramCount}), limiting to ${MAX_PARAMS}`);
     }
     
     return params;
   }
+  
+  /**
+   * Санитизация значения параметра
+   */
+  sanitizeValue(value) {
+    if (!value) return '';
+    
+    // Удаляем потенциально опасные символы
+    return value
+      .replace(/[<>'"]/g, '') // Удаляем HTML/SQL символы
+      .replace(/[\x00-\x1F\x7F]/g, '') // Удаляем управляющие символы
+      .trim();
+  }
 
   /**
-   * Выполнение команд
+   * Санитизация параметров для логирования
+   */
+  sanitizeParamsForLogging(params) {
+    const safe = {};
+    const sensitiveKeys = ['phone', 'name', 'client_name', 'email', 'comment'];
+    
+    for (const [key, value] of Object.entries(params)) {
+      if (sensitiveKeys.includes(key.toLowerCase())) {
+        // Маскируем чувствительные данные
+        safe[key] = value ? '***' : '';
+      } else {
+        safe[key] = String(value).substring(0, 50);
+      }
+    }
+    
+    return safe;
+  }
+
+  /**
+   * Выполнение команд с защитой от перегрузки
    */
   async executeCommands(commands, context) {
     const results = [];
+    const MAX_EXECUTION_TIME = 30000; // 30 секунд максимум
+    const startTime = Date.now();
+    
+    // Ограничиваем количество команд
+    if (commands.length > 10) {
+      logger.warn(`Too many commands to execute (${commands.length}), limiting to 10`);
+      commands = commands.slice(0, 10);
+    }
     
     for (const cmd of commands) {
-      logger.info(`Executing command: ${cmd.command}`, cmd.params);
+      // Проверяем таймаут
+      if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+        logger.error('Command execution timeout reached, stopping');
+        break;
+      }
+      
+      // Не логируем чувствительные данные
+      const safeParams = this.sanitizeParamsForLogging(cmd.params);
+      logger.info(`Executing command: ${cmd.command}`, safeParams);
       
       try {
+        // Валидируем параметры команды
+        const validation = this.validateCommandParams(cmd.command, cmd.params || {});
+        if (!validation.valid) {
+          logger.warn(`Command ${cmd.command} validation failed:`, validation.error);
+          results.push({ 
+            type: 'error', 
+            command: cmd.command,
+            error: validation.error,
+            validationError: true
+          });
+          continue;
+        }
+        
         switch (cmd.command) {
           case 'SEARCH_SLOTS':
             const slotsResult = await this.searchSlots(cmd.params, context);
-            results.push({ type: 'slots', data: slotsResult.slots });
+
+            // Если есть ошибка (например, сотрудник не найден), передаем её в результат
+            if (slotsResult.error) {
+              results.push({
+                type: 'slots',
+                data: slotsResult.slots || [],
+                partialWindows: slotsResult.partialWindows,
+                error: slotsResult.error,
+                staffName: slotsResult.staffName,
+                availableStaff: slotsResult.availableStaff
+              });
+            } else {
+              results.push({
+                type: 'slots',
+                data: slotsResult.slots,
+                partialWindows: slotsResult.partialWindows,
+                // ✅ КРИТИЧНО: Передаём service и staff для Stage 2
+                service: slotsResult.service?.title || cmd.params.service_name,
+                staff: slotsResult.staff?.name || cmd.params.staff_name
+              });
+            }
+
             // Сохраняем информацию о последнем поиске для создания записи
             context.lastSearch = {
               service_name: cmd.params.service_name,
@@ -68,6 +212,8 @@ class CommandHandler {
               staff_id: slotsResult.staff?.yclients_id,
               staff_name: slotsResult.staff?.name,
               slots: slotsResult.slots,
+              partialWindows: slotsResult.partialWindows,
+              error: slotsResult.error,
               timestamp: new Date().toISOString()
             };
             break;
@@ -112,26 +258,64 @@ class CommandHandler {
             results.push({ type: 'booking_rescheduled', data: rescheduleResult });
             break;
             
+          case 'EXPLAIN_SERVICE':
+            const serviceExplanation = await this.explainService(cmd.params, context);
+            results.push({ type: 'service_explanation', data: serviceExplanation });
+            break;
+
           case 'CHECK_STAFF_SCHEDULE':
             const scheduleResult = await this.checkStaffSchedule(cmd.params, context);
-            results.push({ type: 'staff_schedule', data: scheduleResult });
-            // Сохраняем результат проверки для последующего использования в CREATE_BOOKING
-            if (scheduleResult.targetStaff) {
-              context.lastStaffCheck = {
-                staff_name: scheduleResult.targetStaff.name,
-                is_working: scheduleResult.targetStaff.isWorking,
-                date: scheduleResult.date,
-                timestamp: new Date().toISOString()
-              };
+
+            // Если есть ошибка (сотрудник не найден), передаем её
+            if (scheduleResult.error === 'staff_not_found') {
+              results.push({
+                type: 'staff_schedule',
+                data: scheduleResult
+              });
+            } else {
+              results.push({ type: 'staff_schedule', data: scheduleResult });
+              // Сохраняем результат проверки для последующего использования в CREATE_BOOKING
+              if (scheduleResult.targetStaff) {
+                context.lastStaffCheck = {
+                  staff_name: scheduleResult.targetStaff.name,
+                  is_working: scheduleResult.targetStaff.isWorking,
+                  date: scheduleResult.date,
+                  timestamp: new Date().toISOString()
+                };
+
+                // Сохраняем информацию о последнем упомянутом мастере в контекст для будущих вопросов
+                if (!context.conversationContext) {
+                  context.conversationContext = {};
+                }
+                context.conversationContext.lastMentionedStaff = {
+                  name: scheduleResult.targetStaff.name,
+                  timestamp: new Date().toISOString()
+                };
+              }
             }
+            break;
+            
+          case 'SHOWBOOKINGS':
+          case 'SHOW_BOOKINGS':
+            const bookingsListResult = await this.showBookings(cmd.params, context);
+            results.push({ type: 'bookings_list', data: bookingsListResult });
             break;
         }
       } catch (error) {
         logger.error(`Command ${cmd.command} failed:`, error);
+        // Получаем user-friendly сообщение об ошибке
+        const errorContext = {
+          operation: 'command_execution',
+          command: cmd.command,
+          params: cmd.params
+        };
+        const errorResult = errorMessages.getUserMessage(error, errorContext);
+        
         results.push({ 
           type: 'error', 
           command: cmd.command,
-          error: error.message,
+          error: errorResult.message,
+          technicalError: error.message,
           params: cmd.params // Добавляем параметры для обработки ошибок
         });
       }
@@ -141,19 +325,221 @@ class CommandHandler {
   }
 
   /**
+   * Валидация параметров команды
+   */
+  validateCommandParams(command, params) {
+    const requiredParams = {
+      'SEARCH_SLOTS': [], // date и service_name обрабатываются внутри метода
+      'CREATE_BOOKING': ['date', 'time'], // service определяется из контекста или lastSearch
+      'CANCEL_BOOKING': [], // booking_id определяется из контекста
+      'SHOW_PRICES': [], // category определяется из сообщения
+      'CHECK_STAFF_SCHEDULE': [], // staff и date определяются из сообщения
+    };
+    
+    const required = requiredParams[command];
+    if (!required) return { valid: true };
+    
+    const missing = [];
+    for (const param of required) {
+      if (!params[param] || params[param].trim() === '') {
+        missing.push(param);
+      }
+    }
+    
+    if (missing.length > 0) {
+      return {
+        valid: false,
+        error: `Не указаны обязательные параметры: ${missing.join(', ')}`
+      };
+    }
+    
+    return { valid: true };
+  }
+
+  /**
    * Поиск свободных слотов
    */
   async searchSlots(params, context) {
-    // Используем интеллектуальный поиск услуги
-    const service = serviceMatcher.findBestMatch(
-      params.service_name || '', 
-      context.services
-    );
+    // Сначала пытаемся использовать данные из контекста диалога
+    let serviceToSearch = params.service_name;
+    let staffToSearch = params.staff_name;
+    let dateToSearch = params.date;
+    
+    // Если услуга не указана в params, используем из контекста диалога
+    if (!serviceToSearch && !params.service_id && context.redisContext?.selection?.service) {
+      serviceToSearch = context.redisContext.selection.service;
+      logger.info('Using service from dialog context:', serviceToSearch);
+    }
+    
+    // Если мастер не указан в params, используем из контекста диалога
+    if (!staffToSearch && context.redisContext?.selection?.staff) {
+      staffToSearch = context.redisContext.selection.staff;
+      logger.info('Using staff from dialog context:', staffToSearch);
+    }
+    
+    // Если дата не указана в params, используем из контекста диалога
+    if (!dateToSearch && context.redisContext?.selection?.date) {
+      dateToSearch = context.redisContext.selection.date;
+      logger.info('Using date from dialog context:', dateToSearch);
+    }
+    
+    // Проверяем, что услуга указана (либо в params, либо в контексте)
+    if (!serviceToSearch && !params.service_id && !context.lastSearch?.service_id) {
+      logger.warn('SEARCH_SLOTS called without service specification');
+
+      // Пробуем определить услугу на основе истории клиента
+      if (context.client && context.client.last_services && context.client.last_services.length > 0) {
+        // Анализируем частоту использования услуг
+        const serviceFrequency = {};
+
+        // Считаем частоту из последних услуг
+        context.client.last_services.forEach(serviceName => {
+          serviceFrequency[serviceName] = (serviceFrequency[serviceName] || 0) + 1;
+        });
+
+        // Также анализируем историю визитов если есть
+        if (context.client.visit_history && Array.isArray(context.client.visit_history)) {
+          context.client.visit_history.slice(-10).forEach(visit => { // Последние 10 визитов
+            if (visit.services && Array.isArray(visit.services)) {
+              visit.services.forEach(serviceName => {
+                serviceFrequency[serviceName] = (serviceFrequency[serviceName] || 0) + 1;
+              });
+            }
+          });
+        }
+
+        // Находим самую популярную услугу
+        const sortedServices = Object.entries(serviceFrequency)
+          .sort(([,a], [,b]) => b - a);
+
+        // Проверяем, есть ли явный фаворит (используется в >50% случаев)
+        const totalCount = Object.values(serviceFrequency).reduce((a, b) => a + b, 0);
+        const topService = sortedServices[0];
+
+        if (topService && topService[1] >= totalCount * 0.5) {
+          // Есть явный фаворит - используем его
+          const favoriteServiceName = topService[0];
+          serviceToSearch = favoriteServiceName;
+          logger.info(`Using client's favorite service: ${favoriteServiceName} (${topService[1]}/${totalCount} times)`);
+        } else {
+          // Нет явного фаворита - нужно спросить
+          logger.info('No clear favorite service, need to ask client');
+          return {
+            service: null,
+            staff: null,
+            slots: [],
+            requiresServiceSelection: true,
+            topServices: sortedServices.slice(0, 3).map(([name, count]) => ({
+              name,
+              count,
+              percentage: Math.round((count / totalCount) * 100)
+            }))
+          };
+        }
+      } else {
+        // Новый клиент или нет истории - нужно спросить
+        return {
+          service: null,
+          staff: null,
+          slots: [],
+          requiresServiceSelection: true,
+          topServices: []
+        };
+      }
+    }
+    
+    // ПЕРСОНАЛИЗАЦИЯ: Используем интеллектуальный поиск услуги с учетом истории
+    let service;
+    if (params.service_id) {
+      // Если передан ID услуги, ищем по ID
+      service = context.services.find(s => s.yclients_id === parseInt(params.service_id));
+    } else if (context.lastSearch?.service_id && serviceToSearch) {
+      // 🎯 КРИТИЧНО: Если есть lastSearch, проверяем совпадает ли serviceToSearch
+      // Это означает что клиент УЖЕ искал эту услугу через EXPLAIN_SERVICE
+      const lastSearchService = context.services.find(s => s.yclients_id === context.lastSearch.service_id);
+      if (lastSearchService) {
+        const queryNormalized = serviceToSearch.toLowerCase().replace(/[^\wа-яё]/g, '');
+        const lastServiceNormalized = lastSearchService.title.toLowerCase().replace(/[^\wа-яё]/g, '');
+
+        // Если хотя бы одно слово совпадает - используем lastSearch (приоритет контексту!)
+        const queryWords = queryNormalized.split(/\s+/).filter(w => w.length > 2);
+        const lastServiceWords = lastServiceNormalized.split(/\s+/).filter(w => w.length > 2);
+        const hasCommonWord = queryWords.some(qw => lastServiceWords.some(lw => lw.includes(qw) || qw.includes(lw)));
+
+        if (hasCommonWord) {
+          service = lastSearchService;
+          logger.info('✅ Using service from lastSearch (context priority):', {
+            query: serviceToSearch,
+            lastSearchService: lastSearchService.title,
+            serviceId: lastSearchService.yclients_id
+          });
+        } else {
+          logger.warn('⚠️ serviceToSearch does not match lastSearch, using personalization:', {
+            query: serviceToSearch,
+            lastSearchService: lastSearchService.title
+          });
+        }
+      }
+    }
+
+    if (!service && serviceToSearch) {
+      // Ищем по названию с персонализацией
+      logger.info('Service search context check:', {
+        hasClient: !!context.client,
+        clientName: context.client?.name,
+        visitHistory: context.client?.visit_history?.length || 0,
+        lastServices: context.client?.last_services || []
+      });
+
+      if (context.client) {
+        // Логируем полную структуру клиента для отладки
+        logger.info('🔍 Client data structure for personalization:', {
+          hasName: !!context.client.name,
+          hasPhone: !!context.client.phone,
+          hasVisitHistory: !!context.client.visit_history,
+          visitHistoryLength: context.client.visit_history?.length || 0,
+          hasLastServices: !!context.client.last_services,
+          lastServicesCount: context.client.last_services?.length || 0,
+          hasVisitCount: !!context.client.visit_count,
+          visitCount: context.client.visit_count || 0,
+          hasAverageBill: !!context.client.average_bill,
+          averageBill: context.client.average_bill || 0,
+          // Показываем первые 2 визита для отладки
+          firstTwoVisits: context.client.visit_history?.slice(0, 2).map(v => ({
+            date: v.date,
+            services: v.services
+          }))
+        });
+
+        // Если есть информация о клиенте - используем персонализацию
+        const matches = serviceMatcher.findTopMatchesWithPersonalization(
+          serviceToSearch,
+          context.services,
+          context.client,
+          1
+        );
+        service = matches[0] || null;
+      } else {
+        // Иначе используем обычный поиск
+        service = serviceMatcher.findBestMatch(
+          serviceToSearch,
+          context.services
+        );
+      }
+    } else if (!service && context.lastSearch?.service_id) {
+      // Используем услугу из последнего поиска
+      service = context.services.find(s => s.yclients_id === context.lastSearch.service_id);
+    }
     
     if (!service) {
-      logger.warn('Service not found for query:', params.service_name);
-      // Возвращаем пустой массив слотов вместо использования первой услуги
-      return [];
+      logger.warn('Service not found for query:', params.service_name || params.service_id);
+      // Возвращаем корректную структуру с пустыми слотами
+      return { 
+        service: null, 
+        staff: null, 
+        slots: [],
+        error: `Услуга "${params.service_name || params.service_id}" не найдена`
+      };
     }
     
     logger.info('Found service for query:', {
@@ -162,31 +548,91 @@ class CommandHandler {
       serviceId: service.yclients_id
     });
     
-    // Находим staff если указан
+    // Находим staff если указан (используем staffToSearch который может быть из params или контекста)
     let targetStaff = null;
-    if (params.staff_name) {
-      targetStaff = context.staff.find(s => s.name.toLowerCase().includes(params.staff_name.toLowerCase()));
+    if (staffToSearch) {
+      targetStaff = context.staff.find(s => s.name.toLowerCase().includes(staffToSearch.toLowerCase()));
+      if (targetStaff) {
+        logger.info('Found staff for search:', {
+          query: staffToSearch,
+          found: targetStaff.name,
+          staffId: targetStaff.yclients_id
+        });
+      } else {
+        // Сотрудник с таким именем не найден
+        logger.warn(`Staff member not found: ${staffToSearch}`);
+        return {
+          service: service,
+          staff: null,
+          slots: [],
+          error: `staff_not_found`,
+          staffName: staffToSearch,
+          availableStaff: context.staff.map(s => s.name)
+        };
+      }
     }
     
     // Если мастер не указан, используем любимых мастеров клиента
-    const staffToCheck = targetStaff ? [targetStaff] : 
-      (context.client?.favorite_staff_ids?.length ? 
-        context.staff.filter(s => context.client.favorite_staff_ids.includes(s.yclients_id)) : 
+    const staffToCheck = targetStaff ? [targetStaff] :
+      (context.client?.favorite_staff_ids?.length ?
+        context.staff.filter(s => context.client.favorite_staff_ids.includes(s.yclients_id)) :
         context.staff.slice(0, 3)); // Берем топ-3 мастеров
-    
+
     // Проверяем слоты для нескольких мастеров
     const allSlots = [];
-    
-    // Логируем дату для отладки
-    const parsedDate = formatter.parseRelativeDate(params.date);
+
+    // Логируем дату для отладки (используем dateToSearch который может быть из params или контекста)
+    const parsedDate = formatter.parseRelativeDate(dateToSearch);
     logger.info('SEARCH_SLOTS date parsing:', {
-      originalDate: params.date,
+      originalDate: dateToSearch,
       parsedDate: parsedDate,
-      params: params
+      params: params,
+      fromContext: dateToSearch === context.redisContext?.selection?.date
     });
-    
+
+    // КРИТИЧЕСКОЕ ЛОГИРОВАНИЕ: выбор мастеров для поиска
+    logger.info('🔍 Staff selection for slot search:', {
+      service: service?.title,
+      serviceId: service?.yclients_id,
+      date: dateToSearch,
+      totalStaffInContext: context.staff?.length || 0,
+      staffToCheckCount: staffToCheck?.length || 0,
+      targetStaff: targetStaff?.name,
+      favoriteStaffIds: context.client?.favorite_staff_ids,
+      selectedStaff: staffToCheck?.map(s => ({
+        id: s.yclients_id,
+        name: s.name
+      })) || []
+    });
+
+    // Проверка на пустой массив
+    if (!staffToCheck || staffToCheck.length === 0) {
+      logger.error('❌ CRITICAL: No staff available for slot search!', {
+        contextStaffLength: context.staff?.length || 0,
+        contextStaffSample: context.staff?.slice(0, 3).map(s => ({ id: s.yclients_id, name: s.name })),
+        targetStaff: targetStaff?.name,
+        favoriteStaffIds: context.client?.favorite_staff_ids
+      });
+
+      return {
+        service,
+        staff: null,
+        slots: [],
+        partialWindows: [],
+        error: 'No staff available for this service'
+      };
+    }
+
     for (const staff of staffToCheck) {
       try {
+        logger.info('🔎 Checking slots for staff:', {
+          staffId: staff.yclients_id,
+          staffName: staff.name,
+          serviceId: service?.yclients_id,
+          serviceName: service?.title,
+          date: parsedDate
+        });
+
         // ВАЖНО: Проверяем слоты передавая и serviceId и staffId
         // YClients API вернет слоты только если мастер оказывает услугу
         const result = await bookingService.findSuitableSlot({
@@ -196,17 +642,41 @@ class CommandHandler {
           preferredDate: parsedDate,
           timePreference: params.time_preference
         });
-        
+
+        logger.info('📊 Slot search result for staff:', {
+          staffName: staff.name,
+          slotsFound: result.data?.data?.length || result.data?.length || 0,
+          hasData: !!result.data
+        });
+
         // Проверяем структуру результата
         const slots = result.data?.data || result.data || [];
         
         if (Array.isArray(slots) && slots.length > 0) {
+          // Фильтруем слоты по длительности услуги
+          // Услуга требует минимум service.duration времени
+          const serviceDuration = service?.raw_data?.duration || 3600; // По умолчанию 60 минут
+          
+          const validSlots = slots.filter(slot => {
+            // sum_length - общая доступная длительность слота
+            // Слот должен иметь достаточно времени для услуги
+            const slotDuration = slot.sum_length || slot.seance_length || 0;
+            const isValid = slotDuration >= serviceDuration;
+            
+            if (!isValid) {
+              logger.debug(`Filtering out slot ${slot.time}: duration ${slotDuration}s < required ${serviceDuration}s`);
+            }
+            
+            return isValid;
+          });
+          
           // Добавляем имя мастера к каждому слоту
-          slots.forEach(slot => {
+          validSlots.forEach(slot => {
             slot.staff_name = staff.name;
             slot.staff_id = staff.yclients_id;
+            slot.required_duration = serviceDuration;
           });
-          allSlots.push(...slots);
+          allSlots.push(...validSlots);
         }
       } catch (error) {
         logger.debug(`Ошибка получения слотов для ${staff.name}:`, error.message);
@@ -226,7 +696,50 @@ class CommandHandler {
       .sort(([, slotsA], [, slotsB]) => slotsB.length - slotsA.length)[0];
     
     if (!staffWithMostSlots) {
-      return { service, staff: null, slots: [] };
+      // Если нет полностью доступных слотов, проверяем частично доступные окна
+      let partialWindows = [];
+
+      if (service) {
+        logger.info('No fully available slots found, checking for partial windows...');
+
+        for (const staff of staffToCheck) {
+          try {
+            const result = await bookingService.findSuitableSlot({
+              companyId: context.company.yclients_id || context.company.company_id,
+              serviceId: service?.yclients_id,
+              staffId: staff?.yclients_id,
+              preferredDate: parsedDate,
+              timePreference: params.time_preference
+            });
+
+            // Проверяем наличие частично доступных окон в результате
+            if (result.partialWindows && result.partialWindows.length > 0) {
+              // Добавляем информацию о мастере к каждому окну
+              const windowsWithStaff = result.partialWindows.map(window => ({
+                ...window,
+                staff_name: staff.name,
+                staff_id: staff.yclients_id,
+                service_name: service.title,
+                service_id: service.yclients_id
+              }));
+              partialWindows.push(...windowsWithStaff);
+            }
+          } catch (error) {
+            logger.debug(`Error checking partial windows for ${staff.name}:`, error.message);
+          }
+        }
+
+        if (partialWindows.length > 0) {
+          logger.info(`Found ${partialWindows.length} partial windows for service ${service.title}`);
+        }
+      }
+
+      return {
+        service,
+        staff: null,
+        slots: [],
+        partialWindows: partialWindows
+      };
     }
     
     const [selectedStaffName, selectedSlots] = staffWithMostSlots;
@@ -250,9 +763,9 @@ class CommandHandler {
     if (!slots.length) return [];
     
     const timeZones = {
-      morning: { start: 9, end: 12, slots: [] },
-      afternoon: { start: 12, end: 17, slots: [] },
-      evening: { start: 17, end: 21, slots: [] }
+      morning: { start: 0, end: 12, slots: [] },   // Утро: с начала дня до 12:00
+      afternoon: { start: 12, end: 18, slots: [] }, // День: с 12:00 до 18:00
+      evening: { start: 18, end: 24, slots: [] }    // Вечер: с 18:00 до конца дня
     };
     
     slots.forEach(slot => {
@@ -287,7 +800,242 @@ class CommandHandler {
   /**
    * Создание записи
    */
+  /**
+   * Разворачивает композитные услуги в подуслуги для YClients API
+   * @param {number} serviceId - ID услуги
+   * @param {number} staffId - ID сотрудника
+   * @param {object} context - Контекст с данными о компании
+   * @returns {Promise<number[]>} - Массив ID услуг (или подуслуг для композитной услуги)
+   */
+  async expandCompositeService(serviceId, staffId, context) {
+    try {
+      const yclientsClient = bookingService.getYclientsClient();
+      const companyId = context.company.yclients_id || context.company.company_id;
+
+      // Получаем список услуг сотрудника
+      logger.info('Checking if service is composite:', { serviceId, staffId, companyId });
+
+      const servicesResult = await yclientsClient.getBookServices(companyId, { staff_id: staffId });
+
+      if (!servicesResult.success || !servicesResult.data) {
+        logger.warn('Failed to get services for staff, using original service ID');
+        return [serviceId];
+      }
+
+      // YClients возвращает { success, data: { data: { services, events, category } } }
+      // Извлекаем реальные данные от YClients API
+      const yclientsData = servicesResult.data?.data || servicesResult.data;
+
+      logger.info('Parsing book_services response:', {
+        hasDataData: !!servicesResult.data?.data,
+        yclientsDataKeys: yclientsData ? Object.keys(yclientsData) : 'null',
+        hasServices: yclientsData?.services !== undefined,
+        servicesType: typeof yclientsData?.services,
+        servicesLength: Array.isArray(yclientsData?.services) ? yclientsData.services.length : 'N/A'
+      });
+
+      const services = Array.isArray(yclientsData)
+        ? yclientsData
+        : (yclientsData?.services || yclientsData);
+
+      if (!Array.isArray(services)) {
+        logger.warn('Services is not an array, using original service ID:', {
+          servicesType: typeof services,
+          servicesValue: services
+        });
+        return [serviceId];
+      }
+
+      // Ищем нашу услугу
+      const service = services.find(s => s.id === serviceId);
+
+      if (!service) {
+        logger.warn('Service not found in staff services, using original service ID:', { serviceId });
+        return [serviceId];
+      }
+
+      // Проверяем, является ли услуга композитной
+      if (service.is_composite && service.composite_details && service.composite_details.links) {
+        const subServiceIds = service.composite_details.links
+          .sort((a, b) => a.position - b.position)
+          .map(link => link.service_id);
+
+        logger.info('✅ Expanded composite service:', {
+          compositeService: service.title,
+          compositeServiceId: serviceId,
+          subServices: service.composite_details.links.map(l => ({ id: l.service_id, title: l.title })),
+          subServiceIds
+        });
+
+        return subServiceIds;
+      }
+
+      // Если не композитная услуга, возвращаем оригинальный ID
+      logger.info('Service is not composite, using original ID:', { serviceId, title: service.title });
+      return [serviceId];
+
+    } catch (error) {
+      logger.error('Error expanding composite service, using original service ID:', {
+        serviceId,
+        error: error.message
+      });
+      // В случае ошибки возвращаем оригинальный ID
+      return [serviceId];
+    }
+  }
+
   async createBooking(params, context) {
+    // 🔴 КРИТИЧЕСКАЯ ПРОВЕРКА: Проверяем доступность слота перед созданием записи
+    if (params.time && context.lastSearch?.slots) {
+      const requestedTime = params.time;
+      const availableSlots = context.lastSearch.slots;
+      
+      // Извлекаем времена из слотов
+      const availableTimes = availableSlots.map(slot => {
+        if (typeof slot === 'string') return slot;
+        if (slot.time) return slot.time;
+        if (slot.datetime) {
+          const timePart = slot.datetime.split('T')[1];
+          if (timePart) return timePart.substring(0, 5);
+        }
+        return null;
+      }).filter(Boolean);
+      
+      logger.info('Checking slot availability before CREATE_BOOKING:', {
+        requestedTime,
+        availableTimes,
+        isAvailable: availableTimes.includes(requestedTime)
+      });
+      
+      // Если время недоступно - НЕ создаём запись
+      if (!availableTimes.includes(requestedTime)) {
+        logger.warn(`❌ Attempted to book unavailable time: ${requestedTime}`);
+        
+        // Находим ближайшие альтернативы
+        const alternatives = availableTimes
+          .filter(time => time !== requestedTime)
+          .slice(0, 3);
+        
+        return {
+          success: false,
+          error: `Время ${requestedTime} недоступно`,
+          alternatives: alternatives,
+          message: `К сожалению, время ${requestedTime} уже занято. Доступные слоты: ${alternatives.join(', ')}`
+        };
+      }
+      
+      logger.info(`✅ Time ${requestedTime} is available, proceeding with booking`);
+    } else if (params.time && !context.lastSearch?.slots) {
+      logger.warn('No previous slot search found, will search for availability');
+      
+      // Если нет предыдущего поиска, выполняем поиск слотов
+      try {
+        // Определяем услугу и мастера для поиска
+        let searchServiceId = params.service_id;
+        let searchStaffId = params.staff_id;
+        
+        // Если передан service_name, находим услугу
+        if (params.service_name && !searchServiceId) {
+          const service = serviceMatcher.findBestMatch(
+            params.service_name, 
+            context.services
+          );
+          if (service) {
+            searchServiceId = service.yclients_id;
+            logger.info('Found service for search:', {
+              query: params.service_name,
+              found: service.title,
+              serviceId: service.yclients_id
+            });
+          }
+        }
+        
+        // Если указано имя мастера, находим его
+        if (params.staff_name && !searchStaffId) {
+          const staffMember = context.staff.find(s => 
+            s.name.toLowerCase().includes(params.staff_name.toLowerCase())
+          );
+          if (staffMember) {
+            searchStaffId = staffMember.yclients_id;
+            logger.info('Found staff for search:', {
+              query: params.staff_name,
+              found: staffMember.name,
+              staffId: staffMember.yclients_id
+            });
+          }
+        }
+        
+        // Парсим дату
+        const parsedDate = formatter.parseRelativeDate(params.date);
+        
+        // Выполняем поиск слотов
+        logger.info('Performing slot search before booking:', {
+          serviceId: searchServiceId,
+          staffId: searchStaffId,
+          date: parsedDate
+        });
+        
+        const slotsResult = await this.searchSlots(
+          {
+            service_name: params.service_name,
+            service_id: searchServiceId,
+            staff_name: params.staff_name,
+            staff_id: searchStaffId,
+            date: params.date
+          },
+          context
+        );
+        
+        // Extract actual slots array from the result
+        const slots = slotsResult.slots || [];
+        
+        if (!slots || slots.length === 0) {
+          return {
+            success: false,
+            error: 'Не удалось проверить доступность времени',
+            message: 'К сожалению, не могу найти свободные слоты для записи.'
+          };
+        }
+        
+        // Обновляем контекст с результатами поиска
+        context.lastSearch = {
+          slots: slots,
+          service_id: searchServiceId,
+          staff_id: searchStaffId,
+          date: parsedDate
+        };
+        
+        // Проверяем доступность запрашиваемого времени
+        const requestedTime = params.time;
+        const isAvailable = slots.some(slot => 
+          slot.time === requestedTime || 
+          slot.time.startsWith(requestedTime)
+        );
+        
+        if (!isAvailable) {
+          const alternatives = slots
+            .slice(0, 3)
+            .map(slot => slot.time);
+          
+          return {
+            success: false,
+            error: 'Время недоступно',
+            message: `К сожалению, время ${requestedTime} уже занято. Доступные слоты: ${alternatives.join(', ')}`
+          };
+        }
+        
+        logger.info(`✅ Time ${requestedTime} is available after search, proceeding with booking`);
+        
+      } catch (error) {
+        logger.error('Failed to search slots before booking:', error);
+        return {
+          success: false,
+          error: 'Ошибка при проверке доступности',
+          message: 'Не удалось проверить доступность времени. Попробуйте еще раз.'
+        };
+      }
+    }
+    
     // Проверяем, если указан конкретный мастер
     if (params.staff_name && context.lastStaffCheck) {
       // Проверяем, что это тот же мастер и дата
@@ -306,15 +1054,66 @@ class CommandHandler {
     
     // Если передан service_name вместо service_id, ищем услугу
     let serviceId = params.service_id;
-    if (params.service_name && !params.service_id) {
-      const service = serviceMatcher.findBestMatch(
-        params.service_name, 
-        context.services
-      );
+
+    // 🎯 КРИТИЧНО: Если есть lastSearch с service_id, используем его НАПРЯМУЮ
+    // Это означает, что клиент уже выбрал услугу через SEARCH_SLOTS/EXPLAIN_SERVICE
+    if (!params.service_id && context.lastSearch?.service_id && params.service_name) {
+      // Проверяем, что service_name примерно совпадает с lastSearch
+      const lastSearchService = context.services.find(s => s.yclients_id === context.lastSearch.service_id);
+      if (lastSearchService) {
+        const queryNormalized = params.service_name.toLowerCase().replace(/[^\wа-яё]/g, ' ').trim();
+        const lastServiceNormalized = lastSearchService.title.toLowerCase().replace(/[^\wа-яё]/g, ' ').trim();
+
+        // Если хотя бы одно слово совпадает - используем lastSearch (приоритет контексту!)
+        const queryWords = queryNormalized.split(/\s+/);
+        const lastServiceWords = lastServiceNormalized.split(/\s+/);
+        const hasCommonWord = queryWords.some(qw => lastServiceWords.some(lw => lw.includes(qw) || qw.includes(lw)));
+
+        if (hasCommonWord) {
+          serviceId = context.lastSearch.service_id;
+          logger.info('✅ Using service_id from lastSearch (context priority):', {
+            query: params.service_name,
+            lastSearchService: lastSearchService.title,
+            serviceId: serviceId
+          });
+        } else {
+          logger.warn('⚠️ service_name does not match lastSearch, using personalization:', {
+            query: params.service_name,
+            lastSearchService: lastSearchService.title
+          });
+        }
+      }
+    }
+
+    if (params.service_name && !serviceId) {
+      // ПЕРСОНАЛИЗАЦИЯ: Используем персонализированный поиск для CREATE_BOOKING
+      let service;
+      if (context.client) {
+        const matches = serviceMatcher.findTopMatchesWithPersonalization(
+          params.service_name,
+          context.services,
+          context.client,
+          1
+        );
+        service = matches[0] || null;
+        if (service && service.personalization_reason) {
+          logger.info('Personalized service selection:', {
+            query: params.service_name,
+            found: service.title,
+            reason: service.personalization_reason
+          });
+        }
+      } else {
+        service = serviceMatcher.findBestMatch(
+          params.service_name,
+          context.services
+        );
+      }
+
       if (service) {
         serviceId = service.yclients_id;
-        logger.info('Found service by name:', { 
-          query: params.service_name, 
+        logger.info('Found service by name:', {
+          query: params.service_name,
           found: service.title,
           serviceId: service.yclients_id
         });
@@ -322,7 +1121,7 @@ class CommandHandler {
     } else if (params.service_id === 'last') {
       // Если AI передал "last", используем данные из последнего поиска
       serviceId = context.lastSearch?.service_id;
-    } else {
+    } else if (params.service_id) {
       serviceId = parseInt(params.service_id);
     }
     
@@ -430,7 +1229,9 @@ class CommandHandler {
           requestedTime, 
           availableSlots: context.lastSearch.slots.map(s => s.time) 
         });
-        throw new Error(`Время ${requestedTime} недоступно. Выберите другое время из предложенных.`);
+        const unavailableError = new Error(`Время ${requestedTime} недоступно`);
+        unavailableError.code = 'TIME_UNAVAILABLE';
+        throw unavailableError;
       }
     }
     
@@ -445,24 +1246,63 @@ class CommandHandler {
     // Извлекаем чистый номер телефона (убираем @c.us)
     const cleanPhone = (context.client?.phone || context.phone || '').replace('@c.us', '');
     
-    // Получаем имя клиента из контекста или Redis
-    let clientName = context.client?.name;
+    // ПРИОРИТЕТ 1: Если передан client_name в параметрах команды (ответ на "Как вас зовут?")
+    let clientName = params.client_name;
+    
+    // ПРИОРИТЕТ 2: Если client_name не передан, берем из контекста клиента
+    if (!clientName) {
+      clientName = context.client?.name;
+    }
     
     logger.info('Initial client name check:', { 
-      clientName, 
+      clientName,
+      fromParams: params.client_name,
+      fromContext: context.client?.name,
       hasClient: !!context.client,
       clientData: context.client,
       currentMessage: context.currentMessage 
     });
     
-    // Если имени нет в контексте клиента, проверяем Redis
+    // ПРИОРИТЕТ 3: Если имени нет в контексте клиента, проверяем Redis
     if (!clientName) {
-      const contextService = require('../../context');
-      const redisContext = await contextService.getContext(cleanPhone);
-      if (redisContext && redisContext.clientName) {
-        clientName = redisContext.clientName;
+      const contextServiceV2 = require('../../context/context-service-v2');
+      const companyId = context.company?.yclients_id || context.company?.company_id;
+      try {
+        const redisContext = await contextServiceV2.getFullContext(cleanPhone, companyId);
+        if (redisContext && redisContext.clientName) {
+          clientName = redisContext.clientName;
+        }
+        logger.info('Redis context check:', { clientName, redisContext });
+      } catch (error) {
+        logger.error('Failed to get Redis context:', error);
       }
-      logger.info('Redis context check:', { clientName, redisContext });
+    }
+    
+    // Если имя было передано через params.client_name, сохраняем его
+    if (params.client_name && params.client_name !== context.client?.name) {
+      logger.info('Saving client name from params to Redis:', { 
+        name: params.client_name, 
+        phone: cleanPhone 
+      });
+      
+      const contextServiceV2 = require('../../context/context-service-v2');
+      const companyId = context.company?.yclients_id || context.company?.company_id;
+      
+      // Сохраняем в Redis
+      await contextServiceV2.updateDialogContext(cleanPhone, companyId, {
+        clientName: params.client_name
+      });
+      
+      // Обновляем контекст текущей сессии
+      if (context.client) {
+        context.client.name = params.client_name;
+      } else {
+        context.client = {
+          phone: cleanPhone,
+          name: params.client_name,
+          company_id: companyId
+        };
+      }
     }
     
     // ВСЕГДА проверяем, не представился ли клиент в текущем сообщении
@@ -484,9 +1324,9 @@ class CommandHandler {
         logger.info('Using name from current message:', { name: clientName, phone: cleanPhone });
         
         // Сохраняем в Redis для будущего использования
-        const contextService = require('../../context');
-        await contextService.updateContext(cleanPhone, context.company.yclients_id || context.company.company_id, {
-          clientInfo: { name: clientName }
+        const contextServiceV2 = require('../../context/context-service-v2');
+        await contextServiceV2.updateDialogContext(cleanPhone, context.company.yclients_id || context.company.company_id, {
+          clientName: clientName
         });
         
         // Обновляем контекст текущей сессии
@@ -504,7 +1344,9 @@ class CommandHandler {
     
     // Если имя все еще не найдено, это ошибка
     if (!clientName) {
-      throw new Error('Пожалуйста, сначала представьтесь. Как вас зовут?');
+      const nameError = new Error('Требуется имя клиента');
+      nameError.code = 'CLIENT_NAME_REQUIRED';
+      throw nameError;
     }
     
     // Проверяем, что staff_id определен
@@ -514,7 +1356,9 @@ class CommandHandler {
         params,
         lastSearch: context.lastSearch
       });
-      throw new Error('Не удалось определить мастера для записи. Пожалуйста, укажите конкретного мастера.');
+      const staffError = new Error('Мастер не определен');
+      staffError.code = 'STAFF_NOT_SPECIFIED';
+      throw staffError;
     }
     
     // Проверяем, что время указано
@@ -526,7 +1370,10 @@ class CommandHandler {
       });
       throw new Error('Не указано время для записи. Пожалуйста, укажите желаемое время.');
     }
-    
+
+    // Разворачиваем композитные услуги в подуслуги
+    let serviceIds = await this.expandCompositeService(serviceId, staffId, context);
+
     const bookingData = {
       phone: cleanPhone,
       fullname: clientName,
@@ -534,7 +1381,7 @@ class CommandHandler {
       comment: "Запись через AI администратора WhatsApp",
       appointments: [{
         id: 1,
-        services: [serviceId],
+        services: serviceIds,
         staff_id: staffId,
         datetime: `${parsedDate} ${params.time}:00`
       }]
@@ -657,8 +1504,8 @@ class CommandHandler {
           lastBookingDate: parsedDate
         };
         
-        await contextService.savePreferences(
-          context.phone.replace('@c.us', ''), 
+        await contextServiceV2.savePreferences(
+          InternationalPhone.normalize(context.phone) || context.phone.replace('@c.us', ''), 
           context.company.company_id || context.company.yclients_id,
           preferences
         );
@@ -668,6 +1515,18 @@ class CommandHandler {
         logger.error('Failed to save preferences:', error);
         // Не прерываем процесс если не удалось сохранить предпочтения
       }
+    }
+    
+    // Инвалидируем кеш контекста после успешного создания записи
+    try {
+      await contextServiceV2.invalidateFullContextCache(
+        context.phone || cleanPhone, 
+        context.company.company_id || context.company.yclients_id
+      );
+      logger.info('Context cache invalidated after booking creation');
+    } catch (error) {
+      logger.error('Failed to invalidate context cache:', error);
+      // Не прерываем процесс если не удалось инвалидировать кеш
     }
     
     // Возвращаем объект с нужными полями для отображения
@@ -686,77 +1545,216 @@ class CommandHandler {
    * Получение прайс-листа
    */
   async getPrices(params, context) {
-    const { services } = context;
+    const { services, message } = context;
     
-    if (params.category) {
-      const searchTerm = params.category.toLowerCase().trim();
-      logger.info(`Searching prices for category: "${params.category}"`);
+    // Пытаемся найти категорию или услуги по запросу
+    let filteredServices = [];
+    let detectedCategory = params.category;
+    
+    if (message) {
+      const messageLower = message.toLowerCase();
       
-      // Создаем карту ключевых слов для лучшего поиска
-      const searchKeywords = {
-        'стрижка': ['мужская стрижка', 'стрижка машинкой', 'стрижка ножницами', 'детская стрижка', 'стрижка для', 'стрижка +'],
-        'борода': ['борода', 'усы', 'моделирование бороды'],
-        'окрашивание': ['окрашивание', 'тонирование', 'мелирование', 'осветление'],
-        'укладка': ['укладка', 'стайлинг', 'прическа'],
-        'маникюр': ['маникюр', 'ногти', 'покрытие', 'дизайн ногтей'],
-        'педикюр': ['педикюр', 'стопы'],
-        'брови': ['брови', 'бровей', 'коррекция бровей', 'окрашивание бровей'],
-        'ресницы': ['ресницы', 'ресниц', 'наращивание ресниц', 'ламинирование ресниц'],
-        'массаж': ['массаж', 'spa', 'релакс'],
-        'эпиляция': ['эпиляция', 'депиляция', 'шугаринг', 'воск']
-      };
+      // УЛУЧШЕНИЕ: Используем ServiceMatcher для более точного поиска
+      // Ищем конкретную услугу или категорию
+      const searchQuery = params.service_name || params.category || message;
       
-      // Сначала пробуем найти по точному совпадению с ключевыми словами
-      let keywords = searchKeywords[searchTerm] || [searchTerm];
-      
-      // Фильтруем услуги по релевантности
-      const filtered = services.filter(s => {
-        const title = s.title?.toLowerCase() || '';
-        const category = s.category_title?.toLowerCase() || '';
+      // Если спрашивают про конкретную услугу - используем ServiceMatcher
+      if (searchQuery && searchQuery.length > 2) {
+        // ПЕРСОНАЛИЗАЦИЯ: Используем ServiceMatcher с учетом истории клиента
+        const topMatches = context.client 
+          ? serviceMatcher.findTopMatchesWithPersonalization(searchQuery, services, context.client, 20)
+          : serviceMatcher.findTopMatches(searchQuery, services, 20);
         
-        // Приоритет точному совпадению с ключевыми словами
-        return keywords.some(keyword => 
-          title.includes(keyword) || category.includes(keyword)
-        );
-      });
+        if (topMatches.length > 0) {
+          filteredServices = topMatches;
+          
+          // Определяем категорию по найденным услугам
+          const firstService = topMatches[0];
+          const titleLower = firstService.title?.toLowerCase() || '';
+          
+          // Специальная логика для стрижек
+          if (titleLower.includes('стриж')) {
+            detectedCategory = 'стрижки';
+          } else if (titleLower.includes('бород') || titleLower.includes('усы')) {
+            detectedCategory = 'борода и усы';
+          } else if (titleLower.includes('детск')) {
+            detectedCategory = 'детские услуги';
+          } else {
+            // Определяем по паттернам
+            for (const [categoryKey, categoryConfig] of Object.entries(serviceSearchConfig.categoryPatterns)) {
+              const hasKeyword = categoryConfig.keywords.some(keyword => 
+                titleLower.includes(keyword)
+              );
+              if (hasKeyword) {
+                detectedCategory = categoryConfig.categoryName;
+                break;
+              }
+            }
+          }
+          
+          if (!detectedCategory) {
+            detectedCategory = 'найденные услуги';
+          }
+          
+          logger.info(`ServiceMatcher found ${topMatches.length} services for: "${searchQuery}"`);
+        }
+      }
       
-      // Сортируем по релевантности и цене
-      const sorted = filtered.sort((a, b) => {
-        // Сначала сортируем по точному совпадению в начале названия
-        const aStartsWith = keywords.some(k => a.title?.toLowerCase().startsWith(k));
-        const bStartsWith = keywords.some(k => b.title?.toLowerCase().startsWith(k));
+      // Если ServiceMatcher не нашел - используем старую логику с паттернами
+      if (filteredServices.length === 0) {
+        // Проверяем паттерны категорий из конфигурации
+        let categoryFound = false;
+        for (const [categoryKey, categoryConfig] of Object.entries(serviceSearchConfig.categoryPatterns)) {
+          // Проверяем, содержит ли сообщение ключевые слова категории
+          const hasKeyword = categoryConfig.keywords.some(keyword => 
+            messageLower.includes(keyword)
+          );
+          
+          if (hasKeyword) {
+            // Фильтруем услуги по ключевым словам категории
+            filteredServices = services.filter(s => {
+              const titleLower = s.title?.toLowerCase() || '';
+              return categoryConfig.keywords.some(keyword => 
+                titleLower.includes(keyword)
+              );
+            });
+            
+            if (filteredServices.length > 0) {
+              detectedCategory = categoryConfig.categoryName;
+              logger.info(`Found ${filteredServices.length} services in category: ${detectedCategory}`);
+              categoryFound = true;
+              break; // Используем первую найденную категорию
+            }
+          }
+        }
         
-        if (aStartsWith && !bStartsWith) return -1;
-        if (!aStartsWith && bStartsWith) return 1;
-        
-        // Затем по цене
-        const priceA = a.price_min || a.price || 0;
-        const priceB = b.price_min || b.price || 0;
-        return priceA - priceB;
-      });
-      
-      logger.info(`Found ${sorted.length} services matching "${params.category}"`);
-      
-      // Возвращаем только первые 10 наиболее релевантных услуг
-      return sorted.slice(0, 10);
+        // Если категория не найдена, используем fuzzy matching
+        if (!categoryFound) {
+          const keywords = FuzzyMatcher.extractKeywords(message);
+          const searchQuery = keywords.join(' ') || message;
+          
+          logger.info(`Fallback to FuzzyMatcher with query: "${searchQuery}"`);
+          
+          filteredServices = FuzzyMatcher.findBestMatches(searchQuery, services, serviceSearchConfig.fuzzyMatchConfig);
+          
+          // Если нашли услуги - определяем категорию по первой найденной услуге
+          if (filteredServices.length > 0) {
+            detectedCategory = 'найденные услуги';
+          }
+        }
+      }
     }
     
-    // Если категория не указана, возвращаем популярные услуги
-    logger.info(`Returning popular services`);
+    // Если указана категория в параметрах - фильтруем по названию услуги
+    if (params.category && filteredServices.length === 0) {
+      detectedCategory = params.category;
+      const searchTerm = detectedCategory.toLowerCase();
+      filteredServices = services.filter(service => 
+        service.title?.toLowerCase().includes(searchTerm)
+      );
+    }
     
-    // Фильтруем базовые услуги (без комплексных)
-    const basicServices = services.filter(s => {
-      const title = s.title?.toLowerCase() || '';
-      // Исключаем комплексные услуги
-      return !title.includes(' + ') && !title.includes('отец') && !title.includes('luxina');
+    // Если после всех попыток ничего не нашли - показываем популярные
+    if (filteredServices.length === 0) {
+      logger.info('No specific services found, returning categorized all services');
+      // УЛУЧШЕНИЕ: Вместо случайных - показываем ВСЕ услуги категоризированно
+      filteredServices = services;
+      detectedCategory = 'все услуги';
+    }
+    
+    // Сортируем по популярности и весу
+    const sorted = businessLogic.sortServicesForClient(filteredServices, context.client);
+    
+    // УЛУЧШЕНИЕ: Категоризируем услуги для лучшего отображения
+    const categorizedPrices = this.categorizeServices(sorted);
+    
+    // Логируем результат для отладки
+    const result = {
+      category: detectedCategory,
+      count: sorted.length,
+      prices: sorted.slice(0, 30).map(s => ({ // Увеличили лимит до 30
+        title: s.title,
+        price_min: s.price_min || s.price || 0,
+        price_max: s.price_max || s.price || s.price_min || 0,
+        duration: s.duration || 60,
+        category: s.category_title,
+        description: s.description || null // Добавляем описание услуги
+      })),
+      categorized: categorizedPrices // Новое поле с категоризацией
+    };
+    
+    logger.info(`📋 SHOW_PRICES returning ${result.prices.length} services for "${detectedCategory}":`, {
+      query: params.service_name || params.category || message,
+      totalFound: sorted.length,
+      returnedCount: result.prices.length,
+      services: result.prices.map(p => p.title).slice(0, 10) // Показываем первые 10 названий
     });
     
-    // Сортируем по цене и возвращаем первые 15
-    return basicServices.sort((a, b) => {
-      const priceA = a.price_min || a.price || 0;
-      const priceB = b.price_min || b.price || 0;
-      return priceA - priceB;
-    }).slice(0, 15);
+    // Возвращаем структурированные данные
+    return result;
+  }
+  
+  /**
+   * Категоризирует услуги для удобного отображения
+   */
+  categorizeServices(services) {
+    const categories = {
+      'Быстрые и недорогие': [],
+      'Стрижки': [],
+      'Детские услуги': [],
+      'Борода и усы': [],
+      'Комплексные услуги': [],
+      'Премиум услуги': [],
+      'Акции и спецпредложения': [],
+      'Другие услуги': []
+    };
+    
+    services.forEach(service => {
+      const titleLower = service.title?.toLowerCase() || '';
+      const price = service.price || service.price_min || 0;
+      
+      // Быстрые и недорогие (до 1500₽ или машинкой)
+      if (price <= 1500 || titleLower.includes('машинк') || titleLower.includes('экспресс')) {
+        categories['Быстрые и недорогие'].push(service);
+      }
+      // Детские
+      else if (titleLower.includes('детск') || titleLower.includes('ребен') || titleLower.includes('сын')) {
+        categories['Детские услуги'].push(service);
+      }
+      // Борода
+      else if (titleLower.includes('бород') || titleLower.includes('усы') || titleLower.includes('бритье')) {
+        categories['Борода и усы'].push(service);
+      }
+      // Комплексные (содержат +)
+      else if (service.title?.includes('+')) {
+        categories['Комплексные услуги'].push(service);
+      }
+      // Премиум
+      else if (titleLower.includes('luxina') || titleLower.includes('премиум') || titleLower.includes('vip') || price >= 4000) {
+        categories['Премиум услуги'].push(service);
+      }
+      // Акции
+      else if (titleLower.includes('счастлив') || titleLower.includes('акци') || titleLower.includes('скидк')) {
+        categories['Акции и спецпредложения'].push(service);
+      }
+      // Стрижки
+      else if (titleLower.includes('стриж')) {
+        categories['Стрижки'].push(service);
+      }
+      // Другие
+      else {
+        categories['Другие услуги'].push(service);
+      }
+    });
+    
+    // Удаляем пустые категории
+    Object.keys(categories).forEach(key => {
+      if (categories[key].length === 0) {
+        delete categories[key];
+      }
+    });
+    
+    return categories;
   }
 
   /**
@@ -865,15 +1863,10 @@ class CommandHandler {
     }
     
     // Сохраняем имя в Redis для будущих сессий
-    const contextService = require('../../context');
+    const contextServiceV2 = require('../../context/context-service-v2');
     const companyId = context.company.yclients_id || context.company.company_id;
-    await contextService.updateContext(cleanPhone, companyId, {
-      clientInfo: { name: params.name }
-    });
-    
-    // Также сохраняем в основной контекст для обратной совместимости
-    await contextService.setContext(cleanPhone, companyId, {
-      data: { clientName: params.name }
+    await contextServiceV2.updateDialogContext(cleanPhone, companyId, {
+      clientName: params.name
     });
     
     // Инвалидируем кеш контекста чтобы при следующем запросе загрузить обновленные данные
@@ -890,10 +1883,10 @@ class CommandHandler {
   }
 
   /**
-   * Обработка отмены записи
+   * Показать список активных записей клиента
    */
-  async cancelBooking(params, context) {
-    const phone = context.phone.replace('@c.us', '');
+  async showBookings(params, context) {
+    const phone = InternationalPhone.normalize(context.phone) || context.phone.replace('@c.us', '');
     
     // Получаем список всех записей клиента
     const bookingsResult = await bookingService.getClientBookings(phone, context.company.company_id);
@@ -914,30 +1907,9 @@ class CommandHandler {
       };
     }
     
-    // Сортируем записи по дате создания (последние созданные первыми)
-    const sortedBookings = bookingsResult.bookings.sort((a, b) => {
-      // Если есть поле created_at, используем его
-      if (a.created && b.created) {
-        return new Date(b.created) - new Date(a.created);
-      }
-      // Иначе используем ID (больший ID = более новая запись)
-      return b.id - a.id;
-    });
-    
-    // Берём последнюю созданную запись
-    const lastBooking = sortedBookings[0];
-    
-    logger.info(`Attempting to cancel last booking with ID: ${lastBooking.id}`, {
-      datetime: lastBooking.datetime,
-      services: lastBooking.services?.map(s => s.title).join(', '),
-      staff: lastBooking.staff?.name
-    });
-    
-    // Отменяем последнюю запись
-    const cancelResult = await bookingService.cancelBooking(lastBooking.id, context.company.company_id);
-    
-    if (cancelResult.success) {
-      const date = new Date(lastBooking.datetime);
+    // Форматируем список записей для отображения
+    const formattedBookings = bookingsResult.bookings.map(booking => {
+      const date = new Date(booking.datetime);
       const dateStr = date.toLocaleDateString('ru-RU', { 
         day: 'numeric', 
         month: 'long',
@@ -949,13 +1921,153 @@ class CommandHandler {
       });
       
       return {
+        id: booking.id,
+        date: dateStr,
+        time: timeStr,
+        services: booking.services?.map(s => s.title).join(', ') || 'Услуга не указана',
+        staff: booking.staff?.name || 'Мастер не указан',
+        status: booking.attendance === 2 ? 'Подтверждена' : 'Ожидает подтверждения'
+      };
+    });
+    
+    return {
+      success: true,
+      bookings: formattedBookings,
+      total: formattedBookings.length,
+      message: `У вас ${formattedBookings.length} активных записей`
+    };
+  }
+
+  /**
+   * Обработка отмены записи
+   */
+  async cancelBooking(params, context) {
+    const phone = InternationalPhone.normalize(context.phone) || context.phone.replace('@c.us', '');
+    
+    // Получаем список всех записей клиента
+    const bookingsResult = await bookingService.getClientBookings(phone, context.company.company_id);
+    
+    if (!bookingsResult.success) {
+      return {
+        success: false,
+        error: bookingsResult.error,
+        message: 'Не удалось получить список записей'
+      };
+    }
+    
+    if (!bookingsResult.bookings || bookingsResult.bookings.length === 0) {
+      return {
+        success: true,
+        bookings: [],
+        message: 'У вас нет активных записей'
+      };
+    }
+    
+    let targetBooking = null;
+    
+    // Если есть параметры для фильтрации, пытаемся найти конкретную запись
+    if (params.date || params.time || params.service || params.staff_name) {
+      logger.info('Searching for specific booking with params:', params);
+      
+      targetBooking = bookingsResult.bookings.find(booking => {
+        const bookingDate = new Date(booking.datetime);
+        
+        // Проверяем дату
+        if (params.date) {
+          const targetDate = new Date(params.date);
+          if (bookingDate.toDateString() !== targetDate.toDateString()) {
+            return false;
+          }
+        }
+        
+        // Проверяем время
+        if (params.time) {
+          const bookingTime = bookingDate.toLocaleTimeString('ru-RU', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          });
+          if (!bookingTime.includes(params.time)) {
+            return false;
+          }
+        }
+        
+        // Проверяем мастера
+        if (params.staff_name && booking.staff?.name) {
+          if (!booking.staff.name.toLowerCase().includes(params.staff_name.toLowerCase())) {
+            return false;
+          }
+        }
+        
+        // Проверяем услугу
+        if (params.service && booking.services?.length > 0) {
+          const hasService = booking.services.some(s => 
+            s.title.toLowerCase().includes(params.service.toLowerCase())
+          );
+          if (!hasService) {
+            return false;
+          }
+        }
+        
+        return true;
+      });
+      
+      if (!targetBooking) {
+        logger.warn('Could not find booking matching params, falling back to latest booking');
+      }
+    }
+    
+    // Если конкретная запись не найдена, берём последнюю созданную
+    if (!targetBooking) {
+      // Сортируем записи по дате/времени записи (ближайшие первыми)
+      const sortedBookings = bookingsResult.bookings.sort((a, b) => {
+        return new Date(a.datetime) - new Date(b.datetime);
+      });
+      
+      // Берём первую (ближайшую) запись
+      targetBooking = sortedBookings[0];
+    }
+    
+    logger.info(`Attempting to cancel booking with ID: ${targetBooking.id}`, {
+      datetime: targetBooking.datetime,
+      services: targetBooking.services?.map(s => s.title).join(', '),
+      staff: targetBooking.staff?.name
+    });
+    
+    // Отменяем выбранную запись
+    const cancelResult = await bookingService.cancelBooking(targetBooking.id, context.company.company_id);
+    
+    if (cancelResult.success) {
+      const date = new Date(targetBooking.datetime);
+      const dateStr = date.toLocaleDateString('ru-RU', { 
+        day: 'numeric', 
+        month: 'long',
+        weekday: 'short'
+      });
+      const timeStr = date.toLocaleTimeString('ru-RU', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      
+      // Инвалидируем кеш контекста после успешной отмены
+      try {
+        const contextServiceV2 = require('../../context/context-service-v2');
+        await contextServiceV2.invalidateFullContextCache(
+          context.phone, 
+          context.company.company_id || context.company.yclients_id
+        );
+        logger.info('Context cache invalidated after booking cancellation');
+      } catch (error) {
+        logger.error('Failed to invalidate context cache:', error);
+      }
+      
+      return {
         success: true,
         directCancellation: true,
         cancelledBooking: {
           date: dateStr,
           time: timeStr,
-          services: lastBooking.services?.map(s => s.title).join(', '),
-          staff: lastBooking.staff?.name
+          services: targetBooking.services?.map(s => s.title).join(', '),
+          staff: targetBooking.staff?.name
         },
         message: `✅ Запись на ${dateStr} в ${timeStr} успешно отменена!`
       };
@@ -1041,7 +2153,7 @@ class CommandHandler {
    * Перенос записи
    */
   async rescheduleBooking(params, context) {
-    const phone = context.phone.replace('@c.us', '');
+    const phone = InternationalPhone.normalize(context.phone) || context.phone.replace('@c.us', '');
     const companyId = context.company.yclients_id || context.company.company_id;
     
     try {
@@ -1080,8 +2192,12 @@ class CommandHandler {
         return (b.id || 0) - (a.id || 0);
       });
       
+      // Поддерживаем оба формата параметров для обратной совместимости
+      const date = params.date || params.new_date;
+      const time = params.time || params.new_time;
+      
       // Если не указаны новые дата и время, запрашиваем их
-      if (!params.date || !params.time) {
+      if (!date || !time) {
         return {
           success: false,
           needsDateTime: true,
@@ -1106,13 +2222,13 @@ class CommandHandler {
       const recordId = bookingToReschedule.id;
       
       // Парсим новую дату и время
-      const targetDate = formatter.parseRelativeDate(params.date);
+      const targetDate = formatter.parseRelativeDate(date);
       // Формируем дату-время для YClients API (ожидает локальное время)
-      const isoDateTime = `${targetDate}T${params.time}:00`;
+      const isoDateTime = `${targetDate}T${time}:00`;
       
       logger.info('📅 Date formatting for reschedule', {
-        inputDate: params.date,
-        inputTime: params.time,
+        inputDate: date,
+        inputTime: time,
         parsedDate: targetDate,
         formattedDateTime: isoDateTime
       });
@@ -1127,57 +2243,79 @@ class CommandHandler {
       
       // Проверяем доступность нового времени
       const staffId = bookingToReschedule.staff?.id || bookingToReschedule.staff_id;
-      const serviceIds = bookingToReschedule.services?.map(s => s.id) || [];
-      
+      const serviceId = bookingToReschedule.services?.[0]?.id || null;
+
       logger.info('🔍 Checking slot availability for reschedule', {
         staffId,
         date: targetDate,
-        time: params.time,
-        serviceIds
+        time: time,
+        serviceId,
+        excludeRecordId: recordId
       });
-      
-      // Получаем доступные слоты
-      const yclientsClient = bookingService.getYclientsClient();
-      const slotsResult = await yclientsClient.getAvailableSlots(
+
+      // Получаем длительность услуги для валидации
+      let serviceDuration = null;
+      if (serviceId) {
+        try {
+          const servicesResult = await bookingService.getServices({ service_id: serviceId }, companyId);
+          if (servicesResult.success && servicesResult.data && servicesResult.data.length > 0) {
+            serviceDuration = servicesResult.data[0].seance_length;
+            logger.info(`Service duration for validation: ${serviceDuration / 60} minutes`);
+          }
+        } catch (err) {
+          logger.warn('Could not get service duration for validation:', err.message);
+        }
+      }
+
+      // Получаем доступные слоты с валидацией, ИСКЛЮЧАЯ текущую запись клиента
+      const slotsResult = await bookingService.getAvailableSlots(
         staffId,
         targetDate,
-        { service_ids: serviceIds },
-        companyId
+        serviceId,
+        companyId,
+        true, // validateSlots = true
+        serviceDuration,
+        null, // service object
+        recordId // excludeRecordId - исключаем текущую запись!
       );
-      
-      if (slotsResult.success && Array.isArray(slotsResult.data)) {
+
+      if (slotsResult.success) {
+        const slots = Array.isArray(slotsResult.data) ? slotsResult.data :
+                     (slotsResult.data.data ? slotsResult.data.data : []);
+
         // Проверяем, есть ли нужное время в доступных слотах
-        const requestedTime = params.time;
-        const slotAvailable = slotsResult.data.some(slot => {
+        const requestedTime = time;
+        const slotAvailable = slots.some(slot => {
           const slotTime = slot.time || slot;
           return slotTime === requestedTime || slotTime === `${requestedTime}:00`;
         });
-        
+
         if (!slotAvailable) {
           // Находим ближайшие доступные слоты
-          const nearbySlots = slotsResult.data
+          const nearbySlots = slots
             .map(slot => slot.time || slot)
-            .filter(time => {
-              const slotHour = parseInt(time.split(':')[0]);
+            .filter(slotTime => {
+              const slotHour = parseInt(slotTime.split(':')[0]);
               const requestedHour = parseInt(requestedTime.split(':')[0]);
               return Math.abs(slotHour - requestedHour) <= 2; // В пределах 2 часов
             })
             .slice(0, 3);
-          
+
           return {
             success: false,
             slotNotAvailable: true,
             requestedTime: requestedTime,
             nearbySlots: nearbySlots,
             message: `К сожалению, время ${requestedTime} уже занято.`,
-            suggestions: nearbySlots.length > 0 
+            suggestions: nearbySlots.length > 0
               ? `Доступное время поблизости: ${nearbySlots.join(', ')}`
               : 'В этот день нет доступного времени рядом с желаемым.'
           };
         }
       }
-      
+
       // Пытаемся перенести запись через простой API
+      const yclientsClient = bookingService.getYclientsClient();
       const rescheduleResult = await yclientsClient.rescheduleRecord(
         companyId,
         recordId,
@@ -1291,10 +2429,83 @@ class CommandHandler {
   }
 
   /**
+   * Объяснить что такое услуга
+   */
+  async explainService(params, context) {
+    const { service_name } = params;
+
+    if (!service_name) {
+      return {
+        error: 'service_name_required',
+        message: 'Не указано название услуги'
+      };
+    }
+
+    logger.info(`EXPLAIN_SERVICE called for: ${service_name}`);
+
+    // Используем ServiceMatcher для поиска услуги
+    const serviceMatcher = require('./service-matcher');
+    const matches = serviceMatcher.findTopMatches(service_name, context.services, 1);
+
+    if (matches.length === 0) {
+      return {
+        error: 'service_not_found',
+        query: service_name,
+        message: `Услуга "${service_name}" не найдена`
+      };
+    }
+
+    const service = matches[0];
+
+    // ✅ СОХРАНЯЕМ услугу в контекст после объяснения
+    // Теперь когда клиент ответит "Да, записывай", система будет знать о какой услуге речь
+    try {
+      logger.info(`💾 Saving explained service to context: ${service.title}`);
+
+      await contextServiceV2.updateDialogContext(context.phone, context.company.id, {
+        selection: {
+          service: service.title,  // Фиксируем услугу в контексте
+          lastCommand: 'EXPLAIN_SERVICE',
+          explainedServiceAt: new Date().toISOString()
+        }
+      });
+
+      logger.info(`✅ Context updated: service="${service.title}" saved for ${context.phone}`);
+    } catch (error) {
+      logger.error('Failed to save explained service to context:', error);
+      // Не блокируем ответ, если не удалось сохранить контекст
+    }
+
+    // Возвращаем детальную информацию об услуге
+    return {
+      service: {
+        title: service.title,
+        price_min: service.price_min || service.price || 0,
+        price_max: service.price_max || service.price || service.price_min || 0,
+        duration: service.duration || 60,
+        category: service.category_title,
+        description: service.description || null,
+        // Добавляем список мастеров, кто может выполнить услугу
+        staff: service.raw_data?.staff?.map(s => s.name) || []
+      }
+    };
+  }
+
+  /**
    * Проверить расписание мастера
    */
   async checkStaffSchedule(params, context) {
-    const { staff_name, date } = params;
+    let { staff_name, date } = params;
+    
+    // Если не указан мастер, но есть в контексте последний упомянутый - используем его
+    if (!staff_name && context.conversationContext?.lastMentionedStaff?.name) {
+      const timeSinceLastMention = Date.now() - new Date(context.conversationContext.lastMentionedStaff.timestamp).getTime();
+      // Используем контекст, если прошло менее 10 минут
+      if (timeSinceLastMention < 10 * 60 * 1000) {
+        staff_name = context.conversationContext.lastMentionedStaff.name;
+        logger.info(`Using last mentioned staff from context: ${staff_name}`);
+      }
+    }
     
     // Парсим дату
     const dateStr = formatter.parseRelativeDate(date || 'сегодня');
@@ -1303,10 +2514,32 @@ class CommandHandler {
     // Находим мастера по имени
     let staff = null;
     if (staff_name) {
-      staff = context.staff.find(s => 
+      staff = context.staff.find(s =>
         s.name.toLowerCase().includes(staff_name.toLowerCase()) ||
         staff_name.toLowerCase().includes(s.name.toLowerCase())
       );
+
+      // Если сотрудник не найден - сразу возвращаем ошибку
+      if (!staff) {
+        logger.warn(`Staff member not found in CHECK_STAFF_SCHEDULE: ${staff_name}`);
+        return {
+          success: false,
+          error: 'staff_not_found',
+          staffName: staff_name,
+          availableStaff: context.staff.map(s => s.name),
+          date: dateStr,
+          formattedDate: formatHumanDate(targetDate)
+        };
+      }
+
+      // Обновляем контекст последнего упомянутого мастера
+      if (!context.conversationContext) {
+        context.conversationContext = {};
+      }
+      context.conversationContext.lastMentionedStaff = {
+        name: staff.name,
+        timestamp: new Date().toISOString()
+      };
     }
     
     // Получаем расписание из базы данных
@@ -1331,11 +2564,36 @@ class CommandHandler {
       };
     }
     
+    // Если проверяем конкретного мастера - получим его рабочие дни на ближайшие 14 дней
+    let workingDays = [];
+    if (staff) {
+      const futureDate = new Date(dateStr);
+      futureDate.setDate(futureDate.getDate() + 14);
+      const futureDateStr = futureDate.toISOString().split('T')[0];
+      
+      const { data: futureSchedules } = await supabase
+        .from('staff_schedules')
+        .select('date, is_working, has_booking_slots')
+        .eq('staff_id', staff.yclients_id)
+        .gte('date', dateStr)
+        .lte('date', futureDateStr)
+        .eq('is_working', true)
+        .eq('has_booking_slots', true)
+        .order('date', { ascending: true });
+      
+      if (futureSchedules && futureSchedules.length > 0) {
+        workingDays = futureSchedules.map(s => {
+          // Используем человечное форматирование дат
+          return formatHumanDate(s.date);
+        });
+      }
+    }
+    
     // Формируем результат
     const result = {
       date: dateStr,
       originalDate: date || 'сегодня',
-      formattedDate: formatter.formatDate(targetDate),
+      formattedDate: formatHumanDate(targetDate),
       staff: [],
       working: [],
       notWorking: [],
@@ -1384,8 +2642,28 @@ class CommandHandler {
         found: !!staffSchedule,
         isWorking: staffSchedule?.is_working && staffSchedule?.has_booking_slots,
         date: result.originalDate,
-        formattedDate: result.formattedDate
+        formattedDate: result.formattedDate,
+        workingDays: workingDays.length > 0 ? workingDays : null,
+        workHours: null
       };
+      
+      // Если мастер работает сегодня - определим часы работы
+      if (staffSchedule?.is_working && staffSchedule?.working_hours) {
+        try {
+          let hours = staffSchedule.working_hours;
+          // Если working_hours это массив
+          if (Array.isArray(hours) && hours.length > 0) {
+            const freeSlots = hours.filter(slot => slot.is_free);
+            if (freeSlots.length > 0) {
+              const firstTime = freeSlots[0].time;
+              const lastTime = freeSlots[freeSlots.length - 1].time;
+              result.targetStaff.workHours = `${firstTime}-${lastTime}`;
+            }
+          }
+        } catch (e) {
+          logger.debug('Could not parse work hours:', e);
+        }
+      }
     }
     
     return result;
@@ -1393,7 +2671,7 @@ class CommandHandler {
 
   removeCommands(response) {
     // Убираем команды в квадратных скобках
-    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|SHOW_PORTFOLIO|SAVE_CLIENT_NAME|CANCEL_BOOKING|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING|CHECK_STAFF_SCHEDULE|SHOWBOOKINGS)[^\]]*\]/g, '');
+    let cleaned = response.replace(/\[(SEARCH_SLOTS|CREATE_BOOKING|SHOW_PRICES|EXPLAIN_SERVICE|SHOW_PORTFOLIO|SAVE_CLIENT_NAME|CANCEL_BOOKING|CONFIRM_BOOKING|MARK_NO_SHOW|RESCHEDULE_BOOKING|CHECK_STAFF_SCHEDULE|SHOWBOOKINGS)[^\]]*\]/g, '');
     
     // Убираем технические фразы в скобках (расширенный список)
     cleaned = cleaned.replace(/\([^)]*(?:клиент|тестовое|команду|обратите внимание|поскольку|После выполнения|если.*работает|Если.*работает|После проверки|продолжить запись|предложить альтернативы|сразу запишем)[^)]*\)/gi, '');

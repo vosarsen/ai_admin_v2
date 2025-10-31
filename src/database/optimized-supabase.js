@@ -2,14 +2,17 @@
 const { createClient } = require('@supabase/supabase-js');
 const Redis = require('ioredis');
 const config = require("../config");
+const { getRedisConfig } = require("../config/redis-config");
 const logger = require("../utils/logger");
 
 // Redis для быстрого кэширования
-const redis = new Redis(config.redis.url, {
-  password: config.redis.password,
-  maxRetriesPerRequest: 3,
-  enableReadyCheck: true,
-  enableOfflineQueue: true
+const redisConfig = getRedisConfig();
+const redis = new Redis(redisConfig);
+
+logger.debug('OptimizedSupabase Redis config:', {
+  host: redisConfig.host,
+  port: redisConfig.port,
+  hasPassword: !!redisConfig.password
 });
 
 // Пул соединений Supabase
