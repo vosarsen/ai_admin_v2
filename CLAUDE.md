@@ -30,6 +30,44 @@ Use MCP servers instead of SSH/scripts for faster access:
 
 **Redis tunnel required:** `./scripts/maintain-redis-tunnel.sh start`
 
+## 🎯 Claude Code Skills System
+
+**Auto-Activation System** - Skills automatically suggest themselves based on your prompts and file context.
+
+### Available Skills
+
+| Skill | When It Activates | Purpose |
+|-------|-------------------|---------|
+| **backend-dev-guidelines** | Working with src/ files, API, services, queues | Node.js/Express/TypeScript/BullMQ best practices |
+| **skill-developer** | Creating/modifying skills, hooks | Meta-skill for managing Claude Code skills |
+| **route-tester** | Testing API routes/endpoints | Testing patterns for authenticated routes |
+| **error-tracking** | Error handling, monitoring, logging | Error handling and monitoring best practices |
+
+### How It Works
+
+1. **UserPromptSubmit Hook** - Analyzes your prompts for keywords (backend, service, API, error, etc.)
+2. **PostToolUse Hook** - Tracks file changes to understand context
+3. **skill-rules.json** - Configuration with triggers adapted for AI Admin v2 structure
+
+### Manual Skill Invocation
+
+```bash
+# If auto-activation doesn't trigger, manually invoke:
+/skill backend-dev-guidelines
+/skill route-tester
+/skill error-tracking
+/skill skill-developer
+```
+
+### Configuration
+
+- **Skills:** `.claude/skills/` - 4 specialized skills with resources
+- **Rules:** `.claude/skills/skill-rules.json` - Activation triggers
+- **Hooks:** `.claude/hooks/` - Auto-activation scripts
+- **Settings:** `.claude/settings.json` - Hook configuration
+
+**Source:** Based on [claude-code-infrastructure-showcase](https://github.com/diet103/claude-code-infrastructure-showcase)
+
 ## 📍 Environment
 
 - **Local:** /Users/vosarsen/Documents/GitHub/ai_admin_v2
@@ -311,7 +349,7 @@ USE_LEGACY_SUPABASE=false  # Переключение на Timeweb PostgreSQL
 - ✅ Полный контроль и надежность
 
 ---
-**Last updated:** October 31, 2025
+**Last updated:** November 3, 2025
 **Current branch:** main (GitHub Flow с короткими feature ветками)
 **AI Provider:** Gemini 2.5 Flash (via USA VPN) - 2.6x faster, $77/month savings 🚀
-**Latest change:** 🗄️ Подготовка к миграции на Timeweb PostgreSQL - схема готова, модули созданы, документация написана 🎉
+**Latest change:** 🎯 Интеграция Claude Code Skills System - автоактивация скиллов, 4 специализированных skill, hooks для контекстной помощи 🎓
