@@ -16,12 +16,24 @@
                     "skill rules",
                     "hook system",
                     "skill development",
-                    "skill-rules.json"
+                    "skill-rules.json",
+                    "система скиллов",
+                    "создать скилл",
+                    "добавить скилл",
+                    "триггеры скиллов",
+                    "правила скиллов",
+                    "система хуков",
+                    "разработка скиллов",
+                    "скилл",
+                    "хук"
                 ],
                 "intentPatterns": [
                     "(how do|how does|explain).*?skill",
                     "(create|add|modify|build).*?skill",
-                    "skill.*?(work|trigger|activate|system)"
+                    "skill.*?(work|trigger|activate|system)",
+                    "(как|объясни).*?скилл",
+                    "(создать|добавить|изменить).*?скилл",
+                    "скилл.*?(работа(ет|ют)|триггер|актив)"
                 ]
             }
         },
@@ -51,14 +63,41 @@
                     "booking",
                     "AI admin",
                     "context service",
-                    "integration"
+                    "integration",
+                    "бэкенд",
+                    "бекенд",
+                    "backend разработка",
+                    "сервис",
+                    "контроллер",
+                    "маршрут",
+                    "роут",
+                    "маршрутизация",
+                    "эндпоинт",
+                    "точка входа",
+                    "мидлвар",
+                    "промежуточное ПО",
+                    "валидация",
+                    "проверка",
+                    "очередь",
+                    "воркер",
+                    "обработчик",
+                    "ватсап",
+                    "вацап",
+                    "бронирование",
+                    "запись",
+                    "интеграция"
                 ],
                 "intentPatterns": [
                     "(create|add|implement|build).*?(route|endpoint|API|controller|service|integration)",
                     "(fix|handle|debug).*?(error|exception|backend|queue)",
                     "(add|implement).*?(middleware|validation|error.*?handling)",
                     "(organize|structure|refactor).*?(backend|service|API)",
-                    "(how to|best practice).*?(backend|route|controller|service|queue|worker)"
+                    "(how to|best practice).*?(backend|route|controller|service|queue|worker)",
+                    "(создать|добавить|реализовать|сделать).*?(маршрут|роут|эндпоинт|контроллер|сервис|интеграц)",
+                    "(исправить|обработать|дебаг|отладить).*?(ошибк|исключение|бэкенд|бекенд|очередь)",
+                    "(добавить|реализовать).*?(мидлвар|валидац|обработк.*?ошибок)",
+                    "(организовать|структурир|рефактор).*?(бэкенд|бекенд|сервис|API)",
+                    "(как|лучшая практика).*?(бэкенд|бекенд|маршрут|контроллер|сервис|очередь|воркер)"
                 ]
             },
             "fileTriggers": {
@@ -108,12 +147,29 @@
                     "test booking",
                     "test WhatsApp",
                     "test message",
-                    "integration test"
+                    "integration test",
+                    "тест маршрут",
+                    "тест роут",
+                    "тест эндпоинт",
+                    "тестирование маршрута",
+                    "тестирование роута",
+                    "тестирование API",
+                    "проверить маршрут",
+                    "проверить роут",
+                    "тест бронирование",
+                    "тест запись",
+                    "тест ватсап",
+                    "тест сообщение",
+                    "интеграционный тест",
+                    "тест интеграции"
                 ],
                 "intentPatterns": [
                     "(test|debug|verify).*?(route|endpoint|API)",
                     "(how to|how do I).*?test.*?(route|endpoint|API)",
-                    "test.*?(booking|whatsapp|message|sync)"
+                    "test.*?(booking|whatsapp|message|sync)",
+                    "(тест|тестировать|проверить|отладить).*?(маршрут|роут|эндпоинт|API)",
+                    "(как|как мне).*?тест.*?(маршрут|роут|эндпоинт|API)",
+                    "тест.*?(бронирование|запись|ватсап|сообщение|синхронизац)"
                 ]
             },
             "fileTriggers": {
@@ -147,12 +203,35 @@
                     "crash",
                     "failure",
                     "telegram alert",
-                    "notification"
+                    "notification",
+                    "обработка ошибок",
+                    "ошибка",
+                    "ошибки",
+                    "исключение",
+                    "отслеживание ошибок",
+                    "мониторинг",
+                    "логирование",
+                    "логи",
+                    "отладка",
+                    "дебаг",
+                    "сбой",
+                    "крэш",
+                    "падение",
+                    "упал",
+                    "не работает",
+                    "алерт",
+                    "оповещение",
+                    "уведомление",
+                    "телеграм алерт",
+                    "telegram оповещение"
                 ],
                 "intentPatterns": [
                     "(add|create|implement|setup).*?(error handling|error tracking|monitoring)",
                     "(fix|handle|catch).*?(error|exception|crash)",
-                    "(how to|best practice).*?(error|monitoring|logging)"
+                    "(how to|best practice).*?(error|monitoring|logging)",
+                    "(добавить|создать|реализовать|настроить).*?(обработк.*?ошибок|отслеживание.*?ошибок|мониторинг)",
+                    "(исправить|обработать|поймать|отловить).*?(ошибк|исключение|сбой|крэш|падение)",
+                    "(как|лучшая практика).*?(ошибк|мониторинг|логирование|лог)"
                 ]
             },
             "fileTriggers": {
@@ -190,8 +269,8 @@
         },
         "customization": {
             "pathPatterns": "Configured for single backend application structure (src/services/, src/api/, src/queue/)",
-            "keywords": "Include AI Admin v2 specific terms (WhatsApp, YClients, booking, BullMQ)",
-            "intentPatterns": "Use regex for flexible user intent matching"
+            "keywords": "Include AI Admin v2 specific terms (WhatsApp, YClients, booking, BullMQ) + Russian translations for all keywords",
+            "intentPatterns": "Use regex for flexible user intent matching. Support both English and Russian prompts."
         }
     }
 }
