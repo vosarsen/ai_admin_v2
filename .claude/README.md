@@ -24,10 +24,12 @@ This directory contains Claude Code configuration, skills, hooks, and automation
 
 ### How Auto-Activation Works
 
-1. **You write a prompt** mentioning keywords like "backend", "service", "API", "error", etc.
+1. **You write a prompt** mentioning keywords like "backend", "service", "API", "error" (or in Russian: "бэкенд", "сервис", "ошибка", etc.)
 2. **UserPromptSubmit hook** analyzes your prompt against `skill-rules.json`
 3. **Skill suggestion** appears if triggers match
 4. **You can accept or ignore** the suggestion
+
+**Language Support:** 🇬🇧 English + 🇷🇺 Russian - система работает с промптами на обоих языках!
 
 ### Available Skills
 
@@ -63,8 +65,8 @@ If auto-activation doesn't work, manually invoke skills:
 ### skill-rules.json
 
 Defines when skills activate based on:
-- **Keywords** in prompts (e.g., "backend", "service", "API")
-- **Intent patterns** (regex for flexible matching)
+- **Keywords** in prompts (e.g., "backend" / "бэкенд", "service" / "сервис", "API")
+- **Intent patterns** (regex for flexible matching in English & Russian)
 - **File path patterns** (e.g., `src/**/*.ts`)
 - **Content patterns** (e.g., `router.`, `export.*Service`)
 
@@ -72,6 +74,19 @@ Defines when skills activate based on:
 - Single backend application structure (not monorepo)
 - Specific to our tech stack (Express, BullMQ, WhatsApp, YClients)
 - Covers our project directories (src/services/, src/api/, src/queue/)
+- **Bilingual support:** English + Russian keywords and patterns
+
+**Example triggers (English):**
+- "create a new service for booking"
+- "fix error in queue processing"
+- "test the API endpoint"
+- "how to handle errors in worker"
+
+**Example triggers (Russian):**
+- "создать новый сервис для бронирования"
+- "исправить ошибку в обработке очереди"
+- "протестировать эндпоинт API"
+- "как обработать ошибки в воркере"
 
 ### settings.json
 
