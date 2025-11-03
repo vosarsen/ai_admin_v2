@@ -70,6 +70,102 @@ Use MCP servers instead of SSH/scripts for faster access:
 
 **Source:** Based on [claude-code-infrastructure-showcase](https://github.com/diet103/claude-code-infrastructure-showcase)
 
+## 📋 Dev Docs System - Task Management
+
+**"Out of everything (besides skills), this has made the most impact"** - diet103
+
+### The Problem
+Claude has "extreme amnesia" - loses track of what you're doing on large tasks, especially after context compaction.
+
+### The Solution
+Persistent documentation system that survives context resets:
+
+```
+dev/active/[task-name]/
+  ├── [task-name]-plan.md      # What we're building
+  ├── [task-name]-context.md   # Where we are + key decisions
+  └── [task-name]-tasks.md     # What's done, what's next
+```
+
+### Workflow
+
+**1. Start Any Task >30 minutes:**
+```bash
+/dev-docs implement WhatsApp message queueing
+```
+Auto-creates plan + context + tasks files with comprehensive breakdown.
+
+**2. During Implementation:**
+- Mark tasks ✅ completed immediately
+- Update context with key decisions
+- Note blockers and workarounds
+
+**3. Before Context Limits (~10-15% left):**
+```bash
+/dev-docs-update
+```
+Captures current state, decisions, next steps - ready for seamless continuation.
+
+**4. After Context Reset:**
+- Read all three files
+- Continue exactly where you left off
+- No "what was I doing?" moments
+
+### Slash Commands
+
+| Command | Purpose | When to Use |
+|---------|---------|-------------|
+| `/dev-docs [description]` | Create strategic plan + 3 files | Starting any task >30 min |
+| `/dev-docs-update` | Update docs before compaction | Context ~10-15% remaining |
+| `/route-research-for-testing` | Research & test API routes | API development |
+
+### Specialized Agents
+
+Available in `.claude/agents/`:
+- **code-architecture-reviewer** - Reviews code for best practices
+- **auto-error-resolver** - Systematically fixes errors
+- **plan-reviewer** - Reviews plans before implementation
+- **documentation-architect** - Creates/updates documentation
+- **web-research-specialist** - Researches issues and solutions
+
+Launch with: `Task(subagent_type='agent-name', description='...', prompt='...')`
+
+### Error Handling Reminder
+
+**Stop Hook** runs after each response:
+- Detects risky patterns (try-catch, async, database calls)
+- Shows gentle self-check reminders
+- Non-blocking awareness system
+
+Example:
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 ERROR HANDLING SELF-CHECK
+⚠️  Backend Changes Detected (2 files)
+   ❓ Did you add proper error handling?
+   💡 Backend Best Practice:
+      - All errors should be captured
+      - Controllers should extend BaseController
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+Disable: `export SKIP_ERROR_REMINDER=1`
+
+### Best Practices
+
+**✅ Do:**
+- Use `/dev-docs` for ANY task >30 minutes
+- Update context BEFORE running low
+- Mark tasks completed IMMEDIATELY
+- Include file paths & line numbers in notes
+
+**❌ Don't:**
+- Skip dev docs thinking task is "quick"
+- Batch-update tasks at end
+- Leave vague notes like "fixed bug"
+
+**See:** `dev/README.md` for complete guide
+
 ## 📍 Environment
 
 - **Local:** /Users/vosarsen/Documents/GitHub/ai_admin_v2
@@ -343,15 +439,8 @@ USE_LEGACY_SUPABASE=false  # Переключение на Timeweb PostgreSQL
 - **Краткая сводка:** `docs/TIMEWEB_POSTGRES_SUMMARY.md`
 - **Quick Start:** `QUICK_START_TIMEWEB_POSTGRES.md`
 
-### Преимущества
-
-- ✅ 152-ФЗ соответствие (данные в РФ)
-- ✅ Латентность <1ms (vs 50-100ms в Supabase)
-- ✅ Производительность 50-100x быстрее
-- ✅ Полный контроль и надежность
-
 ---
 **Last updated:** November 3, 2025
 **Current branch:** main (GitHub Flow с короткими feature ветками)
 **AI Provider:** Gemini 2.5 Flash (via USA VPN) - 2.6x faster, $77/month savings 🚀
-**Latest change:** 🎯 Интеграция Claude Code Skills System - автоактивация скиллов, 4 специализированных skill, hooks для контекстной помощи 🎓
+**Latest change:** 📋 Dev Docs System + Specialized Agents + Error Handling Hook - полная имплементация инфраструктуры из diet103/claude-code-infrastructure-showcase 🎓
