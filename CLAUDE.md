@@ -121,14 +121,32 @@ Captures current state, decisions, next steps - ready for seamless continuation.
 
 ### Specialized Agents
 
-Available in `.claude/agents/`:
-- **code-architecture-reviewer** - Reviews code for best practices
-- **auto-error-resolver** - Systematically fixes errors
-- **plan-reviewer** - Reviews plans before implementation
-- **documentation-architect** - Creates/updates documentation
-- **web-research-specialist** - Researches issues and solutions
+Available in `.claude/agents/` (10 агентов):
 
-Launch with: `Task(subagent_type='agent-name', description='...', prompt='...')`
+**Quality Control:**
+- **code-architecture-reviewer** - Reviews code for best practices adherence
+- **auto-error-resolver** - Systematically fixes TypeScript/build errors
+- **refactor-planner** - Creates comprehensive refactoring plans
+- **code-refactor-master** - Executes complex refactoring tasks
+
+**Testing & Debugging:**
+- **auth-route-tester** - Tests backend routes with authentication
+- **auth-route-debugger** - Debugs 401/403 errors and route issues
+- **frontend-error-fixer** - Diagnoses and fixes frontend errors (React/MUI)
+
+**Planning & Strategy:**
+- **plan-reviewer** - Reviews implementation plans before starting
+- **documentation-architect** - Creates/updates comprehensive documentation
+- **web-research-specialist** - Researches issues, best practices, solutions
+
+**Usage:** `Task(subagent_type='agent-name', description='...', prompt='...')`
+
+**Example:**
+```python
+Task(subagent_type='code-architecture-reviewer',
+     description='Review booking service changes',
+     prompt='Review the recent changes in src/services/booking/ for best practices')
+```
 
 ### Error Handling Reminder
 
