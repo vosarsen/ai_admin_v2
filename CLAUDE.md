@@ -34,6 +34,8 @@ Use MCP servers instead of SSH/scripts for faster access:
 
 **Auto-Activation System** - Skills automatically suggest themselves based on your prompts and file context.
 
+**Language Support:** 🇬🇧 English + 🇷🇺 Russian - работает с промптами на обоих языках!
+
 ### Available Skills
 
 | Skill | When It Activates | Purpose |
