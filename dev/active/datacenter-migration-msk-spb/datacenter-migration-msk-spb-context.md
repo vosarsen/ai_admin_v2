@@ -1,9 +1,46 @@
 # Datacenter Migration Context
-**Last Updated: 2025-11-06**
+**Last Updated: 2025-11-06 22:00 UTC**
+
+---
+
+## 🚨 CRITICAL DISCOVERY - Phase 0 INCOMPLETE (2025-11-06 22:00)
+
+**STATUS:** ⚠️ **PARTIAL MIGRATION - BAILEYS STILL USING SUPABASE**
+
+### What We Discovered After Phase 0
+
+**The Problem:**
+- ✅ Data migrated to Timeweb: whatsapp_auth (1), whatsapp_keys (728)
+- ❌ **Baileys STILL READS FROM SUPABASE** (not from Timeweb!)
+- ❌ Other tables NOT migrated: clients (1,299), services (63), staff (12), bookings (38)
+
+**Root Cause:**
+```javascript
+// src/integrations/whatsapp/auth-state-supabase.js
+const { supabase } = require('../../database/supabase');  // ❌ Hardcoded
+
+// This file connects DIRECTLY to Supabase, ignoring USE_LEGACY_SUPABASE flag
+```
+
+**Architecture Issues:**
+- `USE_LEGACY_SUPABASE=false` only affects `src/database/postgres.js`
+- Baileys auth state uses separate `auth-state-supabase.js` module
+- 59 files in codebase reference Supabase directly
+- 11 sync scripts write to Supabase
+- Business data (clients/services/staff) in Supabase, used by app
+
+**User Decision:** Migrate EVERYTHING (Variant B)
+- Timeline: Conservative (3 weeks)
+- Downtime: 4-6 hours (full migration)
+- Testing: Production (off-peak)
+- Priority: Baileys + Business data + Active bookings
+
+**Next Phase:** Create complete migration plan for ALL tables
 
 ---
 
 ## 🎉 Phase 0 EXECUTION COMPLETE - 2025-11-06 16:58 UTC
+**NOTE:** Data migrated but NOT being used yet - need Phase 0.7 to fix
 
 **Status:** ✅ **SUCCESSFULLY EXECUTED - ALL SERVICES ONLINE**
 **Execution Date:** 2025-11-06 (13:56-16:58 Moscow Time)
