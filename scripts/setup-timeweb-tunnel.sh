@@ -52,7 +52,9 @@ function start_tunnel() {
     echo "📋 Connection details:"
     echo "   Host: localhost"
     echo "   Port: $LOCAL_PORT"
-    echo "   Connection string: postgresql://gen_user:PASSWORD@localhost:$LOCAL_PORT/default_db"
+    echo "   User: gen_user"
+    echo "   Password: }X|oM595A<7n?0"
+    echo "   Connection string: postgresql://gen_user:%7DX%7CoM595A%3C7n%3F0@localhost:$LOCAL_PORT/default_db"
     echo ""
     echo "💡 To stop tunnel: $0 stop"
   else

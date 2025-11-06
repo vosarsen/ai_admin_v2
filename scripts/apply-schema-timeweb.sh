@@ -19,13 +19,15 @@ if [ -z "$POSTGRES_CONNECTION_STRING" ]; then
   POSTGRES_PORT="${POSTGRES_PORT:-5432}"
   POSTGRES_DATABASE="${POSTGRES_DATABASE:-default_db}"
   POSTGRES_USER="${POSTGRES_USER:-gen_user}"
+  # ⚠️ Default password - override via .env for security
+  POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-\}X|oM595A<7n?0}"
 
   if [ -z "$POSTGRES_PASSWORD" ]; then
     echo "❌ POSTGRES_PASSWORD not set!"
     echo ""
     echo "Set it via environment variable or .env file:"
-    echo "  export POSTGRES_PASSWORD='your_password'"
-    echo "  or add to .env: POSTGRES_PASSWORD=your_password"
+    echo "  export POSTGRES_PASSWORD='}X|oM595A<7n?0'"
+    echo "  or add to .env: POSTGRES_PASSWORD=}X|oM595A<7n?0"
     exit 1
   fi
 
