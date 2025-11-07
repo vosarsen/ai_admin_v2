@@ -125,6 +125,7 @@ log "2️⃣ WhatsApp Connection:"
 if [[ -f "$LOG_FILE_OUT" ]]; then
     # Check for WhatsApp connection directly in file (avoid variable size limits)
     # Use 20K lines to ensure we catch messages even with growing logs
+    # Capture exit code to prevent set -e from treating "not found" as error
     if tail -20000 "$LOG_FILE_OUT" | grep -q "WhatsApp connected for company 962302"; then
         LAST_CONNECTION=$(tail -20000 "$LOG_FILE_OUT" | grep "WhatsApp connected for company 962302" | tail -1)
         log_success "WhatsApp is connected"
