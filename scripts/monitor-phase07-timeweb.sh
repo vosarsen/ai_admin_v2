@@ -124,8 +124,9 @@ log "2️⃣ WhatsApp Connection:"
 
 if [[ -f "$LOG_FILE_OUT" ]]; then
     # Check for WhatsApp connection directly in file (avoid variable size limits)
-    if tail -10000 "$LOG_FILE_OUT" | grep -q "WhatsApp connected for company 962302"; then
-        LAST_CONNECTION=$(tail -10000 "$LOG_FILE_OUT" | grep "WhatsApp connected for company 962302" | tail -1)
+    # Use 20K lines to ensure we catch messages even with growing logs
+    if tail -20000 "$LOG_FILE_OUT" | grep -q "WhatsApp connected for company 962302"; then
+        LAST_CONNECTION=$(tail -20000 "$LOG_FILE_OUT" | grep "WhatsApp connected for company 962302" | tail -1)
         log_success "WhatsApp is connected"
         CONNECTION_TIME=$(echo "$LAST_CONNECTION" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' || echo 'recent')
         log "   Last connection: $CONNECTION_TIME"
@@ -145,7 +146,7 @@ fi
 
 # Check for disconnections
 if [[ -f "$LOG_FILE_OUT" ]]; then
-    DISCONNECT_COUNT=$(tail -10000 "$LOG_FILE_OUT" | grep -c "Connection closed for company 962302" 2>/dev/null || echo "0")
+    DISCONNECT_COUNT=$(tail -20000 "$LOG_FILE_OUT" | grep -c "Connection closed for company 962302" 2>/dev/null || echo "0")
     # Clean output (remove newlines/spaces)
     DISCONNECT_COUNT=$(echo "$DISCONNECT_COUNT" | tr -d '\n\r' | tr -d ' ')
     if [[ "$DISCONNECT_COUNT" =~ ^[0-9]+$ ]] && [[ "$DISCONNECT_COUNT" -gt 0 ]]; then
@@ -162,9 +163,9 @@ log "3️⃣ Timeweb PostgreSQL:"
 
 # Check if using Timeweb directly in file
 if [[ -f "$LOG_FILE_OUT" ]]; then
-    if tail -10000 "$LOG_FILE_OUT" | grep -q "Using Timeweb PostgreSQL"; then
+    if tail -20000 "$LOG_FILE_OUT" | grep -q "Using Timeweb PostgreSQL"; then
         log_success "Baileys is using Timeweb PostgreSQL"
-        TIMEWEB_TIME=$(tail -10000 "$LOG_FILE_OUT" | grep "Using Timeweb PostgreSQL" | tail -1 | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' || echo 'recent')
+        TIMEWEB_TIME=$(tail -20000 "$LOG_FILE_OUT" | grep "Using Timeweb PostgreSQL" | tail -1 | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' || echo 'recent')
         log "   Initialized: $TIMEWEB_TIME"
     else
         log_error "Baileys is NOT using Timeweb PostgreSQL!"
@@ -176,7 +177,7 @@ fi
 
 # Check for PostgreSQL errors in error log file
 if [[ -f "$LOG_FILE_ERR" ]]; then
-    ERROR_LOGS=$(tail -10000 "$LOG_FILE_ERR" 2>/dev/null | perl -pe 's/\e\[[0-9;]*m//g' 2>/dev/null)
+    ERROR_LOGS=$(tail -20000 "$LOG_FILE_ERR" 2>/dev/null | perl -pe 's/\e\[[0-9;]*m//g' 2>/dev/null)
     PG_ERRORS=$(echo "$ERROR_LOGS" | grep -ai "postgres\|timeweb" | grep -ai "error" 2>/dev/null || echo "")
 else
     PG_ERRORS=$(pm2 logs baileys-whatsapp-service --err --nostream --lines 100 2>/dev/null | grep -i "postgres\|timeweb" | grep -i "error" 2>/dev/null || echo "")
