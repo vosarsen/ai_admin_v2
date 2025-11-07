@@ -58,6 +58,10 @@ send_telegram_alert() {
     fi
 }
 
+# Define log file paths (must be before any checks)
+LOG_FILE_OUT="/opt/ai-admin/logs/baileys-service-out-8.log"
+LOG_FILE_ERR="/opt/ai-admin/logs/baileys-service-error-8.log"
+
 # ============================================================================
 # 1. Check Baileys Service Status
 # ============================================================================
@@ -117,10 +121,6 @@ fi
 
 log ""
 log "2️⃣ WhatsApp Connection:"
-
-# Get recent logs directly from log files (PM2 buffer is limited)
-LOG_FILE_OUT="/opt/ai-admin/logs/baileys-service-out-8.log"
-LOG_FILE_ERR="/opt/ai-admin/logs/baileys-service-error-8.log"
 
 if [[ -f "$LOG_FILE_OUT" ]]; then
     # Check for WhatsApp connection directly in file (avoid variable size limits)
