@@ -123,7 +123,8 @@ LOG_FILE_OUT="/opt/ai-admin/logs/baileys-service-out-8.log"
 LOG_FILE_ERR="/opt/ai-admin/logs/baileys-service-error-8.log"
 
 if [[ -f "$LOG_FILE_OUT" ]]; then
-    RECENT_LOGS=$(tail -500 "$LOG_FILE_OUT" 2>/dev/null || echo "")
+    # Remove ANSI color codes from logs for reliable parsing
+    RECENT_LOGS=$(tail -500 "$LOG_FILE_OUT" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' || echo "")
 else
     RECENT_LOGS=$(pm2 logs baileys-whatsapp-service --nostream --lines 200 --raw 2>/dev/null || echo "")
 fi
