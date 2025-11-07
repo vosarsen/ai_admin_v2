@@ -146,7 +146,9 @@ fi
 # Check for disconnections
 if [[ -f "$LOG_FILE_OUT" ]]; then
     DISCONNECT_COUNT=$(tail -10000 "$LOG_FILE_OUT" | grep -c "Connection closed for company 962302" 2>/dev/null || echo "0")
-    if [[ "$DISCONNECT_COUNT" -gt 0 ]]; then
+    # Clean output (remove newlines/spaces)
+    DISCONNECT_COUNT=$(echo "$DISCONNECT_COUNT" | tr -d '\n\r' | tr -d ' ')
+    if [[ "$DISCONNECT_COUNT" =~ ^[0-9]+$ ]] && [[ "$DISCONNECT_COUNT" -gt 0 ]]; then
         log_warning "Found $DISCONNECT_COUNT disconnection(s) in recent logs"
     fi
 fi
