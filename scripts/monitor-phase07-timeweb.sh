@@ -123,12 +123,14 @@ log ""
 log "2️⃣ WhatsApp Connection:"
 
 if [[ -f "$LOG_FILE_OUT" ]]; then
-    # Check for WhatsApp connection directly in file (avoid variable size limits)
-    # Use 20K lines to ensure we catch messages even with growing logs
-    # Capture exit code to prevent set -e from treating "not found" as error
-    if tail -20000 "$LOG_FILE_OUT" | grep -q "WhatsApp connected for company 962302"; then
+    # Check for WhatsApp connection using grep -c to count matches
+    # This avoids issues with grep -q in IF statements
+    CONNECTION_COUNT=$(tail -20000 "$LOG_FILE_OUT" | grep -c "WhatsApp connected for company 962302" 2>/dev/null || echo "0")
+    # Clean output (remove newlines/spaces)
+    CONNECTION_COUNT=$(echo "$CONNECTION_COUNT" | tr -d '\n\r' | tr -d ' ')
+    if [[ "$CONNECTION_COUNT" =~ ^[0-9]+$ ]] && [[ "$CONNECTION_COUNT" -gt 0 ]]; then
         LAST_CONNECTION=$(tail -20000 "$LOG_FILE_OUT" | grep "WhatsApp connected for company 962302" | tail -1)
-        log_success "WhatsApp is connected"
+        log_success "WhatsApp is connected ($CONNECTION_COUNT connection(s) found)"
         CONNECTION_TIME=$(echo "$LAST_CONNECTION" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' || echo 'recent')
         log "   Last connection: $CONNECTION_TIME"
     else
@@ -162,10 +164,13 @@ fi
 log ""
 log "3️⃣ Timeweb PostgreSQL:"
 
-# Check if using Timeweb directly in file
+# Check if using Timeweb using grep -c to count matches
 if [[ -f "$LOG_FILE_OUT" ]]; then
-    if tail -20000 "$LOG_FILE_OUT" | grep -q "Using Timeweb PostgreSQL"; then
-        log_success "Baileys is using Timeweb PostgreSQL"
+    TIMEWEB_COUNT=$(tail -20000 "$LOG_FILE_OUT" | grep -c "Using Timeweb PostgreSQL" 2>/dev/null || echo "0")
+    # Clean output (remove newlines/spaces)
+    TIMEWEB_COUNT=$(echo "$TIMEWEB_COUNT" | tr -d '\n\r' | tr -d ' ')
+    if [[ "$TIMEWEB_COUNT" =~ ^[0-9]+$ ]] && [[ "$TIMEWEB_COUNT" -gt 0 ]]; then
+        log_success "Baileys is using Timeweb PostgreSQL ($TIMEWEB_COUNT initialization(s) found)"
         TIMEWEB_TIME=$(tail -20000 "$LOG_FILE_OUT" | grep "Using Timeweb PostgreSQL" | tail -1 | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' || echo 'recent')
         log "   Initialized: $TIMEWEB_TIME"
     else
