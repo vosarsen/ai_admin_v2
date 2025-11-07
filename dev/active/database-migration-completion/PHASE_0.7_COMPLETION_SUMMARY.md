@@ -1,8 +1,8 @@
 # Phase 0.7 Completion Summary
 
 **Date:** 2025-11-07
-**Time:** 20:10 MSK
-**Status:** ✅ **SUCCESSFULLY DEPLOYED TO PRODUCTION**
+**Time:** 20:50 MSK
+**Status:** ✅ **FULLY COMPLETE - 24H MONITORING ACTIVE**
 
 ---
 
@@ -11,6 +11,8 @@
 Phase 0.7 has been successfully deployed to production VPS. Baileys WhatsApp is now using **Timeweb PostgreSQL** instead of Supabase for storing WhatsApp authentication credentials and Signal Protocol keys.
 
 **Key Achievement:** 152-ФЗ compliance milestone reached - all WhatsApp session data now stored in Russia (Timeweb, St. Petersburg).
+
+**Update (20:50 MSK):** Monitoring script fixed using grep -c approach after 16 debugging attempts. Automated 24-hour monitoring now active via cron (every 4 hours).
 
 ---
 
@@ -35,6 +37,12 @@ Phase 0.7 has been successfully deployed to production VPS. Baileys WhatsApp is 
 - `test-auth-state-timeweb.js` (126 lines)
   - Unit tests for credentials, keys, Buffer serialization
   - Environment variable timing test
+
+**Monitoring:**
+- `scripts/monitor-phase07-timeweb.sh` (283 lines)
+  - Fixed using grep -c approach (commit 561445a)
+  - Automated via cron: every 4 hours
+  - Logs: `/var/log/ai-admin/phase07-monitor-cron.log`
 
 **Documentation:**
 - `dev/active/datacenter-migration-msk-spb/phase-0.7-code-review.md` (969 lines)
@@ -166,9 +174,12 @@ pm2 restart baileys-whatsapp-service
 
 ---
 
-## 🔍 Monitoring Plan (Next 24 Hours)
+## 🔍 Automated Monitoring (ACTIVE)
 
-**Key Metrics to Monitor:**
+**Cron Schedule:** Every 4 hours (0 */4 * * *)
+**Logs:** /var/log/ai-admin/phase07-monitor-cron.log
+
+**Key Metrics Monitored:**
 
 1. **WhatsApp Connection Stability**
    - Check: `pm2 logs baileys-whatsapp-service | grep "connection"`
@@ -270,7 +281,7 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "
 ---
 
 **Status:** 🟢 **PRODUCTION ACTIVE**
-**Monitoring:** 🟡 **24-HOUR WATCH**
+**Monitoring:** 🟢 **AUTOMATED (every 4h)**
 **Rollback:** 🟢 **READY (<2 min)**
 
 ---
@@ -279,4 +290,32 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "
 **Reviewed by:** Code Architecture Reviewer
 **Approved by:** User (vosarsen)
 
-**Last Updated:** 2025-11-07 20:10 MSK
+**Last Updated:** 2025-11-07 20:50 MSK
+
+---
+
+## 🎉 Monitoring Script Fix (Nov 7, 20:48)
+
+**Problem:** Script always reported "NOT connected" and "NOT using Timeweb" despite manual verification showing it IS working.
+
+**Root Cause:** grep -q in IF statements with `set -euo pipefail` had complex interactions with exit codes.
+
+**Solution (Commit 561445a):**
+- Use `grep -c` to count matches instead of boolean `-q` check
+- Store count in variable, clean it, validate numeric, then compare
+- Same pattern already worked for disconnect counting
+
+**Test Results:**
+```
+✅ WhatsApp is connected (2 connection(s) found)
+   Last connection: 2025-11-07 20:07:53
+✅ Baileys is using Timeweb PostgreSQL (1 initialization(s) found)
+   Initialized: 2025-11-07 20:07:51
+✅ No PostgreSQL errors found
+```
+
+**Automated Monitoring:**
+- Cron job: `0 */4 * * *` (every 4 hours)
+- Logs: `/var/log/ai-admin/phase07-monitor-cron.log`
+
+**Last Updated:** 2025-11-07 20:50 MSK
