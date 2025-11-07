@@ -60,9 +60,15 @@ function reviveBuffers(obj) {
 async function useTimewebAuthState(companyId) {
   logger.info(`🔐 Initializing Timeweb PostgreSQL auth state for company ${companyId}`);
 
-  // Validate company ID
+  // Validate company ID (defense-in-depth)
   if (!companyId || typeof companyId !== 'string') {
-    throw new Error('Invalid company ID');
+    throw new Error('Invalid company ID: must be a non-empty string');
+  }
+
+  // Sanitize company ID to prevent SQL injection (though parameterized queries already protect us)
+  const sanitizedId = String(companyId).replace(/[^a-zA-Z0-9_-]/g, '');
+  if (sanitizedId.length === 0 || sanitizedId.length > 50 || sanitizedId !== companyId) {
+    throw new Error(`Invalid company ID format: ${companyId}. Only alphanumeric, underscore, and hyphen allowed (max 50 chars).`);
   }
 
   // =========================================================================
@@ -212,35 +218,52 @@ async function useTimewebAuthState(companyId) {
           logger.debug(`🗑️  Deleted ${recordsToDelete.length} keys`);
         }
 
-        // Execute upserts (batch)
+        // Execute upserts (optimized batch INSERT)
         if (recordsToUpsert.length > 0) {
-          // PostgreSQL batch size: process 100 at a time
+          // PostgreSQL batch size: process 100 at a time to avoid query size limits
           const BATCH_SIZE = 100;
 
           for (let i = 0; i < recordsToUpsert.length; i += BATCH_SIZE) {
             const batch = recordsToUpsert.slice(i, i + BATCH_SIZE);
 
+            // Build multi-row INSERT for better performance
+            // Instead of 100 queries, we do 1 query with 100 rows
+            const values = [];
+            const params = [];
+            let paramIndex = 1;
+
             for (const record of batch) {
-              await postgres.query(
-                `INSERT INTO whatsapp_keys (company_id, key_type, key_id, value, updated_at, expires_at)
-                 VALUES ($1, $2, $3, $4, $5, $6)
-                 ON CONFLICT (company_id, key_type, key_id) DO UPDATE SET
-                   value = EXCLUDED.value,
-                   updated_at = EXCLUDED.updated_at,
-                   expires_at = EXCLUDED.expires_at`,
-                [
-                  record.company_id,
-                  record.key_type,
-                  record.key_id,
-                  JSON.stringify(record.value),
-                  record.updated_at,
-                  record.expires_at
-                ]
+              // Create placeholders for this row: ($1, $2, $3, $4, $5, $6)
+              const placeholders = [];
+              for (let j = 0; j < 6; j++) {
+                placeholders.push(`$${paramIndex++}`);
+              }
+              values.push(`(${placeholders.join(', ')})`);
+
+              // Add parameters for this row
+              params.push(
+                record.company_id,
+                record.key_type,
+                record.key_id,
+                JSON.stringify(record.value),
+                record.updated_at,
+                record.expires_at
               );
             }
+
+            // Execute single multi-row INSERT instead of N individual INSERTs
+            await postgres.query(
+              `INSERT INTO whatsapp_keys (company_id, key_type, key_id, value, updated_at, expires_at)
+               VALUES ${values.join(', ')}
+               ON CONFLICT (company_id, key_type, key_id) DO UPDATE SET
+                 value = EXCLUDED.value,
+                 updated_at = EXCLUDED.updated_at,
+                 expires_at = EXCLUDED.expires_at`,
+              params
+            );
           }
 
-          logger.debug(`💾 Upserted ${recordsToUpsert.length} keys`);
+          logger.debug(`💾 Upserted ${recordsToUpsert.length} keys (optimized batch)`);
         }
       } catch (error) {
         logger.error('Error setting keys:', error);
