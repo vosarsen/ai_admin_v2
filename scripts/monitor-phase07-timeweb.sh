@@ -118,8 +118,15 @@ fi
 log ""
 log "2️⃣ WhatsApp Connection:"
 
-# Get recent logs (both stdout and stderr)
-RECENT_LOGS=$(pm2 logs baileys-whatsapp-service --nostream --lines 200 --raw 2>/dev/null || echo "")
+# Get recent logs directly from log files (PM2 buffer is limited)
+LOG_FILE_OUT="/opt/ai-admin/logs/baileys-service-out-8.log"
+LOG_FILE_ERR="/opt/ai-admin/logs/baileys-service-error-8.log"
+
+if [[ -f "$LOG_FILE_OUT" ]]; then
+    RECENT_LOGS=$(tail -500 "$LOG_FILE_OUT" 2>/dev/null || echo "")
+else
+    RECENT_LOGS=$(pm2 logs baileys-whatsapp-service --nostream --lines 200 --raw 2>/dev/null || echo "")
+fi
 
 # Check for connection status
 if echo "$RECENT_LOGS" | grep -q "WhatsApp connected for company 962302"; then
@@ -153,8 +160,12 @@ else
     send_telegram_alert "Baileys not using Timeweb - possible rollback?"
 fi
 
-# Check for PostgreSQL errors
-PG_ERRORS=$(pm2 logs baileys-whatsapp-service --err --nostream --lines 100 2>/dev/null | grep -i "postgres\|timeweb" | grep -i "error" || echo "")
+# Check for PostgreSQL errors in error log file
+if [[ -f "$LOG_FILE_ERR" ]]; then
+    PG_ERRORS=$(tail -500 "$LOG_FILE_ERR" 2>/dev/null | grep -ai "postgres\|timeweb" | grep -ai "error" || echo "")
+else
+    PG_ERRORS=$(pm2 logs baileys-whatsapp-service --err --nostream --lines 100 2>/dev/null | grep -i "postgres\|timeweb" | grep -i "error" || echo "")
+fi
 if [[ -n "$PG_ERRORS" ]]; then
     ERROR_COUNT=$(echo "$PG_ERRORS" | wc -l)
     log_error "Found $ERROR_COUNT PostgreSQL error(s) in logs!"
