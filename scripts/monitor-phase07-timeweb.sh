@@ -123,32 +123,32 @@ LOG_FILE_OUT="/opt/ai-admin/logs/baileys-service-out-8.log"
 LOG_FILE_ERR="/opt/ai-admin/logs/baileys-service-error-8.log"
 
 if [[ -f "$LOG_FILE_OUT" ]]; then
-    # Read last 10K lines to catch restart messages (log file can be huge)
-    # Remove ANSI color codes: perl is more reliable than sed for this
-    RECENT_LOGS=$(tail -10000 "$LOG_FILE_OUT" 2>/dev/null | perl -pe 's/\e\[[0-9;]*m//g' 2>/dev/null)
-    if [[ -z "$RECENT_LOGS" ]]; then
-        # Fallback if perl failed
-        RECENT_LOGS=$(tail -10000 "$LOG_FILE_OUT" 2>/dev/null)
+    # Check for WhatsApp connection directly in file (avoid variable size limits)
+    if tail -10000 "$LOG_FILE_OUT" | grep -q "WhatsApp connected for company 962302"; then
+        LAST_CONNECTION=$(tail -10000 "$LOG_FILE_OUT" | grep "WhatsApp connected for company 962302" | tail -1)
+        log_success "WhatsApp is connected"
+        CONNECTION_TIME=$(echo "$LAST_CONNECTION" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' || echo 'recent')
+        log "   Last connection: $CONNECTION_TIME"
+    else
+        log_error "No recent WhatsApp connection found!"
+        send_telegram_alert "No WhatsApp connection detected"
     fi
 else
+    log_warning "Log file not found, using PM2 buffer"
     RECENT_LOGS=$(pm2 logs baileys-whatsapp-service --nostream --lines 200 --raw 2>/dev/null)
-fi
-
-# Check for connection status
-if echo "$RECENT_LOGS" | grep -q "WhatsApp connected for company 962302"; then
-    LAST_CONNECTION=$(echo "$RECENT_LOGS" | grep "WhatsApp connected for company 962302" | tail -1)
-    log_success "WhatsApp is connected"
-    log "   Last connection: $(echo "$LAST_CONNECTION" | grep -oP '\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}' || echo 'timestamp not found')"
-else
-    log_error "No recent WhatsApp connection found!"
-    send_telegram_alert "No WhatsApp connection detected"
+    if echo "$RECENT_LOGS" | grep -q "WhatsApp connected"; then
+        log_success "WhatsApp is connected (from PM2 buffer)"
+    else
+        log_error "No WhatsApp connection found"
+    fi
 fi
 
 # Check for disconnections
-DISCONNECT_COUNT=$(echo "$RECENT_LOGS" | grep -c "Connection closed for company 962302" 2>/dev/null || echo "0")
-DISCONNECT_COUNT=$(echo "$DISCONNECT_COUNT" | tr -d '\n' | tr -d ' ')
-if [[ "$DISCONNECT_COUNT" =~ ^[0-9]+$ ]] && [[ "$DISCONNECT_COUNT" -gt 0 ]]; then
-    log_warning "Found $DISCONNECT_COUNT disconnection(s) in recent logs"
+if [[ -f "$LOG_FILE_OUT" ]]; then
+    DISCONNECT_COUNT=$(tail -10000 "$LOG_FILE_OUT" | grep -c "Connection closed for company 962302" 2>/dev/null || echo "0")
+    if [[ "$DISCONNECT_COUNT" -gt 0 ]]; then
+        log_warning "Found $DISCONNECT_COUNT disconnection(s) in recent logs"
+    fi
 fi
 
 # ============================================================================
@@ -158,12 +158,18 @@ fi
 log ""
 log "3️⃣ Timeweb PostgreSQL:"
 
-# Check if using Timeweb
-if echo "$RECENT_LOGS" | grep -q "Using Timeweb PostgreSQL auth state"; then
-    log_success "Baileys is using Timeweb PostgreSQL"
+# Check if using Timeweb directly in file
+if [[ -f "$LOG_FILE_OUT" ]]; then
+    if tail -10000 "$LOG_FILE_OUT" | grep -q "Using Timeweb PostgreSQL"; then
+        log_success "Baileys is using Timeweb PostgreSQL"
+        TIMEWEB_TIME=$(tail -10000 "$LOG_FILE_OUT" | grep "Using Timeweb PostgreSQL" | tail -1 | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' || echo 'recent')
+        log "   Initialized: $TIMEWEB_TIME"
+    else
+        log_error "Baileys is NOT using Timeweb PostgreSQL!"
+        send_telegram_alert "Baileys not using Timeweb - possible rollback?"
+    fi
 else
-    log_error "Baileys is NOT using Timeweb PostgreSQL!"
-    send_telegram_alert "Baileys not using Timeweb - possible rollback?"
+    log_warning "Cannot verify Timeweb usage - log file not found"
 fi
 
 # Check for PostgreSQL errors in error log file
