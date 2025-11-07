@@ -26,7 +26,7 @@ const fs = require('fs-extra');
 const EventEmitter = require('events');
 const logger = require('../../utils/logger');
 const QRCode = require('qrcode');
-const { useSupabaseAuthState } = require('./auth-state-supabase');
+const { useTimewebAuthState } = require('./auth-state-timeweb');
 
 // Configuration constants
 const CONFIG = {
@@ -289,7 +289,7 @@ class WhatsAppSessionPool extends EventEmitter {
             if (useDatabaseAuth) {
                 // Database-backed auth state (production-ready)
                 logger.info(`🗄️  Using database auth state for company ${validatedId}`);
-                ({ state, saveCreds } = await useSupabaseAuthState(validatedId));
+                ({ state, saveCreds } = await useTimewebAuthState(validatedId));
             } else {
                 // File-based auth state (legacy)
                 logger.info(`📁 Using file auth state for company ${validatedId}`);
