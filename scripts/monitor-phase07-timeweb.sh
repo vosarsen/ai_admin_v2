@@ -125,9 +125,13 @@ LOG_FILE_ERR="/opt/ai-admin/logs/baileys-service-error-8.log"
 if [[ -f "$LOG_FILE_OUT" ]]; then
     # Read last 10K lines to catch restart messages (log file can be huge)
     # Remove ANSI color codes: perl is more reliable than sed for this
-    RECENT_LOGS=$(tail -10000 "$LOG_FILE_OUT" 2>/dev/null | perl -pe 's/\e\[[0-9;]*m//g' || echo "")
+    RECENT_LOGS=$(tail -10000 "$LOG_FILE_OUT" 2>/dev/null | perl -pe 's/\e\[[0-9;]*m//g' 2>/dev/null)
+    if [[ -z "$RECENT_LOGS" ]]; then
+        # Fallback if perl failed
+        RECENT_LOGS=$(tail -10000 "$LOG_FILE_OUT" 2>/dev/null)
+    fi
 else
-    RECENT_LOGS=$(pm2 logs baileys-whatsapp-service --nostream --lines 200 --raw 2>/dev/null || echo "")
+    RECENT_LOGS=$(pm2 logs baileys-whatsapp-service --nostream --lines 200 --raw 2>/dev/null)
 fi
 
 # Check for connection status
@@ -164,9 +168,10 @@ fi
 
 # Check for PostgreSQL errors in error log file
 if [[ -f "$LOG_FILE_ERR" ]]; then
-    PG_ERRORS=$(tail -10000 "$LOG_FILE_ERR" 2>/dev/null | perl -pe 's/\e\[[0-9;]*m//g' | grep -ai "postgres\|timeweb" | grep -ai "error" || echo "")
+    ERROR_LOGS=$(tail -10000 "$LOG_FILE_ERR" 2>/dev/null | perl -pe 's/\e\[[0-9;]*m//g' 2>/dev/null)
+    PG_ERRORS=$(echo "$ERROR_LOGS" | grep -ai "postgres\|timeweb" | grep -ai "error" 2>/dev/null || echo "")
 else
-    PG_ERRORS=$(pm2 logs baileys-whatsapp-service --err --nostream --lines 100 2>/dev/null | grep -i "postgres\|timeweb" | grep -i "error" || echo "")
+    PG_ERRORS=$(pm2 logs baileys-whatsapp-service --err --nostream --lines 100 2>/dev/null | grep -i "postgres\|timeweb" | grep -i "error" 2>/dev/null || echo "")
 fi
 if [[ -n "$PG_ERRORS" ]]; then
     ERROR_COUNT=$(echo "$PG_ERRORS" | wc -l)
