@@ -118,8 +118,8 @@ fi
 log ""
 log "2️⃣ WhatsApp Connection:"
 
-# Get recent logs
-RECENT_LOGS=$(pm2 logs baileys-whatsapp-service --nostream --lines 100 2>/dev/null || echo "")
+# Get recent logs (both stdout and stderr)
+RECENT_LOGS=$(pm2 logs baileys-whatsapp-service --nostream --lines 200 --raw 2>/dev/null || echo "")
 
 # Check for connection status
 if echo "$RECENT_LOGS" | grep -q "WhatsApp connected for company 962302"; then
@@ -132,8 +132,9 @@ else
 fi
 
 # Check for disconnections
-DISCONNECT_COUNT=$(echo "$RECENT_LOGS" | grep -c "Connection closed for company 962302" || echo "0")
-if [[ "$DISCONNECT_COUNT" -gt 0 ]]; then
+DISCONNECT_COUNT=$(echo "$RECENT_LOGS" | grep -c "Connection closed for company 962302" 2>/dev/null || echo "0")
+DISCONNECT_COUNT=$(echo "$DISCONNECT_COUNT" | tr -d '\n' | tr -d ' ')
+if [[ "$DISCONNECT_COUNT" =~ ^[0-9]+$ ]] && [[ "$DISCONNECT_COUNT" -gt 0 ]]; then
     log_warning "Found $DISCONNECT_COUNT disconnection(s) in recent logs"
 fi
 
