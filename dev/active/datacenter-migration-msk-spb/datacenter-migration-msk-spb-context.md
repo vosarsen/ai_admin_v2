@@ -1,5 +1,183 @@
 # Datacenter Migration Context
-**Last Updated: 2025-11-06 22:00 UTC**
+**Last Updated: 2025-11-08**
+
+---
+
+## 📋 PLAN REVIEW RESULTS (2025-11-08)
+
+### Reviewer: plan-reviewer agent (Claude Code)
+
+**Overall Assessment:** ⚠️ **MAJOR REVISIONS REQUIRED**
+
+**Status:** All recommendations accepted and incorporated into updated plan
+
+---
+
+### Key Findings
+
+**1. Critical Issue: Missing Database Schema** (3-4 days work, NOT 2-4 hours)
+- Must create 12+ tables in Timeweb BEFORE Phase 1
+- Partitioned messages table = high complexity
+- **NEW: Phase 0.8 prerequisite (MANDATORY)**
+
+**2. Critical Issue: Query Complexity Underestimated**
+- Simple examples shown, production has complex JOINs
+- Supabase fluent API → PostgreSQL SQL = 60-80% error probability
+- **NEW: Phase 0.9 Query Pattern Library prerequisite (CRITICAL)**
+
+**3. Important: Timeline Unrealistic**
+- Plan: 3-4 days
+- Reality: 5-6 weeks (26-30 days)
+- Breakdown: 11-15 days prerequisites + 15 days Phase 1
+
+**4. Important: "No Abstraction Layer" Decision Questioned**
+- Testing difficulty without abstraction
+- Maintenance burden (500+ postgres.query() calls)
+- **Decision: Add thin Repository Pattern** (+2-3 days, huge long-term value)
+
+**5. Missing: Data Migration Strategy**
+- Phase 1 = code migration, but when does data migrate?
+- Need clear strategy defined
+
+---
+
+### Risk Re-Assessment
+
+| Risk Level | Before Review | After All Recommendations |
+|------------|---------------|---------------------------|
+| Overall | MEDIUM (plan claim) | HIGH (70-80%) → LOW-MEDIUM (25-35%) |
+| Query errors | 30-35% | 60-80% → 25-35% with Phase 0.9 |
+| Schema errors | Not mentioned | 40-50% → 5-10% with Phase 0.8 |
+| Timeline miss | Not mentioned | 100% (impossible) → 10% (realistic) |
+
+---
+
+### Recommendations Accepted
+
+**Minimum Viable (MUST DO):**
+1. ✅ Phase 0.8: Schema Migration (3-4 days)
+2. ✅ Phase 0.9: Query Pattern Library (4-5 days)
+3. ✅ Fix timeline: 5-6 weeks instead of 3-4 days
+4. ✅ Test rollback procedure in staging
+5. ✅ Define data migration strategy
+
+**Strongly Recommended (WILL DO):**
+6. ✅ Repository Pattern: Thin abstraction layer (+2-3 days)
+7. ✅ Performance Baseline: Measure Supabase before migration (+1-2 days)
+8. ✅ Feature Flags: Gradual rollout capability (+1 day)
+9. ✅ Comprehensive Testing: Unit + integration + load tests (+3-4 days)
+10. ✅ Enhanced Monitoring: Structured logging, metrics, dashboards (+1-2 days)
+
+---
+
+### Revised Timeline
+
+**TOTAL: 5-6 weeks (conservative estimate)**
+
+```
+Prerequisites (2-3 weeks):
+├── Phase 0.8: Schema Migration          3-4 days (26h)
+├── Phase 0.9: Query Pattern Library     4-5 days (32h)
+├── Phase 0.95: Risk Mitigation Setup    2-3 days (16-24h)
+└── Phase 0.97: Testing Infrastructure   2-3 days (16-24h)
+
+Phase 1 (3 weeks):
+├── Week 1: Data Layer + Initial Syncs   5 days
+├── Week 2: Remaining Syncs + Services   5 days
+└── Week 3: Routes + Workers + Testing   5 days
+
+Alternative: Strangler Fig (4 months, lower risk)
+├── Month 1: Clients Module
+├── Month 2: Bookings Module
+├── Month 3: Services + Staff Modules
+└── Month 4: Cleanup + Decommission Supabase
+```
+
+---
+
+### Success Probability
+
+- With original plan: 20-30%
+- With minimum changes: 50-60%
+- **With all recommendations: 75-85%** ✅
+- With Strangler Fig: 85-95%
+
+---
+
+### Key Decisions (Updated 2025-11-08)
+
+**1. Migration Approach: Direct PostgreSQL + Repository Pattern**
+
+**Modified Decision:**
+- ✅ Thin Repository Pattern (NOT full ORM)
+- Simple repository classes per table
+- Business logic stays in services
+- Easy to test, maintain
+- Additional time: +2-3 days (acceptable)
+
+**Why Modified:**
+- Testing difficulty without abstraction
+- 500+ postgres.query() calls hard to maintain
+- Future database changes easier with repositories
+- Industry best practice
+
+**2. Timeline: 5-6 Weeks (Revised from 3-4 Days)**
+
+**Breakdown:**
+- Prerequisites: 11-15 days
+- Phase 1 Code Migration: 15 days
+- Total: 26-30 days
+
+**Rationale:**
+- Original 3-4 days was 100-200% underestimate
+- Complex query transformations need time
+- Proper testing cannot be rushed
+- Schema migration is 3-4 days alone
+
+**3. New Prerequisites Added (MANDATORY before Phase 1)**
+
+**Phase 0.8: Schema Migration** - CRITICAL
+- Cannot migrate code without tables existing
+- 12+ tables to create
+- Partitioned messages table
+- Indexes and constraints
+
+**Phase 0.9: Query Pattern Library** - CRITICAL
+- 60-80% query error probability without this
+- Test suite for query transformations
+- Document all edge cases
+
+**Phase 0.95 & 0.97:** Risk mitigation and testing setup
+
+**4. Strangler Fig Alternative Available**
+
+**If time allows / risk tolerance low:**
+- Module-by-module migration (4 months)
+- Month 1: Clients
+- Month 2: Bookings
+- Month 3: Services + Staff
+- Month 4: Cleanup + decommission Supabase
+- Risk: 15-25% per module (vs 70-80% big bang)
+- Success: 85-95%
+
+**5. Feature Flags for Gradual Rollout**
+
+**Approach:**
+- Per-module flags (POSTGRES_CLIENTS=true/false)
+- Percentage-based rollout (10% → 50% → 100%)
+- Instant rollback without deployment
+
+**6. Data Migration Strategy Clarified**
+
+**Phases:**
+- Phase 1: Code migration only (USE_LEGACY_SUPABASE=true)
+- Phase 2: Data migration + dual write
+- Phase 3: Cutover to Timeweb (USE_LEGACY_SUPABASE=false)
+- Phase 4: Decommission Supabase (after 30 days)
+
+---
+
+**Full Review Report:** `plan-review-2025-11-08.md`
 
 ---
 
