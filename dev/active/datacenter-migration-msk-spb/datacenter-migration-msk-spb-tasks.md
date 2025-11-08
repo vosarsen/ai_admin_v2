@@ -130,6 +130,1117 @@ psql 'postgresql://gen_user:PASSWORD@a84c973324fdaccfc68d929d.twc1.net:5432/defa
 
 ---
 
+## 🔄 PHASE 0.7 COMPLETE - Phase 1 Prerequisites Required
+
+**Status Update (2025-11-08):** Phase 0.7 deployed and stable, but plan review identified critical prerequisites for Phase 1.
+
+**Next Steps:**
+- Phase 0.8: Schema Migration (3-4 days) - **MANDATORY**
+- Phase 0.9: Query Pattern Library (4-5 days) - **CRITICAL**
+- Phase 0.95: Risk Mitigation Setup (2-3 days) - **RECOMMENDED**
+- Phase 0.97: Testing Infrastructure (2-3 days) - **RECOMMENDED**
+- Then: Phase 1 Code Migration (3 weeks)
+
+**Total Timeline to Phase 1 Complete:** 5-6 weeks
+
+---
+
+## Phase 0.8: Database Schema Migration (Day 1-4)
+
+**Goal**: Create all required database tables in Timeweb PostgreSQL
+**Duration**: ~3-4 days (26 hours)
+**Status**: ⬜ Not Started
+**Priority**: 🔴 **CRITICAL - BLOCKING Phase 1**
+
+### 0.8.1 Export and Analyze Supabase Schema (Day 1, ~4 hours)
+
+- [ ] Connect to Supabase database
+  ```bash
+  # Using Supabase Studio or pg_dump
+  pg_dump --schema-only <SUPABASE_CONNECTION> > supabase-schema.sql
+  ```
+
+- [ ] Analyze all tables required
+  ```bash
+  # List all tables
+  psql <SUPABASE_CONNECTION> -c "\dt"
+
+  # Count records per table
+  psql <SUPABASE_CONNECTION> -c "
+  SELECT
+    schemaname,
+    tablename,
+    n_tup_ins - n_tup_del as rowcount
+  FROM pg_stat_user_tables
+  ORDER BY rowcount DESC;
+  "
+  ```
+
+- [ ] Document table dependencies
+  - [ ] Identify foreign key relationships
+  - [ ] Create dependency graph
+  - [ ] Determine creation order
+
+- [ ] Identify Supabase-specific features
+  - [ ] Row Level Security (RLS) policies
+  - [ ] Custom PostgreSQL functions
+  - [ ] Triggers
+  - [ ] Extensions used
+
+- [ ] Document schema differences needed for Timeweb
+  - [ ] UUID vs Serial IDs
+  - [ ] Timestamp defaults
+  - [ ] JSON vs JSONB
+  - [ ] Array types
+
+**Checkpoint**: Schema fully documented and analyzed
+
+### 0.8.2 Create Core Tables (Day 1-2, ~8 hours)
+
+**Table Creation Order (dependencies first):**
+
+- [ ] Create `companies` table
+  ```sql
+  CREATE TABLE companies (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    -- ... other fields
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  );
+  ```
+
+- [ ] Create `clients` table (1,299 records)
+  ```sql
+  CREATE TABLE clients (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER REFERENCES companies(id),
+    phone VARCHAR(20) UNIQUE NOT NULL,
+    name VARCHAR(255),
+    email VARCHAR(255),
+    -- ... other fields
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  );
+  ```
+
+- [ ] Create `services` table (63 records)
+  ```sql
+  CREATE TABLE services (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER REFERENCES companies(id),
+    title VARCHAR(255) NOT NULL,
+    duration INTEGER,
+    cost DECIMAL(10,2),
+    -- ... other fields
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  );
+  ```
+
+- [ ] Create `staff` table (12 records)
+  ```sql
+  CREATE TABLE staff (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER REFERENCES companies(id),
+    name VARCHAR(255) NOT NULL,
+    specialization VARCHAR(255),
+    -- ... other fields
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  );
+  ```
+
+- [ ] Create `staff_schedules` table (56+ records)
+  ```sql
+  CREATE TABLE staff_schedules (
+    id SERIAL PRIMARY KEY,
+    staff_id INTEGER REFERENCES staff(id),
+    date DATE NOT NULL,
+    start_time TIME,
+    end_time TIME,
+    available BOOLEAN DEFAULT true,
+    -- ... other fields
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  );
+  ```
+
+- [ ] Create `bookings` table (38 records)
+  ```sql
+  CREATE TABLE bookings (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER REFERENCES companies(id),
+    client_id INTEGER REFERENCES clients(id),
+    service_id INTEGER REFERENCES services(id),
+    staff_id INTEGER REFERENCES staff(id),
+    datetime TIMESTAMP NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending',
+    -- ... other fields
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  );
+  ```
+
+- [ ] Create `appointments_cache` table
+- [ ] Create `dialog_contexts` table (21 records)
+  ```sql
+  CREATE TABLE dialog_contexts (
+    id SERIAL PRIMARY KEY,
+    phone VARCHAR(20) NOT NULL,
+    context JSONB,
+    expires_at TIMESTAMP,
+    -- ... other fields
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  );
+  ```
+
+- [ ] Create `reminders` table
+- [ ] Create `sync_status` table
+
+**Checkpoint**: All core tables created
+
+### 0.8.3 Create Partitioned Messages Table (Day 2, ~4 hours)
+
+- [ ] Design partition strategy
+  - [ ] Partition by date range (recommended)
+  - [ ] Or partition by company_id
+  - [ ] Define retention policy
+
+- [ ] Create parent table
+  ```sql
+  CREATE TABLE messages (
+    id BIGSERIAL,
+    company_id INTEGER NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    message TEXT,
+    direction VARCHAR(10), -- 'inbound' | 'outbound'
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (id, created_at)
+  ) PARTITION BY RANGE (created_at);
+  ```
+
+- [ ] Create initial partitions
+  ```sql
+  -- Current month
+  CREATE TABLE messages_2025_11 PARTITION OF messages
+    FOR VALUES FROM ('2025-11-01') TO ('2025-12-01');
+
+  -- Next month
+  CREATE TABLE messages_2025_12 PARTITION OF messages
+    FOR VALUES FROM ('2025-12-01') TO ('2026-01-01');
+
+  -- Future months (create 3 months ahead)
+  CREATE TABLE messages_2026_01 PARTITION OF messages
+    FOR VALUES FROM ('2026-01-01') TO ('2026-02-01');
+  ```
+
+- [ ] Create partition maintenance script
+  ```bash
+  cat > scripts/maintain-message-partitions.sh << 'EOF'
+  #!/bin/bash
+  # Automatically create next month's partition
+  # Run via cron: 0 0 1 * * /opt/ai-admin/scripts/maintain-message-partitions.sh
+  EOF
+  chmod +x scripts/maintain-message-partitions.sh
+  ```
+
+- [ ] Test partition switching
+  - [ ] Insert test data spanning multiple months
+  - [ ] Verify data lands in correct partitions
+  - [ ] Test query performance
+
+**Checkpoint**: Partitioned messages table operational
+
+### 0.8.4 Create Indexes (Day 2-3, ~4 hours)
+
+- [ ] Create indexes on `clients`
+  ```sql
+  CREATE INDEX idx_clients_phone ON clients(phone);
+  CREATE INDEX idx_clients_company_id ON clients(company_id);
+  CREATE INDEX idx_clients_created_at ON clients(created_at);
+  ```
+
+- [ ] Create indexes on `bookings`
+  ```sql
+  CREATE INDEX idx_bookings_client_id ON bookings(client_id);
+  CREATE INDEX idx_bookings_staff_id ON bookings(staff_id);
+  CREATE INDEX idx_bookings_service_id ON bookings(service_id);
+  CREATE INDEX idx_bookings_datetime ON bookings(datetime);
+  CREATE INDEX idx_bookings_status ON bookings(status);
+  CREATE INDEX idx_bookings_company_datetime ON bookings(company_id, datetime);
+  ```
+
+- [ ] Create indexes on `services`
+  ```sql
+  CREATE INDEX idx_services_company_id ON services(company_id);
+  ```
+
+- [ ] Create indexes on `staff`
+  ```sql
+  CREATE INDEX idx_staff_company_id ON staff(company_id);
+  ```
+
+- [ ] Create indexes on `staff_schedules`
+  ```sql
+  CREATE INDEX idx_schedules_staff_date ON staff_schedules(staff_id, date);
+  CREATE INDEX idx_schedules_date ON staff_schedules(date);
+  ```
+
+- [ ] Create indexes on `messages`
+  ```sql
+  CREATE INDEX idx_messages_phone ON messages(phone);
+  CREATE INDEX idx_messages_company_created ON messages(company_id, created_at);
+  ```
+
+- [ ] Create indexes on `dialog_contexts`
+  ```sql
+  CREATE INDEX idx_contexts_phone ON dialog_contexts(phone);
+  CREATE INDEX idx_contexts_expires ON dialog_contexts(expires_at);
+  ```
+
+- [ ] Verify index creation
+  ```sql
+  SELECT
+    tablename,
+    indexname,
+    indexdef
+  FROM pg_indexes
+  WHERE schemaname = 'public'
+  ORDER BY tablename, indexname;
+  ```
+
+**Checkpoint**: All indexes created and verified
+
+### 0.8.5 Verify Constraints and Foreign Keys (Day 3, ~4 hours)
+
+- [ ] Verify NOT NULL constraints
+  ```sql
+  SELECT
+    table_name,
+    column_name,
+    is_nullable
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND is_nullable = 'NO';
+  ```
+
+- [ ] Verify UNIQUE constraints
+- [ ] Verify CHECK constraints
+- [ ] Verify DEFAULT values
+- [ ] Verify foreign key constraints
+  ```sql
+  SELECT
+    tc.constraint_name,
+    tc.table_name,
+    kcu.column_name,
+    ccu.table_name AS foreign_table_name,
+    ccu.column_name AS foreign_column_name
+  FROM information_schema.table_constraints AS tc
+  JOIN information_schema.key_column_usage AS kcu
+    ON tc.constraint_name = kcu.constraint_name
+  JOIN information_schema.constraint_column_usage AS ccu
+    ON ccu.constraint_name = tc.constraint_name
+  WHERE tc.constraint_type = 'FOREIGN KEY';
+  ```
+
+- [ ] Test constraint enforcement
+  - [ ] Try inserting invalid data
+  - [ ] Verify constraints block it
+  - [ ] Test cascading deletes (if applicable)
+
+**Checkpoint**: All constraints verified
+
+### 0.8.6 Test Schema with Sample Data (Day 3-4, ~4 hours)
+
+- [ ] Create test data generation script
+  ```javascript
+  // scripts/generate-test-data.js
+  // Insert sample records for each table
+  ```
+
+- [ ] Insert test data
+  - [ ] 1 company
+  - [ ] 10 clients
+  - [ ] 5 services
+  - [ ] 3 staff members
+  - [ ] 10 staff schedules
+  - [ ] 5 bookings
+  - [ ] 20 messages
+
+- [ ] Test foreign key relationships
+  - [ ] Booking references client, service, staff
+  - [ ] All references resolve correctly
+
+- [ ] Test query patterns
+  ```sql
+  -- Test JOIN query
+  SELECT
+    b.*,
+    c.name as client_name,
+    s.title as service_title,
+    st.name as staff_name
+  FROM bookings b
+  LEFT JOIN clients c ON b.client_id = c.id
+  LEFT JOIN services s ON b.service_id = s.id
+  LEFT JOIN staff st ON b.staff_id = st.id
+  WHERE b.company_id = 962302;
+  ```
+
+- [ ] Measure query performance
+  - [ ] All queries <100ms on test data
+  - [ ] Document slow queries for optimization
+
+- [ ] Clean up test data
+  ```sql
+  TRUNCATE TABLE bookings CASCADE;
+  TRUNCATE TABLE staff_schedules CASCADE;
+  TRUNCATE TABLE clients CASCADE;
+  TRUNCATE TABLE services CASCADE;
+  TRUNCATE TABLE staff CASCADE;
+  TRUNCATE TABLE companies CASCADE;
+  TRUNCATE TABLE messages CASCADE;
+  ```
+
+**Checkpoint**: Schema tested and validated
+
+### 0.8.7 Document Schema Differences (Day 4, ~2 hours)
+
+- [ ] Create schema documentation file
+  ```markdown
+  # Timeweb PostgreSQL Schema Documentation
+
+  ## Tables Created
+  - companies (1 record expected)
+  - clients (1,299 records expected)
+  - services (63 records expected)
+  - staff (12 records expected)
+  - staff_schedules (56+ records expected)
+  - bookings (38 records expected)
+  - appointments_cache
+  - dialog_contexts (21 records expected)
+  - reminders
+  - sync_status
+  - messages (partitioned)
+
+  ## Differences from Supabase
+  - ...
+
+  ## Indexes Created
+  - ...
+
+  ## Partitioning Strategy
+  - messages table partitioned by created_at (monthly)
+  ```
+
+- [ ] Document migration notes
+- [ ] Create rollback scripts
+  ```sql
+  -- scripts/rollback-schema.sql
+  DROP TABLE IF EXISTS messages CASCADE;
+  DROP TABLE IF EXISTS bookings CASCADE;
+  -- ...
+  ```
+
+- [ ] Update main plan with actual timeline
+
+**Phase 0.8 Complete**: ⬜ All tasks completed | Actual Duration: ___ days
+
+---
+
+## Phase 0.9: Query Pattern Library (Day 5-9)
+
+**Goal**: Extract Supabase query patterns and create PostgreSQL equivalents
+**Duration**: ~4-5 days (32 hours)
+**Status**: ⬜ Not Started
+**Priority**: 🔴 **CRITICAL - BLOCKING Phase 1**
+
+### 0.9.1 Audit Supabase Query Patterns (Day 5-6, ~8 hours)
+
+- [ ] Search codebase for Supabase usage
+  ```bash
+  # Find all files using Supabase
+  grep -r "supabase.from" src/ --include="*.js" > supabase-usage.txt
+
+  # Count occurrences
+  grep -r "supabase.from" src/ --include="*.js" | wc -l
+  ```
+
+- [ ] Categorize query patterns
+  - [ ] Simple SELECT: `.from().select().eq()`
+  - [ ] SELECT with filters: `.gte()`, `.lte()`, `.in()`
+  - [ ] SELECT with JOINs: `.select('*, table(field)')`
+  - [ ] SELECT with ordering: `.order()`
+  - [ ] SELECT with pagination: `.range()`
+  - [ ] INSERT: `.insert()`
+  - [ ] UPDATE: `.update().eq()`
+  - [ ] DELETE: `.delete().eq()`
+  - [ ] UPSERT: `.upsert()`
+  - [ ] Single vs Maybe Single: `.single()`, `.maybeSingle()`
+
+- [ ] Extract unique patterns
+  ```bash
+  # Create pattern catalog
+  cat > docs/supabase-query-patterns.md << 'EOF'
+  # Supabase Query Patterns Catalog
+
+  ## Pattern 1: Simple Select
+  ### Supabase
+  ```javascript
+  const { data, error } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('phone', phone)
+    .single();
+  ```
+
+  ### PostgreSQL
+  ```javascript
+  const result = await postgres.query(
+    'SELECT * FROM clients WHERE phone = $1 LIMIT 1',
+    [phone]
+  );
+  const data = result.rows[0];
+  ```
+  EOF
+  ```
+
+- [ ] Document complex patterns from `supabase-data-layer.js` (977 lines)
+  - [ ] Extract top 20 most complex queries
+  - [ ] Document JOIN patterns
+  - [ ] Document aggregation patterns
+  - [ ] Document JSON field access
+
+**Checkpoint**: All query patterns documented
+
+### 0.9.2 Create PostgreSQL Equivalents (Day 6-8, ~12 hours)
+
+- [ ] Create query transformation library
+  ```javascript
+  // src/database/query-patterns.js
+
+  /**
+   * Simple select with filter
+   */
+  async function selectByField(table, field, value) {
+    const result = await postgres.query(
+      `SELECT * FROM ${table} WHERE ${field} = $1`,
+      [value]
+    );
+    return { data: result.rows, error: null };
+  }
+
+  /**
+   * Select with JOIN
+   */
+  async function selectWithJoin(/* ... */) {
+    // Implementation
+  }
+  ```
+
+- [ ] Implement all pattern transformations
+  - [ ] Simple SELECT patterns
+  - [ ] Complex JOIN patterns
+  - [ ] Filter patterns (eq, gte, lte, in)
+  - [ ] Ordering and pagination
+  - [ ] INSERT patterns
+  - [ ] UPDATE patterns
+  - [ ] DELETE patterns
+  - [ ] UPSERT patterns
+
+- [ ] Handle edge cases
+  - [ ] NULL handling
+  - [ ] Array parameters (`.in()` → `ANY($1::text[])`)
+  - [ ] JSON field access
+  - [ ] Full-text search
+  - [ ] Date/time formatting
+
+- [ ] Create error handling wrapper
+  ```javascript
+  async function safeQuery(sql, params) {
+    try {
+      const result = await postgres.query(sql, params);
+      return { data: result.rows, error: null };
+    } catch (error) {
+      logger.error('Query error:', error);
+      Sentry.captureException(error);
+      return { data: null, error };
+    }
+  }
+  ```
+
+**Checkpoint**: All PostgreSQL equivalents created
+
+### 0.9.3 Build Test Suite (Day 8-9, ~8 hours)
+
+- [ ] Create test framework
+  ```javascript
+  // tests/query-patterns.test.js
+  const { describe, it, expect } = require('@jest/globals');
+
+  describe('Query Pattern Transformations', () => {
+    it('should transform simple select', async () => {
+      // Test implementation
+    });
+
+    it('should handle NULL values', async () => {
+      // Test implementation
+    });
+  });
+  ```
+
+- [ ] Write tests for each pattern
+  - [ ] Test simple SELECT
+  - [ ] Test complex JOINs
+  - [ ] Test filters (eq, gte, lte, in)
+  - [ ] Test ordering
+  - [ ] Test pagination
+  - [ ] Test INSERT
+  - [ ] Test UPDATE
+  - [ ] Test DELETE
+  - [ ] Test UPSERT
+
+- [ ] Test edge cases
+  - [ ] NULL handling
+  - [ ] Empty arrays
+  - [ ] Special characters in strings
+  - [ ] Large datasets
+  - [ ] Concurrent queries
+
+- [ ] Run test suite
+  ```bash
+  npm test -- query-patterns.test.js
+  ```
+
+- [ ] Fix failing tests
+- [ ] Achieve 100% pattern coverage
+
+**Checkpoint**: Test suite passing with 100% coverage
+
+### 0.9.4 Document Edge Cases (Day 9, ~4 hours)
+
+- [ ] Create edge cases documentation
+  ```markdown
+  # Query Transformation Edge Cases
+
+  ## 1. NULL Handling
+
+  ### Supabase
+  `.is('field', null)` or `.eq('field', null)`
+
+  ### PostgreSQL
+  `WHERE field IS NULL` (NOT `= NULL`)
+
+  ## 2. Array Parameters
+
+  ### Supabase
+  `.in('status', ['confirmed', 'pending'])`
+
+  ### PostgreSQL
+  `WHERE status = ANY($1::text[])`
+  Pass: `[['confirmed', 'pending']]`
+
+  ## 3. Single vs MaybeSingle
+
+  ### Supabase .single()
+  - Throws error if >1 row
+  - Throws error if 0 rows
+
+  ### Supabase .maybeSingle()
+  - Returns null if 0 rows
+  - Throws error if >1 row
+
+  ### PostgreSQL
+  ```javascript
+  // .single() equivalent
+  const result = await postgres.query(sql, params);
+  if (result.rows.length === 0) throw new Error('No rows');
+  if (result.rows.length > 1) throw new Error('Multiple rows');
+  return result.rows[0];
+
+  // .maybeSingle() equivalent
+  const result = await postgres.query(sql, params);
+  if (result.rows.length > 1) throw new Error('Multiple rows');
+  return result.rows[0] || null;
+  ```
+  ```
+
+- [ ] Document common pitfalls
+- [ ] Create troubleshooting guide
+- [ ] Add examples for each edge case
+
+**Phase 0.9 Complete**: ⬜ All tasks completed | Actual Duration: ___ days
+
+---
+
+## Phase 0.95: Risk Mitigation Setup (Day 10-12)
+
+**Goal**: Configure connection pool, monitoring, error handling
+**Duration**: ~2-3 days (16-24 hours)
+**Status**: ⬜ Not Started
+**Priority**: 🟡 **HIGHLY RECOMMENDED**
+
+### 0.95.1 Configure Connection Pool (Day 10, ~4 hours)
+
+- [ ] Update `src/database/postgres.js` with proper configuration
+  ```javascript
+  const { Pool } = require('pg');
+
+  const pool = new Pool({
+    connectionString: process.env.TIMEWEB_DATABASE_URL,
+
+    // Connection limits
+    min: 2,                      // Keep 2 connections alive
+    max: 20,                     // Max 20 concurrent
+
+    // Timeouts
+    idleTimeoutMillis: 30000,    // Close idle after 30s
+    connectionTimeoutMillis: 10000,  // Wait 10s for connection
+
+    // Health checks
+    allowExitOnIdle: false,
+
+    // Error handling
+    statement_timeout: 30000,    // Kill queries after 30s
+    query_timeout: 30000,        // Client-side timeout
+  });
+
+  // Handle pool errors
+  pool.on('error', (err, client) => {
+    logger.error('Unexpected pool error:', err);
+    Sentry.captureException(err);
+  });
+
+  // Graceful shutdown
+  process.on('SIGINT', async () => {
+    await pool.end();
+    process.exit(0);
+  });
+
+  module.exports = pool;
+  ```
+
+- [ ] Add pool stats endpoint
+  ```javascript
+  // src/api/routes/health.js
+  router.get('/health/database/pool', async (req, res) => {
+    res.json({
+      total: pool.totalCount,
+      idle: pool.idleCount,
+      waiting: pool.waitingCount
+    });
+  });
+  ```
+
+- [ ] Test pool under load
+- [ ] Verify connection limits
+- [ ] Document pool configuration
+
+**Checkpoint**: Connection pool properly configured
+
+### 0.95.2 Add Performance Instrumentation (Day 10-11, ~6 hours)
+
+- [ ] Add query timing wrapper
+  ```javascript
+  // src/database/instrumented-query.js
+  async function query(sql, params) {
+    const start = Date.now();
+    const spanId = generateSpanId();
+
+    logger.info('Query started', { spanId, sql: sql.substring(0, 100) });
+
+    try {
+      const result = await pool.query(sql, params);
+      const duration = Date.now() - start;
+
+      logger.info('Query succeeded', {
+        spanId,
+        duration,
+        rows: result.rowCount
+      });
+
+      // Send to monitoring
+      metrics.histogram('db.query.duration', duration, {
+        query: sql.split(' ')[0] // SELECT, INSERT, etc.
+      });
+
+      // Warn on slow queries
+      if (duration > 100) {
+        logger.warn('Slow query detected', { spanId, duration, sql });
+      }
+
+      return result;
+    } catch (error) {
+      logger.error('Query failed', { spanId, error, sql, params });
+      metrics.increment('db.query.errors', {
+        query: sql.split(' ')[0]
+      });
+      throw error;
+    }
+  }
+  ```
+
+- [ ] Add Prometheus metrics
+  ```javascript
+  // src/monitoring/metrics.js
+  const client = require('prom-client');
+
+  const queryDuration = new client.Histogram({
+    name: 'db_query_duration_ms',
+    help: 'Database query duration',
+    labelNames: ['query_type'],
+    buckets: [10, 50, 100, 500, 1000, 5000]
+  });
+
+  const queryErrors = new client.Counter({
+    name: 'db_query_errors_total',
+    help: 'Database query errors',
+    labelNames: ['query_type']
+  });
+  ```
+
+- [ ] Create metrics endpoint
+  ```javascript
+  router.get('/metrics', (req, res) => {
+    res.set('Content-Type', client.register.contentType);
+    res.end(client.register.metrics());
+  });
+  ```
+
+**Checkpoint**: Performance instrumentation added
+
+### 0.95.3 Create Monitoring Dashboard (Day 11, ~4 hours)
+
+- [ ] Set up Grafana dashboard (or alternative)
+- [ ] Add database metrics panel
+  - [ ] Query duration (P50, P95, P99)
+  - [ ] Query rate (queries/second)
+  - [ ] Error rate
+  - [ ] Connection pool stats
+  - [ ] Slow query count
+
+- [ ] Add alerting rules
+  - [ ] Alert if P95 latency >100ms
+  - [ ] Alert if error rate >5%
+  - [ ] Alert if pool exhausted
+  - [ ] Alert if slow queries >10/min
+
+- [ ] Test dashboard and alerts
+
+**Checkpoint**: Monitoring dashboard operational
+
+### 0.95.4 Define Error Handling Standard (Day 11-12, ~4 hours)
+
+- [ ] Choose error handling pattern
+  ```javascript
+  // Option 1: Try/Catch (chosen)
+  async function getClient(phone) {
+    try {
+      const result = await postgres.query(
+        'SELECT * FROM clients WHERE phone = $1 LIMIT 1',
+        [phone]
+      );
+      return result.rows[0] || null;
+    } catch (error) {
+      logger.error('Failed to get client:', error);
+      Sentry.captureException(error);
+      throw error; // or return null, depending on requirements
+    }
+  }
+  ```
+
+- [ ] Create error handling utilities
+  ```javascript
+  // src/utils/db-errors.js
+  function isConnectionError(error) {
+    return error.code === 'ECONNREFUSED' ||
+           error.code === 'ETIMEDOUT';
+  }
+
+  function isConstraintError(error) {
+    return error.code === '23505' || // unique violation
+           error.code === '23503';   // foreign key violation
+  }
+  ```
+
+- [ ] Document error handling standard
+- [ ] Create code style guide
+- [ ] Add linter rules (if applicable)
+
+**Checkpoint**: Error handling standard defined
+
+### 0.95.5 Write Rollback Runbook (Day 12, ~2-4 hours)
+
+- [ ] Document rollback procedure
+  ```markdown
+  # Phase 1 Rollback Runbook
+
+  ## When to Rollback
+  - Database connection failures
+  - >100 errors/hour
+  - Message processing stops >5min
+  - Any PRIMARY success criteria not met
+
+  ## Rollback Steps (<5 minutes)
+
+  1. Stop all services
+  ```bash
+  pm2 stop all
+  ```
+
+  2. Switch to Supabase
+  ```bash
+  export USE_LEGACY_SUPABASE=true
+  # Update .env file
+  sed -i 's/USE_LEGACY_SUPABASE=false/USE_LEGACY_SUPABASE=true/' .env
+  ```
+
+  3. Restart services
+  ```bash
+  pm2 start all
+  ```
+
+  4. Verify
+  ```bash
+  pm2 status
+  curl http://localhost:3000/health
+  ```
+  ```
+
+- [ ] Create automated rollback script
+  ```bash
+  #!/bin/bash
+  # scripts/rollback-to-supabase.sh
+  echo "🔄 Rolling back to Supabase..."
+  pm2 stop all
+  sed -i 's/USE_LEGACY_SUPABASE=false/USE_LEGACY_SUPABASE=true/' /opt/ai-admin/.env
+  pm2 start all
+  echo "✅ Rollback complete"
+  pm2 status
+  ```
+
+- [ ] Test rollback in staging
+- [ ] Document recovery procedures
+
+**Phase 0.95 Complete**: ⬜ All tasks completed | Actual Duration: ___ days
+
+---
+
+## Phase 0.97: Testing Infrastructure (Day 13-15)
+
+**Goal**: Set up comprehensive testing framework
+**Duration**: ~2-3 days (16-24 hours)
+**Status**: ⬜ Not Started
+**Priority**: 🟡 **HIGHLY RECOMMENDED**
+
+### 0.97.1 Unit Testing Setup (Day 13, ~8 hours)
+
+- [ ] Set up Jest testing framework
+  ```bash
+  npm install --save-dev jest @types/jest
+  ```
+
+- [ ] Configure Jest
+  ```javascript
+  // jest.config.js
+  module.exports = {
+    testEnvironment: 'node',
+    coverageDirectory: 'coverage',
+    collectCoverageFrom: [
+      'src/**/*.js',
+      '!src/**/*.test.js'
+    ],
+    testMatch: [
+      '**/__tests__/**/*.js',
+      '**/*.test.js'
+    ]
+  };
+  ```
+
+- [ ] Write unit tests for repositories
+  ```javascript
+  // src/repositories/__tests__/ClientRepository.test.js
+  const ClientRepository = require('../ClientRepository');
+
+  describe('ClientRepository', () => {
+    let repo;
+    let mockDb;
+
+    beforeEach(() => {
+      mockDb = {
+        query: jest.fn()
+      };
+      repo = new ClientRepository(mockDb);
+    });
+
+    it('should find client by phone', async () => {
+      mockDb.query.mockResolvedValue({
+        rows: [{ id: 1, phone: '79001234567', name: 'Test' }]
+      });
+
+      const client = await repo.findByPhone('79001234567');
+
+      expect(client).toEqual({ id: 1, phone: '79001234567', name: 'Test' });
+      expect(mockDb.query).toHaveBeenCalledWith(
+        'SELECT * FROM clients WHERE phone = $1 LIMIT 1',
+        ['79001234567']
+      );
+    });
+  });
+  ```
+
+- [ ] Write unit tests for services
+- [ ] Write unit tests for query patterns
+- [ ] Achieve >80% code coverage
+
+**Checkpoint**: Unit tests operational
+
+### 0.97.2 Integration Testing Setup (Day 13-14, ~8 hours)
+
+- [ ] Set up test database
+  ```bash
+  # Create test database in Timeweb
+  psql "postgresql://..." -c "CREATE DATABASE ai_admin_test;"
+  ```
+
+- [ ] Create test data fixtures
+  ```javascript
+  // tests/fixtures/test-data.js
+  module.exports = {
+    companies: [{ id: 1, name: 'Test Company' }],
+    clients: [
+      { id: 1, company_id: 1, phone: '79001234567', name: 'Test Client' }
+    ],
+    services: [
+      { id: 1, company_id: 1, title: 'Test Service', duration: 60, cost: 1000 }
+    ]
+  };
+  ```
+
+- [ ] Write integration tests for sync system
+  ```javascript
+  // tests/integration/clients-sync.test.js
+  describe('Clients Sync', () => {
+    beforeAll(async () => {
+      // Set up test database
+      await setupTestDB();
+    });
+
+    afterAll(async () => {
+      // Clean up test database
+      await cleanupTestDB();
+    });
+
+    it('should sync clients from YClients to Timeweb', async () => {
+      // Test implementation
+    });
+  });
+  ```
+
+- [ ] Write integration tests for API endpoints
+- [ ] Write integration tests for message processing
+
+**Checkpoint**: Integration tests operational
+
+### 0.97.3 Load Testing Setup (Day 14-15, ~6 hours)
+
+- [ ] Install Artillery
+  ```bash
+  npm install --save-dev artillery
+  ```
+
+- [ ] Create load test scenarios
+  ```yaml
+  # tests/load/api-load-test.yml
+  config:
+    target: "http://localhost:3000"
+    phases:
+      - duration: 60
+        arrivalRate: 10  # 10 requests/sec
+        name: "Warm up"
+      - duration: 120
+        arrivalRate: 50  # 50 requests/sec
+        name: "Sustained load"
+      - duration: 60
+        arrivalRate: 100  # 100 requests/sec
+        name: "Peak load"
+
+  scenarios:
+    - name: "Message processing"
+      flow:
+        - post:
+            url: "/api/messages"
+            json:
+              phone: "79001234567"
+              message: "Test message"
+  ```
+
+- [ ] Run baseline load tests against Supabase
+  ```bash
+  artillery run tests/load/api-load-test.yml --output baseline-report.json
+  artillery report baseline-report.json
+  ```
+
+- [ ] Document baseline metrics
+  - [ ] P50 latency: ___ ms
+  - [ ] P95 latency: ___ ms
+  - [ ] P99 latency: ___ ms
+  - [ ] Max throughput: ___ req/sec
+  - [ ] Error rate: ___ %
+
+- [ ] Create load test for Timeweb (to run after Phase 1)
+
+**Checkpoint**: Load testing framework ready
+
+### 0.97.4 Rollback Drill (Day 15, ~4 hours)
+
+- [ ] Set up staging environment
+  - [ ] Clone production data (subset)
+  - [ ] Configure for testing
+  - [ ] Verify isolated from production
+
+- [ ] Practice rollback procedure
+  1. [ ] Simulate Phase 1 migration
+  2. [ ] Trigger rollback
+  3. [ ] Measure rollback time: ___ minutes
+  4. [ ] Verify system functional after rollback
+  5. [ ] Document any issues
+
+- [ ] Refine rollback procedure based on learnings
+- [ ] Update rollback runbook
+- [ ] Train team on rollback procedure
+
+**Checkpoint**: Rollback procedure tested and verified
+
+**Phase 0.97 Complete**: ⬜ All tasks completed | Actual Duration: ___ days
+
+---
+
+## ✅ Prerequisites Complete - Ready for Phase 1
+
+**All prerequisites completed:**
+- ✅ Phase 0.8: Schema Migration (12+ tables created)
+- ✅ Phase 0.9: Query Pattern Library (all patterns documented and tested)
+- ✅ Phase 0.95: Risk Mitigation (monitoring, error handling, rollback tested)
+- ✅ Phase 0.97: Testing Infrastructure (unit, integration, load tests ready)
+
+**Total Prerequisites Time:** ___ days (target: 11-15 days)
+
+**Ready to proceed with Phase 1 Code Migration**
+
+---
+
+## Phase 1: Code Migration (Week 1-3)
+
+**Goal**: Migrate all 49 files from Supabase to Timeweb PostgreSQL
+**Duration**: ~3 weeks (15 days)
+**Status**: ⬜ Not Started
+**Prerequisites**: ✅ Phases 0.8, 0.9, 0.95, 0.97 complete
+
+**Note:** This section replaces original "Phase 1: Server Migration Preparation"
+
+---
+
 ## Phase 1: Server Migration Preparation (Day 7)
 
 **Goal**: Create backups, document configuration, create new VPS
