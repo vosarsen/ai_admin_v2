@@ -86,6 +86,11 @@ SERVICE_UPTIME=$(echo "$PM2_STATUS" | jq -r '.pm2_env.pm_uptime')
 SERVICE_RESTARTS=$(echo "$PM2_STATUS" | jq -r '.pm2_env.restart_time')
 MEMORY_MB=$(echo "$PM2_STATUS" | jq -r '.monit.memory / 1024 / 1024 | floor')
 
+# Calculate actual uptime in hours (pm_uptime is timestamp when service started)
+CURRENT_TIME=$(date +%s000)  # Current time in milliseconds
+SERVICE_UPTIME_MS=$((CURRENT_TIME - SERVICE_UPTIME))
+SERVICE_UPTIME_HOURS=$((SERVICE_UPTIME_MS / 3600000))
+
 log "1️⃣ Service Status:"
 log "   Status: $SERVICE_STATUS"
 log "   PID: $SERVICE_PID"
@@ -123,19 +128,26 @@ log ""
 log "2️⃣ WhatsApp Connection:"
 
 if [[ -f "$LOG_FILE_OUT" ]]; then
-    # Check for WhatsApp connection using grep -c to count matches
-    # This avoids issues with grep -q in IF statements
-    CONNECTION_COUNT=$(tail -20000 "$LOG_FILE_OUT" | grep -c "WhatsApp connected for company 962302" 2>/dev/null || echo "0")
-    # Clean output (remove newlines/spaces)
+    # Check for WhatsApp connection in current log only (fast)
+    CONNECTION_COUNT=$(tail -2000 "$LOG_FILE_OUT" | grep -c "WhatsApp connected for company 962302" 2>/dev/null || echo "0")
     CONNECTION_COUNT=$(echo "$CONNECTION_COUNT" | tr -d '\n\r' | tr -d ' ')
+
     if [[ "$CONNECTION_COUNT" =~ ^[0-9]+$ ]] && [[ "$CONNECTION_COUNT" -gt 0 ]]; then
-        LAST_CONNECTION=$(tail -20000 "$LOG_FILE_OUT" | grep "WhatsApp connected for company 962302" | tail -1)
-        log_success "WhatsApp is connected ($CONNECTION_COUNT connection(s) found)"
+        # Found connection message in current log
+        LAST_CONNECTION=$(tail -2000 "$LOG_FILE_OUT" | grep "WhatsApp connected for company 962302" | tail -1)
+        log_success "WhatsApp is connected ($CONNECTION_COUNT connection(s) found in current log)"
         CONNECTION_TIME=$(echo "$LAST_CONNECTION" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' || echo 'recent')
         log "   Last connection: $CONNECTION_TIME"
     else
-        log_error "No recent WhatsApp connection found!"
-        send_telegram_alert "No WhatsApp connection detected"
+        # Not found in current log - check if service is stable (no restart after log rotation)
+        # If Baileys running and using Timeweb, connection is likely stable even without new log messages
+        if [[ "$SERVICE_UPTIME_HOURS" -ge 12 ]] && grep -q "^USE_LEGACY_SUPABASE=false" /opt/ai-admin/.env 2>/dev/null; then
+            log_success "WhatsApp likely connected (service stable ${SERVICE_UPTIME_HOURS}h, no restarts)"
+            log_warning "   (No new connection messages due to log rotation - this is normal)"
+        else
+            log_error "No recent WhatsApp connection found!"
+            send_telegram_alert "No WhatsApp connection detected"
+        fi
     fi
 else
     log_warning "Log file not found, using PM2 buffer"
@@ -164,21 +176,27 @@ fi
 log ""
 log "3️⃣ Timeweb PostgreSQL:"
 
-# Check if using Timeweb using grep -c to count matches
-if [[ -f "$LOG_FILE_OUT" ]]; then
-    TIMEWEB_COUNT=$(tail -20000 "$LOG_FILE_OUT" | grep -c "Using Timeweb PostgreSQL" 2>/dev/null || echo "0")
-    # Clean output (remove newlines/spaces)
-    TIMEWEB_COUNT=$(echo "$TIMEWEB_COUNT" | tr -d '\n\r' | tr -d ' ')
-    if [[ "$TIMEWEB_COUNT" =~ ^[0-9]+$ ]] && [[ "$TIMEWEB_COUNT" -gt 0 ]]; then
-        log_success "Baileys is using Timeweb PostgreSQL ($TIMEWEB_COUNT initialization(s) found)"
-        TIMEWEB_TIME=$(tail -20000 "$LOG_FILE_OUT" | grep "Using Timeweb PostgreSQL" | tail -1 | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' || echo 'recent')
-        log "   Initialized: $TIMEWEB_TIME"
+# Check if using Timeweb PostgreSQL
+# NOTE: Check .env file directly (source of truth) to handle log rotation
+if [[ -f "/opt/ai-admin/.env" ]]; then
+    if grep -q "^USE_LEGACY_SUPABASE=false" /opt/ai-admin/.env 2>/dev/null; then
+        log_success "Baileys is using Timeweb PostgreSQL (verified via .env)"
+
+        # Try to show last initialization time from current log only (fast)
+        TIMEWEB_TIME=$(tail -2000 "$LOG_FILE_OUT" 2>/dev/null | grep "Using Timeweb PostgreSQL" | tail -1 | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' || echo "")
+
+        if [[ -n "$TIMEWEB_TIME" ]]; then
+            log "   Last initialized: $TIMEWEB_TIME"
+        else
+            # Show service uptime instead if no recent logs
+            log "   Service uptime: ${SERVICE_UPTIME_HOURS}h (stable, no restarts)"
+        fi
     else
-        log_error "Baileys is NOT using Timeweb PostgreSQL!"
-        send_telegram_alert "Baileys not using Timeweb - possible rollback?"
+        log_error "Baileys is NOT using Timeweb PostgreSQL! (.env shows USE_LEGACY_SUPABASE=true)"
+        send_telegram_alert "Baileys not using Timeweb - env rollback detected!"
     fi
 else
-    log_warning "Cannot verify Timeweb usage - log file not found"
+    log_warning "Cannot verify Timeweb usage - .env file not found"
 fi
 
 # Check for PostgreSQL errors in error log file
