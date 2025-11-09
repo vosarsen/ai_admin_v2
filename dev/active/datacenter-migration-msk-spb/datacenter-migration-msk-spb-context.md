@@ -78,41 +78,53 @@
 - ✅ System stable (5+ min monitoring)
 
 **Next Session Tasks:**
-1. 🚀 **Begin Phase 0.9: Query Pattern Library** (4-5 days, 32 hours)
+1. 🚀 **Begin Phase 0.9: Repository Pattern & Code Migration Prep** (2-3 days, 20-24 hours)
 
-   **Context (verified 2025-11-09):**
-   - ✅ **3 files** use `supabase.from` in codebase
-   - ✅ **~47 query occurrences** total
-   - ✅ **Primary file**: `src/integrations/yclients/data/supabase-data-layer.js` (977 lines)
+   **⚠️ CRITICAL CORRECTION (plan-reviewer findings):**
+   - ❌ Original plan: Migrate 3 TEST files with 47 occurrences of `supabase.from`
+   - ✅ **REAL target**: `supabase-data-layer.js` (977 lines, **21 queries using `this.db.from()`**)
+   - 💥 **Risk avoided**: Would have migrated tests, MISSED production code!
+
+   **Corrected Context (verified 2025-11-09):**
+   - ✅ **Production code**: `src/integrations/yclients/data/supabase-data-layer.js`
+     - 977 lines total
+     - 21 query calls (`this.db.from()` pattern, NOT `supabase.from`!)
+     - 19 async methods (getClientByPhone, upsertClient, getServices, etc.)
+     - Class-based with dependency injection
+   - ❌ **Test files** (NOT migration targets):
+     - 3 files with 47 occurrences of `supabase.from`
+     - Used for testing only
    - ✅ **19 tables ready** in Timeweb PostgreSQL (after Phase 0.8)
 
-   **Phase 0.9 Breakdown:**
-   - **0.9.1** (Day 10-11, 8h): Audit Supabase query patterns
-     - Analyze 3 files, categorize ~47 queries
-     - Extract unique patterns from supabase-data-layer.js
-     - Document complex JOINs, aggregations, JSON field access
+   **Phase 0.9 Breakdown (CORRECTED):**
+   - **0.9.1** (Day 10, 4h): Production Code Audit
+     - Analyze SupabaseDataLayer class structure
+     - Document all 19 methods
+     - Extract 21 query patterns (`this.db.from()`)
+     - Document dependency injection pattern
 
-   - **0.9.2** (Day 11-13, 12h): Create PostgreSQL equivalents
-     - Build transformation library (src/database/query-patterns.js)
-     - Implement all pattern transformations
-     - Handle edge cases (NULL, arrays, JSON, dates)
-     - Create error handling wrapper
+   - **0.9.2** (Day 10-11, 8h): Repository Pattern Implementation
+     - Create BaseRepository class
+     - Build 6 domain repositories (Client, Service, Staff, DialogContext, Company, StaffSchedule)
+     - Implement 19 methods (PostgreSQL equivalents)
+     - Add error handling + Sentry tracking
+     - Handle edge cases (NULL, arrays, single/maybeSingle)
 
-   - **0.9.3** (Day 13-14, 8h): Build test suite
-     - Set up Jest testing framework
-     - Write tests for all patterns
-     - Test edge cases (NULL handling, .single() vs .maybeSingle())
-     - Achieve 100% pattern coverage
+   - **0.9.3** (Day 11-12, 6h): Repository Test Suite
+     - Unit tests for all 6 repositories
+     - Integration tests with Timeweb PostgreSQL
+     - Edge case tests (NULL, errors, empty results)
+     - 100% coverage
 
-   - **0.9.4** (Day 14, 4h): Document edge cases
-     - NULL handling: `IS NULL` vs `= NULL`
-     - Array parameters: `.in()` → `ANY($1::text[])`
-     - Single vs MaybeSingle behavior
-     - Create troubleshooting guide
+   - **0.9.4** (Day 12, 4h): Migration Guide & Documentation
+     - SupabaseDataLayer → Repository Pattern transformation guide
+     - Before/after examples for all 19 methods
+     - Common pitfalls documentation
+     - Troubleshooting guide
 
    **Critical Success Factor:**
-   Without Phase 0.9, Phase 1 code migration will have 60-80% query error rate.
-   This library prevents those errors and accelerates Phase 1 execution.
+   Without corrected Phase 0.9, we would migrate test files and MISS production code.
+   Repository Pattern prevents 60-80% errors + provides maintainability for 500+ queries.
 
 2. Continue Phase 0.6 monitoring (Day 3/7 → Day 7/7)
 3. Confirm Phase 0 stability on Nov 13 (Day 7)
