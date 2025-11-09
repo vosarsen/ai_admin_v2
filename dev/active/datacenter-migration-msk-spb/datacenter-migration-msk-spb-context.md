@@ -78,12 +78,42 @@
 - ✅ System stable (5+ min monitoring)
 
 **Next Session Tasks:**
-1. 🚀 **Begin Phase 0.9: Query Pattern Library** (4-5 days)
-   - Audit all Supabase query patterns in codebase
-   - Extract unique patterns from `supabase-data-layer.js` (977 lines)
-   - Create PostgreSQL equivalents
-   - Build comprehensive test suite
-   - Document edge cases
+1. 🚀 **Begin Phase 0.9: Query Pattern Library** (4-5 days, 32 hours)
+
+   **Context (verified 2025-11-09):**
+   - ✅ **3 files** use `supabase.from` in codebase
+   - ✅ **~47 query occurrences** total
+   - ✅ **Primary file**: `src/integrations/yclients/data/supabase-data-layer.js` (977 lines)
+   - ✅ **19 tables ready** in Timeweb PostgreSQL (after Phase 0.8)
+
+   **Phase 0.9 Breakdown:**
+   - **0.9.1** (Day 10-11, 8h): Audit Supabase query patterns
+     - Analyze 3 files, categorize ~47 queries
+     - Extract unique patterns from supabase-data-layer.js
+     - Document complex JOINs, aggregations, JSON field access
+
+   - **0.9.2** (Day 11-13, 12h): Create PostgreSQL equivalents
+     - Build transformation library (src/database/query-patterns.js)
+     - Implement all pattern transformations
+     - Handle edge cases (NULL, arrays, JSON, dates)
+     - Create error handling wrapper
+
+   - **0.9.3** (Day 13-14, 8h): Build test suite
+     - Set up Jest testing framework
+     - Write tests for all patterns
+     - Test edge cases (NULL handling, .single() vs .maybeSingle())
+     - Achieve 100% pattern coverage
+
+   - **0.9.4** (Day 14, 4h): Document edge cases
+     - NULL handling: `IS NULL` vs `= NULL`
+     - Array parameters: `.in()` → `ANY($1::text[])`
+     - Single vs MaybeSingle behavior
+     - Create troubleshooting guide
+
+   **Critical Success Factor:**
+   Without Phase 0.9, Phase 1 code migration will have 60-80% query error rate.
+   This library prevents those errors and accelerates Phase 1 execution.
+
 2. Continue Phase 0.6 monitoring (Day 3/7 → Day 7/7)
 3. Confirm Phase 0 stability on Nov 13 (Day 7)
 

@@ -719,6 +719,203 @@ pm2 logs --err       # Check for new errors
 
 ---
 
+### Phase 0.9: Query Pattern Library (Day 10-14) ⏱️ ~4-5 days (32 hours)
+
+**Status**: 🔴 **CRITICAL - BLOCKING Phase 1**
+**Updated**: 2025-11-09 (after Phase 0.8 completion)
+
+**Goals:**
+- Extract all Supabase query patterns from codebase
+- Create PostgreSQL equivalents with proper error handling
+- Build comprehensive test suite
+- Document edge cases and transformation rules
+
+**Context:**
+After Phase 0.8, we now have 19 tables ready in Timeweb PostgreSQL:
+- 10 business tables (companies, clients, services, staff, staff_schedules, bookings, appointments_cache, dialog_contexts, reminders, sync_status)
+- 1 partitioned messages table (6 monthly partitions)
+- 2 existing Baileys tables (whatsapp_auth, whatsapp_keys)
+
+**Current Supabase Usage:**
+- ✅ **3 files** use `supabase.from` (verified 2025-11-09)
+- ✅ **~47 query occurrences** in codebase
+- ✅ **Primary file**: `src/integrations/yclients/data/supabase-data-layer.js` (977 lines)
+
+**Key Activities:**
+
+#### 0.9.1 Audit Supabase Query Patterns (Day 10-11, ~8 hours)
+
+```bash
+# Find all files using Supabase
+grep -r "supabase.from" src/ --include="*.js" > supabase-usage.txt
+
+# Expected: ~3 files
+find src/ -name "*.js" -exec grep -l "supabase.from" {} \; | wc -l
+
+# Expected: ~47 occurrences
+grep -r "supabase.from" src/ --include="*.js" | wc -l
+```
+
+**Categorize query patterns:**
+- Simple SELECT: `.from().select().eq()`
+- SELECT with filters: `.gte()`, `.lte()`, `.in()`
+- SELECT with JOINs: `.select('*, table(field)')`
+- SELECT with ordering: `.order()`
+- SELECT with pagination: `.range()`
+- INSERT: `.insert()`
+- UPDATE: `.update().eq()`
+- DELETE: `.delete().eq()`
+- UPSERT: `.upsert()`
+- Single vs Maybe Single: `.single()`, `.maybeSingle()`
+
+**Extract unique patterns from `supabase-data-layer.js`:**
+- Top 20 most complex queries
+- JOIN patterns
+- Aggregation patterns
+- JSON field access
+- Edge cases (NULL handling, arrays, special characters)
+
+**Checklist:**
+- [ ] All 3 files analyzed
+- [ ] ~47 queries categorized
+- [ ] Complex patterns documented
+- [ ] Edge cases identified
+
+#### 0.9.2 Create PostgreSQL Equivalents (Day 11-13, ~12 hours)
+
+**Create transformation library:**
+
+```javascript
+// src/database/query-patterns.js
+
+/**
+ * Simple select with filter
+ */
+async function selectByField(table, field, value) {
+  const result = await postgres.query(
+    `SELECT * FROM ${table} WHERE ${field} = $1`,
+    [value]
+  );
+  return { data: result.rows, error: null };
+}
+
+/**
+ * Select with JOIN
+ */
+async function selectWithJoin(/* ... */) {
+  // Implementation
+}
+
+/**
+ * Error handling wrapper
+ */
+async function safeQuery(sql, params) {
+  try {
+    const result = await postgres.query(sql, params);
+    return { data: result.rows, error: null };
+  } catch (error) {
+    logger.error('Query error:', error);
+    Sentry.captureException(error);
+    return { data: null, error };
+  }
+}
+```
+
+**Handle edge cases:**
+- NULL handling: `IS NULL` (NOT `= NULL`)
+- Array parameters: `.in(['a', 'b'])` → `ANY($1::text[])`
+- JSON field access: `.select('data->field')` → `jsonb` operators
+- Date/time formatting
+- Full-text search
+
+**Checklist:**
+- [ ] All pattern transformations implemented
+- [ ] Edge cases handled
+- [ ] Error handling wrapper created
+- [ ] Type safety ensured
+
+#### 0.9.3 Build Test Suite (Day 13-14, ~8 hours)
+
+```javascript
+// tests/query-patterns.test.js
+const { describe, it, expect } = require('@jest/globals');
+
+describe('Query Pattern Transformations', () => {
+  it('should transform simple select', async () => {
+    // Test implementation
+  });
+
+  it('should handle NULL values', async () => {
+    // Test implementation
+  });
+
+  it('should handle .single() vs .maybeSingle()', async () => {
+    // .single() throws if 0 or >1 rows
+    // .maybeSingle() returns null if 0 rows, throws if >1
+  });
+});
+```
+
+**Checklist:**
+- [ ] Test framework set up (Jest)
+- [ ] Tests for all patterns
+- [ ] Edge case tests (NULL, arrays, special chars)
+- [ ] 100% pattern coverage
+- [ ] All tests passing
+
+#### 0.9.4 Document Edge Cases (Day 14, ~4 hours)
+
+**Critical edge cases:**
+
+1. **NULL Handling**
+   - Supabase: `.is('field', null)` or `.eq('field', null)`
+   - PostgreSQL: `WHERE field IS NULL` (NOT `= NULL`)
+
+2. **Array Parameters**
+   - Supabase: `.in('status', ['confirmed', 'pending'])`
+   - PostgreSQL: `WHERE status = ANY($1::text[])` with `[['confirmed', 'pending']]`
+
+3. **Single vs MaybeSingle**
+   - `.single()`: Throws if 0 or >1 rows
+   - `.maybeSingle()`: Returns null if 0 rows, throws if >1
+
+**Create documentation:**
+```markdown
+# Query Transformation Edge Cases
+
+## 1. NULL Handling
+...
+
+## 2. Array Parameters
+...
+
+## 3. Single vs MaybeSingle
+...
+```
+
+**Checklist:**
+- [ ] Edge cases documented
+- [ ] Common pitfalls listed
+- [ ] Troubleshooting guide created
+- [ ] Examples for each case
+
+**Success Criteria Phase 0.9:**
+- ✅ All 3 Supabase files analyzed
+- ✅ ~47 query patterns documented
+- ✅ PostgreSQL equivalents created
+- ✅ Test suite with 100% coverage
+- ✅ Edge cases documented
+- ✅ Ready to prevent 60-80% query errors in Phase 1
+
+**Acceptance Criteria:**
+- ✅ Query pattern library complete
+- ✅ All tests passing
+- ✅ Documentation comprehensive
+- ✅ Team can confidently migrate code
+- ✅ Total time: 4-5 days
+
+---
+
 ### Phase 1: Server Migration Preparation (Day 7) ⏱️ ~2 hours
 
 **Note**: After Phase 0 success, we now migrate the server to benefit from internal network to Timeweb PostgreSQL.
