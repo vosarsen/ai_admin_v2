@@ -17,6 +17,7 @@ Quick reference for Claude Code when working with AI Admin v2.
 - `docs/TELEGRAM_BOT_QUICK_REFERENCE.md` - 🤖 Telegram бот управление
 - `docs/marketplace/AUTHORIZATION_QUICK_REFERENCE.md` - ⚡ YClients авторизация
 - `docs/TIMEWEB_POSTGRES_SUMMARY.md` - 🗄️ Timeweb PostgreSQL миграция
+- **`dev/active/database-migration-supabase-timeweb/`** - 🎯 **ACTIVE: Database Migration Plan**
 
 ## 🔧 Essential MCP Servers
 
@@ -427,62 +428,93 @@ GET https://api.yclients.com/api/v1/clients/{salon_id}
 
 Детали: `docs/marketplace/AUTHORIZATION_QUICK_REFERENCE.md`
 
-## 🗄️ Timeweb PostgreSQL Migration (NEW!)
+## 🗄️ Database Migration: Supabase → Timeweb PostgreSQL (ACTIVE!)
 
-**Статус:** Подготовка к миграции
-**Цель:** Переход с Supabase на Timeweb PostgreSQL (152-ФЗ соответствие)
+**Статус:** 🎯 **Phase 1 Ready to Start** (Repository Pattern Implementation)
+**Цель:** Переход с Supabase на Timeweb PostgreSQL (152-ФЗ соответствие + производительность)
 
-### Подключение
+### 📊 Migration Progress
+
+**Complete:**
+- ✅ Phase 0: Baileys Session Migration (2025-11-06)
+  - 1 auth + 728 keys migrated
+  - WhatsApp stable, Day 3/7 monitoring
+- ✅ Phase 0.8: Schema Migration (2025-11-09)
+  - 19 tables, 129 indexes, 8 functions created
+  - Zero downtime, 8 minutes execution
+
+**In Progress:**
+- 🔄 Phase 1: Repository Pattern (2-3 days)
+- ⬜ Phase 2: Code Integration (5-7 days)
+- ⬜ Phase 3: Data Migration (3-5 days)
+- ⬜ Phase 4: Testing (2-3 days + 48h)
+- ⬜ Phase 5: Production Cutover (2-4 hours)
+
+### 📋 Active Migration Plan
+
+**Location:** `dev/active/database-migration-supabase-timeweb/`
+
+**Key Files:**
+- `database-migration-plan.md` - Complete 5-phase migration plan
+- `database-migration-context.md` - Current state, decisions, lessons learned
+- `database-migration-tasks.md` - Detailed task breakdown with checklists
+
+**Timeline:** ~3 weeks (conservative estimate)
+**Target Completion:** November 30, 2025
+
+### 🗄️ Timeweb PostgreSQL Connection
 
 ```bash
-# Production (внутренняя сеть VPS)
-Host: 192.168.0.4
+# Production (external SSL endpoint from Moscow datacenter)
+Host: a84c973324fdaccfc68d929d.twc1.net
 Port: 5432
 Database: default_db
 User: gen_user
 Password: }X|oM595A<7n?0
 
+# SSL Required
+SSL Mode: verify-full
+SSL Cert: /root/.cloud-certs/root.crt
+
 # Connection string
-postgresql://gen_user:%7DX%7CoM595A%3C7n%3F0@192.168.0.4:5432/default_db
-
-# Локально (через SSH tunnel)
-ssh -L 5433:192.168.0.4:5432 root@46.149.70.219 -N &
-postgresql://gen_user:%7DX%7CoM595A%3C7n%3F0@localhost:5433/default_db
+postgresql://gen_user:%7DX%7CoM595A%3C7n%3F0@a84c973324fdaccfc68d929d.twc1.net:5432/default_db?sslmode=verify-full
 ```
 
-### Быстрый старт
+### Current Database State
 
 ```bash
-# Тест подключения
-./scripts/test-timeweb-connection.sh
+# Timeweb PostgreSQL (11 MB)
+19 tables total:
+  ✅ 2 Baileys tables (has data)
+  ❌ 17 Business/Messages tables (empty - schema only)
 
-# Применить схему БД
-./scripts/apply-schema-timeweb.sh
-
-# Тест через Node.js
-node -e "
-require('dotenv').config();
-const postgres = require('./src/database/postgres');
-postgres.query('SELECT NOW()').then(r => console.log('✅', r.rows));
-"
+# Supabase PostgreSQL (still active)
+Production data:
+  - Companies: 1
+  - Clients: 1,299
+  - Services: 63
+  - Bookings: 38
+  - And more...
 ```
 
-### Режим работы
+### Feature Flags
 
 ```bash
-# .env
-USE_LEGACY_SUPABASE=true   # По умолчанию (используем Supabase)
-USE_LEGACY_SUPABASE=false  # Переключение на Timeweb PostgreSQL
+# Current (.env)
+USE_LEGACY_SUPABASE=true          # Using Supabase
+USE_REPOSITORY_PATTERN=false      # Phase 2 will enable
+ENABLE_DUAL_WRITE=false           # Phase 3 will enable
 ```
 
-### Документация
+### Reference Documentation
 
-- **Полный план:** `docs/TIMEWEB_POSTGRES_MIGRATION.md`
-- **Краткая сводка:** `docs/TIMEWEB_POSTGRES_SUMMARY.md`
-- **Quick Start:** `QUICK_START_TIMEWEB_POSTGRES.md`
+- **Historical:** `dev/active/datacenter-migration-msk-spb/` (archived)
+- **Execution Reports:**
+  - Phase 0: `datacenter-migration-msk-spb/PHASE_0_EXECUTION_REPORT.md`
+  - Phase 0.8: `datacenter-migration-msk-spb/PHASE_08_EXECUTION_REPORT.md`
 
 ---
-**Last updated:** November 3, 2025
+**Last updated:** November 9, 2025
 **Current branch:** main (GitHub Flow с короткими feature ветками)
 **AI Provider:** Gemini 2.5 Flash (via USA VPN) - 2.6x faster, $77/month savings 🚀
 **Latest change:** 🏆 Skills Auto-Activation System - ПОЛНОСТЬЮ РАБОТАЕТ! Все 3 хука операционны, тестирование пройдено (EN + RU) ✅
