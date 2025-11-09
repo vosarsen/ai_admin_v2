@@ -298,8 +298,11 @@ psql 'postgresql://gen_user:PASSWORD@a84c973324fdaccfc68d929d.twc1.net:5432/defa
   # Find all files using Supabase
   grep -r "supabase.from" src/ --include="*.js" > supabase-usage.txt
 
+  # Expected: ~3 files, ~47 occurrences (verified 2025-11-09)
+
   # Count occurrences
   grep -r "supabase.from" src/ --include="*.js" | wc -l
+  # Expected: ~47
   ```
 
 - [ ] Categorize query patterns
