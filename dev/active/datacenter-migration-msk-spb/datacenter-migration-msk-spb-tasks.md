@@ -284,231 +284,202 @@ psql 'postgresql://gen_user:PASSWORD@a84c973324fdaccfc68d929d.twc1.net:5432/defa
 
 ---
 
-## Phase 0.9: Query Pattern Library (Day 5-9)
+## Phase 0.9: Query Pattern Library & Repository Implementation (Day 5-7)
 
-**Goal**: Extract Supabase query patterns and create PostgreSQL equivalents
-**Duration**: ~4-5 days (32 hours)
+**Goal**: Transform SupabaseDataLayer to PostgreSQL Repository Pattern
+**Duration**: ~2-3 days (20-24 hours) - **CORRECTED after plan-reviewer analysis**
 **Status**: ⬜ Not Started
 **Priority**: 🔴 **CRITICAL - BLOCKING Phase 1**
 
-### 0.9.1 Audit Supabase Query Patterns (Day 5-6, ~8 hours)
+**⚠️ CRITICAL CORRECTION:**
+- Original plan targeted TEST files (3 files, 47 occurrences of `supabase.from`)
+- REAL target: `supabase-data-layer.js` (977 lines, 21 queries using `this.db.from()`)
+- Without this correction, we would have migrated tests and MISSED production code!
 
-- [ ] Search codebase for Supabase usage
+### 0.9.1 Production Code Audit (Day 5, ~4 hours)
+
+**Target**: `src/integrations/yclients/data/supabase-data-layer.js`
+
+- [ ] Audit production Supabase usage
   ```bash
-  # Find all files using Supabase
-  grep -r "supabase.from" src/ --include="*.js" > supabase-usage.txt
+  # Correct command for PRODUCTION code (not test files!)
+  grep -n "\.from(" src/integrations/yclients/data/supabase-data-layer.js
+  # Expected: 21 occurrences of this.db.from()
 
-  # Expected: ~3 files, ~47 occurrences (verified 2025-11-09)
-
-  # Count occurrences
-  grep -r "supabase.from" src/ --include="*.js" | wc -l
-  # Expected: ~47
+  # List all methods
+  grep -E "async (get|upsert)" src/integrations/yclients/data/supabase-data-layer.js
+  # Expected: 19 async methods
   ```
 
-- [ ] Categorize query patterns
-  - [ ] Simple SELECT: `.from().select().eq()`
-  - [ ] SELECT with filters: `.gte()`, `.lte()`, `.in()`
-  - [ ] SELECT with JOINs: `.select('*, table(field)')`
-  - [ ] SELECT with ordering: `.order()`
-  - [ ] SELECT with pagination: `.range()`
-  - [ ] INSERT: `.insert()`
-  - [ ] UPDATE: `.update().eq()`
-  - [ ] DELETE: `.delete().eq()`
-  - [ ] UPSERT: `.upsert()`
-  - [ ] Single vs Maybe Single: `.single()`, `.maybeSingle()`
+- [ ] Document SupabaseDataLayer class structure
+  - [ ] Analyze constructor (dependency injection pattern)
+  - [ ] Analyze `this.db` usage (NOT direct `supabase`)
+  - [ ] Document validation methods (_validateCompanyId, _validatePhone, etc.)
+  - [ ] Document error handling (_handleSupabaseError, _buildErrorResponse)
 
-- [ ] Extract unique patterns
-  ```bash
-  # Create pattern catalog
-  cat > docs/supabase-query-patterns.md << 'EOF'
-  # Supabase Query Patterns Catalog
+- [ ] Catalog all 19 methods:
+  - [ ] Dialog Context: getDialogContext, upsertDialogContext
+  - [ ] Clients: getClientByPhone, getClientById, getClientAppointments, searchClientsByName, upsertClient, upsertClients
+  - [ ] Staff: getStaffById, getStaffSchedules, getStaffSchedule, upsertStaffSchedules
+  - [ ] Services: getServices, getServiceById, getServicesByCategory, upsertServices
+  - [ ] Staff list: getStaff
+  - [ ] Company: getCompany, upsertCompany
 
-  ## Pattern 1: Simple Select
-  ### Supabase
+- [ ] Document query patterns:
+  - [ ] Simple SELECT with .single(): `.from('table').select('*').eq().single()`
+  - [ ] SELECT with filters: `.eq()`, `.gte()`, `.lte()`, `.in()`
+  - [ ] UPSERT: `.upsert(data, { onConflict: 'field' })`
+  - [ ] Batch UPSERT: `.upsert(array)`
+
+**Checkpoint**: Production code fully documented (21 queries, 19 methods)
+
+### 0.9.2 Repository Pattern Implementation (Day 5-6, ~8 hours)
+
+**Create Repository Layer** (per plan-reviewer recommendation)
+
+- [ ] Create BaseRepository class
   ```javascript
-  const { data, error } = await supabase
-    .from('clients')
-    .select('*')
-    .eq('phone', phone)
-    .single();
-  ```
+  // src/repositories/BaseRepository.js
+  class BaseRepository {
+    constructor(tableName, postgres) {
+      this.tableName = tableName;
+      this.db = postgres;
+    }
 
-  ### PostgreSQL
-  ```javascript
-  const result = await postgres.query(
-    'SELECT * FROM clients WHERE phone = $1 LIMIT 1',
-    [phone]
-  );
-  const data = result.rows[0];
-  ```
-  EOF
-  ```
+    async findOne(field, value) {
+      // Implementation with error handling
+    }
 
-- [ ] Document complex patterns from `supabase-data-layer.js` (977 lines)
-  - [ ] Extract top 20 most complex queries
-  - [ ] Document JOIN patterns
-  - [ ] Document aggregation patterns
-  - [ ] Document JSON field access
-
-**Checkpoint**: All query patterns documented
-
-### 0.9.2 Create PostgreSQL Equivalents (Day 6-8, ~12 hours)
-
-- [ ] Create query transformation library
-  ```javascript
-  // src/database/query-patterns.js
-
-  /**
-   * Simple select with filter
-   */
-  async function selectByField(table, field, value) {
-    const result = await postgres.query(
-      `SELECT * FROM ${table} WHERE ${field} = $1`,
-      [value]
-    );
-    return { data: result.rows, error: null };
-  }
-
-  /**
-   * Select with JOIN
-   */
-  async function selectWithJoin(/* ... */) {
-    // Implementation
-  }
-  ```
-
-- [ ] Implement all pattern transformations
-  - [ ] Simple SELECT patterns
-  - [ ] Complex JOIN patterns
-  - [ ] Filter patterns (eq, gte, lte, in)
-  - [ ] Ordering and pagination
-  - [ ] INSERT patterns
-  - [ ] UPDATE patterns
-  - [ ] DELETE patterns
-  - [ ] UPSERT patterns
-
-- [ ] Handle edge cases
-  - [ ] NULL handling
-  - [ ] Array parameters (`.in()` → `ANY($1::text[])`)
-  - [ ] JSON field access
-  - [ ] Full-text search
-  - [ ] Date/time formatting
-
-- [ ] Create error handling wrapper
-  ```javascript
-  async function safeQuery(sql, params) {
-    try {
-      const result = await postgres.query(sql, params);
-      return { data: result.rows, error: null };
-    } catch (error) {
-      logger.error('Query error:', error);
-      Sentry.captureException(error);
-      return { data: null, error };
+    async upsert(data, conflictField) {
+      // PostgreSQL UPSERT: INSERT ... ON CONFLICT ... DO UPDATE
     }
   }
   ```
 
-**Checkpoint**: All PostgreSQL equivalents created
+- [ ] Create 6 domain repositories:
+  - [ ] `ClientRepository` - 7 methods (findByPhone, findById, findAppointments, search, upsert, batchUpsert, getUpcoming)
+  - [ ] `ServiceRepository` - 4 methods (getAll, getById, getByCategory, upsert)
+  - [ ] `StaffRepository` - 4 methods (getById, getSchedules, getSchedule, upsertSchedules)
+  - [ ] `DialogContextRepository` - 2 methods (get, upsert)
+  - [ ] `CompanyRepository` - 2 methods (get, upsert)
+  - [ ] `StaffScheduleRepository` - 3 methods (getSchedules, getSchedule, upsert)
 
-### 0.9.3 Build Test Suite (Day 8-9, ~8 hours)
+- [ ] Transform Supabase patterns to PostgreSQL:
+  - [ ] `.from().select().eq().single()` → `SELECT ... WHERE ... LIMIT 1`
+  - [ ] `.upsert(data, { onConflict })` → `INSERT ... ON CONFLICT ... DO UPDATE`
+  - [ ] `.in('field', array)` → `WHERE field = ANY($1::text[])`
+  - [ ] `.gte('date', value)` → `WHERE date >= $1`
 
-- [ ] Create test framework
-  ```javascript
-  // tests/query-patterns.test.js
-  const { describe, it, expect } = require('@jest/globals');
+- [ ] Handle edge cases:
+  - [ ] NULL: Use `IS NULL` (not `= NULL`)
+  - [ ] Arrays: `ANY($1::text[])` format
+  - [ ] Single/MaybeSingle: Custom wrapper functions
+  - [ ] Error responses: `{ data, error }` format
 
-  describe('Query Pattern Transformations', () => {
-    it('should transform simple select', async () => {
-      // Test implementation
-    });
+- [ ] Add Sentry error tracking to all repositories
 
-    it('should handle NULL values', async () => {
-      // Test implementation
-    });
-  });
-  ```
+**Checkpoint**: 6 repositories created with 19 total methods
 
-- [ ] Write tests for each pattern
-  - [ ] Test simple SELECT
-  - [ ] Test complex JOINs
-  - [ ] Test filters (eq, gte, lte, in)
-  - [ ] Test ordering
-  - [ ] Test pagination
-  - [ ] Test INSERT
-  - [ ] Test UPDATE
-  - [ ] Test DELETE
-  - [ ] Test UPSERT
+### 0.9.3 Repository Test Suite (Day 6-7, ~6 hours)
 
-- [ ] Test edge cases
-  - [ ] NULL handling
-  - [ ] Empty arrays
-  - [ ] Special characters in strings
-  - [ ] Large datasets
-  - [ ] Concurrent queries
-
-- [ ] Run test suite
+- [ ] Configure Jest for repository testing
   ```bash
-  npm test -- query-patterns.test.js
+  npm install --save-dev jest @jest/globals
   ```
 
-- [ ] Fix failing tests
-- [ ] Achieve 100% pattern coverage
+- [ ] Create unit tests for each repository:
+  - [ ] ClientRepository tests (7 methods)
+    - [ ] Test findByPhone
+    - [ ] Test findById
+    - [ ] Test search
+    - [ ] Test upsert
+    - [ ] Test batch upsert
+  - [ ] ServiceRepository tests (4 methods)
+  - [ ] StaffRepository tests (4 methods)
+  - [ ] DialogContextRepository tests (2 methods)
+  - [ ] CompanyRepository tests (2 methods)
+  - [ ] StaffScheduleRepository tests (3 methods)
 
-**Checkpoint**: Test suite passing with 100% coverage
+- [ ] Test edge cases:
+  - [ ] NULL values (IS NULL behavior)
+  - [ ] Empty results (no rows found)
+  - [ ] Multiple rows (single() should fail)
+  - [ ] Database errors (connection failures)
+  - [ ] Array parameters (ANY() format)
 
-### 0.9.4 Document Edge Cases (Day 9, ~4 hours)
+- [ ] Create integration tests with Timeweb PostgreSQL:
+  ```bash
+  # Set up test database connection
+  export POSTGRES_HOST=a84c973324fdaccfc68d929d.twc1.net
+  export POSTGRES_PORT=5432
+  export POSTGRES_DATABASE=default_db
 
-- [ ] Create edge cases documentation
+  # Run integration tests
+  npm test -- --testMatch="**/*.integration.test.js"
+  ```
+
+- [ ] Run all tests:
+  ```bash
+  npm test
+  # Expected: All tests passing, 100% coverage
+  ```
+
+**Checkpoint**: All repository tests passing with 100% coverage
+
+### 0.9.4 Migration Guide & Documentation (Day 7, ~4 hours)
+
+- [ ] Create comprehensive migration guide:
   ```markdown
-  # Query Transformation Edge Cases
+  # SupabaseDataLayer → Repository Pattern Migration Guide
 
-  ## 1. NULL Handling
+  ## Pattern Transformations
 
-  ### Supabase
-  `.is('field', null)` or `.eq('field', null)`
+  ### NULL Handling
+  - Supabase: `.is('field', null)`
+  - PostgreSQL: `WHERE field IS NULL`
 
-  ### PostgreSQL
-  `WHERE field IS NULL` (NOT `= NULL`)
+  ### Array Parameters
+  - Supabase: `.in('status', ['a', 'b'])`
+  - PostgreSQL: `WHERE status = ANY($1::text[])`
 
-  ## 2. Array Parameters
+  ### Single vs MaybeSingle
+  - `.single()`: Throws if 0 or >1 rows
+  - `.maybeSingle()`: Returns null if 0, throws if >1
 
-  ### Supabase
-  `.in('status', ['confirmed', 'pending'])`
+  ## Usage Examples
 
-  ### PostgreSQL
-  `WHERE status = ANY($1::text[])`
-  Pass: `[['confirmed', 'pending']]`
-
-  ## 3. Single vs MaybeSingle
-
-  ### Supabase .single()
-  - Throws error if >1 row
-  - Throws error if 0 rows
-
-  ### Supabase .maybeSingle()
-  - Returns null if 0 rows
-  - Throws error if >1 row
-
-  ### PostgreSQL
+  ### Before (SupabaseDataLayer)
   ```javascript
-  // .single() equivalent
-  const result = await postgres.query(sql, params);
-  if (result.rows.length === 0) throw new Error('No rows');
-  if (result.rows.length > 1) throw new Error('Multiple rows');
-  return result.rows[0];
-
-  // .maybeSingle() equivalent
-  const result = await postgres.query(sql, params);
-  if (result.rows.length > 1) throw new Error('Multiple rows');
-  return result.rows[0] || null;
-  ```
+  const dataLayer = new SupabaseDataLayer();
+  const result = await dataLayer.getClientByPhone('79001234567');
   ```
 
-- [ ] Document common pitfalls
-- [ ] Create troubleshooting guide
-- [ ] Add examples for each edge case
+  ### After (Repository Pattern)
+  ```javascript
+  const clientRepo = new ClientRepository(postgres);
+  const result = await clientRepo.findByPhone('79001234567');
+  ```
 
-**Phase 0.9 Complete**: ⬜ All tasks completed | Actual Duration: ___ days
+  ## Common Pitfalls
+  1. Using `= NULL` instead of `IS NULL`
+  2. Wrong array format for `ANY()`
+  3. Forgetting RETURNING clause in UPSERT
+  4. No error handling in queries
+  5. SQL injection risk (use parameterized queries!)
+  ```
+
+- [ ] Document all 19 method transformations:
+  - [ ] Before/after examples for each method
+  - [ ] Edge cases for each method
+  - [ ] Error handling patterns
+
+- [ ] Create troubleshooting guide:
+  - [ ] Common database errors
+  - [ ] Connection issues
+  - [ ] Query performance problems
+  - [ ] Testing failures
+
+**Phase 0.9 Complete**: ⬜ All tasks completed | Actual Duration: ___ days (estimated 2-3 days)
 
 ---
 

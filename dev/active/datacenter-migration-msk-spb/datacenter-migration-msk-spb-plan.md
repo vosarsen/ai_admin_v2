@@ -719,14 +719,17 @@ pm2 logs --err       # Check for new errors
 
 ---
 
-### Phase 0.9: Query Pattern Library (Day 10-14) ⏱️ ~4-5 days (32 hours)
+### Phase 0.9: Query Pattern Library & Code Migration Prep (Day 10-12) ⏱️ ~2-3 days (20-24 hours)
 
 **Status**: 🔴 **CRITICAL - BLOCKING Phase 1**
-**Updated**: 2025-11-09 (after Phase 0.8 completion)
+**Updated**: 2025-11-09 (CORRECTED after plan-reviewer analysis)
+
+**⚠️ CRITICAL FIX:** Original plan targeted TEST files! Production code uses `this.db.from()`, NOT `supabase.from()`
 
 **Goals:**
-- Extract all Supabase query patterns from codebase
-- Create PostgreSQL equivalents with proper error handling
+- Audit PRODUCTION Supabase usage in `supabase-data-layer.js`
+- Create PostgreSQL equivalents with Repository Pattern
+- Transform 21 production queries to native PostgreSQL
 - Build comprehensive test suite
 - Document edge cases and transformation rules
 
@@ -736,183 +739,343 @@ After Phase 0.8, we now have 19 tables ready in Timeweb PostgreSQL:
 - 1 partitioned messages table (6 monthly partitions)
 - 2 existing Baileys tables (whatsapp_auth, whatsapp_keys)
 
-**Current Supabase Usage:**
-- ✅ **3 files** use `supabase.from` (verified 2025-11-09)
-- ✅ **~47 query occurrences** in codebase
-- ✅ **Primary file**: `src/integrations/yclients/data/supabase-data-layer.js` (977 lines)
+**CORRECTED Production Supabase Usage (verified 2025-11-09):**
+
+**PRIMARY TARGET** (production code):
+- ✅ `src/integrations/yclients/data/supabase-data-layer.js` (977 lines)
+  - **21 query calls** using `this.db.from()` pattern
+  - **19 async methods** (getClientByPhone, upsertClient, getServices, etc.)
+  - Class-based with dependency injection
+  - Pattern: `this.db.from('table').select().eq()`
+
+**NOT MIGRATION TARGETS** (test files):
+- ❌ `src/services/ai-admin-v2/__tests__/data-loader.test.js` (23 uses `supabase.from`)
+- ❌ `src/services/ai-admin-v2/__tests__/data-loader.test 2.js` (23 uses `supabase.from`)
+- ❌ `src/mcp-server/supabase-server.js` (1 use)
+
+**Why This Matters:**
+Original grep search `supabase.from` found test files but MISSED production code that uses `this.db.from()` pattern!
 
 **Key Activities:**
 
-#### 0.9.1 Audit Supabase Query Patterns (Day 10-11, ~8 hours)
+#### 0.9.1 Production Code Audit (Day 10, ~4 hours)
+
+**Target**: `src/integrations/yclients/data/supabase-data-layer.js` (977 lines, 21 queries)
 
 ```bash
-# Find all files using Supabase
-grep -r "supabase.from" src/ --include="*.js" > supabase-usage.txt
+# Correct audit command for production code
+grep -n "\.from(" src/integrations/yclients/data/supabase-data-layer.js
 
-# Expected: ~3 files
-find src/ -name "*.js" -exec grep -l "supabase.from" {} \; | wc -l
+# Expected: 21 occurrences of this.db.from()
 
-# Expected: ~47 occurrences
-grep -r "supabase.from" src/ --include="*.js" | wc -l
+# List all async methods (19 methods)
+grep -E "async (get|upsert|delete|create|update)" src/integrations/yclients/data/supabase-data-layer.js
 ```
 
-**Categorize query patterns:**
-- Simple SELECT: `.from().select().eq()`
-- SELECT with filters: `.gte()`, `.lte()`, `.in()`
-- SELECT with JOINs: `.select('*, table(field)')`
-- SELECT with ordering: `.order()`
-- SELECT with pagination: `.range()`
-- INSERT: `.insert()`
-- UPDATE: `.update().eq()`
-- DELETE: `.delete().eq()`
-- UPSERT: `.upsert()`
-- Single vs Maybe Single: `.single()`, `.maybeSingle()`
-
-**Extract unique patterns from `supabase-data-layer.js`:**
-- Top 20 most complex queries
-- JOIN patterns
-- Aggregation patterns
-- JSON field access
-- Edge cases (NULL handling, arrays, special characters)
-
-**Checklist:**
-- [ ] All 3 files analyzed
-- [ ] ~47 queries categorized
-- [ ] Complex patterns documented
-- [ ] Edge cases identified
-
-#### 0.9.2 Create PostgreSQL Equivalents (Day 11-13, ~12 hours)
-
-**Create transformation library:**
-
+**Analyze SupabaseDataLayer class structure:**
 ```javascript
-// src/database/query-patterns.js
+class SupabaseDataLayer {
+  constructor(database = supabase, config = {}) {
+    this.db = database; // ← Dependency injection pattern
+  }
 
-/**
- * Simple select with filter
- */
-async function selectByField(table, field, value) {
-  const result = await postgres.query(
-    `SELECT * FROM ${table} WHERE ${field} = $1`,
-    [value]
-  );
-  return { data: result.rows, error: null };
-}
+  // Example method pattern
+  async getClientByPhone(phone) {
+    const { data, error } = await this.db
+      .from('clients')
+      .select('*')
+      .eq('phone', normalizedPhone)
+      .single();
 
-/**
- * Select with JOIN
- */
-async function selectWithJoin(/* ... */) {
-  // Implementation
-}
-
-/**
- * Error handling wrapper
- */
-async function safeQuery(sql, params) {
-  try {
-    const result = await postgres.query(sql, params);
-    return { data: result.rows, error: null };
-  } catch (error) {
-    logger.error('Query error:', error);
-    Sentry.captureException(error);
-    return { data: null, error };
+    return this._buildResponse(data, 'getClientByPhone');
   }
 }
 ```
 
-**Handle edge cases:**
-- NULL handling: `IS NULL` (NOT `= NULL`)
-- Array parameters: `.in(['a', 'b'])` → `ANY($1::text[])`
-- JSON field access: `.select('data->field')` → `jsonb` operators
-- Date/time formatting
-- Full-text search
+**Document all 19 methods:**
+1. Dialog Context: getDialogContext, upsertDialogContext
+2. Clients: getClientByPhone, getClientById, getClientAppointments, searchClientsByName, upsertClient, upsertClients
+3. Staff: getStaffById, getStaffSchedules, getStaffSchedule, upsertStaffSchedules
+4. Services: getServices, getServiceById, getServicesByCategory, upsertServices
+5. Staff: getStaff
+6. Company: getCompany, upsertCompany
+
+**Query patterns found:**
+- ✅ Simple SELECT with single(): `.from('table').select('*').eq('field', value).single()`
+- ✅ SELECT with filters: `.eq()`, `.gte()`, `.lte()`, `.in()`
+- ✅ UPSERT: `.upsert(data, { onConflict: 'field' })`
+- ✅ Batch operations: `.upsert(array)`
+- ✅ Error handling: `_handleSupabaseError()` wrapper
 
 **Checklist:**
-- [ ] All pattern transformations implemented
-- [ ] Edge cases handled
-- [ ] Error handling wrapper created
-- [ ] Type safety ensured
+- [ ] All 19 methods documented
+- [ ] 21 query patterns extracted
+- [ ] Dependency injection pattern understood
+- [ ] Error handling patterns documented
 
-#### 0.9.3 Build Test Suite (Day 13-14, ~8 hours)
+#### 0.9.2 Repository Pattern Implementation (Day 10-11, ~8 hours)
+
+**Create Repository Layer** (per plan-reviewer recommendation):
 
 ```javascript
-// tests/query-patterns.test.js
-const { describe, it, expect } = require('@jest/globals');
+// src/repositories/BaseRepository.js
+class BaseRepository {
+  constructor(tableName, postgres) {
+    this.tableName = tableName;
+    this.db = postgres;
+  }
 
-describe('Query Pattern Transformations', () => {
-  it('should transform simple select', async () => {
-    // Test implementation
+  async findOne(field, value) {
+    try {
+      const result = await this.db.query(
+        `SELECT * FROM ${this.tableName} WHERE ${field} = $1 LIMIT 1`,
+        [value]
+      );
+      return { data: result.rows[0] || null, error: null };
+    } catch (error) {
+      logger.error(`${this.tableName}.findOne failed:`, error);
+      Sentry.captureException(error);
+      return { data: null, error };
+    }
+  }
+
+  async upsert(data, conflictField) {
+    // PostgreSQL UPSERT implementation
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+    const updateSet = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+
+    const sql = `
+      INSERT INTO ${this.tableName} (${keys.join(', ')})
+      VALUES (${placeholders})
+      ON CONFLICT (${conflictField})
+      DO UPDATE SET ${updateSet}
+      RETURNING *
+    `;
+
+    try {
+      const result = await this.db.query(sql, values);
+      return { data: result.rows[0], error: null };
+    } catch (error) {
+      logger.error(`${this.tableName}.upsert failed:`, error);
+      Sentry.captureException(error);
+      return { data: null, error };
+    }
+  }
+}
+
+// src/repositories/ClientRepository.js
+class ClientRepository extends BaseRepository {
+  constructor(postgres) {
+    super('clients', postgres);
+  }
+
+  async findByPhone(phone) {
+    return this.findOne('phone', phone);
+  }
+
+  async findById(yclientsId, companyId) {
+    const result = await this.db.query(
+      'SELECT * FROM clients WHERE yclients_id = $1 AND company_id = $2 LIMIT 1',
+      [yclientsId, companyId]
+    );
+    return { data: result.rows[0] || null, error: null };
+  }
+}
+```
+
+**Create all 6 repositories:**
+1. `ClientRepository` (7 methods)
+2. `ServiceRepository` (4 methods)
+3. `StaffRepository` (4 methods)
+4. `DialogContextRepository` (2 methods)
+5. `CompanyRepository` (2 methods)
+6. `StaffScheduleRepository` (3 methods)
+
+**Transform Supabase patterns to PostgreSQL:**
+
+| Supabase Pattern | PostgreSQL Equivalent |
+|------------------|----------------------|
+| `.from('table').select('*').eq('field', value).single()` | `SELECT * FROM table WHERE field = $1 LIMIT 1` |
+| `.from('table').upsert(data, { onConflict: 'field' })` | `INSERT ... ON CONFLICT (field) DO UPDATE SET ...` |
+| `.from('table').select('*').in('status', ['a', 'b'])` | `SELECT * FROM table WHERE status = ANY($1::text[])` |
+| `.from('table').select('*').gte('date', value)` | `SELECT * FROM table WHERE date >= $1` |
+| `.from('table').select('*').single()` | `LIMIT 1` + throw if 0 or >1 rows |
+
+**Edge cases handled:**
+- NULL handling: `IS NULL` (NOT `= NULL`)
+- Array parameters: `= ANY($1::text[])`
+- Single/MaybeSingle: Custom wrapper functions
+- Error responses: Consistent `{ data, error }` format
+
+**Checklist:**
+- [ ] BaseRepository created
+- [ ] All 6 repositories implemented
+- [ ] 19 methods migrated from SupabaseDataLayer
+- [ ] Error handling consistent
+- [ ] Type safety ensured
+
+#### 0.9.3 Test Suite for Repositories (Day 11-12, ~6 hours)
+
+```javascript
+// tests/repositories/ClientRepository.test.js
+const ClientRepository = require('../../src/repositories/ClientRepository');
+const { describe, it, expect, beforeEach } = require('@jest/globals');
+
+describe('ClientRepository', () => {
+  let repo;
+  let mockDb;
+
+  beforeEach(() => {
+    mockDb = {
+      query: jest.fn()
+    };
+    repo = new ClientRepository(mockDb);
   });
 
-  it('should handle NULL values', async () => {
-    // Test implementation
+  it('should find client by phone', async () => {
+    mockDb.query.mockResolvedValue({
+      rows: [{ id: 1, phone: '79001234567', name: 'Test Client' }]
+    });
+
+    const result = await repo.findByPhone('79001234567');
+
+    expect(result.data).toEqual({ id: 1, phone: '79001234567', name: 'Test Client' });
+    expect(result.error).toBeNull();
+    expect(mockDb.query).toHaveBeenCalledWith(
+      'SELECT * FROM clients WHERE phone = $1 LIMIT 1',
+      ['79001234567']
+    );
   });
 
-  it('should handle .single() vs .maybeSingle()', async () => {
-    // .single() throws if 0 or >1 rows
-    // .maybeSingle() returns null if 0 rows, throws if >1
+  it('should handle client not found', async () => {
+    mockDb.query.mockResolvedValue({ rows: [] });
+
+    const result = await repo.findByPhone('79999999999');
+
+    expect(result.data).toBeNull();
+    expect(result.error).toBeNull();
+  });
+
+  it('should handle database errors gracefully', async () => {
+    mockDb.query.mockRejectedValue(new Error('Connection failed'));
+
+    const result = await repo.findByPhone('79001234567');
+
+    expect(result.data).toBeNull();
+    expect(result.error).toBeDefined();
   });
 });
 ```
 
+**Test coverage for each repository:**
+- ✅ Unit tests for all methods
+- ✅ Error handling tests
+- ✅ Edge cases (NULL, empty results, duplicates)
+- ✅ Integration tests with real Timeweb PostgreSQL
+- ✅ Performance tests (query speed <10ms)
+
 **Checklist:**
-- [ ] Test framework set up (Jest)
-- [ ] Tests for all patterns
-- [ ] Edge case tests (NULL, arrays, special chars)
-- [ ] 100% pattern coverage
+- [ ] Jest configured
+- [ ] Unit tests for all 6 repositories
+- [ ] Integration tests with Timeweb
+- [ ] 100% coverage of repository methods
 - [ ] All tests passing
 
-#### 0.9.4 Document Edge Cases (Day 14, ~4 hours)
+#### 0.9.4 Documentation & Migration Guide (Day 12, ~4 hours)
 
-**Critical edge cases:**
+**Create comprehensive migration guide:**
 
-1. **NULL Handling**
-   - Supabase: `.is('field', null)` or `.eq('field', null)`
-   - PostgreSQL: `WHERE field IS NULL` (NOT `= NULL`)
-
-2. **Array Parameters**
-   - Supabase: `.in('status', ['confirmed', 'pending'])`
-   - PostgreSQL: `WHERE status = ANY($1::text[])` with `[['confirmed', 'pending']]`
-
-3. **Single vs MaybeSingle**
-   - `.single()`: Throws if 0 or >1 rows
-   - `.maybeSingle()`: Returns null if 0 rows, throws if >1
-
-**Create documentation:**
 ```markdown
-# Query Transformation Edge Cases
+# SupabaseDataLayer → Repository Pattern Migration Guide
 
-## 1. NULL Handling
-...
+## 1. Pattern Transformation Reference
 
-## 2. Array Parameters
-...
+### NULL Handling
+**Supabase:** `.is('field', null)` or `.eq('field', null)`
+**PostgreSQL:** `WHERE field IS NULL` (NOT `= NULL`)
 
-## 3. Single vs MaybeSingle
-...
+### Array Parameters
+**Supabase:** `.in('status', ['confirmed', 'pending'])`
+**PostgreSQL:** `WHERE status = ANY($1::text[])`
+**Note:** Pass array AS value: `[['confirmed', 'pending']]`
+
+### Single vs MaybeSingle
+**Supabase .single():** Throws if 0 rows OR >1 rows
+**Supabase .maybeSingle():** Returns null if 0 rows, throws if >1
+
+**PostgreSQL Implementation:**
+```javascript
+// single() equivalent
+async findOneSingle(field, value) {
+  const result = await this.db.query(sql, params);
+  if (result.rows.length === 0) throw new Error('No rows found');
+  if (result.rows.length > 1) throw new Error('Multiple rows found');
+  return result.rows[0];
+}
+
+// maybeSingle() equivalent
+async findOneMaybe(field, value) {
+  const result = await this.db.query(sql, params);
+  if (result.rows.length > 1) throw new Error('Multiple rows found');
+  return result.rows[0] || null;
+}
+```
+
+## 2. Repository Usage Examples
+
+### Before (SupabaseDataLayer)
+```javascript
+const dataLayer = new SupabaseDataLayer();
+const result = await dataLayer.getClientByPhone('79001234567');
+```
+
+### After (Repository Pattern)
+```javascript
+const clientRepo = new ClientRepository(postgres);
+const result = await clientRepo.findByPhone('79001234567');
+```
+
+## 3. Common Pitfalls
+
+1. **Forgetting parameterized queries** → SQL injection risk
+2. **Using `= NULL` instead of `IS NULL`** → Always returns false
+3. **Wrong array format for `ANY()`** → Must wrap in outer array
+4. **Not handling errors** → Use try/catch in repositories
+5. **Forgetting RETURNING clause** → UPSERT won't return data
+
+## 4. Testing Checklist
+
+- [ ] Unit tests pass for all repositories
+- [ ] Integration tests with Timeweb PostgreSQL
+- [ ] Error handling tested (connection failures, constraint violations)
+- [ ] Performance validated (<10ms for simple queries)
+- [ ] Edge cases covered (NULL, arrays, empty results)
 ```
 
 **Checklist:**
-- [ ] Edge cases documented
+- [ ] Migration guide created
+- [ ] All edge cases documented
+- [ ] Repository usage examples provided
 - [ ] Common pitfalls listed
-- [ ] Troubleshooting guide created
-- [ ] Examples for each case
+- [ ] Testing checklist included
 
 **Success Criteria Phase 0.9:**
-- ✅ All 3 Supabase files analyzed
-- ✅ ~47 query patterns documented
-- ✅ PostgreSQL equivalents created
+- ✅ Production code analyzed (supabase-data-layer.js, 977 lines)
+- ✅ 21 query patterns documented and transformed
+- ✅ Repository Pattern implemented (6 repositories, 19 methods)
 - ✅ Test suite with 100% coverage
-- ✅ Edge cases documented
-- ✅ Ready to prevent 60-80% query errors in Phase 1
+- ✅ Migration guide comprehensive
+- ✅ Ready for Phase 1 Code Migration
 
 **Acceptance Criteria:**
-- ✅ Query pattern library complete
-- ✅ All tests passing
-- ✅ Documentation comprehensive
-- ✅ Team can confidently migrate code
-- ✅ Total time: 4-5 days
+- ✅ BaseRepository + 6 domain repositories created
+- ✅ All 19 methods from SupabaseDataLayer have PostgreSQL equivalents
+- ✅ All unit tests passing
+- ✅ Integration tests with Timeweb passing
+- ✅ Documentation complete
+- ✅ **Total time: 2-3 days** (not 4-5 days - corrected after proper scoping)
 
 ---
 
