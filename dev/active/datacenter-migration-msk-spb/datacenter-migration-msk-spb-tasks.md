@@ -10,27 +10,40 @@
   - Baileys WhatsApp migrated to Timeweb PostgreSQL
   - 1 auth + 728 keys successfully transferred
   - All 7 services online and stable
-  - 25+ hours of stable operation confirmed
+  - 72+ hours of stable operation (Day 3/7 monitoring)
+
+- ✅ Phase 0.8 (Schema Migration - SQL Creation): COMPLETE (2025-11-09)
+  - 2 SQL migrations created (1090+ lines)
+  - 11 tables designed (companies, clients, services, staff, bookings, etc.)
+  - Partitioned messages table (6 monthly partitions)
+  - 60+ indexes, 8 functions, 9 triggers
+  - 4 execution scripts ready
+  - Risk analysis: <5% total risk
 
 **In Progress:**
-- 🔄 Phase 0.6: Post-Switchover Testing
-  - Day 0-1 complete, monitoring Days 2-7
-  - Next check: Day 3 (2025-11-09)
+- 🔄 Phase 0.6: Post-Switchover Testing (Day 3/7)
+  - Monitoring Phase 0 stability
+  - Target: 7 days continuous operation
 
-**Blocked - Awaiting Prerequisites:**
-- ⏸️ Phase 1 (Code Migration): ON HOLD
-  - Requires Phase 0.8, 0.9, 0.95, 0.97 completion first
-  - Estimated 11-15 days of prerequisite work needed
+- 🚀 Phase 0.8 (Server Execution): READY TO EXECUTE TODAY
+  - Decision: Apply migrations 2025-11-09 (не ждать Nov 13)
+  - Rationale: Empty tables, no Baileys impact, instant rollback
+  - Execution time: ~15 minutes
+  - Monitoring: 30 minutes post-execution
 
-**Not Started:**
-- ⬜ Phase 0.8: Schema Migration (3-4 days) - CRITICAL BLOCKER
+**Pending (After Phase 0.8 execution):**
 - ⬜ Phase 0.9: Query Pattern Library (4-5 days) - CRITICAL BLOCKER
 - ⬜ Phase 0.95: Risk Mitigation Setup (2-3 days) - HIGHLY RECOMMENDED
 - ⬜ Phase 0.97: Testing Infrastructure (2-3 days) - HIGHLY RECOMMENDED
+- ⏸️ Phase 1 (Code Migration): ON HOLD until prerequisites complete
 
-**Next Immediate Action:** Begin Phase 0.8 (Schema Migration) once Phase 0 stability confirmed (Day 7: 2025-11-13)
+**Next Immediate Actions:**
+1. **TODAY (2025-11-09):** Apply Phase 0.8 migrations on server
+2. **TODAY:** Verify schema, test with sample data
+3. **Nov 10-14:** Begin Phase 0.9 (Query Pattern Library)
+4. **Nov 13:** Confirm Phase 0 stability (Day 7)
 
-**Updated Timeline:** 5-6 weeks total (revised from 3-4 days based on plan review)
+**Updated Timeline:** 5-6 weeks total (accelerated by applying Phase 0.8 today)
 
 ---
 

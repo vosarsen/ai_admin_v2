@@ -6,25 +6,70 @@
 ## 🔄 CURRENT SESSION UPDATE (2025-11-09)
 
 **Session Context:**
-- User requested dev-docs update for datacenter migration task
-- Current status review and documentation refresh needed
-- No code changes in this session - documentation only
+- Phase 0.8 Schema Migration COMPLETED (SQL migrations created)
+- Decision made: Apply migrations to production server TODAY (2025-11-09)
+- Risk analysis performed: <5% risk, ready to execute
 
 **Current State Summary:**
-- ✅ Phase 0 (Database Migration): COMPLETE (Baileys → Timeweb PostgreSQL)
-- ✅ Phase 0.7: COMPLETE (25+ hours stable operation)
-- ⚠️ Phase 1: ON HOLD pending prerequisites
+- ✅ Phase 0 (Database Migration): COMPLETE (Baileys → Timeweb PostgreSQL, Day 3/7 monitoring)
+- ✅ Phase 0.8 (Schema Migration): SQL READY (11 tables + partitioned messages)
+- 🚀 NEXT: Apply Phase 0.8 on server TODAY
 - 📋 Plan Reviewed: 2025-11-08 by plan-reviewer agent
-- 🎯 Next Phase: 0.8 (Schema Migration) - NOT STARTED
+- 🎯 After server execution: Begin Phase 0.9 (Query Pattern Library)
 
-**Key Context:**
-- All plan-reviewer recommendations accepted
-- Timeline revised from 3-4 days → 5-6 weeks (realistic)
-- Four critical prerequisites identified before Phase 1 can begin
-- Repository Pattern decision: Thin abstraction layer (NOT full ORM)
-- Feature flags approach selected for gradual rollout
+**Key Decisions This Session:**
+- ✅ Phase 0.8 migrations created (2 SQL files, 1090+ lines)
+- ✅ Testing scripts ready (4 execution paths)
+- ✅ Risk analysis: <5% total risk, no impact on Baileys
+- ✅ Decision: Apply TODAY vs waiting until Nov 13
+  - Rationale: Empty tables, no code changes, instant rollback available
+  - Safe to proceed: Baileys untouched, USE_LEGACY_SUPABASE=true remains
+- ✅ Timeline acceleration: Can start Phase 0.9 immediately after
 
-**Session Status:** Documentation updated, ready for Phase 0.8 planning
+**Server Execution Plan:**
+1. Pre-flight checklist (verify Phase 0 stability)
+2. Backup current state (tables list, DB size)
+3. Apply migration 1: Business tables (10 tables)
+4. Apply migration 2: Partitioned messages table
+5. Verification (schema, indexes, functions)
+6. Health check (Baileys, PM2, test messages)
+7. 30-minute monitoring period
+
+**Rollback Ready:** <5 minutes if needed (DROP TABLE CASCADE)
+
+**Session Status:** Ready for server execution, documentation updated
+
+**Files Created This Session:**
+- `migrations/20251109_create_business_tables_phase_08.sql` (640 lines)
+- `migrations/20251109_create_partitioned_messages_table.sql` (450 lines)
+- `scripts/apply-phase-08-schema.sh` (Bash, 350 lines)
+- `scripts/apply-phase-08-schema.js` (Node.js, 280 lines)
+- `scripts/apply-migrations-direct.js` (Direct connection, 260 lines)
+- `scripts/test-phase-08-schema.js` (Testing, 450 lines)
+- `scripts/APPLY_MIGRATIONS_ON_SERVER.md` (Instructions)
+- `dev/active/datacenter-migration-msk-spb/PHASE_08_SUMMARY.md` (Complete summary)
+
+**Commits:**
+- `55ff4f9`: Phase 0.8 Schema Migration (3,101 lines added)
+- `669078d`: Dev-docs update (handoff summary)
+
+**Next Session Tasks:**
+1. SSH to server: `ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219`
+2. Pull latest code: `cd /opt/ai-admin && git pull origin main`
+3. Apply migrations: Follow `scripts/APPLY_MIGRATIONS_ON_SERVER.md`
+4. Verify schema: Check all 11 tables + 6 partitions created
+5. Test with sample data: `node scripts/test-phase-08-schema.js`
+6. Monitor for 30 minutes
+7. Begin Phase 0.9: Query Pattern Library
+
+**Important Notes for Next Session:**
+- Database config: a84c973324fdaccfc68d929d.twc1.net:5432
+- SSL cert path: /root/.cloud-certs/root.crt
+- Current DB size: ~50MB (before Phase 0.8)
+- Expected growth: +30-50MB (empty tables + indexes)
+- Baileys MUST remain "connected" throughout
+- USE_LEGACY_SUPABASE=true (stays unchanged)
+- Rollback script ready in APPLY_MIGRATIONS_ON_SERVER.md
 
 ---
 
