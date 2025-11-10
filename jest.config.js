@@ -1,4 +1,6 @@
 // jest.config.js
+require('dotenv').config({ path: '.env.test' }); // Load test environment first
+
 module.exports = {
   testEnvironment: 'node',
   coverageDirectory: 'coverage',
