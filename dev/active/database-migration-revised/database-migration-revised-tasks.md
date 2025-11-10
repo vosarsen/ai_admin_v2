@@ -63,11 +63,11 @@ Total: 34/73 tasks complete (47%)
 ## Day 1: BaseRepository Core (8 tasks)
 
 ### Task 1.1: Create BaseRepository Class Structure
-- [ ] Create file `src/repositories/BaseRepository.js`
-- [ ] Add JSDoc comments for class
-- [ ] Implement `constructor(db)` - accepts postgres pool
-- [ ] Add private properties: `this.db`, `this.tableName`
-- [ ] Export class as module.exports
+- [x] Create file `src/repositories/BaseRepository.js`
+- [x] Add JSDoc comments for class
+- [x] Implement `constructor(db)` - accepts postgres pool
+- [x] Add private properties: `this.db`, `this.tableName`
+- [x] Export class as module.exports
 
 **Acceptance Criteria:**
 - ✅ File created at correct path
@@ -80,14 +80,14 @@ Total: 34/73 tasks complete (47%)
 ---
 
 ### Task 1.2: Implement findOne() Method
-- [ ] Add JSDoc for `findOne(table, filters)`
-- [ ] Implement method body:
+- [x] Add JSDoc for `findOne(table, filters)`
+- [x] Implement method body:
   - [ ] Call `_buildWhere(filters)` to get WHERE clause
   - [ ] Build SQL: `SELECT * FROM ${table} WHERE ${where} LIMIT 1`
   - [ ] Execute query via `this.db.query(sql, params)`
   - [ ] Return `result.rows[0] || null`
-- [ ] Add error handling (try/catch)
-- [ ] Log query if `LOG_DATABASE_CALLS=true`
+- [x] Add error handling (try/catch)
+- [x] Log query if `LOG_DATABASE_CALLS=true`
 
 **Acceptance Criteria:**
 - ✅ Returns single object or null
@@ -106,15 +106,15 @@ const client = await repo.findOne('clients', { phone: '89686484488' });
 ---
 
 ### Task 1.3: Implement findMany() Method
-- [ ] Add JSDoc for `findMany(table, filters, options)`
-- [ ] Implement method body:
+- [x] Add JSDoc for `findMany(table, filters, options)`
+- [x] Implement method body:
   - [ ] Call `_buildWhere(filters)` to get WHERE clause
   - [ ] Call `_buildOptions(options, params.length)` to get ORDER BY, LIMIT
   - [ ] Build SQL: `SELECT * FROM ${table} WHERE ${where} ${orderBy} ${limit}`
   - [ ] Execute query
   - [ ] Return `result.rows` (array)
-- [ ] Add error handling
-- [ ] Add logging
+- [x] Add error handling
+- [x] Add logging
 
 **Acceptance Criteria:**
 - ✅ Returns array (empty if no results)
@@ -137,17 +137,17 @@ const clients = await repo.findMany(
 ---
 
 ### Task 1.4: Implement _buildWhere() Helper
-- [ ] Add JSDoc for `_buildWhere(filters)`
-- [ ] Handle simple equality: `{ id: 5 }` → `"id = $1"`, `[5]`
-- [ ] Handle operators:
+- [x] Add JSDoc for `_buildWhere(filters)`
+- [x] Handle simple equality: `{ id: 5 }` → `"id = $1"`, `[5]`
+- [x] Handle operators:
   - [ ] `{ age: { gte: 18 } }` → `"age >= $1"`
   - [ ] `{ age: { lte: 65 } }` → `"age <= $1"`
   - [ ] `{ status: { neq: 'deleted' } }` → `"status != $1"`
   - [ ] `{ name: { ilike: '%search%' } }` → `"name ILIKE $1"`
   - [ ] `{ id: { in: [1,2,3] } }` → `"id IN ($1, $2, $3)"`
-- [ ] Handle NULL: `{ deleted_at: null }` → `"deleted_at IS NULL"`
-- [ ] Join multiple conditions with AND
-- [ ] Return `{ where, params }`
+- [x] Handle NULL: `{ deleted_at: null }` → `"deleted_at IS NULL"`
+- [x] Join multiple conditions with AND
+- [x] Return `{ where, params }`
 
 **Acceptance Criteria:**
 - ✅ All operators supported (eq, neq, gte, lte, ilike, in, is null)
@@ -171,17 +171,17 @@ const { where, params } = _buildWhere({
 ---
 
 ### Task 1.5: Implement _buildOptions() Helper
-- [ ] Add JSDoc for `_buildOptions(options, paramOffset)`
-- [ ] Handle ORDER BY:
+- [x] Add JSDoc for `_buildOptions(options, paramOffset)`
+- [x] Handle ORDER BY:
   - [ ] `{ orderBy: 'name' }` → `"ORDER BY name ASC"`
   - [ ] `{ orderBy: 'name', order: 'desc' }` → `"ORDER BY name DESC"`
   - [ ] Handle NULLS LAST: `"ORDER BY name DESC NULLS LAST"`
-- [ ] Handle LIMIT:
+- [x] Handle LIMIT:
   - [ ] `{ limit: 10 }` → `"LIMIT 10"`
   - [ ] No limit if not specified
-- [ ] Handle OFFSET (for future pagination):
+- [x] Handle OFFSET (for future pagination):
   - [ ] `{ limit: 10, offset: 20 }` → `"LIMIT 10 OFFSET 20"`
-- [ ] Return `{ orderBy, limit }` strings
+- [x] Return `{ orderBy, limit }` strings
 
 **Acceptance Criteria:**
 - ✅ ORDER BY with ASC/DESC
@@ -206,14 +206,14 @@ const { orderBy, limit } = _buildOptions({
 ---
 
 ### Task 1.6: Implement upsert() Method
-- [ ] Add JSDoc for `upsert(table, data, conflictColumns)`
-- [ ] Build column list: `['id', 'name', 'phone']`
-- [ ] Build VALUES placeholders: `($1, $2, $3)`
-- [ ] Build ON CONFLICT clause: `ON CONFLICT (id) DO UPDATE SET ...`
-- [ ] Build UPDATE SET clause: `name = EXCLUDED.name, phone = EXCLUDED.phone`
-- [ ] Add RETURNING * to get inserted/updated record
-- [ ] Execute query
-- [ ] Return `result.rows[0]`
+- [x] Add JSDoc for `upsert(table, data, conflictColumns)`
+- [x] Build column list: `['id', 'name', 'phone']`
+- [x] Build VALUES placeholders: `($1, $2, $3)`
+- [x] Build ON CONFLICT clause: `ON CONFLICT (id) DO UPDATE SET ...`
+- [x] Build UPDATE SET clause: `name = EXCLUDED.name, phone = EXCLUDED.phone`
+- [x] Add RETURNING * to get inserted/updated record
+- [x] Execute query
+- [x] Return `result.rows[0]`
 
 **Acceptance Criteria:**
 - ✅ Inserts if record doesn't exist
@@ -236,15 +236,15 @@ const client = await repo.upsert(
 ---
 
 ### Task 1.7: Implement bulkUpsert() Method
-- [ ] Add JSDoc for `bulkUpsert(table, dataArray, conflictColumns)`
-- [ ] Validate dataArray not empty
-- [ ] Get columns from first record: `Object.keys(dataArray[0])`
-- [ ] Build multiple VALUES: `($1, $2), ($3, $4), ...`
-- [ ] Flatten all params: `[val1, val2, val3, val4, ...]`
-- [ ] Build ON CONFLICT and UPDATE SET
-- [ ] Add RETURNING *
-- [ ] Execute single query for all records
-- [ ] Return `result.rows`
+- [x] Add JSDoc for `bulkUpsert(table, dataArray, conflictColumns)`
+- [x] Validate dataArray not empty
+- [x] Get columns from first record: `Object.keys(dataArray[0])`
+- [x] Build multiple VALUES: `($1, $2), ($3, $4), ...`
+- [x] Flatten all params: `[val1, val2, val3, val4, ...]`
+- [x] Build ON CONFLICT and UPDATE SET
+- [x] Add RETURNING *
+- [x] Execute single query for all records
+- [x] Return `result.rows`
 
 **Acceptance Criteria:**
 - ✅ Handles up to 500 records (batch limit)
@@ -270,10 +270,10 @@ const services = await repo.bulkUpsert(
 ---
 
 ### Task 1.8: Implement Helper Methods
-- [ ] `_sanitize(value)` - Prevent SQL injection in dynamic table/column names
+- [x] `_sanitize(value)` - Prevent SQL injection in dynamic table/column names
   - [ ] Whitelist alphanumeric + underscore
   - [ ] Throw error if invalid characters
-- [ ] `_handleError(error)` - Normalize PostgreSQL errors
+- [x] `_handleError(error)` - Normalize PostgreSQL errors
   - [ ] Map error codes to friendly messages
   - [ ] Code 23505: "Duplicate key"
   - [ ] Code 23503: "Foreign key violation"
@@ -297,51 +297,51 @@ const services = await repo.bulkUpsert(
 - ✅ `src/repositories/BaseRepository.js` (~120 lines)
 
 **Code Review:**
-- [ ] Run `npm run lint` (if configured)
-- [ ] Review BaseRepository code
-- [ ] Check JSDoc completeness
-- [ ] Verify error handling
+- [x] Run `npm run lint` (if configured)
+- [x] Review BaseRepository code
+- [x] Check JSDoc completeness
+- [x] Verify error handling
 
 ---
 
 ## Day 2: Domain Repositories (10 tasks)
 
 ### Task 1.9: Create ClientRepository
-- [ ] Create file `src/repositories/ClientRepository.js`
-- [ ] Extend BaseRepository: `class ClientRepository extends BaseRepository`
-- [ ] Implement 7 methods:
+- [x] Create file `src/repositories/ClientRepository.js`
+- [x] Extend BaseRepository: `class ClientRepository extends BaseRepository`
+- [x] Implement 7 methods:
 
 #### Method 1: findByPhone(phone)
-- [ ] Add JSDoc
-- [ ] Implementation: `return this.findOne('clients', { phone });`
-- [ ] Maps to: `SupabaseDataLayer.getClientByPhone()`
+- [x] Add JSDoc
+- [x] Implementation: `return this.findOne('clients', { phone });`
+- [x] Maps to: `SupabaseDataLayer.getClientByPhone()`
 
 #### Method 2: findById(yclientsId, companyId)
-- [ ] Add JSDoc
-- [ ] Implementation:
+- [x] Add JSDoc
+- [x] Implementation:
   ```javascript
   return this.findOne('clients', {
     yclients_id: yclientsId,
     company_id: companyId
   });
   ```
-- [ ] Maps to: `SupabaseDataLayer.getClientById()`
+- [x] Maps to: `SupabaseDataLayer.getClientById()`
 
 #### Method 3: findAppointments(clientId, options = {})
-- [ ] Add JSDoc
-- [ ] Extract options: `{ startDate, endDate, limit = 10 }`
-- [ ] Build filters:
+- [x] Add JSDoc
+- [x] Extract options: `{ startDate, endDate, limit = 10 }`
+- [x] Build filters:
   ```javascript
   const filters = { client_id: clientId };
   if (startDate) filters.datetime = { gte: startDate };
   if (endDate) filters.datetime = { ...filters.datetime, lte: endDate };
   ```
-- [ ] Call `this.findMany('bookings', filters, { orderBy: 'datetime', order: 'desc', limit })`
-- [ ] Maps to: `SupabaseDataLayer.getClientAppointments()`
+- [x] Call `this.findMany('bookings', filters, { orderBy: 'datetime', order: 'desc', limit })`
+- [x] Maps to: `SupabaseDataLayer.getClientAppointments()`
 
 #### Method 4: findUpcoming(clientId, companyId)
-- [ ] Add JSDoc
-- [ ] Build filters:
+- [x] Add JSDoc
+- [x] Build filters:
   ```javascript
   {
     client_id: clientId,
@@ -350,12 +350,12 @@ const services = await repo.bulkUpsert(
     status: { neq: 'deleted' }
   }
   ```
-- [ ] Order by datetime ascending
-- [ ] Maps to: `SupabaseDataLayer.getUpcomingAppointments()`
+- [x] Order by datetime ascending
+- [x] Maps to: `SupabaseDataLayer.getUpcomingAppointments()`
 
 #### Method 5: searchByName(companyId, name, limit = 100)
-- [ ] Add JSDoc
-- [ ] Custom SQL (ILIKE with NULLS LAST):
+- [x] Add JSDoc
+- [x] Custom SQL (ILIKE with NULLS LAST):
   ```javascript
   const sql = `
     SELECT * FROM clients
@@ -366,17 +366,17 @@ const services = await repo.bulkUpsert(
   const result = await this.db.query(sql, [companyId, `%${name}%`, limit]);
   return result.rows;
   ```
-- [ ] Maps to: `SupabaseDataLayer.searchClientsByName()`
+- [x] Maps to: `SupabaseDataLayer.searchClientsByName()`
 
 #### Method 6: upsert(clientData)
-- [ ] Add JSDoc
-- [ ] Call `this.upsert('clients', clientData, ['yclients_id', 'company_id'])`
-- [ ] Maps to: `SupabaseDataLayer.upsertClient()`
+- [x] Add JSDoc
+- [x] Call `this.upsert('clients', clientData, ['yclients_id', 'company_id'])`
+- [x] Maps to: `SupabaseDataLayer.upsertClient()`
 
 #### Method 7: bulkUpsert(clientsArray)
-- [ ] Add JSDoc
-- [ ] Call `this.bulkUpsert('clients', clientsArray, ['yclients_id', 'company_id'])`
-- [ ] Maps to: `SupabaseDataLayer.upsertClients()`
+- [x] Add JSDoc
+- [x] Call `this.bulkUpsert('clients', clientsArray, ['yclients_id', 'company_id'])`
+- [x] Maps to: `SupabaseDataLayer.upsertClients()`
 
 **Acceptance Criteria:**
 - ✅ All 7 methods implemented
@@ -389,28 +389,28 @@ const services = await repo.bulkUpsert(
 ---
 
 ### Task 1.10: Create ServiceRepository
-- [ ] Create file `src/repositories/ServiceRepository.js`
-- [ ] Extend BaseRepository
-- [ ] Implement 4 methods:
+- [x] Create file `src/repositories/ServiceRepository.js`
+- [x] Extend BaseRepository
+- [x] Implement 4 methods:
 
 #### Method 1: findAll(companyId, includeInactive = false)
-- [ ] Build filters: `{ company_id: companyId }`
-- [ ] If NOT includeInactive: `{ company_id: companyId, active: true }`
-- [ ] Order by: `weight` descending (or `seance_length` as fallback)
-- [ ] Maps to: `SupabaseDataLayer.getServices()`
+- [x] Build filters: `{ company_id: companyId }`
+- [x] If NOT includeInactive: `{ company_id: companyId, active: true }`
+- [x] Order by: `weight` descending (or `seance_length` as fallback)
+- [x] Maps to: `SupabaseDataLayer.getServices()`
 
 #### Method 2: findById(serviceId, companyId)
-- [ ] `return this.findOne('services', { yclients_id: serviceId, company_id: companyId });`
-- [ ] Maps to: `SupabaseDataLayer.getServiceById()`
+- [x] `return this.findOne('services', { yclients_id: serviceId, company_id: companyId });`
+- [x] Maps to: `SupabaseDataLayer.getServiceById()`
 
 #### Method 3: findByCategory(companyId, categoryId)
-- [ ] `return this.findMany('services', { company_id: companyId, category_id: categoryId });`
-- [ ] Order by weight DESC
-- [ ] Maps to: `SupabaseDataLayer.getServicesByCategory()`
+- [x] `return this.findMany('services', { company_id: companyId, category_id: categoryId });`
+- [x] Order by weight DESC
+- [x] Maps to: `SupabaseDataLayer.getServicesByCategory()`
 
 #### Method 4: bulkUpsert(servicesArray)
-- [ ] Call `this.bulkUpsert('services', servicesArray, ['yclients_id', 'company_id'])`
-- [ ] Maps to: `SupabaseDataLayer.upsertServices()`
+- [x] Call `this.bulkUpsert('services', servicesArray, ['yclients_id', 'company_id'])`
+- [x] Maps to: `SupabaseDataLayer.upsertServices()`
 
 **Acceptance Criteria:**
 - ✅ All 4 methods implemented
@@ -422,19 +422,19 @@ const services = await repo.bulkUpsert(
 ---
 
 ### Task 1.11: Create StaffRepository
-- [ ] Create file `src/repositories/StaffRepository.js`
-- [ ] Extend BaseRepository
-- [ ] Implement 2 methods:
+- [x] Create file `src/repositories/StaffRepository.js`
+- [x] Extend BaseRepository
+- [x] Implement 2 methods:
 
 #### Method 1: findAll(companyId, includeInactive = false)
-- [ ] Similar to ServiceRepository.findAll
-- [ ] Filter by `{ company_id: companyId, fired: false }` if not including inactive
-- [ ] Order by name
-- [ ] Maps to: `SupabaseDataLayer.getStaff()`
+- [x] Similar to ServiceRepository.findAll
+- [x] Filter by `{ company_id: companyId, fired: false }` if not including inactive
+- [x] Order by name
+- [x] Maps to: `SupabaseDataLayer.getStaff()`
 
 #### Method 2: findById(staffId, companyId)
-- [ ] `return this.findOne('staff', { yclients_id: staffId, company_id: companyId });`
-- [ ] Maps to: `SupabaseDataLayer.getStaffById()`
+- [x] `return this.findOne('staff', { yclients_id: staffId, company_id: companyId });`
+- [x] Maps to: `SupabaseDataLayer.getStaffById()`
 
 **Acceptance Criteria:**
 - ✅ Both methods implemented
@@ -445,13 +445,13 @@ const services = await repo.bulkUpsert(
 ---
 
 ### Task 1.12: Create StaffScheduleRepository
-- [ ] Create file `src/repositories/StaffScheduleRepository.js`
-- [ ] Extend BaseRepository
-- [ ] Implement 3 methods:
+- [x] Create file `src/repositories/StaffScheduleRepository.js`
+- [x] Extend BaseRepository
+- [x] Implement 3 methods:
 
 #### Method 1: findSchedules(query)
-- [ ] Extract from query: `{ companyId, staffId, dateFrom, dateTo, isWorking }`
-- [ ] Build complex filters:
+- [x] Extract from query: `{ companyId, staffId, dateFrom, dateTo, isWorking }`
+- [x] Build complex filters:
   ```javascript
   const filters = { company_id: companyId };
   if (staffId) filters.yclients_staff_id = staffId;
@@ -459,17 +459,17 @@ const services = await repo.bulkUpsert(
   if (dateTo) filters.date = { ...filters.date, lte: dateTo };
   if (isWorking !== undefined) filters.is_working = isWorking;
   ```
-- [ ] Order by date, then staff_id
-- [ ] Maps to: `SupabaseDataLayer.getStaffSchedules()`
+- [x] Order by date, then staff_id
+- [x] Maps to: `SupabaseDataLayer.getStaffSchedules()`
 
 #### Method 2: findSchedule(staffId, date, companyId)
-- [ ] `return this.findOne('staff_schedules', { yclients_staff_id: staffId, date, company_id: companyId });`
-- [ ] Maps to: `SupabaseDataLayer.getStaffSchedule()`
+- [x] `return this.findOne('staff_schedules', { yclients_staff_id: staffId, date, company_id: companyId });`
+- [x] Maps to: `SupabaseDataLayer.getStaffSchedule()`
 
 #### Method 3: bulkUpsert(schedulesArray)
-- [ ] Call `this.bulkUpsert('staff_schedules', schedulesArray, ['yclients_staff_id', 'date', 'company_id'])`
-- [ ] Note: 3-column conflict key (unique constraint)
-- [ ] Maps to: `SupabaseDataLayer.upsertStaffSchedules()`
+- [x] Call `this.bulkUpsert('staff_schedules', schedulesArray, ['yclients_staff_id', 'date', 'company_id'])`
+- [x] Note: 3-column conflict key (unique constraint)
+- [x] Maps to: `SupabaseDataLayer.upsertStaffSchedules()`
 
 **Acceptance Criteria:**
 - ✅ Complex filters work (date ranges, staff filtering)
@@ -481,17 +481,17 @@ const services = await repo.bulkUpsert(
 ---
 
 ### Task 1.13: Create DialogContextRepository
-- [ ] Create file `src/repositories/DialogContextRepository.js`
-- [ ] Extend BaseRepository
-- [ ] Implement 2 methods:
+- [x] Create file `src/repositories/DialogContextRepository.js`
+- [x] Extend BaseRepository
+- [x] Implement 2 methods:
 
 #### Method 1: findByUserId(userId)
-- [ ] `return this.findOne('dialog_contexts', { user_id: userId });`
-- [ ] Maps to: `SupabaseDataLayer.getDialogContext()`
+- [x] `return this.findOne('dialog_contexts', { user_id: userId });`
+- [x] Maps to: `SupabaseDataLayer.getDialogContext()`
 
 #### Method 2: upsert(contextData)
-- [ ] Call `this.upsert('dialog_contexts', contextData, ['user_id'])`
-- [ ] Maps to: `SupabaseDataLayer.upsertDialogContext()`
+- [x] Call `this.upsert('dialog_contexts', contextData, ['user_id'])`
+- [x] Maps to: `SupabaseDataLayer.upsertDialogContext()`
 
 **Acceptance Criteria:**
 - ✅ Both methods implemented
@@ -502,17 +502,17 @@ const services = await repo.bulkUpsert(
 ---
 
 ### Task 1.14: Create CompanyRepository
-- [ ] Create file `src/repositories/CompanyRepository.js`
-- [ ] Extend BaseRepository
-- [ ] Implement 2 methods:
+- [x] Create file `src/repositories/CompanyRepository.js`
+- [x] Extend BaseRepository
+- [x] Implement 2 methods:
 
 #### Method 1: findById(companyId)
-- [ ] `return this.findOne('companies', { yclients_id: companyId });`
-- [ ] Maps to: `SupabaseDataLayer.getCompany()`
+- [x] `return this.findOne('companies', { yclients_id: companyId });`
+- [x] Maps to: `SupabaseDataLayer.getCompany()`
 
 #### Method 2: upsert(companyData)
-- [ ] Call `this.upsert('companies', companyData, ['yclients_id'])`
-- [ ] Maps to: `SupabaseDataLayer.upsertCompany()`
+- [x] Call `this.upsert('companies', companyData, ['yclients_id'])`
+- [x] Maps to: `SupabaseDataLayer.upsertCompany()`
 
 **Acceptance Criteria:**
 - ✅ Both methods implemented
@@ -523,8 +523,8 @@ const services = await repo.bulkUpsert(
 ---
 
 ### Task 1.15: Create Repository Index
-- [ ] Create file `src/repositories/index.js`
-- [ ] Export all repositories:
+- [x] Create file `src/repositories/index.js`
+- [x] Export all repositories:
   ```javascript
   const BaseRepository = require('./BaseRepository');
   const ClientRepository = require('./ClientRepository');
@@ -555,14 +555,14 @@ const services = await repo.bulkUpsert(
 ---
 
 ### Task 1.16: Code Review - Repositories
-- [ ] Review all 7 repository files
-- [ ] Check for:
+- [x] Review all 7 repository files
+- [x] Check for:
   - [ ] Consistent naming conventions
   - [ ] JSDoc completeness
   - [ ] Error handling in all methods
   - [ ] No hardcoded values
-- [ ] Run linter if available
-- [ ] Fix any issues found
+- [x] Run linter if available
+- [x] Fix any issues found
 
 **Estimated Time:** 30 minutes
 
@@ -588,46 +588,46 @@ const services = await repo.bulkUpsert(
 ## Day 3: Testing (7 tasks)
 
 ### Task 1.17: Setup Test Environment
-- [ ] Install test dependencies (if not present):
+- [x] Install test dependencies (if not present):
   - [ ] `npm install --save-dev jest` (or existing test framework)
-- [ ] Create `tests/repositories/` directory
-- [ ] Create `tests/repositories/integration/` directory
-- [ ] Add test configuration (jest.config.js if needed)
+- [x] Create `tests/repositories/` directory
+- [x] Create `tests/repositories/integration/` directory
+- [x] Add test configuration (jest.config.js if needed)
 
 **Estimated Time:** 30 minutes
 
 ---
 
 ### Task 1.18: Write Unit Tests - BaseRepository
-- [ ] Create file `tests/repositories/BaseRepository.test.js`
-- [ ] Mock postgres client:
+- [x] Create file `tests/repositories/BaseRepository.test.js`
+- [x] Mock postgres client:
   ```javascript
   const mockDb = {
     query: jest.fn()
   };
   ```
-- [ ] Test findOne():
+- [x] Test findOne():
   - [ ] Returns single record
   - [ ] Returns null if not found
   - [ ] Uses correct SQL and params
-- [ ] Test findMany():
+- [x] Test findMany():
   - [ ] Returns array of records
   - [ ] Returns empty array if no results
   - [ ] ORDER BY works
   - [ ] LIMIT works
-- [ ] Test upsert():
+- [x] Test upsert():
   - [ ] Inserts new record
   - [ ] Updates existing record
   - [ ] Returns inserted/updated record
-- [ ] Test bulkUpsert():
+- [x] Test bulkUpsert():
   - [ ] Handles multiple records
   - [ ] Returns all records
-- [ ] Test _buildWhere():
+- [x] Test _buildWhere():
   - [ ] Simple equality: `{ id: 5 }`
   - [ ] Operators: gte, lte, neq, ilike, in
   - [ ] NULL handling: `{ deleted_at: null }`
   - [ ] Multiple conditions (AND)
-- [ ] Test _buildOptions():
+- [x] Test _buildOptions():
   - [ ] ORDER BY ascending
   - [ ] ORDER BY descending with NULLS LAST
   - [ ] LIMIT
@@ -644,9 +644,9 @@ const services = await repo.bulkUpsert(
 ---
 
 ### Task 1.19: Write Unit Tests - ClientRepository
-- [ ] Create file `tests/repositories/ClientRepository.test.js`
-- [ ] Mock BaseRepository methods
-- [ ] Test all 7 methods:
+- [x] Create file `tests/repositories/ClientRepository.test.js`
+- [x] Mock BaseRepository methods
+- [x] Test all 7 methods:
   - [ ] findByPhone() calls findOne with correct params
   - [ ] findById() calls findOne with correct params
   - [ ] findAppointments() builds correct filters
@@ -665,15 +665,15 @@ const services = await repo.bulkUpsert(
 ---
 
 ### Task 1.20: Write Unit Tests - Other Repositories
-- [ ] Create test files for:
+- [x] Create test files for:
   - [ ] `ServiceRepository.test.js`
   - [ ] `StaffRepository.test.js`
   - [ ] `StaffScheduleRepository.test.js`
   - [ ] `DialogContextRepository.test.js`
   - [ ] `CompanyRepository.test.js`
-- [ ] Test all methods in each repository
-- [ ] Verify parameter passing
-- [ ] Check filter logic
+- [x] Test all methods in each repository
+- [x] Verify parameter passing
+- [x] Check filter logic
 
 **Acceptance Criteria:**
 - ✅ 5 test files created
@@ -685,9 +685,9 @@ const services = await repo.bulkUpsert(
 ---
 
 ### Task 1.21: Write Integration Tests - ClientRepository
-- [ ] Create file `tests/repositories/integration/ClientRepository.integration.test.js`
-- [ ] Use REAL Timeweb PostgreSQL connection
-- [ ] Setup test data:
+- [x] Create file `tests/repositories/integration/ClientRepository.integration.test.js`
+- [x] Use REAL Timeweb PostgreSQL connection
+- [x] Setup test data:
   ```javascript
   beforeEach(async () => {
     testClient = {
@@ -704,12 +704,12 @@ const services = await repo.bulkUpsert(
     await postgres.query('DELETE FROM clients WHERE yclients_id = $1', [99999]);
   });
   ```
-- [ ] Test findByPhone() against real DB
-- [ ] Test findById() against real DB
-- [ ] Test searchByName() with ILIKE
-- [ ] Test upsert() inserts new record
-- [ ] Test upsert() updates existing record
-- [ ] Test bulkUpsert() with 3 records
+- [x] Test findByPhone() against real DB
+- [x] Test findById() against real DB
+- [x] Test searchByName() with ILIKE
+- [x] Test upsert() inserts new record
+- [x] Test upsert() updates existing record
+- [x] Test bulkUpsert() with 3 records
 
 **Acceptance Criteria:**
 - ✅ All tests use real Timeweb PostgreSQL
@@ -722,15 +722,15 @@ const services = await repo.bulkUpsert(
 ---
 
 ### Task 1.22: Write Integration Tests - Other Repositories
-- [ ] Create integration test files for:
+- [x] Create integration test files for:
   - [ ] `ServiceRepository.integration.test.js`
   - [ ] `StaffRepository.integration.test.js`
   - [ ] `StaffScheduleRepository.integration.test.js`
   - [ ] `DialogContextRepository.integration.test.js`
   - [ ] `CompanyRepository.integration.test.js`
-- [ ] Test against real Timeweb PostgreSQL
-- [ ] Create/cleanup test data in each test
-- [ ] Verify all methods work end-to-end
+- [x] Test against real Timeweb PostgreSQL
+- [x] Create/cleanup test data in each test
+- [x] Verify all methods work end-to-end
 
 **Acceptance Criteria:**
 - ✅ 5 integration test files
@@ -742,12 +742,12 @@ const services = await repo.bulkUpsert(
 ---
 
 ### Task 1.23: Run Full Test Suite
-- [ ] Run all unit tests: `npm test`
-- [ ] Run all integration tests: `npm run test:integration`
-- [ ] Check code coverage: `npm run test:coverage`
-- [ ] Target: >90% coverage for repositories
-- [ ] Fix any failing tests
-- [ ] Document any known issues
+- [x] Run all unit tests: `npm test`
+- [x] Run all integration tests: `npm run test:integration`
+- [x] Check code coverage: `npm run test:coverage`
+- [x] Target: >90% coverage for repositories
+- [x] Fix any failing tests
+- [x] Document any known issues
 
 **Acceptance Criteria:**
 - ✅ All tests pass (unit + integration)
