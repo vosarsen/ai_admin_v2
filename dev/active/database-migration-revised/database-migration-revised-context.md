@@ -1,0 +1,1093 @@
+# Database Migration Context & Key Decisions
+
+**Last Updated:** 2025-11-10
+**Migration Status:** Planning Phase
+**Current Database:** Supabase (production), Timeweb (Baileys sessions only)
+
+---
+
+## Quick Reference
+
+**This document contains:**
+- Current state snapshot (what's complete, what remains)
+- Key files and their roles
+- Architecture decisions with rationale
+- Technical constraints and limitations
+- Critical dependencies
+- Lessons learned from previous phases
+- Performance expectations
+
+**Purpose:** Provide complete context that survives Claude Code context resets. This file should answer "where are we?" and "why did we decide X?"
+
+---
+
+## Current State Snapshot (Nov 10, 2025)
+
+### What's Complete ✅
+
+**Phase 0: Baileys Session Migration (Completed Nov 6, 2025)**
+- **What:** Migrated WhatsApp Baileys auth state from Supabase to Timeweb
+- **Result:** 1 auth + 728 keys successfully migrated
+- **Status:** Stable for 4 days, zero issues
+- **File:** `src/integrations/whatsapp/auth-state-timeweb.js` (production)
+- **Learning:** Timeweb PostgreSQL connection is solid and reliable
+
+**Phase 0.8: Schema Migration (Completed Nov 9, 2025)**
+- **What:** Created full database schema on Timeweb PostgreSQL
+- **Result:** 19 tables, 129 indexes, 8 functions created
+- **Execution Time:** 8 minutes, zero downtime
+- **File:** `dev/active/datacenter-migration-msk-spb/PHASE_08_EXECUTION_REPORT.md`
+- **Learning:** DDL migrations are fast and safe with proper planning
+
+**Infrastructure Ready**
+- ✅ Timeweb PostgreSQL operational (since Nov 6)
+- ✅ Connection pool configured (`postgres.js` - 183 lines, max 20 connections)
+- ✅ SSL certificates in place
+- ✅ Schema matches Supabase structure
+- ✅ No production issues with Baileys using Timeweb
+
+### What Remains ❌
+
+**Business Data Still on Supabase:**
+- Companies: 1 record
+- Clients: 1,299 records
+- Services: 63 records
+- Staff: 12 records
+- Staff Schedules: ~100 records
+- Bookings: 38 records
+- Dialog Contexts: ~50 records
+- Reminders: ~20 records
+- **Total:** ~1,600 records across 8 tables
+
+**Application Code Using Supabase:**
+- `src/integrations/yclients/data/supabase-data-layer.js` (977 lines, 21 methods)
+- `src/services/ai-admin-v2/modules/data-loader.js` (150 lines)
+- ~35 files indirectly use SupabaseDataLayer
+- **Migration Impact:** Update 2 primary files → benefits flow to all dependents
+
+**Missing Abstraction Layer:**
+- No Repository Pattern implementation
+- Direct Supabase SDK calls in SupabaseDataLayer
+- No feature flag support for gradual migration
+- No dual-backend capability
+
+---
+
+## Key Files & Architecture
+
+### Core Database Files
+
+#### 1. `src/database/postgres.js` (183 lines) ✅ PRODUCTION READY
+
+**Purpose:** Timeweb PostgreSQL connection pool
+
+**Key Features:**
+```javascript
+const pool = new Pool({
+  host: 'a84c973324fdaccfc68d929d.twc1.net',
+  port: 5432,
+  database: 'default_db',
+  user: 'gen_user',
+  max: 20,                      // Connection pool size
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+  statement_timeout: 30000,
+  ssl: { rejectUnauthorized: false }
+});
+
+module.exports = {
+  query(text, params),          // Parameterized queries
+  getClient(),                  // Get client for transactions
+  transaction(callback),        // Transaction wrapper
+  getPoolStats(),              // Pool monitoring
+  isEnabled                    // Feature flag check
+};
+```
+
+**Status:**
+- ✅ Used in production for Baileys sessions (since Nov 6)
+- ✅ Connection pooling working
+- ✅ SSL configuration correct
+- ✅ Error handling robust
+- ✅ Transaction support available
+
+**Location:** `/Users/vosarsen/Documents/GitHub/ai_admin_v2/src/database/postgres.js`
+
+#### 2. `src/database/supabase.js` (existing) ✅ CURRENT PRODUCTION
+
+**Purpose:** Supabase client for business data
+
+**Current Usage:**
+- All business data (companies, clients, services, staff, bookings)
+- Dialog contexts for AI conversations
+- Reminders and notifications
+
+**Future:**
+- Will be kept as fallback during migration
+- Can stay active indefinitely (free tier)
+- No pressure to delete
+
+#### 3. `src/integrations/yclients/data/supabase-data-layer.js` (977 lines) 🎯 PRIMARY MIGRATION TARGET
+
+**Purpose:** Unified data access layer for YClients integration
+
+**Structure:**
+```javascript
+class SupabaseDataLayer {
+  constructor(database = null) {
+    this.supabase = database || require('../../../database/supabase').supabase;
+    // Future: Repository pattern will go here
+  }
+
+  // 21 async methods organized by domain:
+
+  // DialogContext (2 methods)
+  async getDialogContext(userId) { ... }
+  async upsertDialogContext(userId, context) { ... }
+
+  // Client (7 methods)
+  async getClientByPhone(phone) { ... }
+  async getClientById(yclientsId, companyId) { ... }
+  async getClientAppointments(clientId, options) { ... }
+  async getUpcomingAppointments(clientId, companyId) { ... }
+  async searchClientsByName(companyId, name, limit) { ... }
+  async upsertClient(clientData) { ... }
+  async upsertClients(clientsArray) { ... }
+
+  // Staff (2 methods)
+  async getStaffById(staffId, companyId) { ... }
+  async getStaff(companyId, includeInactive) { ... }
+
+  // Staff Schedules (3 methods)
+  async getStaffSchedules(query) { ... }
+  async getStaffSchedule(staffId, date, companyId) { ... }
+  async upsertStaffSchedules(schedulesArray) { ... }
+
+  // Service (4 methods)
+  async getServices(companyId, includeInactive) { ... }
+  async getServiceById(serviceId, companyId) { ... }
+  async getServicesByCategory(companyId, categoryId) { ... }
+  async upsertServices(servicesArray) { ... }
+
+  // Company (2 methods)
+  async getCompany(companyId) { ... }
+  async upsertCompany(companyData) { ... }
+
+  // Health (1 method)
+  async healthCheck(companyId) { ... }
+
+  // Private helpers
+  _validateCompanyId(companyId) { ... }
+  _validatePhone(phone) { ... }
+  _sanitizeStringFilter(filter) { ... }
+  _handleSupabaseError(error, method) { ... }
+  _buildResponse(data, error = null) { ... }
+  _buildErrorResponse(message) { ... }
+}
+```
+
+**Quality Indicators:**
+- ✅ Well-structured with clear domain separation
+- ✅ Input validation (`_validateCompanyId`, `_validatePhone`)
+- ✅ Error handling (`_handleSupabaseError`, `_buildErrorResponse`)
+- ✅ Consistent response format (`_buildResponse`)
+- ✅ Batch protection (maxBatchSize: 500, maxLimit: 1000)
+- ✅ Defensive coding (null checks, type validation)
+- ✅ Constructor accepts `database` param (testable!)
+
+**Migration Strategy:**
+- Keep all 21 methods' signatures identical
+- Add Repository Pattern as alternative backend
+- Use feature flag to switch between Supabase and Repositories
+- Maintain backward compatibility
+
+**Location:** `/Users/vosarsen/Documents/GitHub/ai_admin_v2/src/integrations/yclients/data/supabase-data-layer.js`
+
+**Lines of Interest:**
+- Lines 1-45: Imports, constants, constructor
+- Lines 46-132: Validation and error handling helpers
+- Lines 139-931: All 21 method implementations
+- Lines 935-977: Health check and batch helpers
+
+#### 4. `src/services/ai-admin-v2/modules/data-loader.js` (150 lines) 🎯 SECONDARY UPDATE
+
+**Purpose:** Loads conversation context for AI Admin v2
+
+**Current Usage:**
+```javascript
+const SupabaseDataLayer = require('../../../integrations/yclients/data/supabase-data-layer');
+const dataLayer = new SupabaseDataLayer();
+
+// Loads company info
+const companyResult = await dataLayer.getCompany(companyId);
+
+// Loads client info
+const clientResult = await dataLayer.getClientByPhone(phone);
+
+// Loads upcoming appointments
+const appointments = await dataLayer.getUpcomingAppointments(clientId, companyId);
+
+// etc.
+```
+
+**Migration Impact:**
+- **Zero changes required!** SupabaseDataLayer will handle backend switching internally
+- Just need to test that it works with Repository Pattern enabled
+
+**Traffic:** High (every AI message triggers data loading)
+
+**Location:** `/Users/vosarsen/Documents/GitHub/ai_admin_v2/src/services/ai-admin-v2/modules/data-loader.js`
+
+### Files Using SupabaseDataLayer (Indirectly)
+
+These files import and use SupabaseDataLayer, but won't need changes (abstraction handles it):
+
+**Sync Scripts (10 files):**
+1. `src/sync/bookings-sync.js`
+2. `src/sync/clients-sync.js`
+3. `src/sync/clients-sync-optimized.js`
+4. `src/sync/client-records-sync.js`
+5. `src/sync/company-info-sync.js`
+6. `src/sync/goods-transactions-sync.js`
+7. `src/sync/schedules-sync.js`
+8. `src/sync/services-sync.js`
+9. `src/sync/staff-sync.js`
+10. `src/sync/visits-sync.js`
+
+**Services (7 files):**
+11. `src/services/ai-admin-v2/index.js`
+12. `src/services/ai-admin-v2/modules/command-handler.js`
+13. `src/services/booking-monitor/index.js`
+14. `src/services/booking-monitor/index-old.js`
+15. `src/services/booking-monitor/index-new.js`
+16. `src/services/booking/index.js`
+17. `src/services/marketplace/marketplace-service.js`
+
+**API Routes (4 files):**
+18. `src/api/routes/health.js`
+19. `src/api/routes/yclients-marketplace.js`
+20. `src/api/webhooks/yclients.js`
+21. `src/api/websocket/marketplace-socket.js`
+
+**Workers & Utilities (3 files):**
+22. `src/workers/message-worker-v2.js`
+23. `src/utils/critical-error-logger.js`
+24. `src/monitoring/health-check.js`
+
+**Total Dependent Files:** ~35 files
+**Migration Impact:** None directly (all via SupabaseDataLayer abstraction)
+
+---
+
+## Architecture Decisions
+
+### Decision 1: Lightweight Repository Pattern (Not Heavy ORM)
+
+**Question:** What abstraction layer should we use for the migration?
+
+**Options Considered:**
+1. **No abstraction** - Direct SQL in SupabaseDataLayer methods
+2. **Heavy ORM** - Sequelize, TypeORM, Prisma
+3. **Lightweight custom wrapper** - BaseRepository + domain repos (~200-500 lines)
+
+**Decision:** ✅ **Lightweight custom wrapper**
+
+**Rationale:**
+
+**Why NOT "No Abstraction":**
+- Would require 1000+ manual SQL query transformations
+- Every Supabase method needs custom SQL string building
+- High error probability (SQL injection, syntax errors)
+- Unmaintainable (scattered SQL across 21 methods)
+- No connection pool management
+- No transaction support
+- Can't do gradual migration
+
+**Example of what we'd avoid:**
+```javascript
+// BAD: Every method becomes verbose SQL string building
+async getClientByPhone(phone) {
+  const sql = 'SELECT * FROM clients WHERE phone = $1 LIMIT 1';
+  const result = await postgres.query(sql, [phone]);
+  const client = result.rows[0];
+
+  if (!client) {
+    // Different error handling than Supabase
+  }
+
+  return this._buildResponse(client);
+}
+
+// Multiply this by 21 methods = 300+ lines of repetitive code
+```
+
+**Why NOT "Heavy ORM":**
+- Sequelize/TypeORM = 10,000+ lines of library code
+- Model definitions needed for all tables
+- Migrations framework (we already have schema)
+- Learning curve for team
+- Performance overhead (query building, eager loading, etc.)
+- Overkill for simple CRUD operations
+- Harder to optimize specific queries
+
+**Why YES "Lightweight Wrapper":**
+- ✅ Only 200-500 lines of custom code
+- ✅ Tailored exactly to our 21 methods
+- ✅ No external dependencies
+- ✅ Easy to understand and maintain
+- ✅ Performance overhead minimal
+- ✅ Gradual migration possible (feature flag)
+- ✅ Connection pool centralized
+- ✅ Transaction support built-in
+- ✅ Error handling normalized
+
+**Example of what we'll build:**
+```javascript
+// GOOD: Clean repository method
+class ClientRepository extends BaseRepository {
+  async findByPhone(phone) {
+    return this.findOne('clients', { phone });
+  }
+}
+
+// BaseRepository handles SQL generation, parameter binding, etc.
+// Only ~120 lines for BaseRepository + ~60 lines per domain repo
+```
+
+**Trade-offs Accepted:**
+- Not as feature-rich as Sequelize (but we don't need it)
+- Custom code to maintain (but minimal and focused)
+- No automatic migrations (but we manage schema separately)
+
+### Decision 2: Gradual Migration (Not Big-Bang)
+
+**Question:** How should we migrate production traffic?
+
+**Options Considered:**
+1. **Big-bang switch** - Disable Supabase, enable Timeweb at once
+2. **Module-by-module** - Migrate one module at a time with feature flags
+3. **Canary deployment** - Route 10% → 50% → 100% traffic
+
+**Decision:** ✅ **Module-by-module with feature flags**
+
+**Rationale:**
+
+**Why NOT "Big-Bang":**
+- High risk (all eggs in one basket)
+- If issue detected, affects entire system
+- Rollback is emergency operation
+- No gradual validation
+- Team stress levels high
+
+**Why NOT "Canary" (for this migration):**
+- More complex (need traffic routing)
+- All modules would switch together (not granular)
+- Still risky if fundamental issue
+- Better suited for infrastructure changes, not code refactors
+
+**Why YES "Module-by-Module":**
+- ✅ Lower risk per migration step
+- ✅ Easy rollback (flip feature flag)
+- ✅ Can validate each module independently
+- ✅ Learn from early modules, apply to later ones
+- ✅ Team confidence builds gradually
+- ✅ User impact minimized if issues
+
+**Implementation:**
+```javascript
+// config/database-flags.js
+module.exports = {
+  USE_REPOSITORY_PATTERN: process.env.USE_REPOSITORY_PATTERN === 'true',
+
+  // Future: Per-module flags for even more granular control
+  modules: {
+    dataLoader: process.env.TIMEWEB_DATA_LOADER === 'true',
+    syncScripts: process.env.TIMEWEB_SYNC === 'true',
+    services: process.env.TIMEWEB_SERVICES === 'true'
+  }
+};
+```
+
+**Migration Order:**
+1. Phase 1: Deploy Repository Pattern code (disabled)
+2. Phase 2: Enable for testing (non-production hours)
+3. Phase 4: Enable in production (monitoring)
+4. Phase 5: Full cutover (Supabase fallback still available)
+
+**Rollback:** Change env var + restart (~5 minutes)
+
+### Decision 3: Feature Flags Only (No Dual-Write)
+
+**Question:** Should we write to both databases during migration?
+
+**Options Considered:**
+1. **Dual-write** - Write to both Supabase and Timeweb simultaneously
+2. **Feature flags only** - Quick switch via environment variable
+3. **Hybrid** - Dual-write for critical tables, feature flags for others
+
+**Decision:** ✅ **Feature flags only** (dual-write optional for validation)
+
+**Rationale:**
+
+**Why NOT "Dual-Write" (required):**
+- Adds complexity to every write operation
+- What if writes diverge? (conflict resolution needed)
+- Performance impact (2x write latency)
+- Error handling complex (what if Supabase write fails but Timeweb succeeds?)
+- Maintenance burden
+- User preference: keep it simple
+
+**Why YES "Feature Flags":**
+- ✅ Simple implementation
+- ✅ Instant rollback (5 minutes)
+- ✅ No performance impact
+- ✅ Clean code (no dual-write logic)
+- ✅ Supabase can stay as fallback indefinitely (free tier)
+
+**Optional Dual-Write:**
+- Can implement for 48-hour validation period if desired
+- Not required - feature flags provide sufficient safety
+- Would be passive (log discrepancies, don't fail operations)
+
+**Supabase Free Tier Advantage:**
+- No cost pressure to delete Supabase
+- Can keep it running for months as backup
+- Easy to compare data anytime
+- Peace of mind
+
+### Decision 4: Keep Supabase Indefinitely
+
+**Question:** When should we delete Supabase project?
+
+**Options Considered:**
+1. **Immediately after cutover** - Delete as soon as Timeweb is primary
+2. **After 7 days** - Short validation period
+3. **After 30 days** - Conservative approach
+4. **Indefinitely** - Keep as backup forever
+
+**Decision:** ✅ **Indefinitely** (at least 30+ days, possibly forever)
+
+**Rationale:**
+
+**Why Keep Supabase:**
+- ✅ **Free tier** - No cost pressure
+- ✅ **Backup** - Historical data safe
+- ✅ **Validation** - Can compare anytime
+- ✅ **Rollback** - Ultimate fallback if Timeweb issues
+- ✅ **Peace of mind** - No regret if we delete too early
+
+**Free Tier Limits:**
+- 500 MB database (we use ~15 MB)
+- 2 GB bandwidth/month (we're read-only after cutover)
+- 50 MB file storage (we don't use)
+- Plenty of headroom
+
+**Future Options:**
+- After 30 days: Consider disabling but not deleting
+- After 90 days: Export final backup, then delete
+- Or just leave it - no harm
+
+**Trade-offs:**
+- Needs occasional monitoring (but minimal)
+- Could accumulate stale data (if we forget about it)
+- But benefits outweigh costs
+
+---
+
+## Technical Constraints & Limitations
+
+### Constraints We Can Work With ✅
+
+**1. Small Dataset (~1,600 records)**
+- **Benefit:** Export/Import will be fast (<30 minutes)
+- **Benefit:** Data validation easy (can check every record)
+- **Benefit:** Dual-write overhead minimal if we use it
+
+**2. No Supabase-Specific Features Used**
+- ❌ No Row Level Security (RLS)
+- ❌ No Realtime subscriptions
+- ❌ No Supabase Auth API
+- ❌ No Supabase Storage
+- ❌ No Supabase Edge Functions
+- **Benefit:** Pure PostgreSQL migration (no special features to replicate)
+
+**3. No Complex Transactions**
+- All current queries are atomic (single INSERT, UPDATE, SELECT)
+- No multi-step transactions currently
+- **Benefit:** Simpler migration (don't need complex transaction handling)
+- **Note:** BaseRepository will support transactions for future use
+
+**4. Simple Query Patterns**
+- Mostly basic CRUD operations
+- Some filtering (eq, neq, gte, lte, ilike)
+- Ordering and pagination (ORDER BY, LIMIT)
+- **Benefit:** Easy to replicate in PostgreSQL
+
+**5. Both Databases Use UTC**
+- No timezone conversion needed
+- Application handles timezone display
+- **Benefit:** No timestamp migration issues
+
+### Limitations to Be Aware Of ⚠️
+
+**1. Connection Pool Size (20 connections)**
+- Current `postgres.js` config: `max: 20`
+- With ~35 files potentially using database, could reach limit
+- **Mitigation:** Monitor pool usage, increase if needed
+- **Note:** Repository Pattern centralizes pool usage (better control)
+
+**2. Supabase SDK vs Raw SQL**
+- Supabase provides nice chaining API (`.from().select().eq()`)
+- PostgreSQL is raw SQL strings
+- **Mitigation:** Repository Pattern provides clean API
+- **Trade-off:** Less "magical" but more explicit
+
+**3. Error Messages Different**
+- Supabase errors: `{ error: { message: '...', code: '...' } }`
+- PostgreSQL errors: `{ code: '23505', detail: '...' }`
+- **Mitigation:** `_handleError()` in BaseRepository normalizes
+
+**4. No Built-in Pagination**
+- Supabase has `.range(start, end)`
+- PostgreSQL needs `LIMIT x OFFSET y`
+- **Mitigation:** BaseRepository `findMany()` supports `limit` and `offset`
+
+**5. Upsert Syntax Difference**
+- Supabase: `.upsert(data, { onConflict: 'id' })`
+- PostgreSQL: `INSERT ... ON CONFLICT (id) DO UPDATE SET ...`
+- **Mitigation:** BaseRepository `upsert()` handles this
+
+### Performance Expectations 📈
+
+**Current (Supabase):**
+- Network latency: 20-50ms (Moscow → Supabase US/EU)
+- Query execution: 5-10ms
+- **Total per query:** 25-60ms average
+
+**After Migration (Timeweb):**
+- Network latency: <1ms (internal datacenter network)
+- Query execution: 5-10ms (same)
+- **Total per query:** 6-11ms average
+
+**Expected Improvements:**
+- **4-10x faster** for internal services
+- **2-3x faster** for sync scripts (run on same server)
+- **Especially fast** for staff schedules (hundreds of queries per sync)
+
+**Real-World Impact:**
+- AI message response: May improve slightly (faster context loading)
+- Sync scripts: May complete faster (but not user-facing)
+- Booking operations: Should be noticeably snappier
+
+**Caveat:** User-facing bottleneck is AI provider (Gemini ~9 seconds), not database
+
+---
+
+## Critical Dependencies
+
+### Code Dependencies
+
+**1. SupabaseDataLayer is the Keystone**
+- File: `src/integrations/yclients/data/supabase-data-layer.js`
+- Used by: ~35 files (AI Admin, sync scripts, services, API routes)
+- **Migration Strategy:** Update this ONE file, all dependents benefit
+- **Risk:** If this breaks, entire system breaks
+- **Mitigation:** Comprehensive testing, feature flag for rollback
+
+**2. postgres.js Must Stay Stable**
+- File: `src/database/postgres.js`
+- Already used by: Baileys sessions (production, 4 days stable)
+- Will be used by: Repository Pattern
+- **Risk:** Connection pool exhaustion
+- **Mitigation:** Monitor pool stats, adjust `max` if needed
+
+**3. Environment Variable Configuration**
+- `.env` file controls feature flags
+- Must be consistent across all modules
+- **Risk:** Misconfiguration causes partial migration
+- **Mitigation:** Clear documentation, validation script
+
+### Data Dependencies
+
+**1. Foreign Key Constraints**
+- `clients.company_id` → `companies.id`
+- `bookings.client_id` → `clients.id`
+- `bookings.service_id` → `services.id`
+- `staff_schedules.staff_id` → `staff.id`
+- **Migration Order:** Must import `companies` first, then `clients`, then `bookings`
+
+**2. Schema Must Match**
+- Timeweb schema created in Phase 0.8
+- Must stay in sync with Supabase schema
+- **Risk:** Schema drift if Supabase updated manually
+- **Mitigation:** Lock Supabase schema, all changes via Timeweb
+
+**3. Data Consistency**
+- Row counts must match (Supabase vs Timeweb)
+- Checksums should match (for critical fields)
+- **Validation:** `scripts/validate-migration.js` runs hourly
+
+### Infrastructure Dependencies
+
+**1. Timeweb PostgreSQL Uptime**
+- **Current SLA:** Unknown (Timeweb doesn't publish SLAs)
+- **Observed:** 100% uptime since Nov 6 (4 days)
+- **Risk:** If Timeweb down, entire app down
+- **Mitigation:** Keep Supabase as fallback (feature flag rollback)
+
+**2. SSL Certificate**
+- Location: `/root/.cloud-certs/root.crt`
+- Required for: SSL connection to Timeweb
+- **Risk:** Certificate expiry
+- **Mitigation:** Monitor cert expiry date, renew in advance
+
+**3. Network Latency**
+- Internal datacenter network: <1ms
+- If network issues: queries slow down
+- **Monitoring:** Track p95, p99 query times
+
+---
+
+## Lessons Learned (From Phase 0 & 0.8)
+
+### Phase 0: Baileys Session Migration
+
+**What Went Well:**
+- ✅ Zero downtime migration
+- ✅ Simple export/import process
+- ✅ Validation script caught one minor issue early
+- ✅ Timeweb PostgreSQL proved reliable
+
+**Challenges:**
+- ⚠️ Initial SSL configuration took time to debug
+- ⚠️ Had to adjust connection pool settings once
+
+**Lessons:**
+1. **Test SSL first** - Don't assume default settings work
+2. **Monitor pool usage** - Adjust `max` connections based on load
+3. **Validate early** - Run validation immediately after import
+
+### Phase 0.8: Schema Migration
+
+**What Went Well:**
+- ✅ 8-minute execution time (faster than expected)
+- ✅ Zero downtime (DDL is fast)
+- ✅ 129 indexes created without issues
+- ✅ Functions migrated cleanly
+
+**Challenges:**
+- ⚠️ Had to manually review index definitions (Supabase doesn't export them cleanly)
+- ⚠️ One function had syntax difference (minor fix)
+
+**Lessons:**
+1. **Review generated DDL** - Don't blindly run
+2. **Indexes matter** - Include them in schema migration
+3. **Test functions separately** - PostgreSQL function syntax can differ from Supabase
+
+### General Lessons
+
+**1. Conservative Timelines Are Accurate**
+- Estimated: 2 hours for Phase 0 → Actual: 2.5 hours
+- Estimated: 1 day for Phase 0.8 → Actual: 8 hours (with review)
+- **Lesson:** Don't rush, buffer time for unknowns
+
+**2. Monitoring Catches Issues Early**
+- Phase 0: Detected connection pool spike within 1 hour
+- Phase 0.8: Caught missing index before it became problem
+- **Lesson:** Invest in monitoring upfront
+
+**3. Feature Flags Provide Confidence**
+- Baileys migration used feature flag for testing
+- Rolled back once to test rollback procedure
+- **Lesson:** Always have a quick rollback path
+
+**4. Documentation Saves Time**
+- Phase 0 execution report helped with Phase 0.8 planning
+- Avoided repeating mistakes
+- **Lesson:** Document as you go, not after
+
+---
+
+## Query Pattern Analysis
+
+### Supabase SDK → PostgreSQL Translation
+
+**Pattern 1: Simple SELECT with filter**
+```javascript
+// Supabase
+const { data } = await supabase
+  .from('clients')
+  .select('*')
+  .eq('phone', '89686484488')
+  .single();
+
+// PostgreSQL (via Repository)
+const data = await clientRepo.findByPhone('89686484488');
+
+// Under the hood
+const result = await postgres.query(
+  'SELECT * FROM clients WHERE phone = $1 LIMIT 1',
+  ['89686484488']
+);
+const data = result.rows[0];
+```
+
+**Pattern 2: Range query with ordering**
+```javascript
+// Supabase
+const { data } = await supabase
+  .from('staff_schedules')
+  .select('*')
+  .eq('company_id', 962302)
+  .gte('date', '2025-11-01')
+  .lte('date', '2025-11-30')
+  .order('date', { ascending: true });
+
+// PostgreSQL (via Repository)
+const data = await scheduleRepo.findSchedules({
+  companyId: 962302,
+  dateFrom: '2025-11-01',
+  dateTo: '2025-11-30'
+});
+
+// Under the hood
+const result = await postgres.query(
+  `SELECT * FROM staff_schedules
+   WHERE company_id = $1 AND date >= $2 AND date <= $3
+   ORDER BY date ASC`,
+  [962302, '2025-11-01', '2025-11-30']
+);
+const data = result.rows;
+```
+
+**Pattern 3: Case-insensitive search**
+```javascript
+// Supabase
+const { data } = await supabase
+  .from('clients')
+  .select('*')
+  .eq('company_id', 962302)
+  .ilike('name', '%Иван%')
+  .order('last_visit_date', { ascending: false })
+  .limit(10);
+
+// PostgreSQL (via Repository)
+const data = await clientRepo.searchByName(962302, 'Иван', 10);
+
+// Under the hood
+const result = await postgres.query(
+  `SELECT * FROM clients
+   WHERE company_id = $1 AND name ILIKE $2
+   ORDER BY last_visit_date DESC NULLS LAST
+   LIMIT $3`,
+  [962302, '%Иван%', 10]
+);
+const data = result.rows;
+```
+
+**Pattern 4: Upsert (INSERT or UPDATE)**
+```javascript
+// Supabase
+const { data } = await supabase
+  .from('clients')
+  .upsert({
+    yclients_id: 12345,
+    company_id: 962302,
+    name: 'Иван Иванов',
+    phone: '89001234567'
+  }, {
+    onConflict: 'yclients_id,company_id'
+  })
+  .select();
+
+// PostgreSQL (via Repository)
+const data = await clientRepo.upsert({
+  yclients_id: 12345,
+  company_id: 962302,
+  name: 'Иван Иванов',
+  phone: '89001234567'
+});
+
+// Under the hood
+const result = await postgres.query(
+  `INSERT INTO clients (yclients_id, company_id, name, phone)
+   VALUES ($1, $2, $3, $4)
+   ON CONFLICT (yclients_id, company_id)
+   DO UPDATE SET name = EXCLUDED.name, phone = EXCLUDED.phone
+   RETURNING *`,
+  [12345, 962302, 'Иван Иванов', '89001234567']
+);
+const data = result.rows[0];
+```
+
+**Pattern 5: Bulk upsert**
+```javascript
+// Supabase
+const { data } = await supabase
+  .from('services')
+  .upsert(servicesArray, { onConflict: 'yclients_id,company_id' });
+
+// PostgreSQL (via Repository)
+const data = await serviceRepo.bulkUpsert(servicesArray);
+
+// Under the hood (for N records)
+const values = servicesArray.map((service, i) =>
+  `($${i*4+1}, $${i*4+2}, $${i*4+3}, $${i*4+4})`
+).join(', ');
+
+const params = servicesArray.flatMap(s =>
+  [s.yclients_id, s.company_id, s.name, s.price]
+);
+
+const result = await postgres.query(
+  `INSERT INTO services (yclients_id, company_id, name, price)
+   VALUES ${values}
+   ON CONFLICT (yclients_id, company_id)
+   DO UPDATE SET name = EXCLUDED.name, price = EXCLUDED.price
+   RETURNING *`,
+  params
+);
+const data = result.rows;
+```
+
+### Complexity Analysis
+
+| Query Type | Supabase LOC | PostgreSQL LOC (Direct) | Repository LOC | Savings |
+|------------|--------------|------------------------|----------------|---------|
+| Simple SELECT | 4 lines | 6 lines | 1 line | 5 lines |
+| Range query | 7 lines | 8 lines | 1 line | 7 lines |
+| ILIKE search | 6 lines | 7 lines | 1 line | 6 lines |
+| Single upsert | 8 lines | 10 lines | 1 line | 9 lines |
+| Bulk upsert | 2 lines | 20 lines | 1 line | 19 lines |
+
+**Total for 21 methods:**
+- Supabase: ~150 lines
+- Direct PostgreSQL: ~450 lines
+- With Repository: ~150 lines (same as Supabase!)
+
+**Conclusion:** Repository Pattern keeps code concise while gaining PostgreSQL performance
+
+---
+
+## Migration Complexity Estimate
+
+### Code Changes Required
+
+**New Code (~500 lines):**
+- BaseRepository.js: ~120 lines
+- 6 Domain Repositories: ~360 lines total
+- repositories/index.js: ~20 lines
+
+**Updated Code (~100 lines):**
+- SupabaseDataLayer.js: Add feature flag checks to 21 methods (~80 lines change)
+- config/database-flags.js: ~20 lines (new file)
+
+**Test Code (~800 lines):**
+- Unit tests: ~200 lines
+- Integration tests: ~300 lines
+- Comparison tests: ~200 lines
+- Validation scripts: ~100 lines
+
+**Total New/Updated Code:** ~1,400 lines
+
+**Complexity:** Medium
+- Most code is repetitive (similar patterns for each repository method)
+- Well-defined interfaces (21 methods to implement)
+- Clear acceptance criteria (match Supabase behavior)
+
+### Data Migration Complexity
+
+**Tables:** 8 tables
+**Records:** ~1,600 total
+**Foreign Keys:** 4 constraints (must import in order)
+
+**Export Time:** ~5 minutes
+**Import Time:** ~10 minutes
+**Validation Time:** ~5 minutes
+**Total:** ~20-30 minutes
+
+**Complexity:** Low
+- Small dataset (fits in memory easily)
+- Simple export (Supabase API)
+- Simple import (bulk INSERT)
+- Easy to validate (row counts)
+
+---
+
+## Risk Profile
+
+### Low Risk ✅
+
+1. **Repository Pattern Implementation (Phase 1)**
+   - No production impact
+   - Isolated code
+   - Comprehensive testing
+
+2. **Small Dataset Migration**
+   - Only 1,600 records
+   - Fast export/import
+   - Easy to re-run if needed
+
+3. **Timeweb Stability**
+   - Proven with Baileys (4 days stable)
+   - Good performance
+   - Internal network
+
+### Medium Risk ⚠️
+
+1. **Query Translation Errors**
+   - 21 methods to update
+   - Edge cases (NULL, empty arrays, etc.)
+   - **Mitigation:** Comparison tests, 48h monitoring
+
+2. **Performance Regression**
+   - Possible if indexes missing or queries unoptimized
+   - **Mitigation:** Benchmark before/after, optimize indexes
+
+3. **Connection Pool Exhaustion**
+   - ~35 files using database
+   - Max 20 connections
+   - **Mitigation:** Monitor pool, increase if needed
+
+### High Risk 🔴
+
+1. **Data Inconsistency**
+   - If migration script has bugs
+   - Or if data written during export
+   - **Mitigation:** Validation scripts, optional dual-write
+
+2. **Timeweb Outage**
+   - If Timeweb goes down, entire app down
+   - **Mitigation:** Keep Supabase as fallback, feature flag rollback
+
+3. **Schema Drift**
+   - If Supabase schema changes without updating Timeweb
+   - **Mitigation:** Lock Supabase schema, document all changes
+
+---
+
+## Monitoring Strategy
+
+### Metrics to Track
+
+**1. Database Performance**
+- Average query time (target: <10ms)
+- p95 query time (target: <20ms)
+- p99 query time (target: <50ms)
+- Queries per second
+- Slow queries (>100ms)
+
+**2. Connection Pool Health**
+- Total connections
+- Idle connections
+- Waiting requests
+- Pool utilization (target: <80%)
+
+**3. Error Rates**
+- Database errors per 1000 queries (target: <0.1%)
+- Connection errors
+- Timeout errors
+- Query syntax errors
+
+**4. Data Consistency**
+- Row count match (Supabase vs Timeweb)
+- Run hourly during migration
+- Alert if mismatch >1 record
+
+**5. Application Health**
+- WhatsApp bot response time
+- API endpoint latency
+- Sync script completion time
+- Error logs count
+
+### Monitoring Tools
+
+**1. PM2 Logs**
+```bash
+pm2 logs ai-admin-worker-v2 --lines 500
+pm2 logs --err  # Errors only
+```
+
+**2. Database Logging**
+```javascript
+// In BaseRepository
+if (process.env.LOG_DATABASE_CALLS === 'true') {
+  console.log(`[DB] ${method} ${table} - ${duration}ms`);
+}
+```
+
+**3. Pool Stats**
+```javascript
+// In postgres.js
+const stats = await postgres.getPoolStats();
+console.log('Pool:', stats);
+// { total: 5, idle: 3, waiting: 0 }
+```
+
+**4. Validation Script**
+```bash
+# Run hourly
+*/60 * * * * node scripts/validate-migration.js
+```
+
+**5. Dashboard Script**
+```bash
+# Run every 5 minutes during migration
+watch -n 300 ./scripts/migration-dashboard.sh
+```
+
+---
+
+## Next Steps
+
+**Immediate (Nov 10):**
+1. ✅ Review this context document
+2. ✅ Approve Phase 1 start
+3. ⬜ Create feature branch: `feature/database-migration-phase1-repositories`
+4. ⬜ Begin BaseRepository implementation
+
+**Week 1 (Nov 11-15):**
+- Implement Repository Pattern
+- Write comprehensive tests
+- Get code review approval
+
+**Week 2 (Nov 18-22):**
+- Integrate into SupabaseDataLayer
+- Deploy to production (disabled)
+- Begin testing
+
+**Week 3 (Nov 25-29):**
+- Data migration
+- Enable Repository Pattern in production
+- 48-hour monitoring
+
+**Week 4 (Dec 2-6):**
+- Production cutover
+- Final monitoring
+- Success celebration 🎉
+
+---
+
+## References
+
+**Related Documents:**
+- `database-migration-revised-plan.md` - Comprehensive 5-phase plan
+- `database-migration-revised-tasks.md` - Detailed task checklist
+- `dev/active/datacenter-migration-msk-spb/PHASE_0_EXECUTION_REPORT.md` - Baileys migration
+- `dev/active/datacenter-migration-msk-spb/PHASE_08_EXECUTION_REPORT.md` - Schema migration
+
+**Key Code Files:**
+- `src/database/postgres.js:1-183` - Timeweb connection pool
+- `src/integrations/yclients/data/supabase-data-layer.js:1-977` - Primary migration target
+- `src/services/ai-admin-v2/modules/data-loader.js:1-150` - Secondary update
+
+**Configuration:**
+- `.env` - Environment variables
+- `config/database-flags.js` - Feature flags (to be created)
+
+---
+
+**Last Updated:** 2025-11-10
+**Document Version:** 1.0
+**Status:** Ready for use
+**Survives Context Reset:** Yes ✅
