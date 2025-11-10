@@ -3,7 +3,7 @@ const { supabase } = require('../../../database/supabase');
 const postgres = require('../../../database/postgres');
 const logger = require("../../../utils/logger");
 const DataTransformers = require("../../../utils/data-transformers");
-const dbFlags = require("../../../config/database-flags");
+const dbFlags = require("../../../../config/database-flags");
 
 // Repository Pattern (Phase 2)
 const {
