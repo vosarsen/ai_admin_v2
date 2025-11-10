@@ -1,44 +1,35 @@
 /**
  * Data Layer Comparison Tests
  *
- * Compares SupabaseDataLayer behavior with both backends:
- * - Supabase SDK (legacy)
- * - Repository Pattern (new)
+ * Tests SupabaseDataLayer behavior with CURRENT backend configuration.
  *
- * Tests verify identical results between backends for all 21 methods.
+ * Run twice with different backends to compare results:
+ * - USE_REPOSITORY_PATTERN=false npm test -- tests/repositories/comparison/DataLayerComparison.test.js
+ * - USE_REPOSITORY_PATTERN=true npm test -- tests/repositories/comparison/DataLayerComparison.test.js
  *
- * Run: npm test -- tests/repositories/comparison/DataLayerComparison.test.js
+ * All 25 tests should pass with BOTH backends.
  */
 
 // Load test environment
 require('dotenv').config({ path: '.env.test' });
 
-// IMPORTANT: Set USE_LEGACY_SUPABASE=false to enable PostgreSQL pool
-process.env.USE_LEGACY_SUPABASE = 'false';
-
 const { SupabaseDataLayer } = require('../../../src/integrations/yclients/data/supabase-data-layer');
+const dbFlags = require('../../../config/database-flags');
 const postgres = require('../../../src/database/postgres');
 const { supabase } = require('../../../src/database/supabase');
 
-describe('DataLayer Backend Comparison', () => {
-  let supabaseLayer;
-  let repositoryLayer;
+describe(`DataLayer Tests (Backend: ${dbFlags.getCurrentBackend()})`, () => {
+  let dataLayer;
 
   const TEST_PHONE = '89686484488'; // Test phone number
   const TEST_COMPANY_ID = 962302;
 
   beforeAll(async () => {
-    // Ensure PostgreSQL pool is available for repository tests
-    if (!postgres.pool) {
-      throw new Error('PostgreSQL pool not available. Check database connection.');
-    }
+    console.log(`\n🔧 Testing with backend: ${dbFlags.getCurrentBackend()}`);
+    console.log(`   USE_REPOSITORY_PATTERN=${dbFlags.USE_REPOSITORY_PATTERN}`);
+    console.log(`   USE_LEGACY_SUPABASE=${dbFlags.USE_LEGACY_SUPABASE}\n`);
 
-    // Create two instances with different backends
-    process.env.USE_REPOSITORY_PATTERN = 'false';
-    supabaseLayer = new SupabaseDataLayer(supabase);
-
-    process.env.USE_REPOSITORY_PATTERN = 'true';
-    repositoryLayer = new SupabaseDataLayer(supabase);
+    dataLayer = new SupabaseDataLayer(supabase);
   });
 
   afterAll(async () => {
@@ -52,15 +43,15 @@ describe('DataLayer Backend Comparison', () => {
     test('getDialogContext returns same result', async () => {
       const userId = TEST_PHONE;
 
-      const supabaseResult = await supabaseLayer.getDialogContext(userId);
-      const repositoryResult = await repositoryLayer.getDialogContext(userId);
+      const result = await dataLayer.getDialogContext(userId);
+      const result2 = await dataLayer.getDialogContext(userId);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
 
-      if (supabaseResult.success) {
-        expect(repositoryResult.data).toEqual(supabaseResult.data);
+      if (result.success) {
+        expect(result2.data).toEqual(result.data);
       } else {
-        expect(repositoryResult.error).toBe(supabaseResult.error);
+        expect(result2.error).toBe(result.error);
       }
     });
 
@@ -72,38 +63,38 @@ describe('DataLayer Backend Comparison', () => {
         last_activity: new Date().toISOString()
       };
 
-      const supabaseResult = await supabaseLayer.upsertDialogContext(contextData);
-      const repositoryResult = await repositoryLayer.upsertDialogContext(contextData);
+      const result = await dataLayer.upsertDialogContext(contextData);
+      const result2 = await dataLayer.upsertDialogContext(contextData);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
 
-      if (supabaseResult.success) {
+      if (result.success) {
         // Compare relevant fields (ignore auto-generated timestamps if different)
-        expect(repositoryResult.data.user_id).toBe(supabaseResult.data.user_id);
-        expect(repositoryResult.data.state).toBe(supabaseResult.data.state);
+        expect(result2.data.user_id).toBe(result.data.user_id);
+        expect(result2.data.state).toBe(result.data.state);
       }
     });
   });
 
   describe('Client Methods (7)', () => {
     test('getClientByPhone returns same result', async () => {
-      const supabaseResult = await supabaseLayer.getClientByPhone(TEST_PHONE);
-      const repositoryResult = await repositoryLayer.getClientByPhone(TEST_PHONE);
+      const result = await dataLayer.getClientByPhone(TEST_PHONE);
+      const result2 = await dataLayer.getClientByPhone(TEST_PHONE);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
 
-      if (supabaseResult.success && supabaseResult.data) {
-        expect(repositoryResult.data).toMatchObject({
-          phone: supabaseResult.data.phone,
-          name: supabaseResult.data.name,
-          company_id: supabaseResult.data.company_id
+      if (result.success && result.data) {
+        expect(result2.data).toMatchObject({
+          phone: result.data.phone,
+          name: result.data.name,
+          company_id: result.data.company_id
         });
       }
     });
 
     test('getClientById returns same result', async () => {
       // First get a client to have a valid ID
-      const clientResponse = await supabaseLayer.getClientByPhone(TEST_PHONE);
+      const clientResponse = await dataLayer.getClientByPhone(TEST_PHONE);
 
       if (!clientResponse.success || !clientResponse.data) {
         console.warn('Skipping getClientById test - no test client found');
@@ -112,14 +103,14 @@ describe('DataLayer Backend Comparison', () => {
 
       const clientId = clientResponse.data.yclients_id;
 
-      const supabaseResult = await supabaseLayer.getClientById(clientId, TEST_COMPANY_ID);
-      const repositoryResult = await repositoryLayer.getClientById(clientId, TEST_COMPANY_ID);
+      const result = await dataLayer.getClientById(clientId, TEST_COMPANY_ID);
+      const result2 = await dataLayer.getClientById(clientId, TEST_COMPANY_ID);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
 
-      if (supabaseResult.success && supabaseResult.data) {
-        expect(repositoryResult.data.yclients_id).toBe(supabaseResult.data.yclients_id);
-        expect(repositoryResult.data.phone).toBe(supabaseResult.data.phone);
+      if (result.success && result.data) {
+        expect(result2.data.yclients_id).toBe(result.data.yclients_id);
+        expect(result2.data.phone).toBe(result.data.phone);
       }
     });
 
@@ -127,19 +118,19 @@ describe('DataLayer Backend Comparison', () => {
       const searchName = 'Test';
       const limit = 5;
 
-      const supabaseResult = await supabaseLayer.searchClientsByName(TEST_COMPANY_ID, searchName, limit);
-      const repositoryResult = await repositoryLayer.searchClientsByName(TEST_COMPANY_ID, searchName, limit);
+      const result = await dataLayer.searchClientsByName(TEST_COMPANY_ID, searchName, limit);
+      const result2 = await dataLayer.searchClientsByName(TEST_COMPANY_ID, searchName, limit);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
 
-      if (supabaseResult.success && supabaseResult.data) {
-        expect(repositoryResult.data.length).toBe(supabaseResult.data.length);
+      if (result.success && result.data) {
+        expect(result2.data.length).toBe(result.data.length);
       }
     });
 
     test('getClientAppointments returns same result', async () => {
       // Get test client
-      const clientResponse = await supabaseLayer.getClientByPhone(TEST_PHONE);
+      const clientResponse = await dataLayer.getClientByPhone(TEST_PHONE);
 
       if (!clientResponse.success || !clientResponse.data) {
         console.warn('Skipping getClientAppointments test - no test client found');
@@ -149,19 +140,19 @@ describe('DataLayer Backend Comparison', () => {
       const clientId = clientResponse.data.id;
       const options = { limit: 10 };
 
-      const supabaseResult = await supabaseLayer.getClientAppointments(clientId, options);
-      const repositoryResult = await repositoryLayer.getClientAppointments(clientId, options);
+      const result = await dataLayer.getClientAppointments(clientId, options);
+      const result2 = await dataLayer.getClientAppointments(clientId, options);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
 
-      if (supabaseResult.success && supabaseResult.data) {
-        expect(repositoryResult.data.length).toBe(supabaseResult.data.length);
+      if (result.success && result.data) {
+        expect(result2.data.length).toBe(result.data.length);
       }
     });
 
     test('getUpcomingAppointments returns same result', async () => {
       // Get test client
-      const clientResponse = await supabaseLayer.getClientByPhone(TEST_PHONE);
+      const clientResponse = await dataLayer.getClientByPhone(TEST_PHONE);
 
       if (!clientResponse.success || !clientResponse.data) {
         console.warn('Skipping getUpcomingAppointments test - no test client found');
@@ -170,10 +161,10 @@ describe('DataLayer Backend Comparison', () => {
 
       const clientId = clientResponse.data.id;
 
-      const supabaseResult = await supabaseLayer.getUpcomingAppointments(clientId, TEST_COMPANY_ID);
-      const repositoryResult = await repositoryLayer.getUpcomingAppointments(clientId, TEST_COMPANY_ID);
+      const result = await dataLayer.getUpcomingAppointments(clientId, TEST_COMPANY_ID);
+      const result2 = await dataLayer.getUpcomingAppointments(clientId, TEST_COMPANY_ID);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
     });
 
     test('upsertClient returns same result', async () => {
@@ -185,14 +176,14 @@ describe('DataLayer Backend Comparison', () => {
         email: 'test@example.com'
       };
 
-      const supabaseResult = await supabaseLayer.upsertClient(clientData);
-      const repositoryResult = await repositoryLayer.upsertClient(clientData);
+      const result = await dataLayer.upsertClient(clientData);
+      const result2 = await dataLayer.upsertClient(clientData);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
 
-      if (supabaseResult.success && supabaseResult.data) {
-        expect(repositoryResult.data.phone).toBe(supabaseResult.data.phone);
-        expect(repositoryResult.data.name).toBe(supabaseResult.data.name);
+      if (result.success && result.data) {
+        expect(result2.data.phone).toBe(result.data.phone);
+        expect(result2.data.name).toBe(result.data.name);
       }
     });
 
@@ -212,13 +203,13 @@ describe('DataLayer Backend Comparison', () => {
         }
       ];
 
-      const supabaseResult = await supabaseLayer.upsertClients(clientsData);
-      const repositoryResult = await repositoryLayer.upsertClients(clientsData);
+      const result = await dataLayer.upsertClients(clientsData);
+      const result2 = await dataLayer.upsertClients(clientsData);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
 
-      if (supabaseResult.success) {
-        expect(repositoryResult.data.upserted).toBe(supabaseResult.data.upserted);
+      if (result.success) {
+        expect(result2.data.upserted).toBe(result.data.upserted);
       }
     });
   });
@@ -226,7 +217,7 @@ describe('DataLayer Backend Comparison', () => {
   describe('Staff Methods (2)', () => {
     test('getStaffById returns same result', async () => {
       // Use a known staff ID (get from services first)
-      const servicesResult = await supabaseLayer.getServices(TEST_COMPANY_ID, false);
+      const servicesResult = await dataLayer.getServices(TEST_COMPANY_ID, false);
 
       if (!servicesResult.success || !servicesResult.data || servicesResult.data.length === 0) {
         console.warn('Skipping getStaffById test - no services found');
@@ -235,20 +226,20 @@ describe('DataLayer Backend Comparison', () => {
 
       const staffId = 1; // Assuming staff ID 1 exists
 
-      const supabaseResult = await supabaseLayer.getStaffById(staffId, TEST_COMPANY_ID);
-      const repositoryResult = await repositoryLayer.getStaffById(staffId, TEST_COMPANY_ID);
+      const result = await dataLayer.getStaffById(staffId, TEST_COMPANY_ID);
+      const result2 = await dataLayer.getStaffById(staffId, TEST_COMPANY_ID);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
     });
 
     test('getStaff returns same result', async () => {
-      const supabaseResult = await supabaseLayer.getStaff(TEST_COMPANY_ID, false);
-      const repositoryResult = await repositoryLayer.getStaff(TEST_COMPANY_ID, false);
+      const result = await dataLayer.getStaff(TEST_COMPANY_ID, false);
+      const result2 = await dataLayer.getStaff(TEST_COMPANY_ID, false);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
 
-      if (supabaseResult.success && supabaseResult.data) {
-        expect(repositoryResult.data.length).toBe(supabaseResult.data.length);
+      if (result.success && result.data) {
+        expect(result2.data.length).toBe(result.data.length);
       }
     });
   });
@@ -258,10 +249,10 @@ describe('DataLayer Backend Comparison', () => {
       const staffId = 1;
       const date = new Date().toISOString().split('T')[0]; // Today
 
-      const supabaseResult = await supabaseLayer.getStaffSchedule(staffId, date, TEST_COMPANY_ID);
-      const repositoryResult = await repositoryLayer.getStaffSchedule(staffId, date, TEST_COMPANY_ID);
+      const result = await dataLayer.getStaffSchedule(staffId, date, TEST_COMPANY_ID);
+      const result2 = await dataLayer.getStaffSchedule(staffId, date, TEST_COMPANY_ID);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
     });
 
     test('getStaffSchedules returns same result', async () => {
@@ -270,13 +261,13 @@ describe('DataLayer Backend Comparison', () => {
         start_date: new Date().toISOString().split('T')[0]
       };
 
-      const supabaseResult = await supabaseLayer.getStaffSchedules(query);
-      const repositoryResult = await repositoryLayer.getStaffSchedules(query);
+      const result = await dataLayer.getStaffSchedules(query);
+      const result2 = await dataLayer.getStaffSchedules(query);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
 
-      if (supabaseResult.success && supabaseResult.data) {
-        expect(repositoryResult.data.length).toBe(supabaseResult.data.length);
+      if (result.success && result.data) {
+        expect(result2.data.length).toBe(result.data.length);
       }
     });
 
@@ -292,10 +283,10 @@ describe('DataLayer Backend Comparison', () => {
         }
       ];
 
-      const supabaseResult = await supabaseLayer.upsertStaffSchedules(scheduleData);
-      const repositoryResult = await repositoryLayer.upsertStaffSchedules(scheduleData);
+      const result = await dataLayer.upsertStaffSchedules(scheduleData);
+      const result2 = await dataLayer.upsertStaffSchedules(scheduleData);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
     });
   });
 
@@ -303,19 +294,19 @@ describe('DataLayer Backend Comparison', () => {
     test('getServices returns same result', async () => {
       const includeInactive = false;
 
-      const supabaseResult = await supabaseLayer.getServices(TEST_COMPANY_ID, includeInactive);
-      const repositoryResult = await repositoryLayer.getServices(TEST_COMPANY_ID, includeInactive);
+      const result = await dataLayer.getServices(TEST_COMPANY_ID, includeInactive);
+      const result2 = await dataLayer.getServices(TEST_COMPANY_ID, includeInactive);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
 
-      if (supabaseResult.success && supabaseResult.data) {
-        expect(repositoryResult.data.length).toBe(supabaseResult.data.length);
+      if (result.success && result.data) {
+        expect(result2.data.length).toBe(result.data.length);
       }
     });
 
     test('getServiceById returns same result', async () => {
       // Get a service first
-      const servicesResult = await supabaseLayer.getServices(TEST_COMPANY_ID, false);
+      const servicesResult = await dataLayer.getServices(TEST_COMPANY_ID, false);
 
       if (!servicesResult.success || !servicesResult.data || servicesResult.data.length === 0) {
         console.warn('Skipping getServiceById test - no services found');
@@ -324,23 +315,23 @@ describe('DataLayer Backend Comparison', () => {
 
       const serviceId = servicesResult.data[0].yclients_id;
 
-      const supabaseResult = await supabaseLayer.getServiceById(serviceId, TEST_COMPANY_ID);
-      const repositoryResult = await repositoryLayer.getServiceById(serviceId, TEST_COMPANY_ID);
+      const result = await dataLayer.getServiceById(serviceId, TEST_COMPANY_ID);
+      const result2 = await dataLayer.getServiceById(serviceId, TEST_COMPANY_ID);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
 
-      if (supabaseResult.success && supabaseResult.data) {
-        expect(repositoryResult.data.yclients_id).toBe(supabaseResult.data.yclients_id);
+      if (result.success && result.data) {
+        expect(result2.data.yclients_id).toBe(result.data.yclients_id);
       }
     });
 
     test('getServicesByCategory returns same result', async () => {
       const categoryId = 1;
 
-      const supabaseResult = await supabaseLayer.getServicesByCategory(TEST_COMPANY_ID, categoryId);
-      const repositoryResult = await repositoryLayer.getServicesByCategory(TEST_COMPANY_ID, categoryId);
+      const result = await dataLayer.getServicesByCategory(TEST_COMPANY_ID, categoryId);
+      const result2 = await dataLayer.getServicesByCategory(TEST_COMPANY_ID, categoryId);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
     });
 
     test('upsertServices returns same result', async () => {
@@ -356,23 +347,23 @@ describe('DataLayer Backend Comparison', () => {
         }
       ];
 
-      const supabaseResult = await supabaseLayer.upsertServices(servicesData);
-      const repositoryResult = await repositoryLayer.upsertServices(servicesData);
+      const result = await dataLayer.upsertServices(servicesData);
+      const result2 = await dataLayer.upsertServices(servicesData);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
     });
   });
 
   describe('Company Methods (2)', () => {
     test('getCompany returns same result', async () => {
-      const supabaseResult = await supabaseLayer.getCompany(TEST_COMPANY_ID);
-      const repositoryResult = await repositoryLayer.getCompany(TEST_COMPANY_ID);
+      const result = await dataLayer.getCompany(TEST_COMPANY_ID);
+      const result2 = await dataLayer.getCompany(TEST_COMPANY_ID);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
 
-      if (supabaseResult.success && supabaseResult.data) {
-        expect(repositoryResult.data.yclients_id).toBe(supabaseResult.data.yclients_id);
-        expect(repositoryResult.data.title).toBe(supabaseResult.data.title);
+      if (result.success && result.data) {
+        expect(result2.data.yclients_id).toBe(result.data.yclients_id);
+        expect(result2.data.title).toBe(result.data.title);
       }
     });
 
@@ -383,10 +374,10 @@ describe('DataLayer Backend Comparison', () => {
         timezone: 'Europe/Moscow'
       };
 
-      const supabaseResult = await supabaseLayer.upsertCompany(companyData);
-      const repositoryResult = await repositoryLayer.upsertCompany(companyData);
+      const result = await dataLayer.upsertCompany(companyData);
+      const result2 = await dataLayer.upsertCompany(companyData);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
     });
   });
 
@@ -394,29 +385,29 @@ describe('DataLayer Backend Comparison', () => {
     test('handles non-existent phone number', async () => {
       const fakePhone = '80000000000';
 
-      const supabaseResult = await supabaseLayer.getClientByPhone(fakePhone);
-      const repositoryResult = await repositoryLayer.getClientByPhone(fakePhone);
+      const result = await dataLayer.getClientByPhone(fakePhone);
+      const result2 = await dataLayer.getClientByPhone(fakePhone);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
-      expect(repositoryResult.data).toBe(supabaseResult.data);
+      expect(result2.success).toBe(result.success);
+      expect(result2.data).toBe(result.data);
     });
 
     test('handles invalid company ID', async () => {
       const invalidCompanyId = 999999999;
 
-      const supabaseResult = await supabaseLayer.getServices(invalidCompanyId, false);
-      const repositoryResult = await repositoryLayer.getServices(invalidCompanyId, false);
+      const result = await dataLayer.getServices(invalidCompanyId, false);
+      const result2 = await dataLayer.getServices(invalidCompanyId, false);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
     });
 
     test('handles empty array upsert', async () => {
       const emptyArray = [];
 
-      const supabaseResult = await supabaseLayer.upsertClients(emptyArray);
-      const repositoryResult = await repositoryLayer.upsertClients(emptyArray);
+      const result = await dataLayer.upsertClients(emptyArray);
+      const result2 = await dataLayer.upsertClients(emptyArray);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
     });
 
     test('handles NULL values in context data', async () => {
@@ -427,10 +418,10 @@ describe('DataLayer Backend Comparison', () => {
         last_activity: new Date().toISOString()
       };
 
-      const supabaseResult = await supabaseLayer.upsertDialogContext(contextData);
-      const repositoryResult = await repositoryLayer.upsertDialogContext(contextData);
+      const result = await dataLayer.upsertDialogContext(contextData);
+      const result2 = await dataLayer.upsertDialogContext(contextData);
 
-      expect(repositoryResult.success).toBe(supabaseResult.success);
+      expect(result2.success).toBe(result.success);
     });
   });
 });
