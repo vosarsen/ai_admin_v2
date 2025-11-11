@@ -161,6 +161,8 @@ describe('BaseRepository Integration Tests', () => {
   describe('upsert()', () => {
     test('should insert new client', async () => {
       const newPhone = `${TEST_MARKERS.TEST_PHONE_PREFIX}100`;
+      const testYClientsId = 9900000 + Math.floor(Math.random() * 99999);
+
       const newClient = await repo.upsert(
         'clients',
         {
@@ -168,10 +170,11 @@ describe('BaseRepository Integration Tests', () => {
           name: `${TEST_MARKERS.TEST_CLIENT_NAME_MARKER} Upsert Test`,
           email: `test-${Date.now()}${TEST_MARKERS.TEST_EMAIL_DOMAIN}`,
           company_id: TEST_MARKERS.TEST_COMPANY_IDS[0],
+          yclients_id: testYClientsId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         },
-        ['phone', 'company_id']
+        ['yclients_id']  // Use yclients_id as conflict column (has unique index)
       );
 
       expect(newClient).toBeDefined();
@@ -187,6 +190,7 @@ describe('BaseRepository Integration Tests', () => {
     test('should update existing client on conflict', async () => {
       const phone = `${TEST_MARKERS.TEST_PHONE_PREFIX}101`;
       const companyId = TEST_MARKERS.TEST_COMPANY_IDS[0];
+      const testYClientsId = 9900000 + Math.floor(Math.random() * 99999);
 
       // First insert
       const client1 = await repo.upsert(
@@ -196,10 +200,11 @@ describe('BaseRepository Integration Tests', () => {
           name: `${TEST_MARKERS.TEST_CLIENT_NAME_MARKER} Original`,
           email: `test-${Date.now()}${TEST_MARKERS.TEST_EMAIL_DOMAIN}`,
           company_id: companyId,
+          yclients_id: testYClientsId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         },
-        ['phone', 'company_id']
+        ['yclients_id']
       );
 
       expect(client1.name).toContain('Original');
@@ -213,10 +218,11 @@ describe('BaseRepository Integration Tests', () => {
           name: `${TEST_MARKERS.TEST_CLIENT_NAME_MARKER} Updated`,
           email: `test-updated-${Date.now()}${TEST_MARKERS.TEST_EMAIL_DOMAIN}`,
           company_id: companyId,
+          yclients_id: testYClientsId, // Same yclients_id → UPDATE
           created_at: client1.created_at, // Keep original created_at
           updated_at: new Date().toISOString()
         },
-        ['phone', 'company_id']
+        ['yclients_id']
       );
 
       expect(client2.id).toBe(originalId); // Same ID (updated, not inserted)
@@ -226,6 +232,7 @@ describe('BaseRepository Integration Tests', () => {
 
     test('should return upserted record with all fields', async () => {
       const phone = `${TEST_MARKERS.TEST_PHONE_PREFIX}102`;
+      const testYClientsId = 9900000 + Math.floor(Math.random() * 99999);
 
       const client = await repo.upsert(
         'clients',
@@ -234,10 +241,11 @@ describe('BaseRepository Integration Tests', () => {
           name: `${TEST_MARKERS.TEST_CLIENT_NAME_MARKER} Full Fields`,
           email: `test-${Date.now()}${TEST_MARKERS.TEST_EMAIL_DOMAIN}`,
           company_id: TEST_MARKERS.TEST_COMPANY_IDS[0],
+          yclients_id: testYClientsId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         },
-        ['phone', 'company_id']
+        ['yclients_id']
       );
 
       // Verify all fields are returned
@@ -253,12 +261,16 @@ describe('BaseRepository Integration Tests', () => {
 
   describe('bulkUpsert()', () => {
     test('should insert multiple new clients', async () => {
+      const testYClientsId1 = 9900000 + Math.floor(Math.random() * 99999);
+      const testYClientsId2 = 9900000 + Math.floor(Math.random() * 99999);
+
       const bulkData = [
         {
           phone: `${TEST_MARKERS.TEST_PHONE_PREFIX}200`,
           name: `${TEST_MARKERS.TEST_CLIENT_NAME_MARKER} Bulk 1`,
           email: `bulk1-${Date.now()}${TEST_MARKERS.TEST_EMAIL_DOMAIN}`,
           company_id: TEST_MARKERS.TEST_COMPANY_IDS[0],
+          yclients_id: testYClientsId1,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         },
@@ -267,12 +279,13 @@ describe('BaseRepository Integration Tests', () => {
           name: `${TEST_MARKERS.TEST_CLIENT_NAME_MARKER} Bulk 2`,
           email: `bulk2-${Date.now()}${TEST_MARKERS.TEST_EMAIL_DOMAIN}`,
           company_id: TEST_MARKERS.TEST_COMPANY_IDS[0],
+          yclients_id: testYClientsId2,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }
       ];
 
-      const results = await repo.bulkUpsert('clients', bulkData, ['phone', 'company_id']);
+      const results = await repo.bulkUpsert('clients', bulkData, ['yclients_id']);
 
       expect(Array.isArray(results)).toBe(true);
       expect(results.length).toBe(2);
@@ -283,6 +296,7 @@ describe('BaseRepository Integration Tests', () => {
     test('should update existing clients on conflict', async () => {
       const phone = `${TEST_MARKERS.TEST_PHONE_PREFIX}202`;
       const companyId = TEST_MARKERS.TEST_COMPANY_IDS[0];
+      const testYClientsId = 9900000 + Math.floor(Math.random() * 99999);
 
       // First bulk insert
       const initial = await repo.bulkUpsert(
@@ -292,10 +306,11 @@ describe('BaseRepository Integration Tests', () => {
           name: `${TEST_MARKERS.TEST_CLIENT_NAME_MARKER} Bulk Original`,
           email: `bulk-original-${Date.now()}${TEST_MARKERS.TEST_EMAIL_DOMAIN}`,
           company_id: companyId,
+          yclients_id: testYClientsId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }],
-        ['phone', 'company_id']
+        ['yclients_id']
       );
 
       const originalId = initial[0].id;
@@ -308,10 +323,11 @@ describe('BaseRepository Integration Tests', () => {
           name: `${TEST_MARKERS.TEST_CLIENT_NAME_MARKER} Bulk Updated`,
           email: `bulk-updated-${Date.now()}${TEST_MARKERS.TEST_EMAIL_DOMAIN}`,
           company_id: companyId,
+          yclients_id: testYClientsId, // Same yclients_id → UPDATE
           created_at: initial[0].created_at,
           updated_at: new Date().toISOString()
         }],
-        ['phone', 'company_id']
+        ['yclients_id']
       );
 
       expect(updated[0].id).toBe(originalId); // Same ID
