@@ -19,6 +19,12 @@ if (usePostgres && !config.database.postgresPassword) {
 
 let pool = null;
 
+// Connection pool configuration
+// With 7 PM2 services running simultaneously:
+// - Max connections per service: 3
+// - Total connections: 7 × 3 = 21 (safe for most PostgreSQL limits)
+const MAX_CONNECTIONS_PER_SERVICE = parseInt(process.env.POSTGRES_MAX_CONNECTIONS || '3', 10);
+
 // Создание connection pool (только если используем PostgreSQL)
 if (usePostgres) {
   pool = new Pool({
@@ -28,16 +34,52 @@ if (usePostgres) {
     user: config.database.postgresUser,
     password: config.database.postgresPassword,
 
-    // Connection pool settings
-    max: 20, // Максимум connections
-    idleTimeoutMillis: 30000, // 30 секунд
-    connectionTimeoutMillis: 5000, // 5 секунд timeout
+    // Connection pool settings (optimized for 7 services)
+    max: MAX_CONNECTIONS_PER_SERVICE, // 3 per service = 21 total (safe)
+    min: 1, // Keep 1 idle connection ready
 
-    // Statement timeout (увеличен до 30 сек для миграций)
-    statement_timeout: 30000, // 30 секунд
+    // Timeouts
+    idleTimeoutMillis: 30000, // 30s - Close idle connections
+    connectionTimeoutMillis: 10000, // 10s - Increased from 5s for reliability
+
+    // Query timeouts
+    statement_timeout: 30000, // 30s for normal queries
+    query_timeout: 60000, // 60s for heavy queries (migrations, reports)
+
+    // Connection lifetime
+    max_lifetime: 3600000, // 1 hour - Recycle connections periodically
 
     // SSL (если нужно)
     ssl: process.env.POSTGRES_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  });
+
+  // Connection pool monitoring events
+  pool.on('connect', (client) => {
+    logger.debug('PostgreSQL client connected', {
+      total: pool.totalCount,
+      idle: pool.idleCount,
+      waiting: pool.waitingCount
+    });
+  });
+
+  pool.on('acquire', (client) => {
+    // Warn if pool is nearing capacity (>80%)
+    const usage = pool.totalCount / MAX_CONNECTIONS_PER_SERVICE;
+    if (usage > 0.8) {
+      logger.warn('Connection pool nearing capacity', {
+        total: pool.totalCount,
+        max: MAX_CONNECTIONS_PER_SERVICE,
+        usage: `${Math.round(usage * 100)}%`,
+        idle: pool.idleCount,
+        waiting: pool.waitingCount
+      });
+    }
+  });
+
+  pool.on('remove', (client) => {
+    logger.debug('PostgreSQL client removed', {
+      remaining: pool.totalCount
+    });
   });
 
   // Обработка ошибок pool
