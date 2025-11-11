@@ -1,4 +1,7 @@
 // src/workers/index-v2.js
+// CRITICAL: Sentry must be imported FIRST
+require('../instrument');
+
 const cluster = require('cluster');
 const os = require('os');
 const logger = require('../utils/logger');
