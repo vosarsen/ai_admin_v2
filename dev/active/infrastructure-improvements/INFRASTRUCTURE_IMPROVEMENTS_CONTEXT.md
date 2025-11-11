@@ -1,9 +1,9 @@
 # Infrastructure Improvements - Context & Progress
 
-**Last Updated:** 2025-11-11 18:45 MSK
-**Status:** 🟡 In Progress - CRITICAL-4 (Phase 1 & 2 Complete, 5 tests remaining)
-**Current Session:** Session 3 - Implementing CRITICAL-4 Integration Tests
-**Next Step:** Fix remaining 5 upsert test failures (yclients_id unique constraint issue)
+**Last Updated:** 2025-11-11 19:15 MSK
+**Status:** ✅ CRITICAL-4 Phase 2 COMPLETE - All 28 BaseRepository tests passing!
+**Current Session:** Session 3 (Continued) - CRITICAL-4 Integration Tests
+**Next Step:** Begin Phase 3 - Domain Repository tests (ClientRepository, ServiceRepository, etc.)
 
 ---
 
@@ -565,9 +565,30 @@ node scripts/test-transactions.js
 16. `26dedbd` - fix(tests): Fix remaining 9 test failures in BaseRepository
 17. `074524f` - fix(tests): Use yclients_id for upsert conflict columns
 
+### Session 3 (Continued) - UNIQUE Constraint Fix:
+
+**Database Schema Change:**
+Added UNIQUE constraint to `clients.yclients_id` column to enable upsert operations.
+
+**SQL Migration:**
+```sql
+-- Drop old regular index
+DROP INDEX IF EXISTS idx_clients_yclients_id;
+
+-- Create UNIQUE index
+CREATE UNIQUE INDEX idx_clients_yclients_id ON clients (yclients_id);
+```
+
+**Verification:**
+- Pre-migration check: 1304 clients, all yclients_id values unique ✅
+- No NULL values ✅
+- No duplicates ✅
+- Post-migration: All 28 BaseRepository tests passing ✅
+
+**Migration file:** `dev/active/database-migration-supabase-timeweb/migrations/001_add_unique_constraint_yclients_id.sql`
+
 **Current branch:** main
-**Last push:** `074524f`
-**Status:** 23/28 tests passing, 5 upsert tests blocked by schema issue ⚠️
+**Status:** ✅ ALL 28 TESTS PASSING - Phase 2 Complete!
 
 ---
 
