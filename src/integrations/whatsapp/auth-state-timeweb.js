@@ -401,8 +401,79 @@ async function getAuthStateStats() {
   }
 }
 
+/**
+ * Check session health and return status with thresholds
+ *
+ * Health levels:
+ * - healthy: <100 expired keys
+ * - warning: 100-500 expired keys
+ * - critical: >500 expired keys
+ *
+ * @returns {Promise<{status: string, auth_records: number, total_keys: number, expired_keys: number, threshold: object}>}
+ */
+async function checkSessionHealth() {
+  try {
+    const stats = await getAuthStateStats();
+
+    if (!stats) {
+      return {
+        status: 'error',
+        message: 'Failed to retrieve stats',
+        auth_records: 0,
+        total_keys: 0,
+        expired_keys: 0
+      };
+    }
+
+    const expiredKeys = parseInt(stats.expired_keys) || 0;
+
+    // Define health status based on expired keys
+    let status = 'healthy';
+    let message = 'Session health is good';
+
+    if (expiredKeys >= 500) {
+      status = 'critical';
+      message = `${expiredKeys} expired keys - cleanup needed urgently`;
+    } else if (expiredKeys >= 100) {
+      status = 'warning';
+      message = `${expiredKeys} expired keys - consider cleanup`;
+    }
+
+    return {
+      status,
+      message,
+      auth_records: parseInt(stats.total_auth_records) || 0,
+      total_keys: parseInt(stats.total_keys) || 0,
+      expired_keys: expiredKeys,
+      thresholds: {
+        healthy: '< 100 expired keys',
+        warning: '100-500 expired keys',
+        critical: '> 500 expired keys'
+      },
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    logger.error('Error checking session health:', error);
+    Sentry.captureException(error, {
+      tags: {
+        component: 'baileys_auth',
+        operation: 'check_session_health'
+      }
+    });
+
+    return {
+      status: 'error',
+      message: error.message,
+      auth_records: 0,
+      total_keys: 0,
+      expired_keys: 0
+    };
+  }
+}
+
 module.exports = {
   useTimewebAuthState,
   removeTimewebAuthState,
-  getAuthStateStats
+  getAuthStateStats,
+  checkSessionHealth
 };
