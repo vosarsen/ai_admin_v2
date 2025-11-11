@@ -1,4 +1,7 @@
 // src/index.js
+// CRITICAL: Sentry must be imported FIRST
+require('./instrument');
+
 const config = require('./config');
 const logger = require('./utils/logger');
 const app = require('./api');
