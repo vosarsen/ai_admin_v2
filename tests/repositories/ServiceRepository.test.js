@@ -26,7 +26,7 @@ describe('ServiceRepository Integration Tests', () => {
     const result = await postgres.query(
       `INSERT INTO services (
         yclients_id, company_id, title, price_min, price_max,
-        category_id, active, weight, created_at, updated_at
+        category_id, is_active, weight, created_at, updated_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
       RETURNING *`,
       [
@@ -69,7 +69,7 @@ describe('ServiceRepository Integration Tests', () => {
 
       // All should be active
       services.forEach(service => {
-        expect(service.active).toBe(true);
+        expect(service.is_active).toBe(true);
         expect(service.company_id).toBe(PRODUCTION_COMPANY_ID);
       });
     });
@@ -111,7 +111,7 @@ describe('ServiceRepository Integration Tests', () => {
       expect(service).toHaveProperty('company_id');
       expect(service).toHaveProperty('title');
       expect(service).toHaveProperty('price_min');
-      expect(service).toHaveProperty('active');
+      expect(service).toHaveProperty('is_active');
     });
   });
 
@@ -233,7 +233,7 @@ describe('ServiceRepository Integration Tests', () => {
           price_min: 1000,
           price_max: 1500,
           category_id: 1,
-          active: true,
+          is_active: true,
           weight: 50,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -245,7 +245,7 @@ describe('ServiceRepository Integration Tests', () => {
           price_min: 2000,
           price_max: 2500,
           category_id: 1,
-          active: true,
+          is_active: true,
           weight: 40,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -271,7 +271,7 @@ describe('ServiceRepository Integration Tests', () => {
           title: '[TEST] Original 1',
           price_min: 1000,
           category_id: 1,
-          active: true,
+          is_active: true,
           weight: 10,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -282,7 +282,7 @@ describe('ServiceRepository Integration Tests', () => {
           title: '[TEST] Original 2',
           price_min: 2000,
           category_id: 1,
-          active: true,
+          is_active: true,
           weight: 20,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -297,7 +297,7 @@ describe('ServiceRepository Integration Tests', () => {
           title: '[TEST] Updated 1',
           price_min: 1500,
           category_id: 1,
-          active: true,
+          is_active: true,
           weight: 10,
           updated_at: new Date().toISOString()
         },
@@ -307,7 +307,7 @@ describe('ServiceRepository Integration Tests', () => {
           title: '[TEST] Updated 2',
           price_min: 2500,
           category_id: 1,
-          active: true,
+          is_active: true,
           weight: 20,
           updated_at: new Date().toISOString()
         }
@@ -337,7 +337,7 @@ describe('ServiceRepository Integration Tests', () => {
           title: '[TEST] First Version',
           price_min: 1000,
           category_id: 1,
-          active: true,
+          is_active: true,
           weight: 10,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -352,7 +352,7 @@ describe('ServiceRepository Integration Tests', () => {
           title: '[TEST] Second Version',
           price_min: 2000,
           category_id: 1,
-          active: false,
+          is_active: false,
           weight: 20,
           updated_at: new Date().toISOString()
         }
@@ -361,7 +361,7 @@ describe('ServiceRepository Integration Tests', () => {
       expect(first[0].id).toBe(second[0].id); // Same record
       expect(second[0].title).toBe('[TEST] Second Version');
       expect(second[0].price_min).toBe(2000);
-      expect(second[0].active).toBe(false);
+      expect(second[0].is_active).toBe(false);
     });
   });
 
