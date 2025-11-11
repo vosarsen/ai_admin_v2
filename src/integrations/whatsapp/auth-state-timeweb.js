@@ -382,7 +382,7 @@ async function getAuthStateStats() {
   try {
     const result = await postgres.query(`
       SELECT
-        COUNT(DISTINCT company_id) as total_companies,
+        (SELECT COUNT(DISTINCT company_id) FROM whatsapp_auth) as total_companies,
         (SELECT COUNT(*) FROM whatsapp_auth) as total_auth_records,
         (SELECT COUNT(*) FROM whatsapp_keys) as total_keys,
         (SELECT COUNT(*) FROM whatsapp_keys WHERE expires_at < NOW()) as expired_keys
