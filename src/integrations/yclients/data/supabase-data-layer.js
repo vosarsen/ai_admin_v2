@@ -2,6 +2,7 @@
 const { supabase } = require('../../../database/supabase');
 const postgres = require('../../../database/postgres');
 const logger = require("../../../utils/logger");
+const Sentry = require('@sentry/node');
 const DataTransformers = require("../../../utils/data-transformers");
 const dbFlags = require("../../../../config/database-flags");
 
@@ -194,6 +195,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getDialogContext failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getDialogContext',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { userId }
+      });
       return this._buildErrorResponse(error, 'getDialogContext');
     }
   }
@@ -234,6 +243,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('upsertDialogContext failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'upsertDialogContext',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { userId: contextData.user_id }
+      });
       return this._buildErrorResponse(error, 'upsertDialogContext');
     }
   }
@@ -266,6 +283,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getClientByPhone failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getClientByPhone',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { phone }
+      });
       return this._buildErrorResponse(error, 'getClientByPhone');
     }
   }
@@ -306,6 +331,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getClientById failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getClientById',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { clientYclientsId, companyId }
+      });
       return this._buildErrorResponse(error, 'getClientById');
     }
   }
@@ -378,6 +411,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getClientAppointments failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getClientAppointments',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { clientId, options }
+      });
       return this._buildErrorResponse(error, 'getClientAppointments');
     }
   }
@@ -427,6 +468,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getUpcomingAppointments failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getUpcomingAppointments',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { clientId, companyId }
+      });
       return this._buildErrorResponse(error, 'getUpcomingAppointments');
     }
   }
@@ -478,6 +527,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('searchClientsByName failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'searchClientsByName',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { companyId, name, limit }
+      });
       return this._buildErrorResponse(error, 'searchClientsByName');
     }
   }
@@ -529,6 +586,18 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('upsertClient failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'upsertClient',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: {
+          yclientsId: clientData.yclients_id,
+          companyId: clientData.company_id,
+          phone: clientData.phone
+        }
+      });
       return this._buildErrorResponse(error, 'upsertClient');
     }
   }
@@ -600,6 +669,17 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('upsertClients failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'upsertClients',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: {
+          clientCount: clientsData.length,
+          maxBatchSize: this.config.maxBatchSize
+        }
+      });
       return this._buildErrorResponse(error, 'upsertClients');
     }
   }
@@ -638,6 +718,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getStaffById failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getStaffById',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { staffId, companyId }
+      });
       return this._buildErrorResponse(error, 'getStaffById');
     }
   }
@@ -726,6 +814,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getStaffSchedules failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getStaffSchedules',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { query }
+      });
       return this._buildErrorResponse(error, 'getStaffSchedules');
     }
   }
@@ -765,6 +861,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getStaffSchedule failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getStaffSchedule',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { staffId, date, companyId }
+      });
       return this._buildErrorResponse(error, 'getStaffSchedule');
     }
   }
@@ -831,6 +935,17 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('upsertStaffSchedules failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'upsertStaffSchedules',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: {
+          scheduleCount: scheduleData.length,
+          maxBatchSize: this.config.maxBatchSize
+        }
+      });
       return this._buildErrorResponse(error, 'upsertStaffSchedules');
     }
   }
@@ -877,6 +992,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getServices failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getServices',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { companyId, includeInactive }
+      });
       return this._buildErrorResponse(error, 'getServices');
     }
   }
@@ -920,6 +1043,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getStaff failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getStaff',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { companyId, includeInactive }
+      });
       return this._buildErrorResponse(error, 'getStaff');
     }
   }
@@ -960,6 +1091,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getServiceById failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getServiceById',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { serviceYclientsId, companyId }
+      });
       return this._buildErrorResponse(error, 'getServiceById');
     }
   }
@@ -997,6 +1136,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getServicesByCategory failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getServicesByCategory',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { companyId, categoryId }
+      });
       return this._buildErrorResponse(error, 'getServicesByCategory');
     }
   }
@@ -1065,6 +1212,17 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('upsertServices failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'upsertServices',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: {
+          serviceCount: servicesData.length,
+          maxBatchSize: this.config.maxBatchSize
+        }
+      });
       return this._buildErrorResponse(error, 'upsertServices');
     }
   }
@@ -1097,6 +1255,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getCompany failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getCompany',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { companyId }
+      });
       return this._buildErrorResponse(error, 'getCompany');
     }
   }
@@ -1140,6 +1306,17 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('upsertCompany failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'upsertCompany',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: {
+          companyId: companyData.company_id,
+          title: companyData.title
+        }
+      });
       return this._buildErrorResponse(error, 'upsertCompany');
     }
   }
