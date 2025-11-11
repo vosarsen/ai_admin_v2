@@ -188,7 +188,15 @@ async function getDatabaseStats() {
         (SELECT COUNT(*) FROM dialog_contexts WHERE user_id LIKE '${TEST_MARKERS.TEST_PHONE_PREFIX}%') as test_contexts
     `);
 
-    return stats.rows[0];
+    // Convert bigint/string to numbers for Jest matchers
+    const row = stats.rows[0];
+    return {
+      total_clients: parseInt(row.total_clients) || 0,
+      test_clients: parseInt(row.test_clients) || 0,
+      total_bookings: parseInt(row.total_bookings) || 0,
+      total_contexts: parseInt(row.total_contexts) || 0,
+      test_contexts: parseInt(row.test_contexts) || 0
+    };
   } catch (error) {
     logger.error('Failed to get database stats:', error);
     throw error;
