@@ -10,6 +10,7 @@
 const { initAuthCreds } = require('@whiskeysockets/baileys');
 const postgres = require('../../database/postgres');
 const logger = require('../../utils/logger');
+const Sentry = require('@sentry/node');
 
 /**
  * Recursively revive Buffer objects from JSON/JSONB serialization
@@ -100,6 +101,13 @@ async function useTimewebAuthState(companyId) {
     }
   } catch (error) {
     logger.error(`Failed to load credentials for ${companyId}:`, error);
+    Sentry.captureException(error, {
+      tags: {
+        component: 'baileys_auth',
+        operation: 'load_credentials',
+        company_id: companyId
+      }
+    });
     throw error;
   }
 
@@ -140,6 +148,17 @@ async function useTimewebAuthState(companyId) {
         return keyResult;
       } catch (error) {
         logger.error(`Error getting keys (${type}):`, error);
+        Sentry.captureException(error, {
+          tags: {
+            component: 'baileys_auth',
+            operation: 'get_keys',
+            key_type: type,
+            company_id: companyId
+          },
+          extra: {
+            keyCount: ids.length
+          }
+        });
         return {};
       }
     },
@@ -267,6 +286,17 @@ async function useTimewebAuthState(companyId) {
         }
       } catch (error) {
         logger.error('Error setting keys:', error);
+        Sentry.captureException(error, {
+          tags: {
+            component: 'baileys_auth',
+            operation: 'set_keys',
+            company_id: companyId
+          },
+          extra: {
+            upsertCount: recordsToUpsert.length,
+            deleteCount: recordsToDelete.length
+          }
+        });
         throw error;
       }
     }
@@ -290,6 +320,13 @@ async function useTimewebAuthState(companyId) {
       logger.debug(`💾 Credentials saved for ${companyId}`);
     } catch (error) {
       logger.error(`Error saving credentials for ${companyId}:`, error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'baileys_auth',
+          operation: 'save_credentials',
+          company_id: companyId
+        }
+      });
       throw error;
     }
   }
@@ -327,6 +364,13 @@ async function removeTimewebAuthState(companyId) {
     logger.info(`✅ Auth state removed for ${companyId}`);
   } catch (error) {
     logger.error(`Error removing auth state for ${companyId}:`, error);
+    Sentry.captureException(error, {
+      tags: {
+        component: 'baileys_auth',
+        operation: 'remove_auth_state',
+        company_id: companyId
+      }
+    });
     throw error;
   }
 }
@@ -347,6 +391,12 @@ async function getAuthStateStats() {
     return result.rows[0];
   } catch (error) {
     logger.error('Error getting auth state stats:', error);
+    Sentry.captureException(error, {
+      tags: {
+        component: 'baileys_auth',
+        operation: 'get_stats'
+      }
+    });
     return null;
   }
 }

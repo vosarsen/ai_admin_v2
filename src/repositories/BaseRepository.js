@@ -10,6 +10,9 @@
  *
  * @class BaseRepository
  */
+
+const Sentry = require('@sentry/node');
+
 class BaseRepository {
   /**
    * Create a BaseRepository instance
@@ -52,6 +55,17 @@ class BaseRepository {
       return result.rows[0] || null;
     } catch (error) {
       console.error(`[DB Error] findOne ${table}:`, error.message);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'repository',
+          table,
+          operation: 'findOne'
+        },
+        extra: {
+          filters,
+          duration: `${Date.now() - startTime}ms`
+        }
+      });
       throw this._handleError(error);
     }
   }
@@ -89,6 +103,18 @@ class BaseRepository {
       return result.rows;
     } catch (error) {
       console.error(`[DB Error] findMany ${table}:`, error.message);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'repository',
+          table,
+          operation: 'findMany'
+        },
+        extra: {
+          filters,
+          options,
+          duration: `${Date.now() - startTime}ms`
+        }
+      });
       throw this._handleError(error);
     }
   }
@@ -143,6 +169,18 @@ class BaseRepository {
       return result.rows[0];
     } catch (error) {
       console.error(`[DB Error] upsert ${table}:`, error.message);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'repository',
+          table,
+          operation: 'upsert'
+        },
+        extra: {
+          conflictColumns,
+          dataKeys: Object.keys(data),
+          duration: `${Date.now() - startTime}ms`
+        }
+      });
       throw this._handleError(error);
     }
   }
@@ -217,6 +255,18 @@ class BaseRepository {
       return result.rows;
     } catch (error) {
       console.error(`[DB Error] bulkUpsert ${table}:`, error.message);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'repository',
+          table,
+          operation: 'bulkUpsert'
+        },
+        extra: {
+          conflictColumns,
+          rowCount: dataArray.length,
+          duration: `${Date.now() - startTime}ms`
+        }
+      });
       throw this._handleError(error);
     }
   }

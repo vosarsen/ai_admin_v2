@@ -4,6 +4,7 @@
 const { Pool } = require('pg');
 const config = require('../config');
 const logger = require('../utils/logger');
+const Sentry = require('@sentry/node');
 
 // Проверка: нужен ли PostgreSQL
 const usePostgres = !config.database.useLegacySupabase;
@@ -42,6 +43,18 @@ if (usePostgres) {
   // Обработка ошибок pool
   pool.on('error', (err, client) => {
     logger.error('❌ Unexpected error on idle PostgreSQL client:', err);
+    Sentry.captureException(err, {
+      tags: {
+        component: 'database',
+        operation: 'pool_error',
+        database: 'timeweb_postgresql'
+      },
+      extra: {
+        totalConnections: pool.totalCount,
+        idleConnections: pool.idleCount,
+        waitingRequests: pool.waitingCount
+      }
+    });
   });
 
   // Проверка подключения при старте
@@ -53,6 +66,19 @@ if (usePostgres) {
         port: config.database.postgresPort,
         database: config.database.postgresDatabase,
         user: config.database.postgresUser,
+      });
+      Sentry.captureException(err, {
+        tags: {
+          component: 'database',
+          operation: 'connection_check',
+          database: 'timeweb_postgresql',
+          severity: 'fatal'
+        },
+        extra: {
+          host: config.database.postgresHost,
+          port: config.database.postgresPort,
+          database: config.database.postgresDatabase
+        }
       });
     } else {
       logger.info('✅ Connected to Timeweb PostgreSQL');
@@ -112,6 +138,18 @@ async function query(text, params) {
       duration: `${duration}ms`,
       error: error.message,
     });
+    Sentry.captureException(error, {
+      tags: {
+        component: 'database',
+        operation: 'query',
+        database: 'timeweb_postgresql'
+      },
+      extra: {
+        query: text.substring(0, 200) + (text.length > 200 ? '...' : ''),
+        duration: `${duration}ms`,
+        params: params ? params.length : 0
+      }
+    });
     throw error;
   }
 }
@@ -146,6 +184,17 @@ async function transaction(callback) {
     return result;
   } catch (error) {
     await client.query('ROLLBACK');
+    Sentry.captureException(error, {
+      tags: {
+        component: 'database',
+        operation: 'transaction',
+        database: 'timeweb_postgresql',
+        transaction_status: 'rolled_back'
+      },
+      extra: {
+        message: 'Transaction rolled back due to error'
+      }
+    });
     throw error;
   } finally {
     client.release();
