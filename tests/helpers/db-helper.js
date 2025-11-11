@@ -96,7 +96,8 @@ async function cleanupTestData(options = {}) {
         // Only delete bookings for test clients (using client_phone column)
         whereClause = `client_phone LIKE '${TEST_MARKERS.TEST_PHONE_PREFIX}%'`;
       } else if (table === 'dialog_contexts') {
-        whereClause = `phone LIKE '${TEST_MARKERS.TEST_PHONE_PREFIX}%'`;
+        // dialog_contexts uses user_id instead of phone
+        whereClause = `user_id LIKE '${TEST_MARKERS.TEST_PHONE_PREFIX}%'`;
       } else {
         logger.warn(`Skipping unknown table: ${table}`);
         continue;
@@ -180,7 +181,7 @@ async function getDatabaseStats() {
         (SELECT COUNT(*) FROM clients WHERE phone LIKE '${TEST_MARKERS.TEST_PHONE_PREFIX}%') as test_clients,
         (SELECT COUNT(*) FROM bookings) as total_bookings,
         (SELECT COUNT(*) FROM dialog_contexts) as total_contexts,
-        (SELECT COUNT(*) FROM dialog_contexts WHERE phone LIKE '${TEST_MARKERS.TEST_PHONE_PREFIX}%') as test_contexts
+        (SELECT COUNT(*) FROM dialog_contexts WHERE user_id LIKE '${TEST_MARKERS.TEST_PHONE_PREFIX}%') as test_contexts
     `);
 
     return stats.rows[0];
