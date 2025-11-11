@@ -1,9 +1,9 @@
 # Infrastructure Improvements - Context & Progress
 
-**Last Updated:** 2025-11-11 16:10 MSK
-**Status:** 🟢 Near Complete (5/6 complete - 83%)
-**Current Session:** Implemented CRITICAL-5 and CRITICAL-6, only CRITICAL-4 remaining
-**Next Step:** CRITICAL-4 (Integration Tests) - 8-10 hours
+**Last Updated:** 2025-11-11 18:45 MSK
+**Status:** 🟡 In Progress - CRITICAL-4 (Phase 1 & 2 Complete, 5 tests remaining)
+**Current Session:** Session 3 - Implementing CRITICAL-4 Integration Tests
+**Next Step:** Fix remaining 5 upsert test failures (yclients_id unique constraint issue)
 
 ---
 
@@ -249,11 +249,107 @@ After cleanup (23ms execution):
 
 ---
 
-### ⏳ Remaining Work (8-10 hours)
+#### CRITICAL-4: Integration Tests (In Progress - Session 3)
+**Status:** 🟡 Phase 1 & 2 Complete - 23/28 tests passing (82%)
+**Commits:** `be1215f`, `5b3dc06`, `5bdefda`, `4474d86`, `26dedbd`, `074524f`
+**Session:** 2025-11-11 (17:00-18:45 - 1.75h so far)
 
-#### CRITICAL-4: Integration Tests for Production Database (8-10h)
-**Status:** ⏳ Not started
-**Priority:** Medium (can be done incrementally)
+**What was implemented:**
+
+**Phase 1: Test Infrastructure Setup (1h) ✅**
+- Installed Jest + @jest/globals + supertest
+- Created `jest.config.js` with 3 test projects (unit/integration/repositories)
+- Created `tests/setup.js` - beforeAll/afterAll hooks for database stats
+- Created `tests/helpers/db-helper.js` (215 lines):
+  - `TEST_MARKERS` - safe test data identification
+  - `cleanupTestData()` - delete only test records
+  - `createTestClient()` - create test clients with unique yclients_id
+  - `getDatabaseStats()` - get counts (total/test clients/bookings/contexts)
+  - `verifyTestCompanyId()` - prevent production data access
+- Created `scripts/cleanup-test-data.js` - manual cleanup with --dry-run
+- Added npm scripts: `test:repositories`, `test:all-integration`, `test:cleanup`
+- Added `RUN_INTEGRATION_TESTS` environment variable to `.env.example`
+
+**Phase 2: BaseRepository Tests (1h) ✅ - 23/28 passing**
+- Created `tests/repositories/BaseRepository.test.js` (583 lines)
+- Test coverage:
+  - ✅ findOne() - 4 tests (simple, null, gte, ilike)
+  - ✅ findMany() - 6 tests (multiple, empty, orderBy, limit, offset, in operator)
+  - ⚠️ upsert() - 3 tests (2 passing, 1 failing - schema issue)
+  - ⚠️ bulkUpsert() - 4 tests (2 passing, 2 failing - schema issue)
+  - ✅ withTransaction() - 3 tests (commit, rollback, multi-op)
+  - ✅ _buildWhere() - 3 tests (neq, null, lte)
+  - ✅ Error handling - 4 tests (invalid table/column, empty data, empty IN array)
+  - ✅ Database stats - 1 test
+
+**Test Results:** 23 passed, 5 failed
+
+**Failures (all related to unique constraint):**
+1. upsert() - should insert new client
+2. upsert() - should update existing client on conflict
+3. upsert() - should return upserted record with all fields
+4. bulkUpsert() - should insert multiple new clients
+5. bulkUpsert() - should update existing clients on conflict
+
+**Root Cause:** Timeweb PostgreSQL schema has NO UNIQUE constraint on `yclients_id`!
+```sql
+-- Expected: UNIQUE index on yclients_id
+-- Actual: Regular btree index (not unique)
+CREATE INDEX idx_clients_yclients_id ON clients (yclients_id)
+```
+
+Tests use `ON CONFLICT (yclients_id)` but PostgreSQL requires UNIQUE constraint for ON CONFLICT.
+
+**Schema Issues Discovered:**
+1. ❌ No UNIQUE constraint on `yclients_id` - **BLOCKER for upsert tests**
+2. ✅ `client_phone` column in `bookings` (not `client_id`) - **FIXED**
+3. ✅ `user_id` column in `dialog_contexts` (not `phone`) - **FIXED**
+4. ✅ `yclients_id` is NOT NULL - **FIXED** (generate test IDs 9900000-9999999)
+
+**Fixes Applied:**
+- ✅ Convert stats bigint to numbers for Jest matchers
+- ✅ Add yclients_id to transaction tests (NOT NULL constraint)
+- ✅ Change bookings cleanup to use `client_phone`
+- ✅ Change dialog_contexts cleanup to use `user_id`
+- ✅ Generate unique test yclients_id (9900000-9999999 range)
+- ⏳ **PENDING:** Fix unique constraint issue for upsert tests
+
+**Files Created:**
+- `jest.config.js` (54 lines)
+- `tests/setup.js` (41 lines)
+- `tests/helpers/db-helper.js` (215 lines)
+- `tests/repositories/BaseRepository.test.js` (583 lines)
+- `scripts/cleanup-test-data.js` (57 lines)
+- `.env.test` (on production server - enables PostgreSQL)
+
+**Files Modified:**
+- `package.json` - added test scripts
+- `package-lock.json` - added Jest dependencies
+
+**Production .env.test Created:**
+```bash
+USE_REPOSITORY_PATTERN=true
+USE_LEGACY_SUPABASE=false
+LOG_DATABASE_CALLS=false
+RUN_INTEGRATION_TESTS=true
+```
+
+**Next Steps:**
+1. **Option A:** Add UNIQUE constraint to `yclients_id` in production schema
+2. **Option B:** Change upsert tests to use `id` (primary key) instead
+3. **Option C:** Redesign tests to not rely on upsert (use separate insert/update)
+
+**Recommendation:** Option A - Add UNIQUE constraint (safest for production data integrity)
+
+---
+
+### ⏳ Remaining Work (2-3 hours)
+
+#### CRITICAL-4: Integration Tests for Production Database (In Progress - Session 3)
+**Status:** 🟡 Phase 1 & 2 Complete, 23/28 tests passing (82%)
+**Priority:** High - almost complete
+**Session 3 Start:** 2025-11-11 17:00 MSK
+**Estimated Completion:** 2-3 hours
 
 **What needs to be done:**
 - Create 8 test files for all repositories:
@@ -459,14 +555,64 @@ node scripts/test-transactions.js
 8. `5f24620` - docs: Update CRITICAL-5 completion in infrastructure improvements tasks
 9. `92454cb` - feat: Add WhatsApp session health monitoring (CRITICAL-6)
 10. `f9a55fc` - fix: Fix SQL query in getAuthStateStats for whatsapp_keys
+11. `e843542` - docs: Update infrastructure improvements context after Session 2
+
+### Session 3 Commits (CRITICAL-4 Integration Tests):
+12. `be1215f` - feat(tests): Add Phase 1 & 2 integration tests infrastructure
+13. `5b3dc06` - fix(tests): Use client_phone instead of client_id in bookings cleanup
+14. `5bdefda` - fix(tests): Use correct column names for Timeweb schema
+15. `4474d86` - fix(tests): Generate unique yclients_id for test clients
+16. `26dedbd` - fix(tests): Fix remaining 9 test failures in BaseRepository
+17. `074524f` - fix(tests): Use yclients_id for upsert conflict columns
 
 **Current branch:** main
-**Last push:** `f9a55fc`
-**Status:** All changes deployed to production ✅
+**Last push:** `074524f`
+**Status:** 23/28 tests passing, 5 upsert tests blocked by schema issue ⚠️
 
 ---
 
 ## Next Session Commands
+
+### Continue CRITICAL-4 Integration Tests
+
+**IMMEDIATE ACTION NEEDED:**
+Fix 5 remaining upsert test failures by adding UNIQUE constraint to `yclients_id`:
+
+```bash
+# SSH to production
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219
+
+# Add UNIQUE constraint to yclients_id
+cd /opt/ai-admin
+psql postgresql://gen_user:%7DX%7CoM595A%3C7n%3F0@a84c973324fdaccfc68d929d.twc1.net:5432/default_db?sslmode=require -c "
+  ALTER TABLE clients ADD CONSTRAINT clients_yclients_id_unique UNIQUE (yclients_id);
+"
+
+# Verify constraint added
+psql postgresql://gen_user:%7DX%7CoM595A%3C7n%3F0@a84c973324fdaccfc68d929d.twc1.net:5432/default_db?sslmode=require -c "
+  SELECT conname, contype FROM pg_constraint WHERE conrelid = 'clients'::regclass;
+"
+
+# Run tests again - should be 28/28 passing
+RUN_INTEGRATION_TESTS=true npm run test:repositories -- BaseRepository.test.js
+```
+
+**Test Commands:**
+```bash
+# Run all BaseRepository tests
+RUN_INTEGRATION_TESTS=true npm run test:repositories -- BaseRepository.test.js
+
+# Cleanup test data after tests
+npm run test:cleanup:dry-run  # Preview
+npm run test:cleanup          # Execute
+
+# Check database stats
+psql postgresql://gen_user:%7DX%7CoM595A%3C7n%3F0@a84c973324fdaccfc68d929d.twc1.net:5432/default_db?sslmode=require -c "
+  SELECT
+    (SELECT COUNT(*) FROM clients) as total_clients,
+    (SELECT COUNT(*) FROM clients WHERE phone LIKE '89686484488%') as test_clients;
+"
+```
 
 ### Verify Production Status
 ```bash
@@ -553,16 +699,24 @@ All 5 completed CRITICAL issues are working in production:
 
 ## Summary Statistics
 
-**Total Time:** 7.5 hours (across 2 sessions)
+**Total Time:** 9.25 hours (across 3 sessions)
 - Session 1: 6 hours (CRITICAL-1, 2, 3)
 - Session 2: 1.5 hours (CRITICAL-5, 6)
+- Session 3: 1.75 hours (CRITICAL-4 Phase 1 & 2) ⏳ In progress
 
 **Code Changes:**
-- Lines added: ~1,000+
-- Files created: 5 (instrument.js, test script, cleanup script, 2 doc files)
-- Files modified: 10+
+- Lines added: ~2,000+
+- Files created: 11 total
+  - Session 1: 5 (instrument, transaction docs/test, cleanup, dev-docs)
+  - Session 3: 6 (jest.config, test setup/helpers, BaseRepository test, cleanup script, .env.test)
+- Files modified: 15+
 
-**Deployment Status:** ✅ All changes in production
+**Test Coverage:**
+- Total tests: 28
+- Passing: 23 (82%)
+- Failing: 5 (upsert/bulkUpsert - blocked by schema)
 
-**Overall Progress:** 5/6 CRITICAL issues complete (83%)
-**Remaining:** CRITICAL-4 only (8-10 hours)
+**Deployment Status:** ✅ 5 CRITICAL issues in production, CRITICAL-4 tests running
+
+**Overall Progress:** 5.5/6 CRITICAL issues (92%)
+**Remaining:** CRITICAL-4 completion (fix 5 tests + add domain repository tests)
