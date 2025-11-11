@@ -21,9 +21,10 @@ describe('ClientRepository Integration Tests', () => {
   let repo;
   let testClient1;
   let testClient2;
+  let testBooking;
 
   beforeAll(async () => {
-    repo = new ClientRepository();
+    repo = new ClientRepository(postgres);
 
     // Create test clients for testing
     testClient1 = await createTestClient({
@@ -36,9 +37,34 @@ describe('ClientRepository Integration Tests', () => {
       phone: `${TEST_MARKERS.TEST_PHONE_PREFIX}002`
     });
 
-    console.log('Test clients created:', {
+    // Create a test booking for findAppointments tests
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 7); // 7 days from now
+
+    const result = await postgres.query(
+      `INSERT INTO bookings (
+        yclients_id, client_id, client_phone, company_id, datetime,
+        services, staff, status, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+      RETURNING *`,
+      [
+        9900000 + Math.floor(Math.random() * 99999),
+        testClient1.id,
+        testClient1.phone,
+        testClient1.company_id,
+        futureDate.toISOString(),
+        JSON.stringify([{ title: 'Test Service' }]),
+        JSON.stringify([{ name: 'Test Staff' }]),
+        'confirmed'
+      ]
+    );
+
+    testBooking = result.rows[0];
+
+    console.log('Test clients and booking created:', {
       client1: testClient1.phone,
-      client2: testClient2.phone
+      client2: testClient2.phone,
+      booking: testBooking.id
     });
   });
 
@@ -333,34 +359,6 @@ describe('ClientRepository Integration Tests', () => {
   });
 
   describe('findAppointments()', () => {
-    let testBooking;
-
-    beforeAll(async () => {
-      // Create a test booking for our test client
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + 7); // 7 days from now
-
-      const result = await postgres.query(
-        `INSERT INTO bookings (
-          yclients_id, client_id, client_phone, company_id, datetime,
-          services, staff, status, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
-        RETURNING *`,
-        [
-          9900000 + Math.floor(Math.random() * 99999),
-          testClient1.id,
-          testClient1.phone,
-          testClient1.company_id,
-          futureDate.toISOString(),
-          JSON.stringify([{ title: 'Test Service' }]),
-          JSON.stringify([{ name: 'Test Staff' }]),
-          'confirmed'
-        ]
-      );
-
-      testBooking = result.rows[0];
-    });
-
     test('should find client appointments by client_id', async () => {
       const appointments = await repo.findAppointments(testClient1.id);
 
