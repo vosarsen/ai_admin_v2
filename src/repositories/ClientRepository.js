@@ -52,7 +52,7 @@ class ClientRepository extends BaseRepository {
    * Find client appointments with optional filters
    * Maps to: SupabaseDataLayer.getClientAppointments()
    *
-   * @param {number} clientId - Internal client ID
+   * @param {string} clientPhone - Client phone number
    * @param {Object} options - Filter options
    * @param {string} options.startDate - Filter appointments after this date
    * @param {string} options.endDate - Filter appointments before this date
@@ -60,16 +60,16 @@ class ClientRepository extends BaseRepository {
    * @returns {Promise<Array>} Array of booking records
    *
    * @example
-   * const appointments = await clientRepo.findAppointments(123, {
+   * const appointments = await clientRepo.findAppointments('89001234567', {
    *   startDate: '2025-11-01',
    *   endDate: '2025-11-30',
    *   limit: 20
    * });
    */
-  async findAppointments(clientId, options = {}) {
+  async findAppointments(clientPhone, options = {}) {
     const { startDate, endDate, limit = 10 } = options;
 
-    const filters = { client_id: clientId };
+    const filters = { client_phone: clientPhone };
 
     if (startDate && endDate) {
       filters.datetime = { gte: startDate, lte: endDate };
@@ -90,18 +90,18 @@ class ClientRepository extends BaseRepository {
    * Find upcoming appointments for client
    * Maps to: SupabaseDataLayer.getUpcomingAppointments()
    *
-   * @param {number} clientId - Internal client ID
+   * @param {string} clientPhone - Client phone number
    * @param {number} companyId - Company ID
    * @returns {Promise<Array>} Array of future booking records
    *
    * @example
-   * const upcoming = await clientRepo.findUpcoming(123, 962302);
+   * const upcoming = await clientRepo.findUpcoming('89001234567', 962302);
    */
-  async findUpcoming(clientId, companyId) {
+  async findUpcoming(clientPhone, companyId) {
     const now = new Date().toISOString();
 
     return this.findMany('bookings', {
-      client_id: clientId,
+      client_phone: clientPhone,
       company_id: companyId,
       datetime: { gte: now },
       status: { neq: 'deleted' }
