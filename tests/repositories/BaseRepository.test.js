@@ -346,18 +346,20 @@ describe('BaseRepository Integration Tests', () => {
   describe('withTransaction()', () => {
     test('should commit transaction on success', async () => {
       const phone = `${TEST_MARKERS.TEST_PHONE_PREFIX}300`;
+      const testYClientsId = 9900000 + Math.floor(Math.random() * 99999);
 
       const result = await repo.withTransaction(async (client) => {
         // Insert client within transaction
         const clientResult = await client.query(
-          `INSERT INTO clients (phone, name, email, company_id, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, NOW(), NOW())
+          `INSERT INTO clients (phone, name, email, company_id, yclients_id, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
            RETURNING *`,
           [
             phone,
             `${TEST_MARKERS.TEST_CLIENT_NAME_MARKER} Transaction Test`,
             `trans-${Date.now()}${TEST_MARKERS.TEST_EMAIL_DOMAIN}`,
-            TEST_MARKERS.TEST_COMPANY_IDS[0]
+            TEST_MARKERS.TEST_COMPANY_IDS[0],
+            testYClientsId
           ]
         );
 
@@ -372,18 +374,20 @@ describe('BaseRepository Integration Tests', () => {
 
     test('should rollback transaction on error', async () => {
       const phone = `${TEST_MARKERS.TEST_PHONE_PREFIX}301`;
+      const testYClientsId = 9900000 + Math.floor(Math.random() * 99999);
 
       try {
         await repo.withTransaction(async (client) => {
           // Insert client
           await client.query(
-            `INSERT INTO clients (phone, name, email, company_id, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, NOW(), NOW())`,
+            `INSERT INTO clients (phone, name, email, company_id, yclients_id, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
             [
               phone,
               `${TEST_MARKERS.TEST_CLIENT_NAME_MARKER} Rollback Test`,
               `rollback-${Date.now()}${TEST_MARKERS.TEST_EMAIL_DOMAIN}`,
-              TEST_MARKERS.TEST_COMPANY_IDS[0]
+              TEST_MARKERS.TEST_COMPANY_IDS[0],
+              testYClientsId
             ]
           );
 
@@ -402,31 +406,35 @@ describe('BaseRepository Integration Tests', () => {
     test('should handle multiple operations in transaction', async () => {
       const phone1 = `${TEST_MARKERS.TEST_PHONE_PREFIX}302`;
       const phone2 = `${TEST_MARKERS.TEST_PHONE_PREFIX}303`;
+      const testYClientsId1 = 9900000 + Math.floor(Math.random() * 99999);
+      const testYClientsId2 = 9900000 + Math.floor(Math.random() * 99999);
 
       const results = await repo.withTransaction(async (client) => {
         // Insert first client
         const client1 = await client.query(
-          `INSERT INTO clients (phone, name, email, company_id, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, NOW(), NOW())
+          `INSERT INTO clients (phone, name, email, company_id, yclients_id, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
            RETURNING *`,
           [
             phone1,
             `${TEST_MARKERS.TEST_CLIENT_NAME_MARKER} Multi 1`,
             `multi1-${Date.now()}${TEST_MARKERS.TEST_EMAIL_DOMAIN}`,
-            TEST_MARKERS.TEST_COMPANY_IDS[0]
+            TEST_MARKERS.TEST_COMPANY_IDS[0],
+            testYClientsId1
           ]
         );
 
         // Insert second client
         const client2 = await client.query(
-          `INSERT INTO clients (phone, name, email, company_id, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, NOW(), NOW())
+          `INSERT INTO clients (phone, name, email, company_id, yclients_id, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
            RETURNING *`,
           [
             phone2,
             `${TEST_MARKERS.TEST_CLIENT_NAME_MARKER} Multi 2`,
             `multi2-${Date.now()}${TEST_MARKERS.TEST_EMAIL_DOMAIN}`,
-            TEST_MARKERS.TEST_COMPANY_IDS[0]
+            TEST_MARKERS.TEST_COMPANY_IDS[0],
+            testYClientsId2
           ]
         );
 
