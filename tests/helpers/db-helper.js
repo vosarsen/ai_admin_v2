@@ -93,14 +93,8 @@ async function cleanupTestData(options = {}) {
           OR email LIKE '%${TEST_MARKERS.TEST_EMAIL_DOMAIN}'
         `;
       } else if (table === 'bookings') {
-        // Only delete bookings for test clients
-        whereClause = `
-          client_id IN (
-            SELECT id FROM clients
-            WHERE phone LIKE '${TEST_MARKERS.TEST_PHONE_PREFIX}%'
-            OR name LIKE '%${TEST_MARKERS.TEST_CLIENT_NAME_MARKER}%'
-          )
-        `;
+        // Only delete bookings for test clients (using client_phone column)
+        whereClause = `client_phone LIKE '${TEST_MARKERS.TEST_PHONE_PREFIX}%'`;
       } else if (table === 'dialog_contexts') {
         whereClause = `phone LIKE '${TEST_MARKERS.TEST_PHONE_PREFIX}%'`;
       } else {
