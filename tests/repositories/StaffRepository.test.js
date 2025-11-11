@@ -26,9 +26,9 @@ describe('StaffRepository Integration Tests', () => {
       expect(Array.isArray(staff)).toBe(true);
       expect(staff.length).toBeGreaterThan(0);
 
-      // All should be active (not fired)
+      // All should be active (is_active=true means not fired)
       staff.forEach(member => {
-        expect(member.fired).toBe(false);
+        expect(member.is_active).toBe(true);
         expect(member.company_id).toBe(PRODUCTION_COMPANY_ID);
       });
 
@@ -73,7 +73,7 @@ describe('StaffRepository Integration Tests', () => {
       expect(member).toHaveProperty('yclients_id');
       expect(member).toHaveProperty('company_id');
       expect(member).toHaveProperty('name');
-      expect(member).toHaveProperty('fired');
+      expect(member).toHaveProperty('is_active');
     });
   });
 

@@ -43,18 +43,16 @@ describe('ClientRepository Integration Tests', () => {
 
     const result = await postgres.query(
       `INSERT INTO bookings (
-        yclients_id, client_id, client_phone, company_id, datetime,
-        services, staff, status, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+        yclients_record_id, client_phone, company_id, datetime,
+        services, status, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
       RETURNING *`,
       [
         9900000 + Math.floor(Math.random() * 99999),
-        testClient1.id,
         testClient1.phone,
         testClient1.company_id,
         futureDate.toISOString(),
-        JSON.stringify([{ title: 'Test Service' }]),
-        JSON.stringify([{ name: 'Test Staff' }]),
+        JSON.stringify(['Test Service']),
         'confirmed'
       ]
     );
@@ -359,15 +357,15 @@ describe('ClientRepository Integration Tests', () => {
   });
 
   describe('findAppointments()', () => {
-    test('should find client appointments by client_id', async () => {
-      const appointments = await repo.findAppointments(testClient1.id);
+    test('should find client appointments by client_phone', async () => {
+      const appointments = await repo.findAppointments(testClient1.phone);
 
       expect(Array.isArray(appointments)).toBe(true);
       expect(appointments.length).toBeGreaterThan(0);
 
       const found = appointments.find(a => a.id === testBooking.id);
       expect(found).toBeDefined();
-      expect(found.client_id).toBe(testClient1.id);
+      expect(found.client_phone).toBe(testClient1.phone);
     });
 
     test('should filter by date range', async () => {
@@ -375,7 +373,7 @@ describe('ClientRepository Integration Tests', () => {
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + 30);
 
-      const appointments = await repo.findAppointments(testClient1.id, {
+      const appointments = await repo.findAppointments(testClient1.phone, {
         startDate: today.toISOString(),
         endDate: futureDate.toISOString()
       });
@@ -391,7 +389,7 @@ describe('ClientRepository Integration Tests', () => {
     });
 
     test('should respect limit parameter', async () => {
-      const appointments = await repo.findAppointments(testClient1.id, {
+      const appointments = await repo.findAppointments(testClient1.phone, {
         limit: 1
       });
 
@@ -399,7 +397,7 @@ describe('ClientRepository Integration Tests', () => {
     });
 
     test('should order by datetime DESC', async () => {
-      const appointments = await repo.findAppointments(testClient1.id, {
+      const appointments = await repo.findAppointments(testClient1.phone, {
         limit: 10
       });
 
@@ -416,7 +414,7 @@ describe('ClientRepository Integration Tests', () => {
   describe('findUpcoming()', () => {
     test('should find only future appointments', async () => {
       const upcoming = await repo.findUpcoming(
-        testClient1.id,
+        testClient1.phone,
         testClient1.company_id
       );
 
@@ -433,7 +431,7 @@ describe('ClientRepository Integration Tests', () => {
 
     test('should exclude deleted appointments', async () => {
       const upcoming = await repo.findUpcoming(
-        testClient1.id,
+        testClient1.phone,
         testClient1.company_id
       );
 
@@ -445,7 +443,7 @@ describe('ClientRepository Integration Tests', () => {
 
     test('should order by datetime ASC (earliest first)', async () => {
       const upcoming = await repo.findUpcoming(
-        testClient1.id,
+        testClient1.phone,
         testClient1.company_id
       );
 
@@ -465,7 +463,7 @@ describe('ClientRepository Integration Tests', () => {
       });
 
       const upcoming = await repo.findUpcoming(
-        emptyClient.id,
+        emptyClient.phone,
         emptyClient.company_id
       );
 
