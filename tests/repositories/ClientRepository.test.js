@@ -52,7 +52,7 @@ describe('ClientRepository Integration Tests', () => {
         testClient1.phone,
         testClient1.company_id,
         futureDate.toISOString(),
-        JSON.stringify(['Test Service']),
+        ['Test Service'], // Pass array directly, not JSON string
         'confirmed'
       ]
     );
