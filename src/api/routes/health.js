@@ -6,6 +6,7 @@ const { createRedisClient } = require('../../utils/redis-factory');
 const { supabase } = require('../../database/supabase');
 const logger = require('../../utils/logger');
 const config = require('../../config');
+const { checkSessionHealth } = require('../../integrations/whatsapp/auth-state-timeweb');
 
 /**
  * Health check endpoint для мониторинга системы
@@ -67,6 +68,62 @@ router.get('/health', async (req, res) => {
     });
   }
 });
+
+/**
+ * WhatsApp session health check
+ * Monitors WhatsApp session keys and database storage
+ */
+router.get('/health/whatsapp', async (req, res) => {
+  try {
+    const health = await checkSessionHealth();
+
+    // Set HTTP status based on health status
+    let httpStatus = 200;
+    if (health.status === 'critical') {
+      httpStatus = 503; // Service Unavailable
+    } else if (health.status === 'error') {
+      httpStatus = 500; // Internal Server Error
+    } else if (health.status === 'warning') {
+      httpStatus = 200; // OK but with warnings
+    }
+
+    res.status(httpStatus).json({
+      ...health,
+      recommendations: getHealthRecommendations(health)
+    });
+
+  } catch (error) {
+    logger.error('WhatsApp health check failed:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Health check failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * Get recommendations based on health status
+ */
+function getHealthRecommendations(health) {
+  const recommendations = [];
+
+  if (health.status === 'critical') {
+    recommendations.push('Run cleanup script immediately: node scripts/cleanup-whatsapp-keys.js');
+    recommendations.push('Check Sentry for related errors');
+  } else if (health.status === 'warning') {
+    recommendations.push('Schedule cleanup soon: node scripts/cleanup-whatsapp-keys.js');
+  } else if (health.status === 'healthy') {
+    recommendations.push('System is healthy - no action needed');
+  }
+
+  if (health.expired_keys > 0) {
+    recommendations.push(`Clean up ${health.expired_keys} expired keys to free database space`);
+  }
+
+  return recommendations;
+}
 
 /**
  * Детальная проверка для конкретной компании
