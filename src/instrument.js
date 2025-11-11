@@ -9,6 +9,9 @@
  * Following Sentry v8 patterns as per error-tracking skill
  */
 
+// CRITICAL: Load .env BEFORE initializing Sentry
+require('dotenv').config();
+
 const Sentry = require('@sentry/node');
 const { nodeProfilingIntegration } = require('@sentry/profiling-node');
 
