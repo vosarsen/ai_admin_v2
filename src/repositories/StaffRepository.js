@@ -26,7 +26,7 @@ class StaffRepository extends BaseRepository {
     const filters = { company_id: companyId };
 
     if (!includeInactive) {
-      filters.fired = false;
+      filters.is_active = true; // is_active=true means NOT fired
     }
 
     return this.findMany('staff', filters, {
