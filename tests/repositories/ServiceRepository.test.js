@@ -94,7 +94,8 @@ describe('ServiceRepository Integration Tests', () => {
     });
 
     test('should return empty array for non-existent company', async () => {
-      const services = await repo.findAll(999999, false);
+      // Use company ID that definitely doesn't exist (not 999999 as it's used for test data)
+      const services = await repo.findAll(888888, false);
 
       expect(Array.isArray(services)).toBe(true);
       expect(services.length).toBe(0);
@@ -135,7 +136,8 @@ describe('ServiceRepository Integration Tests', () => {
     });
 
     test('should return null for wrong company_id', async () => {
-      const service = await repo.findById(testService.yclients_id, 999999);
+      // Use company ID that definitely doesn't exist (not 999999 as it's used for test data)
+      const service = await repo.findById(testService.yclients_id, 888888);
 
       expect(service).toBeNull();
     });
@@ -360,7 +362,8 @@ describe('ServiceRepository Integration Tests', () => {
 
       expect(first[0].id).toBe(second[0].id); // Same record
       expect(second[0].title).toBe('[TEST] Second Version');
-      expect(second[0].price_min).toBe(2000);
+      // PostgreSQL NUMERIC returns as string, so we need to parse or compare as string
+      expect(parseFloat(second[0].price_min)).toBe(2000);
       expect(second[0].is_active).toBe(false);
     });
   });
