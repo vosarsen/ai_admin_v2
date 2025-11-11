@@ -28,7 +28,7 @@ class ServiceRepository extends BaseRepository {
     const filters = { company_id: companyId };
 
     if (!includeInactive) {
-      filters.active = true;
+      filters.is_active = true;
     }
 
     return this.findMany('services', filters, {
