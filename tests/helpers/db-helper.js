@@ -145,12 +145,16 @@ async function cleanupTestData(options = {}) {
 async function createTestClient(overrides = {}) {
   const testPhone = overrides.phone || `${TEST_MARKERS.TEST_PHONE_PREFIX}${Date.now().toString().slice(-6)}`;
 
+  // Generate unique yclients_id for tests (9900000-9999999 range)
+  // Use timestamp + random to avoid collisions
+  const testYClientsId = 9900000 + Math.floor(Math.random() * 99999);
+
   const clientData = {
     phone: testPhone,
     name: `${TEST_MARKERS.TEST_CLIENT_NAME_MARKER} Test Client ${Date.now()}`,
     email: `test-${Date.now()}${TEST_MARKERS.TEST_EMAIL_DOMAIN}`,
     company_id: TEST_MARKERS.TEST_COMPANY_IDS[0],
-    yclients_id: null,
+    yclients_id: testYClientsId,
     ...overrides
   };
 
