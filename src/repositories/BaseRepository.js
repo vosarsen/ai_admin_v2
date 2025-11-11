@@ -272,6 +272,140 @@ class BaseRepository {
   }
 
   /**
+   * Execute operations within a database transaction
+   *
+   * Provides atomic execution of multiple database operations.
+   * If any operation fails, all changes are rolled back.
+   *
+   * @param {Function} callback - Async function receiving PostgreSQL client
+   * @returns {Promise<any>} Result from callback
+   *
+   * @example
+   * // Atomic client + booking creation
+   * const result = await repo.withTransaction(async (client) => {
+   *   // 1. Create/update client
+   *   const clientResult = await client.query(
+   *     `INSERT INTO clients (name, phone, company_id)
+   *      VALUES ($1, $2, $3)
+   *      ON CONFLICT (phone, company_id) DO UPDATE SET name = EXCLUDED.name
+   *      RETURNING id`,
+   *     ['Иван', '79001234567', 962302]
+   *   );
+   *
+   *   const clientId = clientResult.rows[0].id;
+   *
+   *   // 2. Create booking (atomic with client)
+   *   const bookingResult = await client.query(
+   *     `INSERT INTO bookings (client_id, service_id, datetime, company_id)
+   *      VALUES ($1, $2, $3, $4) RETURNING *`,
+   *     [clientId, 1, '2025-11-15 10:00', 962302]
+   *   );
+   *
+   *   return {
+   *     client: clientResult.rows[0],
+   *     booking: bookingResult.rows[0]
+   *   };
+   * });
+   */
+  async withTransaction(callback) {
+    const startTime = Date.now();
+
+    // Get a dedicated client from the pool for this transaction
+    const client = await this.db.getClient();
+
+    try {
+      // Start transaction
+      await client.query('BEGIN');
+
+      if (process.env.LOG_DATABASE_CALLS === 'true') {
+        console.log('[DB] Transaction started');
+      }
+
+      // Execute callback with transaction client
+      const result = await callback(client);
+
+      // Commit transaction
+      await client.query('COMMIT');
+
+      const duration = Date.now() - startTime;
+      if (process.env.LOG_DATABASE_CALLS === 'true') {
+        console.log(`[DB] Transaction committed in ${duration}ms`);
+      }
+
+      return result;
+    } catch (error) {
+      // Rollback on error
+      await client.query('ROLLBACK');
+
+      const duration = Date.now() - startTime;
+      console.error(`[DB Error] Transaction rolled back after ${duration}ms:`, error.message);
+
+      Sentry.captureException(error, {
+        tags: {
+          component: 'repository',
+          operation: 'transaction',
+          transaction_status: 'rolled_back'
+        },
+        extra: {
+          duration: `${duration}ms`,
+          errorMessage: error.message
+        }
+      });
+
+      throw this._handleError(error);
+    } finally {
+      // Always release client back to pool
+      client.release();
+    }
+  }
+
+  /**
+   * Execute findOne within a transaction
+   * @private
+   * @param {Object} client - PostgreSQL transaction client
+   * @param {string} table - Table name
+   * @param {Object} filters - WHERE conditions
+   * @returns {Promise<Object|null>} Single record or null
+   */
+  async _findOneInTransaction(client, table, filters) {
+    const { where, params } = this._buildWhere(filters);
+    const sql = `SELECT * FROM ${this._sanitize(table)} WHERE ${where} LIMIT 1`;
+    const result = await client.query(sql, params);
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Execute upsert within a transaction
+   * @private
+   * @param {Object} client - PostgreSQL transaction client
+   * @param {string} table - Table name
+   * @param {Object} data - Record data
+   * @param {Array<string>} conflictColumns - Columns for ON CONFLICT
+   * @returns {Promise<Object>} Upserted record
+   */
+  async _upsertInTransaction(client, table, data, conflictColumns) {
+    const columns = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = columns.map((_, i) => `$${i + 1}`);
+
+    const updateSet = columns
+      .filter(col => !conflictColumns.includes(col))
+      .map(col => `${col} = EXCLUDED.${col}`)
+      .join(', ');
+
+    const sql = `
+      INSERT INTO ${this._sanitize(table)} (${columns.join(', ')})
+      VALUES (${placeholders.join(', ')})
+      ON CONFLICT (${conflictColumns.join(', ')})
+      DO UPDATE SET ${updateSet}
+      RETURNING *
+    `;
+
+    const result = await client.query(sql, values);
+    return result.rows[0];
+  }
+
+  /**
    * Build WHERE clause from filters object
    * @private
    * @param {Object} filters - Filter conditions
