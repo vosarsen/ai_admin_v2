@@ -25,14 +25,12 @@ async function main() {
   console.log('Test 1: Successful Transaction (Commit)');
   try {
     const result = await repo.withTransaction(async (client) => {
-      // Insert test client
+      // Insert test client (without ON CONFLICT for now - will just insert)
       const clientResult = await client.query(
-        `INSERT INTO clients (name, phone, company_id, created_at)
-         VALUES ($1, $2, $3, NOW())
-         ON CONFLICT (phone, company_id)
-         DO UPDATE SET name = EXCLUDED.name
+        `INSERT INTO clients (yclients_id, name, phone, company_id, created_at)
+         VALUES ($1, $2, $3, $4, NOW())
          RETURNING id, name, phone`,
-        ['Тестовый Клиент', '79999999999', 962302]
+        [99999, 'Тестовый Клиент', '79999999999', 962302]
       );
 
       console.log('  ✅ Client created/updated:', clientResult.rows[0]);
@@ -62,11 +60,9 @@ async function main() {
     await repo.withTransaction(async (client) => {
       // Insert test client
       await client.query(
-        `INSERT INTO clients (name, phone, company_id, created_at)
-         VALUES ($1, $2, $3, NOW())
-         ON CONFLICT (phone, company_id)
-         DO UPDATE SET name = EXCLUDED.name`,
-        ['Будет откачено', '79888888888', 962302]
+        `INSERT INTO clients (yclients_id, name, phone, company_id, created_at)
+         VALUES ($1, $2, $3, $4, NOW())`,
+        [88888, 'Будет откачено', '79888888888', 962302]
       );
 
       console.log('  ✅ Client inserted');
@@ -109,17 +105,18 @@ async function main() {
 
       console.log('  ✅ _findOneInTransaction:', existing ? 'Found' : 'Not found');
 
-      // Use _upsertInTransaction
+      // Use _upsertInTransaction (use yclients_id as unique key)
       const upserted = await repo._upsertInTransaction(
         client,
         'clients',
         {
+          yclients_id: existing ? existing.yclients_id : 99999,
           name: 'Обновлённый через Helper',
           phone: '79999999999',
           company_id: 962302,
           updated_at: new Date().toISOString()
         },
-        ['phone', 'company_id']
+        ['yclients_id', 'company_id']
       );
 
       console.log('  ✅ _upsertInTransaction:', upserted.name);
