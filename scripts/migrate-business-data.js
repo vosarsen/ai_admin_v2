@@ -54,48 +54,111 @@ const stats = {
 
 async function fetchFromSupabase(tableName) {
   console.log(`\n📥 Fetching from Supabase: ${tableName}...`);
-  
-  const { data, error } = await supabase
-    .from(tableName)
-    .select('*');
-  
-  if (error) {
-    throw new Error(`Supabase fetch error: ${error.message}`);
+
+  let allData = [];
+  let page = 0;
+  const PAGE_SIZE = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from(tableName)
+      .select('*')
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(`Supabase fetch error: ${error.message}`);
+    }
+
+    if (data && data.length > 0) {
+      allData = allData.concat(data);
+      console.log(`   Page ${page + 1}: ${data.length} records`);
+
+      // If we got less than PAGE_SIZE, we're done
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
   }
-  
-  console.log(`   Found ${data.length} records`);
-  return data;
+
+  console.log(`   Total: ${allData.length} records`);
+  return allData;
+}
+
+// JSONB column names per table (need explicit ::jsonb cast and JSON.stringify)
+const JSONB_COLUMNS = {
+  companies: ['raw_data', 'whatsapp_config', 'whatsapp_session_data'],
+  clients: ['visit_history', 'preferences', 'ai_context', 'goods_purchases'],
+  services: ['raw_data', 'declensions'],
+  staff: ['raw_data', 'declensions'],
+  bookings: [],
+  staff_schedules: [],
+  dialog_contexts: ['data', 'messages', 'context_metadata'],
+  messages: ['metadata'],
+  actions: ['action_data']
+};
+
+/**
+ * Prepare record for PostgreSQL insertion
+ * Serialize JSONB columns, keep arrays as-is for pg driver
+ */
+function prepareRecord(record, tableName) {
+  const prepared = {};
+  const jsonbCols = JSONB_COLUMNS[tableName] || [];
+
+  for (const [key, value] of Object.entries(record)) {
+    if (value === null || value === undefined) {
+      prepared[key] = null;
+    }
+    // JSONB columns: serialize objects/arrays to JSON string
+    else if (jsonbCols.includes(key) && typeof value === 'object') {
+      prepared[key] = JSON.stringify(value);
+    }
+    // All other values: pass through (pg driver handles arrays, primitives, etc.)
+    else {
+      prepared[key] = value;
+    }
+  }
+
+  return prepared;
 }
 
 function buildUpsertQuery(tableName, records) {
   if (records.length === 0) return null;
-  
-  const firstRecord = records[0];
+
+  // Prepare records: serialize JSONB fields
+  const preparedRecords = records.map(r => prepareRecord(r, tableName));
+
+  const firstRecord = preparedRecords[0];
   const columns = Object.keys(firstRecord);
-  
-  const valueRows = records.map((_, recordIdx) => {
-    const placeholders = columns.map((_, colIdx) => {
-      return `$${recordIdx * columns.length + colIdx + 1}`;
+  const jsonbCols = JSONB_COLUMNS[tableName] || [];
+
+  const valueRows = preparedRecords.map((_, recordIdx) => {
+    const placeholders = columns.map((col, colIdx) => {
+      const placeholder = `$${recordIdx * columns.length + colIdx + 1}`;
+      // Add ::jsonb cast for JSONB columns
+      return jsonbCols.includes(col) ? `${placeholder}::jsonb` : placeholder;
     });
     return `(${placeholders.join(', ')})`;
   });
-  
+
   const updateSet = columns
     .filter(col => col !== 'id')
     .map(col => `${col} = EXCLUDED.${col}`)
     .join(', ');
-  
-  const values = records.flatMap(record =>
+
+  const values = preparedRecords.flatMap(record =>
     columns.map(col => record[col])
   );
-  
+
   const query = `
     INSERT INTO ${tableName} (${columns.join(', ')})
     VALUES ${valueRows.join(', ')}
     ON CONFLICT (id) DO UPDATE SET ${updateSet}
     RETURNING id
   `;
-  
+
   return { query, values };
 }
 
@@ -104,35 +167,65 @@ async function insertToTimeweb(tableName, records) {
     console.log(`   ⚠️  No records to insert`);
     return 0;
   }
-  
+
   console.log(`\n📤 Inserting into Timeweb: ${tableName}...`);
-  
+
   const client = await timewebPool.connect();
-  
+
   try {
-    await client.query('BEGIN');
-    
     const BATCH_SIZE = 100;
     let totalInserted = 0;
-    
+
     for (let i = 0; i < records.length; i += BATCH_SIZE) {
       const batch = records.slice(i, i + BATCH_SIZE);
       const upsert = buildUpsertQuery(tableName, batch);
-      
+
       if (upsert) {
-        const result = await client.query(upsert.query, upsert.values);
-        totalInserted += result.rowCount;
-        console.log(`   Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${result.rowCount} records`);
+        try {
+          // Each batch in its own transaction
+          await client.query('BEGIN');
+          const result = await client.query(upsert.query, upsert.values);
+          await client.query('COMMIT');
+
+          totalInserted += result.rowCount;
+          console.log(`   Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${result.rowCount} records`);
+        } catch (batchError) {
+          // Rollback this batch
+          await client.query('ROLLBACK');
+
+          console.error(`   ❌ Batch ${Math.floor(i / BATCH_SIZE) + 1} failed: ${batchError.message}`);
+          console.error(`   First record ID: ${batch[0].id}`);
+
+          // Try inserting records one by one to find the culprit
+          for (const record of batch) {
+            try {
+              await client.query('BEGIN');
+              const singleUpsert = buildUpsertQuery(tableName, [record]);
+              await client.query(singleUpsert.query, singleUpsert.values);
+              await client.query('COMMIT');
+              totalInserted++;
+            } catch (singleError) {
+              await client.query('ROLLBACK');
+              console.error(`   ❌ Record ${record.id} failed: ${singleError.message}`);
+              // Log problematic fields
+              for (const [key, value] of Object.entries(record)) {
+                if (value !== null && typeof value === 'object') {
+                  const valuePreview = JSON.stringify(value).substring(0, 100);
+                  console.error(`      Field "${key}": ${typeof value} ${Array.isArray(value) ? '[array]' : '[object]'} = ${valuePreview}...`);
+                }
+              }
+              // Don't throw - continue with next record
+            }
+          }
+        }
       }
     }
-    
-    await client.query('COMMIT');
+
     console.log(`   ✅ Inserted ${totalInserted} records`);
-    
+
     return totalInserted;
-    
+
   } catch (error) {
-    await client.query('ROLLBACK');
     console.error(`   ❌ Insert failed: ${error.message}`);
     throw error;
   } finally {
