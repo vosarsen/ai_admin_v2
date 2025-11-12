@@ -47,4 +47,15 @@ afterAll(async () => {
   } catch (error) {
     logger.error('Failed to get final stats:', error);
   }
+
+  // Close PostgreSQL connection pool
+  try {
+    const postgres = require('../src/database/postgres');
+    if (postgres.pool) {
+      await postgres.pool.end();
+      logger.info('✅ PostgreSQL connection pool closed');
+    }
+  } catch (error) {
+    logger.error('Failed to close PostgreSQL pool:', error);
+  }
 });
