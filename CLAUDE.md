@@ -353,6 +353,7 @@ curl -X POST http://localhost:3000/api/sync/schedules/today
 6. **Gemini API errors** → Check VPN: `ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "systemctl status xray"`
 7. **Slow responses** → Test proxy: `curl -x socks5://127.0.0.1:1080 https://ipinfo.io/json`
 8. **Outdated schedules** → Manual sync: `POST /api/sync/schedules/today` (see Data Synchronization above)
+9. **Monitoring false negatives** → Check script handles log rotation: `./scripts/monitor-phase07-timeweb.sh` (See `dev/completed/monitoring-script-fix/`)
 
 **PM2 monitoring:**
 ```bash
@@ -380,7 +381,8 @@ For more information, see:
 - `docs/GEMINI_INTEGRATION_GUIDE.md` - **Gemini setup and testing**
 - `docs/development-diary/2025-10-19-gemini-integration-with-vpn.md` - **Full Gemini deployment story**
 - `docs/development-diary/2025-10-23-hybrid-schedules-sync.md` - **🔄 Гибридная синхронизация расписаний**
-- `docs/development-diary/2025-10-28-reschedule-booking-fix.md` - **📅 Исправление переноса записей (NEW!)**
+- `docs/development-diary/2025-10-28-reschedule-booking-fix.md` - **📅 Исправление переноса записей**
+- `docs/development-diary/2025-11-08-phase-07-monitoring-script-fix.md` - **🔧 Phase 0.7 monitoring script log rotation fix**
 - `docs/WHATSAPP_MONITORING_GUIDE.md` - WhatsApp monitoring and file management
 - `docs/TELEGRAM_ALERTS_TROUBLESHOOTING.md` - Telegram alert troubleshooting
 - `docs/features/EXPLAIN_SERVICE_COMMAND.md` - **📖 Контекстные описания услуг**
@@ -441,6 +443,10 @@ GET https://api.yclients.com/api/v1/clients/{salon_id}
   - 1 auth + 728 keys migrated
   - WhatsApp stable, Day 3/7 monitoring
   - **28,700% faster than estimated!**
+- ✅ Phase 0.7: Monitoring Script Fix (2025-11-08)
+  - Fixed false negatives after daily log rotation
+  - 30,000x performance improvement (<1s vs 30s)
+  - See `dev/completed/monitoring-script-fix/`
 - ✅ Phase 0.8: Schema Migration (2025-11-09)
   - 19 tables, 129 indexes, 8 functions created
   - Zero downtime, 8 minutes execution
