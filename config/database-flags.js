@@ -1,12 +1,13 @@
 /**
  * Database Feature Flags Configuration
  *
- * Controls the gradual migration from Supabase to Timeweb PostgreSQL.
+ * Controls the database backend selection for AI Admin v2.
  *
- * Phase 2: Repository Pattern integration (disabled by default)
- * Phase 3: Dual-write mode (not yet implemented)
- * Phase 4: Testing & validation
- * Phase 5: Production cutover
+ * USE_REPOSITORY_PATTERN=true: Uses Timeweb PostgreSQL (via Repository Pattern)
+ * USE_LEGACY_SUPABASE=true: Uses Supabase PostgreSQL (legacy SDK)
+ *
+ * Migration from Supabase to Timeweb PostgreSQL is complete.
+ * Repository Pattern is production-ready and tested.
  */
 
 module.exports = {
@@ -36,18 +37,6 @@ module.exports = {
   USE_LEGACY_SUPABASE: process.env.USE_LEGACY_SUPABASE !== 'false',
 
   /**
-   * Enable dual-write mode (Phase 3 - not yet implemented)
-   *
-   * When true: Writes to both Supabase AND PostgreSQL
-   * When false: Writes only to active database
-   *
-   * Default: false (not implemented yet)
-   *
-   * Use case: Data validation during migration
-   */
-  ENABLE_DUAL_WRITE: process.env.ENABLE_DUAL_WRITE === 'true',
-
-  /**
    * Log database operations for debugging
    *
    * When true: Logs all SQL queries and Supabase calls
@@ -72,21 +61,12 @@ module.exports = {
   },
 
   /**
-   * Check if we're in migration mode (dual-write)
-   *
-   * @returns {boolean} True if dual-write is enabled
-   */
-  isInMigrationMode() {
-    return this.ENABLE_DUAL_WRITE;
-  },
-
-  /**
    * Check if Supabase is still active
    *
    * @returns {boolean} True if Supabase is being used
    */
   isSupabaseActive() {
-    return !this.USE_REPOSITORY_PATTERN || this.ENABLE_DUAL_WRITE;
+    return !this.USE_REPOSITORY_PATTERN;
   },
 
   /**
@@ -104,13 +84,6 @@ module.exports = {
    * @throws {Error} If configuration is invalid
    */
   validate() {
-    // Can't enable dual-write without repositories
-    if (this.ENABLE_DUAL_WRITE && !this.USE_REPOSITORY_PATTERN) {
-      throw new Error(
-        'Invalid config: ENABLE_DUAL_WRITE requires USE_REPOSITORY_PATTERN=true'
-      );
-    }
-
     // Warn if both are disabled (should never happen)
     if (!this.USE_REPOSITORY_PATTERN && !this.USE_LEGACY_SUPABASE) {
       throw new Error(
