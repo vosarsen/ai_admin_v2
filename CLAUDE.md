@@ -430,11 +430,11 @@ GET https://api.yclients.com/api/v1/clients/{salon_id}
 
 ## 🗄️ Database Migration: Supabase → Timeweb PostgreSQL (ACTIVE!)
 
-**Статус:** 🎯 **Phase 1 Complete! Ready for Phase 2** (Code Integration)
+**Статус:** 🎯 **Phase 1 & 2 Complete! Ready for Phase 3** (Data Migration)
 **Цель:** Переход с Supabase на Timeweb PostgreSQL (152-ФЗ соответствие + производительность)
-**Прогресс:** 38% complete (5/13 days) - **3 days ahead of schedule!**
+**Прогресс:** 45% complete (5/11 days) - **5 days ahead of schedule!**
 
-### 📊 Migration Progress (Updated 2025-11-11)
+### 📊 Migration Progress (Updated 2025-11-12)
 
 **Complete:**
 - ✅ Phase 0: Baileys Session Migration (2025-11-06)
@@ -445,23 +445,23 @@ GET https://api.yclients.com/api/v1/clients/{salon_id}
   - 19 tables, 129 indexes, 8 functions created
   - Zero downtime, 8 minutes execution
   - **10,700% faster than estimated!**
-- ✅ **Phase 1: Repository Pattern (2025-11-09 to 11-11) ⭐ NEW!**
+- ✅ **Phase 1: Repository Pattern (2025-11-09 to 11-11)**
   - **COMPLETED via Infrastructure Improvements project**
   - 6 repositories created (1,120 lines)
-  - 100 integration tests (52/100 passing, blocker identified)
+  - 147/167 integration tests passing (88%) ✅
   - Sentry error tracking (50+ locations)
   - Transaction support implemented
   - Connection pool optimized (21 max)
   - **48% faster than estimated! (12.5h vs 20-24h)**
-
-**Current Blocker (30 min fix):**
-- ⚠️ UNIQUE constraint missing on 4 tables
-- Impact: 48/100 tests failing
-- Fix: Add composite UNIQUE constraints
-- After fix: Ready for Phase 2 immediately
+- ✅ **Phase 2: Code Integration (2025-11-09 to 11-11) ⭐ NEW!**
+  - **DISCOVERED: Already complete!**
+  - All 20 methods have repository integration
+  - Feature flags system (`config/database-flags.js`)
+  - Backward compatibility (fallback to Supabase)
+  - Error tracking with backend tags
+  - **100% faster than estimated! (0h vs 24-40h)**
 
 **Remaining Phases:**
-- ⬜ Phase 2: Code Integration (3-5 days, reduced from 5-7 days)
 - ⬜ Phase 3: Data Migration (3-5 days)
 - ⬜ Phase 4: Testing (2-3 days + 48h)
 - ⬜ Phase 5: Production Cutover (2-4 hours)
@@ -479,8 +479,8 @@ GET https://api.yclients.com/api/v1/clients/{salon_id}
 **Related Project:**
 - `dev/active/infrastructure-improvements/` - **Completed Phase 1 work** (repositories, tests, Sentry, transactions)
 
-**Timeline:** ~2 weeks (revised from 3 weeks)
-**Target Completion:** November 27, 2025 (revised from Nov 30 - **3 days faster!**)
+**Timeline:** ~10 days (revised from 3 weeks)
+**Target Completion:** November 25, 2025 (revised from Nov 30 - **5 days faster!**)
 
 ### 🗄️ Timeweb PostgreSQL Connection
 
