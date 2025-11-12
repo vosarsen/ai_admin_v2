@@ -14,9 +14,9 @@ Quick reference for Claude Code when working with AI Admin v2.
 - `config/project-docs/TASK.md` - Current tasks
 - **`docs/CLAUDE_CODE_MASTER_GUIDE.md`** - 🚀 **ПОЛНОЕ РУКОВОДСТВО по Claude Code (NEW!)**
 - `docs/TROUBLESHOOTING.md` - Common issues
-- `docs/TELEGRAM_BOT_QUICK_REFERENCE.md` - 🤖 Telegram бот управление
-- `docs/marketplace/AUTHORIZATION_QUICK_REFERENCE.md` - ⚡ YClients авторизация
-- `docs/TIMEWEB_POSTGRES_SUMMARY.md` - 🗄️ Timeweb PostgreSQL миграция
+- `docs/02-guides/telegram/TELEGRAM_BOT_QUICK_REFERENCE.md` - 🤖 Telegram бот управление
+- `docs/02-guides/marketplace/AUTHORIZATION_QUICK_REFERENCE.md` - ⚡ YClients авторизация
+- `docs/01-architecture/database/TIMEWEB_POSTGRES_SUMMARY.md` - 🗄️ Timeweb PostgreSQL миграция
 - **`dev/active/database-migration-supabase-timeweb/`** - 🎯 **ACTIVE: Database Migration Plan**
 
 ## 🔧 Essential MCP Servers
@@ -340,7 +340,7 @@ curl -X POST http://localhost:3000/api/sync/schedules/today
 - **FULL**: 05:00 daily (30 days ahead)
 - **TODAY-ONLY**: Every hour 08:00-23:00 (today+tomorrow)
 - **Result**: Max 1 hour delay vs 24 hours before
-- **Details**: `docs/development-diary/2025-10-23-hybrid-schedules-sync.md`
+- **Details**: `docs/03-development-diary/2025-10-23-hybrid-schedules-sync.md`
 
 ## 🐛 Troubleshooting
 
@@ -379,14 +379,14 @@ For more information, see:
 - `docs/SYNC_SYSTEM.md` - YClients sync details
 - `docs/AI_PROVIDERS_GUIDE.md` - AI provider configuration
 - `docs/GEMINI_INTEGRATION_GUIDE.md` - **Gemini setup and testing**
-- `docs/development-diary/2025-10-19-gemini-integration-with-vpn.md` - **Full Gemini deployment story**
-- `docs/development-diary/2025-10-23-hybrid-schedules-sync.md` - **🔄 Гибридная синхронизация расписаний**
-- `docs/development-diary/2025-10-28-reschedule-booking-fix.md` - **📅 Исправление переноса записей**
-- `docs/development-diary/2025-11-08-phase-07-monitoring-script-fix.md` - **🔧 Phase 0.7 monitoring script log rotation fix**
+- `docs/03-development-diary/2025-10-19-gemini-integration-with-vpn.md` - **Full Gemini deployment story**
+- `docs/03-development-diary/2025-10-23-hybrid-schedules-sync.md` - **🔄 Гибридная синхронизация расписаний**
+- `docs/03-development-diary/2025-10-28-reschedule-booking-fix.md` - **📅 Исправление переноса записей**
+- `docs/03-development-diary/2025-11-08-phase-07-monitoring-script-fix.md` - **🔧 Phase 0.7 monitoring script log rotation fix**
 - `docs/WHATSAPP_MONITORING_GUIDE.md` - WhatsApp monitoring and file management
 - `docs/TELEGRAM_ALERTS_TROUBLESHOOTING.md` - Telegram alert troubleshooting
 - `docs/features/EXPLAIN_SERVICE_COMMAND.md` - **📖 Контекстные описания услуг**
-- `docs/development-diary/` - Recent changes and decisions
+- `docs/03-development-diary/` - Recent changes and decisions
 - `docs/marketplace/` - YClients Marketplace интеграция и авторизация
 
 ## 🚫 Important Rules
