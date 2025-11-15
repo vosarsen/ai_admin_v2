@@ -282,9 +282,29 @@ function extractProjectSummary(planPath, contextPath) {
   // Extract Timeline - from **Timeline:** metadata
   const timelineMatch = planContent.match(/\*\*Timeline:\*\*\s*(.+)/);
   if (timelineMatch) {
-    summary.timeline = timelineMatch[1].trim();
-    // Clean up (remove dates, keep duration)
-    summary.timeline = summary.timeline.replace(/\(\d{4}-\d{2}-\d{2}.*?\)/g, '').trim();
+    let timeline = timelineMatch[1].trim();
+
+    // Clean up (remove dates)
+    timeline = timeline.replace(/\(\d{4}-\d{2}-\d{2}.*?\)/g, '').trim();
+
+    // Format: "4 days" or "2-3 weeks" => keep short
+    // If contains hours, format as "X days (Yh)"
+    const daysMatch = timeline.match(/(\d+(?:-\d+)?)\s*days?/i);
+    const hoursMatch = timeline.match(/(\d+(?:\.\d+)?)\s*hours?/i);
+
+    if (daysMatch && hoursMatch) {
+      // Both days and hours: "4 days (32h)"
+      summary.timeline = `${daysMatch[1]} days (${Math.round(parseFloat(hoursMatch[1]))}h)`;
+    } else if (daysMatch) {
+      // Only days: "4 days"
+      summary.timeline = `${daysMatch[1]} days`;
+    } else if (hoursMatch) {
+      // Only hours: "8h"
+      summary.timeline = `${Math.round(parseFloat(hoursMatch[1]))}h`;
+    } else {
+      // Keep original if can't parse
+      summary.timeline = timeline.substring(0, 30); // Max 30 chars
+    }
   }
 
   // Extract Risk Level - from **Risk Level:** metadata

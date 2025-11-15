@@ -337,7 +337,7 @@ async function syncProjectPage(projectData) {
     let page;
 
     if (existing) {
-      // Update existing project
+      // Update existing project properties
       page = await retryWithBackoff(async () => {
         return await notion.pages.update({
           page_id: existing.id,
@@ -345,7 +345,28 @@ async function syncProjectPage(projectData) {
         });
       }, 3, `Updating project "${projectData.name}"`);
 
-      console.log(`✅ Updated project: ${projectData.name}`);
+      // Update page content: delete old blocks and add new ones
+      try {
+        // Get existing blocks
+        const blocksResponse = await notion.blocks.children.list({
+          block_id: existing.id
+        });
+
+        // Delete all existing blocks
+        for (const block of blocksResponse.results) {
+          await notion.blocks.delete({ block_id: block.id });
+        }
+
+        // Add new blocks
+        await notion.blocks.children.append({
+          block_id: existing.id,
+          children
+        });
+
+        console.log(`✅ Updated project: ${projectData.name} (properties + content)`);
+      } catch (contentError) {
+        console.warn(`⚠️  Updated properties but failed to update content: ${contentError.message}`);
+      }
     } else {
       // Create new project
       page = await retryWithBackoff(async () => {
