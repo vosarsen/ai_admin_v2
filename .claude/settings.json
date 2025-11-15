@@ -1,5 +1,6 @@
 {
   "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": ["notion", "whatsapp", "redis", "supabase", "yclients"],
   "permissions": {
     "allow": [
       "Edit:*",
