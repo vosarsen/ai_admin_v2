@@ -1,7 +1,20 @@
 // src/integrations/yclients/data/supabase-data-layer.js
 const { supabase } = require('../../../database/supabase');
+const postgres = require('../../../database/postgres');
 const logger = require("../../../utils/logger");
+const Sentry = require('@sentry/node');
 const DataTransformers = require("../../../utils/data-transformers");
+const dbFlags = require("../../../../config/database-flags");
+
+// Repository Pattern (Phase 2)
+const {
+  ClientRepository,
+  ServiceRepository,
+  StaffRepository,
+  StaffScheduleRepository,
+  DialogContextRepository,
+  CompanyRepository
+} = require("../../../repositories");
 
 /**
  * 💾 SUPABASE DATA LAYER - UPDATED
@@ -36,6 +49,27 @@ class SupabaseDataLayer {
       enableSanitization: config.enableSanitization !== false,
       ...config
     };
+
+    // Initialize repositories (Phase 2)
+    // Only initialize if USE_REPOSITORY_PATTERN is enabled
+    if (dbFlags.USE_REPOSITORY_PATTERN) {
+      if (!postgres.pool) {
+        logger.warn('⚠️  Repository Pattern enabled but PostgreSQL pool not available');
+        logger.warn('   Falling back to Supabase. Check USE_LEGACY_SUPABASE configuration.');
+      } else {
+        // Initialize all repositories
+        this.clientRepo = new ClientRepository(postgres.pool);
+        this.serviceRepo = new ServiceRepository(postgres.pool);
+        this.staffRepo = new StaffRepository(postgres.pool);
+        this.scheduleRepo = new StaffScheduleRepository(postgres.pool);
+        this.contextRepo = new DialogContextRepository(postgres.pool);
+        this.companyRepo = new CompanyRepository(postgres.pool);
+
+        logger.info(`✅ Repository Pattern initialized (backend: ${dbFlags.getCurrentBackend()})`);
+      }
+    } else {
+      logger.info(`ℹ️  Using legacy Supabase (USE_REPOSITORY_PATTERN=${dbFlags.USE_REPOSITORY_PATTERN})`);
+    }
   }
 
   // =============== VALIDATION & PROTECTION ===============
@@ -142,6 +176,13 @@ class SupabaseDataLayer {
         throw new Error('User ID must be a non-empty string');
       }
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.contextRepo) {
+        const data = await this.contextRepo.findByUserId(userId);
+        return this._buildResponse(data, 'getDialogContext');
+      }
+
+      // FALLBACK: Use legacy Supabase
       const { data, error } = await this.db
         .from('dialog_contexts')
         .select('*')
@@ -154,6 +195,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getDialogContext failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getDialogContext',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { userId }
+      });
       return this._buildErrorResponse(error, 'getDialogContext');
     }
   }
@@ -173,6 +222,13 @@ class SupabaseDataLayer {
         updated_at: new Date()
       };
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.contextRepo) {
+        const data = await this.contextRepo.upsert(dataToSave);
+        return this._buildResponse(data, 'upsertDialogContext');
+      }
+
+      // FALLBACK: Use legacy Supabase
       const { data, error } = await this.db
         .from('dialog_contexts')
         .upsert(dataToSave, {
@@ -187,6 +243,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('upsertDialogContext failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'upsertDialogContext',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { userId: contextData.user_id }
+      });
       return this._buildErrorResponse(error, 'upsertDialogContext');
     }
   }
@@ -200,6 +264,13 @@ class SupabaseDataLayer {
     try {
       const normalizedPhone = this._validatePhone(phone);
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.clientRepo) {
+        const data = await this.clientRepo.findByPhone(normalizedPhone);
+        return this._buildResponse(data, 'getClientByPhone');
+      }
+
+      // FALLBACK: Use legacy Supabase
       const { data, error } = await this.db
         .from('clients')
         .select('*')
@@ -212,6 +283,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getClientByPhone failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getClientByPhone',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { phone }
+      });
       return this._buildErrorResponse(error, 'getClientByPhone');
     }
   }
@@ -229,6 +308,13 @@ class SupabaseDataLayer {
         this._validateCompanyId(companyId);
       }
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.clientRepo) {
+        const data = await this.clientRepo.findById(clientYclientsId, companyId);
+        return this._buildResponse(data, 'getClientById');
+      }
+
+      // FALLBACK: Use legacy Supabase
       let query = this.db
         .from('clients')
         .select('*')
@@ -245,6 +331,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getClientById failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getClientById',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { clientYclientsId, companyId }
+      });
       return this._buildErrorResponse(error, 'getClientById');
     }
   }
@@ -269,6 +363,22 @@ class SupabaseDataLayer {
 
       const { limit: validatedLimit } = this._validateAndLimitSize(limit);
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.clientRepo) {
+        const data = await this.clientRepo.findAppointments(clientId, {
+          companyId,
+          limit: validatedLimit,
+          orderBy,
+          orderDirection
+        });
+        return this._buildResponse(data || [], 'getClientAppointments', {
+          clientId,
+          recordCount: data?.length || 0,
+          options
+        });
+      }
+
+      // FALLBACK: Use legacy Supabase
       // Simple query without JOINs
       let query = this.db
         .from('appointments_cache')
@@ -301,6 +411,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getClientAppointments failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getClientAppointments',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { clientId, options }
+      });
       return this._buildErrorResponse(error, 'getClientAppointments');
     }
   }
@@ -317,6 +435,17 @@ class SupabaseDataLayer {
 
       this._validateCompanyId(companyId);
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.clientRepo) {
+        const data = await this.clientRepo.findUpcoming(clientId, companyId);
+        return this._buildResponse(data || [], 'getUpcomingAppointments', {
+          clientId,
+          companyId,
+          recordCount: data?.length || 0
+        });
+      }
+
+      // FALLBACK: Use legacy Supabase
       const now = new Date().toISOString();
 
       const { data, error } = await this.db
@@ -339,6 +468,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getUpcomingAppointments failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getUpcomingAppointments',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { clientId, companyId }
+      });
       return this._buildErrorResponse(error, 'getUpcomingAppointments');
     }
   }
@@ -355,6 +492,17 @@ class SupabaseDataLayer {
       }
 
       const { limit: validatedLimit } = this._validateAndLimitSize(limit);
+
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.clientRepo) {
+        const data = await this.clientRepo.searchByName(companyId, name, validatedLimit);
+        return this._buildResponse(data, 'searchClientsByName', {
+          searchTerm: name,
+          limit: validatedLimit
+        });
+      }
+
+      // FALLBACK: Use legacy Supabase
       const sanitizedName = this._sanitizeStringFilter(name);
 
       const { data, error } = await this.db
@@ -372,13 +520,21 @@ class SupabaseDataLayer {
 
       this._handleSupabaseError(error, 'searchClientsByName');
 
-      return this._buildResponse(data, 'searchClientsByName', { 
+      return this._buildResponse(data, 'searchClientsByName', {
         searchTerm: name,
-        limit: validatedLimit 
+        limit: validatedLimit
       });
 
     } catch (error) {
       logger.error('searchClientsByName failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'searchClientsByName',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { companyId, name, limit }
+      });
       return this._buildErrorResponse(error, 'searchClientsByName');
     }
   }
@@ -408,6 +564,13 @@ class SupabaseDataLayer {
         updated_at: new Date()
       };
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.clientRepo) {
+        const data = await this.clientRepo.upsert(processedData);
+        return this._buildResponse(data, 'upsertClient');
+      }
+
+      // FALLBACK: Use legacy Supabase
       const { data, error } = await this.db
         .from('clients')
         .upsert(processedData, {
@@ -423,6 +586,18 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('upsertClient failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'upsertClient',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: {
+          yclientsId: clientData.yclients_id,
+          companyId: clientData.company_id,
+          phone: clientData.phone
+        }
+      });
       return this._buildErrorResponse(error, 'upsertClient');
     }
   }
@@ -467,6 +642,16 @@ class SupabaseDataLayer {
         };
       });
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.clientRepo) {
+        const data = await this.clientRepo.bulkUpsert(validatedData);
+        return this._buildResponse(data, 'upsertClients', {
+          inputCount: clientsData.length,
+          processedCount: data?.length || 0
+        });
+      }
+
+      // FALLBACK: Use legacy Supabase
       const { data, error } = await this.db
         .from('clients')
         .upsert(validatedData, {
@@ -477,13 +662,24 @@ class SupabaseDataLayer {
 
       this._handleSupabaseError(error, 'upsertClients');
 
-      return this._buildResponse(data, 'upsertClients', { 
+      return this._buildResponse(data, 'upsertClients', {
         inputCount: clientsData.length,
-        processedCount: data?.length || 0 
+        processedCount: data?.length || 0
       });
 
     } catch (error) {
       logger.error('upsertClients failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'upsertClients',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: {
+          clientCount: clientsData.length,
+          maxBatchSize: this.config.maxBatchSize
+        }
+      });
       return this._buildErrorResponse(error, 'upsertClients');
     }
   }
@@ -502,6 +698,13 @@ class SupabaseDataLayer {
 
       this._validateCompanyId(companyId);
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.staffRepo) {
+        const data = await this.staffRepo.findById(staffId, companyId);
+        return this._buildResponse(data, 'getStaffById');
+      }
+
+      // FALLBACK: Use legacy Supabase
       const { data, error } = await this.db
         .from('staff')
         .select('*')
@@ -515,6 +718,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getStaffById failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getStaffById',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { staffId, companyId }
+      });
       return this._buildErrorResponse(error, 'getStaffById');
     }
   }
@@ -542,6 +753,24 @@ class SupabaseDataLayer {
       this._validateCompanyId(company_id);
       const { limit: validatedLimit } = this._validateAndLimitSize(limit);
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.scheduleRepo) {
+        const data = await this.scheduleRepo.findSchedules({
+          company_id,
+          staff_id,
+          staff_name,
+          date_from,
+          date_to,
+          is_working,
+          limit: validatedLimit
+        });
+        return this._buildResponse(data, 'getStaffSchedules', {
+          query,
+          recordCount: data?.length || 0
+        });
+      }
+
+      // FALLBACK: Use legacy Supabase
       // Build query
       let dbQuery = this.db
         .from('staff_schedules')
@@ -585,6 +814,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getStaffSchedules failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getStaffSchedules',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { query }
+      });
       return this._buildErrorResponse(error, 'getStaffSchedules');
     }
   }
@@ -594,7 +831,7 @@ class SupabaseDataLayer {
   /**
    * 📅 Get staff schedule for specific date
    */
-  async getStaffSchedule(staffId, date) {
+  async getStaffSchedule(staffId, date, companyId = null) {
     try {
       if (!staffId || !Number.isInteger(Number(staffId))) {
         throw new Error('Invalid staff ID: must be a positive integer');
@@ -604,6 +841,13 @@ class SupabaseDataLayer {
         throw new Error('Invalid date: must be in YYYY-MM-DD format');
       }
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.scheduleRepo) {
+        const data = await this.scheduleRepo.findSchedule(staffId, date, companyId);
+        return this._buildResponse(data, 'getStaffSchedule');
+      }
+
+      // FALLBACK: Use legacy Supabase
       const { data, error } = await this.db
         .from('staff_schedules')
         .select('*')
@@ -617,6 +861,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getStaffSchedule failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getStaffSchedule',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { staffId, date, companyId }
+      });
       return this._buildErrorResponse(error, 'getStaffSchedule');
     }
   }
@@ -656,6 +908,16 @@ class SupabaseDataLayer {
         };
       });
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.scheduleRepo) {
+        const data = await this.scheduleRepo.bulkUpsert(validatedData);
+        return this._buildResponse(data, 'upsertStaffSchedules', {
+          inputCount: scheduleData.length,
+          processedCount: data?.length || 0
+        });
+      }
+
+      // FALLBACK: Use legacy Supabase
       const { data, error } = await this.db
         .from('staff_schedules')
         .upsert(validatedData, {
@@ -666,13 +928,24 @@ class SupabaseDataLayer {
 
       this._handleSupabaseError(error, 'upsertStaffSchedules');
 
-      return this._buildResponse(data, 'upsertStaffSchedules', { 
+      return this._buildResponse(data, 'upsertStaffSchedules', {
         inputCount: scheduleData.length,
-        processedCount: data?.length || 0 
+        processedCount: data?.length || 0
       });
 
     } catch (error) {
       logger.error('upsertStaffSchedules failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'upsertStaffSchedules',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: {
+          scheduleCount: scheduleData.length,
+          maxBatchSize: this.config.maxBatchSize
+        }
+      });
       return this._buildErrorResponse(error, 'upsertStaffSchedules');
     }
   }
@@ -686,6 +959,17 @@ class SupabaseDataLayer {
     try {
       this._validateCompanyId(companyId);
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.serviceRepo) {
+        const data = await this.serviceRepo.findAll(companyId, includeInactive);
+        return this._buildResponse(data, 'getServices', {
+          companyId,
+          includeInactive,
+          serviceCount: data?.length || 0
+        });
+      }
+
+      // FALLBACK: Use legacy Supabase
       let query = this.db
         .from('services')
         .select('*')
@@ -700,14 +984,22 @@ class SupabaseDataLayer {
       const { data, error } = await query;
       this._handleSupabaseError(error, 'getServices');
 
-      return this._buildResponse(data, 'getServices', { 
-        companyId, 
+      return this._buildResponse(data, 'getServices', {
+        companyId,
         includeInactive,
-        serviceCount: data?.length || 0 
+        serviceCount: data?.length || 0
       });
 
     } catch (error) {
       logger.error('getServices failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getServices',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { companyId, includeInactive }
+      });
       return this._buildErrorResponse(error, 'getServices');
     }
   }
@@ -719,6 +1011,17 @@ class SupabaseDataLayer {
     try {
       this._validateCompanyId(companyId);
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.staffRepo) {
+        const data = await this.staffRepo.findAll(companyId, includeInactive);
+        return this._buildResponse(data, 'getStaff', {
+          companyId,
+          includeInactive,
+          staffCount: data?.length || 0
+        });
+      }
+
+      // FALLBACK: Use legacy Supabase
       let query = this.db
         .from('staff')
         .select('*')
@@ -732,14 +1035,22 @@ class SupabaseDataLayer {
       const { data, error } = await query;
       this._handleSupabaseError(error, 'getStaff');
 
-      return this._buildResponse(data, 'getStaff', { 
-        companyId, 
+      return this._buildResponse(data, 'getStaff', {
+        companyId,
         includeInactive,
-        staffCount: data?.length || 0 
+        staffCount: data?.length || 0
       });
 
     } catch (error) {
       logger.error('getStaff failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getStaff',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { companyId, includeInactive }
+      });
       return this._buildErrorResponse(error, 'getStaff');
     }
   }
@@ -753,13 +1064,23 @@ class SupabaseDataLayer {
         throw new Error('Invalid service yclients_id');
       }
 
+      if (companyId) {
+        this._validateCompanyId(companyId);
+      }
+
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.serviceRepo) {
+        const data = await this.serviceRepo.findById(serviceYclientsId, companyId);
+        return this._buildResponse(data, 'getServiceById');
+      }
+
+      // FALLBACK: Use legacy Supabase
       let query = this.db
         .from('services')
         .select('*')
         .eq('yclients_id', serviceYclientsId);
 
       if (companyId) {
-        this._validateCompanyId(companyId);
         query = query.eq('company_id', companyId);
       }
 
@@ -770,6 +1091,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getServiceById failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getServiceById',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { serviceYclientsId, companyId }
+      });
       return this._buildErrorResponse(error, 'getServiceById');
     }
   }
@@ -785,6 +1114,13 @@ class SupabaseDataLayer {
         throw new Error('Invalid category ID');
       }
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.serviceRepo) {
+        const data = await this.serviceRepo.findByCategory(companyId, categoryId);
+        return this._buildResponse(data, 'getServicesByCategory', { categoryId });
+      }
+
+      // FALLBACK: Use legacy Supabase
       const { data, error } = await this.db
         .from('services')
         .select('*')
@@ -800,6 +1136,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getServicesByCategory failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getServicesByCategory',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { companyId, categoryId }
+      });
       return this._buildErrorResponse(error, 'getServicesByCategory');
     }
   }
@@ -841,6 +1185,16 @@ class SupabaseDataLayer {
         };
       });
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.serviceRepo) {
+        const data = await this.serviceRepo.bulkUpsert(validatedData);
+        return this._buildResponse(data, 'upsertServices', {
+          inputCount: servicesData.length,
+          processedCount: data?.length || 0
+        });
+      }
+
+      // FALLBACK: Use legacy Supabase
       const { data, error } = await this.db
         .from('services')
         .upsert(validatedData, {
@@ -851,13 +1205,24 @@ class SupabaseDataLayer {
 
       this._handleSupabaseError(error, 'upsertServices');
 
-      return this._buildResponse(data, 'upsertServices', { 
+      return this._buildResponse(data, 'upsertServices', {
         inputCount: servicesData.length,
-        processedCount: data?.length || 0 
+        processedCount: data?.length || 0
       });
 
     } catch (error) {
       logger.error('upsertServices failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'upsertServices',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: {
+          serviceCount: servicesData.length,
+          maxBatchSize: this.config.maxBatchSize
+        }
+      });
       return this._buildErrorResponse(error, 'upsertServices');
     }
   }
@@ -871,6 +1236,13 @@ class SupabaseDataLayer {
     try {
       this._validateCompanyId(companyId);
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.companyRepo) {
+        const data = await this.companyRepo.findById(companyId);
+        return this._buildResponse(data, 'getCompany');
+      }
+
+      // FALLBACK: Use legacy Supabase
       const { data, error } = await this.db
         .from('companies')
         .select('*')
@@ -883,6 +1255,14 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('getCompany failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'getCompany',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: { companyId }
+      });
       return this._buildErrorResponse(error, 'getCompany');
     }
   }
@@ -905,6 +1285,13 @@ class SupabaseDataLayer {
         updated_at: new Date()
       };
 
+      // USE REPOSITORY PATTERN (Phase 2)
+      if (dbFlags.USE_REPOSITORY_PATTERN && this.companyRepo) {
+        const data = await this.companyRepo.upsert(processedData);
+        return this._buildResponse(data, 'upsertCompany');
+      }
+
+      // FALLBACK: Use legacy Supabase
       const { data, error } = await this.db
         .from('companies')
         .upsert(processedData, {
@@ -919,6 +1306,17 @@ class SupabaseDataLayer {
 
     } catch (error) {
       logger.error('upsertCompany failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'data-layer',
+          operation: 'upsertCompany',
+          backend: dbFlags.getCurrentBackend()
+        },
+        extra: {
+          companyId: companyData.company_id,
+          title: companyData.title
+        }
+      });
       return this._buildErrorResponse(error, 'upsertCompany');
     }
   }

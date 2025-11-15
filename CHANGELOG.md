@@ -5,6 +5,34 @@ All notable changes to AI Admin v2 will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### 🎉 Added
+- **Notion MCP Server Integration** - Official Notion integration for task management
+  - Added `@notion` MCP server with full Notion API access
+  - Support for creating/updating pages and databases
+  - Query database functionality for task tracking
+  - Integration with development workflow via `.mcp.json`
+  - Comprehensive setup documentation in `docs/NOTION_MCP_SETUP.md`
+
+### 🔧 Changed
+- **MCP Configuration Centralized** - All 5 MCP servers now in single `.mcp.json`
+  - Consolidated custom MCP servers (whatsapp, redis, supabase, yclients)
+  - Added official Notion MCP server via npx
+  - Updated `.claude/settings.json` to enable all servers
+  - Created `.mcp.json.example` template
+  - Updated `mcp/README.md` with complete 5-server setup guide
+
+### 📚 Documentation
+- Added `docs/NOTION_MCP_SETUP.md` - Complete Notion integration guide
+- Updated `CLAUDE.md` - MCP servers table with all 5 servers
+- Updated `mcp/README.md` - Installation and usage for all servers
+- Created `dev/active/notion-mcp-integration/` - Integration docs and code review
+
+### 🔒 Security
+- Added `.mcp.json` to `.gitignore` to prevent credential leaks
+- Created `.mcp.json.example` for safe documentation
+
 ## [1.1.0] - 2025-01-16
 
 ### 🎉 Added

@@ -1,72 +1,71 @@
-# 📚 AI Admin v2 - Документация
+# AI Admin v2 Documentation
 
-## 📋 Структура документации
+Complete documentation for the AI Admin v2 WhatsApp bot system.
 
-### 🏗️ Основная документация
-- **[architecture/](architecture/)** - Системная архитектура, дизайн БД, стратегии кэширования
-- **[technical/](technical/)** - Технические руководства по AI провайдерам, интеграциям
-- **[features/](features/)** - Документация и спецификации функций
-- **[configuration/](configuration/)** - Руководства по настройке и конфигурации
-- **[deployment/](deployment/)** - Руководства по развертыванию, MCP setup, инфраструктура
+## Quick Links
 
-### 👨‍💻 Разработка
-- **[development-diary/](development-diary/)** - Ежедневные логи разработки (152 записи)
-- **[guides/](guides/)** - Пользовательские руководства и справочники
-- **[api/](api/)** - Документация API и спецификации
+- [Troubleshooting Guide](TROUBLESHOOTING.md) - Common issues and solutions
+- [Claude Code Guide](CLAUDE_CODE_MASTER_GUIDE.md) - Essential for AI development
+- [Claude Code Skills Integration](CLAUDE_CODE_SKILLS_INTEGRATION_SUMMARY.md) - Skills system documentation
+- [Development Diary](03-development-diary/) - Chronological project history
 
-### 🛍️ YClients Marketplace
-- **[marketplace/](marketplace/)** - Полная документация интеграции с YClients
-  - [Integration Overview](marketplace/MARKETPLACE_INTEGRATION.md)
-  - [Technical Docs](marketplace/MARKETPLACE_TECHNICAL.md)
-  - [Setup Guide](marketplace/MARKETPLACE_SETUP.md)
-  - [API Reference](marketplace/MARKETPLACE_API.md)
-  - [Troubleshooting](marketplace/MARKETPLACE_TROUBLESHOOTING.md)
+## Documentation Structure
 
-### 📊 Анализ и отчеты
-- **[sessions/](sessions/)** - Резюме рабочих сессий
-- **[testing-results/](testing-results/)** - Результаты тестов и отчеты
-- **[updates/](updates/)** - Заметки об обновлениях и changelog
-- **[business/](business/)** - Бизнес-документация и планы
+### [00-getting-started/](00-getting-started/)
+Quick start guides, environment setup, and essential configuration.
 
-### 🗄️ Архив
-- **[archive/](archive/)** - Устаревшая документация
-  - `code-reviews/` - Старые код-ревью
-  - `migration-guides/` - Старые руководства по миграции
-  - `old-implementations/` - Устаревшие реализации
-  - `outdated-plans/` - Устаревшие планы
-  - `test-results/` - Старые результаты тестов
+### [01-architecture/](01-architecture/)
+System architecture, design decisions, and technical documentation:
+- WhatsApp integration (Baileys)
+- AI system (Gemini, prompts)
+- Database (Timeweb PostgreSQL)
+- Core features
 
-## 🚀 Быстрые ссылки
+### [02-guides/](02-guides/)
+Operational guides for day-to-day tasks:
+- WhatsApp management
+- Telegram bot administration
+- Deployment procedures
+- YClients marketplace integration
 
-### Начало работы
-- [TROUBLESHOOTING](TROUBLESHOOTING.md) - Главное руководство по решению проблем
-- [Quick Reference](guides/QUICK_REFERENCE.md)
-- [Deployment Guide](guides/DEPLOYMENT_GUIDE.md)
-- [Launch Checklist](guides/LAUNCH_CHECKLIST.md)
+### [03-development-diary/](03-development-diary/)
+Chronological record of all changes, decisions, and learnings (238 entries).
 
-### Архитектура
-- [Context System](architecture/CONTEXT_SYSTEM_V2.md)
-- [Sync System](architecture/SYNC_SYSTEM_V2.md)
-- [Redis Batching](architecture/REDIS_BATCHING.md)
+### [04-planning/](04-planning/)
+Strategic planning documents:
+- Business plans and legal structure
+- Scaling analysis
+- Migration plans
+- Research and investigations
 
-### Конфигурация
-- [MCP Servers Guide](deployment/mcp-servers-guide-v2.md)
-- [YClients Integration](configuration/YCLIENTS_MARKETPLACE_INTEGRATION.md)
-- [Venom Bot Setup](configuration/VENOM_BOT_SETUP.md)
+### [05-reports/](05-reports/)
+Historical reports and analyses:
+- Code reviews
+- Deployment reports
+- Incident reports
+- Optimization results
 
-### Функции
-- [Booking Management](features/BOOKING_MANAGEMENT_COMPLETE.md)
-- [Reminder System](features/REMINDER_SYSTEM.md)
-- [Personalization](features/PERSONALIZATION_IMPLEMENTATION.md)
+### [06-archive/](06-archive/)
+Outdated documentation kept for historical reference.
 
-## 📊 Статистика
-- **Всего документов**: ~300 файлов
-- **Development Diary**: 152 записи
-- **Активные категории**: 14
-- **Архивированных документов**: ~40
+### [99-meta/](99-meta/)
+Documentation about documentation, scripts, and meta information.
 
-## 🔄 Последние обновления
-- **16.09.2024**: Создана документация Marketplace интеграции
-- **16.09.2024**: Реорганизована структура папки docs
-- **10.09.2024**: Обновлена архитектура WhatsApp сессий
-- **26.08.2024**: Исправления контекстной системы v2
+## Contributing
+
+When adding new documentation:
+
+1. Use appropriate directory (see structure above)
+2. Follow [naming conventions](99-meta/DOCS_NAMING_CONVENTIONS.md)
+3. Update relevant README.md files
+4. Add entry to development diary if documenting changes
+
+## History
+
+- **2025-11-12:** Major reorganization (347 duplicates removed, new structure)
+- **2025-11-03:** Added Claude Code Skills integration
+- **2025-10-31:** Timeweb PostgreSQL migration documentation
+- **2025-10-19:** Gemini integration documentation
+
+---
+Last updated: 2025-11-12
