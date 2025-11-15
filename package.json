@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
+    "@notionhq/client": "^5.4.0",
     "@sentry/node": "^10.24.0",
     "@sentry/profiling-node": "^10.24.0",
     "@supabase/supabase-js": "^2.57.0",
