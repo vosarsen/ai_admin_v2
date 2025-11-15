@@ -142,22 +142,8 @@ async function syncProjectPage(projectData) {
     };
   }
 
-  // Phase 2.0: Add project summary fields for team management view
+  // Phase 2.0: Add essential fields only (Summary moved to page content)
   if (projectData.summary) {
-    // Summary (What is this?)
-    if (projectData.summary.summary) {
-      properties.Summary = {
-        rich_text: [{ text: { content: projectData.summary.summary } }]
-      };
-    }
-
-    // Business Value (Why needed?)
-    if (projectData.summary.businessValue) {
-      properties['Business Value'] = {
-        rich_text: [{ text: { content: projectData.summary.businessValue } }]
-      };
-    }
-
     // Timeline
     if (projectData.summary.timeline) {
       properties.Timeline = {
@@ -183,6 +169,12 @@ async function syncProjectPage(projectData) {
     };
   }
 
+  // Priority (default to Medium if not set)
+  // Note: Can be manually changed in Notion
+  properties.Priority = {
+    select: { name: 'Medium' }
+  };
+
   // Add dates (only if properties exist - skip for now, can add later)
   // Note: These properties may need to be created in Notion database first
   // if (projectData.dates.lastUpdated) {
@@ -197,16 +189,16 @@ async function syncProjectPage(projectData) {
   //   };
   // }
 
-  // Build page content (children blocks) - Phase 2.0 template
+  // Build page content (children blocks) - Phase 2.0 IMPROVED template
   const children = [];
 
-  // Metadata callout (status, progress, target, risk)
   const progressPercent = projectData.metadata.totalTasks > 0
     ? Math.round((projectData.metadata.completedTasks / projectData.metadata.totalTasks) * 100)
     : 0;
 
   const progressBar = '▓'.repeat(Math.floor(progressPercent / 10)) + '░'.repeat(10 - Math.floor(progressPercent / 10));
 
+  // 📊 Project Overview Callout
   children.push({
     object: 'block',
     type: 'callout',
@@ -214,13 +206,13 @@ async function syncProjectPage(projectData) {
       icon: { emoji: '📊' },
       rich_text: [{
         text: {
-          content: `Status: ${projectData.status || 'Unknown'} | Progress: ${progressBar} ${progressPercent}% (${projectData.metadata.completedTasks}/${projectData.metadata.totalTasks}) | Risk: ${projectData.summary?.risk || 'Medium'}`
+          content: `${projectData.status || 'Unknown'} • ${progressBar} ${progressPercent}% • ${projectData.summary?.timeline || 'Timeline TBD'} • Risk: ${projectData.summary?.risk || 'Medium'}`
         }
       }]
     }
   });
 
-  // "What is this?" section
+  // 🎯 What is this?
   if (projectData.summary?.summary) {
     children.push({
       object: 'block',
@@ -232,14 +224,14 @@ async function syncProjectPage(projectData) {
 
     children.push({
       object: 'block',
-      type: 'paragraph',
-      paragraph: {
+      type: 'quote',
+      quote: {
         rich_text: [{ text: { content: projectData.summary.summary } }]
       }
     });
   }
 
-  // "Why needed?" section
+  // 💡 Why needed?
   if (projectData.summary?.businessValue) {
     children.push({
       object: 'block',
@@ -251,14 +243,21 @@ async function syncProjectPage(projectData) {
 
     children.push({
       object: 'block',
-      type: 'paragraph',
-      paragraph: {
+      type: 'quote',
+      quote: {
         rich_text: [{ text: { content: projectData.summary.businessValue } }]
       }
     });
   }
 
-  // "Implementation Plan" section (phases with progress)
+  // Divider
+  children.push({
+    object: 'block',
+    type: 'divider',
+    divider: {}
+  });
+
+  // 📋 Implementation Plan (toggle blocks for each phase)
   if (projectData.tasks && projectData.tasks.length > 0) {
     children.push({
       object: 'block',
@@ -268,7 +267,23 @@ async function syncProjectPage(projectData) {
       }
     });
 
-    // Add phases as bulleted list
+    // Summary of phases
+    const completedPhases = projectData.tasks.filter(p => p.status === 'Done').length;
+    const inProgressPhases = projectData.tasks.filter(p => p.status === 'In Progress').length;
+
+    children.push({
+      object: 'block',
+      type: 'paragraph',
+      paragraph: {
+        rich_text: [{
+          text: {
+            content: `${completedPhases}/${projectData.tasks.length} phases completed • ${inProgressPhases} in progress • ${projectData.metadata.completedTasks}/${projectData.metadata.totalTasks} total tasks`
+          }
+        }]
+      }
+    });
+
+    // Phases as bulleted list
     projectData.tasks.forEach(phase => {
       const phaseProgress = phase.totalTasks > 0
         ? Math.round((phase.completedTasks / phase.totalTasks) * 100)
@@ -283,7 +298,7 @@ async function syncProjectPage(projectData) {
         bulleted_list_item: {
           rich_text: [{
             text: {
-              content: `${statusEmoji} ${phase.name} - ${phaseProgress}% (${phase.completedTasks}/${phase.totalTasks})`
+              content: `${statusEmoji} ${phase.name} — ${phaseProgress}% (${phase.completedTasks}/${phase.totalTasks} tasks)`
             }
           }]
         }
@@ -291,12 +306,19 @@ async function syncProjectPage(projectData) {
     });
   }
 
-  // "Dev Docs" link
+  // Divider
   children.push({
     object: 'block',
-    type: 'heading_2',
-    heading_2: {
-      rich_text: [{ text: { content: '📚 Dev Docs' } }]
+    type: 'divider',
+    divider: {}
+  });
+
+  // 📚 Source Files
+  children.push({
+    object: 'block',
+    type: 'heading_3',
+    heading_3: {
+      rich_text: [{ text: { content: '📚 Source Files' } }]
     }
   });
 
@@ -305,8 +327,6 @@ async function syncProjectPage(projectData) {
     type: 'paragraph',
     paragraph: {
       rich_text: [{
-        text: { content: 'Source: ' }
-      }, {
         text: { content: projectData.metadata.projectPath },
         annotations: { code: true }
       }]
