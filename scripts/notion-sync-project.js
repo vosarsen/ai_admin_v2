@@ -68,33 +68,41 @@ async function retryWithBackoff(fn, maxRetries = 3, context = '') {
 }
 
 /**
- * Find existing project in Notion by name using databases.query API
+ * Find existing project in Notion by name
+ * NOTE: Using search API since databases.query doesn't exist in SDK v5
  */
 async function findProjectByName(projectName) {
   try {
     const response = await retryWithBackoff(async () => {
-      return await notion.databases.query({
-        database_id: PROJECTS_DB,
+      return await notion.search({
+        query: projectName,
         filter: {
-          property: 'Name',
-          title: {
-            equals: projectName
-          }
+          property: 'object',
+          value: 'page'
         },
-        page_size: 1
+        page_size: 100
       });
-    }, 3, `Querying for project "${projectName}"`);
+    }, 3, `Searching for project "${projectName}"`);
 
-    if (response.results.length > 0) {
-      const project = response.results[0];
-      console.log(`✅ Found existing project: ${projectName} (${project.id})`);
-      return project;
+    // Filter results to find exact match in Projects database
+    const exactMatch = response.results.find(page => {
+      // Check if page is in Projects database
+      if (page.parent?.database_id !== PROJECTS_DB) return false;
+
+      // Check if title matches exactly
+      const titleProp = page.properties?.Name?.title?.[0]?.text?.content;
+      return titleProp === projectName;
+    });
+
+    if (exactMatch) {
+      console.log(`✅ Found existing project: ${projectName} (${exactMatch.id})`);
+      return exactMatch;
     }
 
     console.log(`ℹ️  Project not found in Notion: ${projectName} (will create new)`);
     return null;
   } catch (error) {
-    console.error(`❌ Error querying for project:`, error.message);
+    console.error(`❌ Error searching for project:`, error.message);
     // Return null instead of throwing - we can create new if search fails
     return null;
   }
