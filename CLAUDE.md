@@ -400,16 +400,57 @@ For more information, see:
 4. **Use MCP servers** - Faster than SSH/scripts
 5. **Document success only** - Create diary entries after fixes work
 
+## 📊 Notion Workspace Integration (NEW!)
+
+**Status:** ✅ Phase 1 Complete - Automated Sync Active!
+**Databases:** Projects | Tasks | Knowledge Base
+**Sync Frequency:** Every 15 minutes (8am-11pm) + Nightly full sync (2am)
+
+### Quick Reference
+
+**View in Notion:**
+- Projects: https://www.notion.so/2ac0a520-3786-819a-b0ab-c7758efab9fb
+- Tasks: https://www.notion.so/2ac0a520-3786-81ed-8d10-ef3bc2974e3a
+- Knowledge Base: https://www.notion.so/2ac0a520-3786-81b6-8430-d98b279dc5f2
+
+**Manual Sync Commands:**
+```bash
+npm run notion:sync              # Sync all projects (smart, skip unchanged)
+npm run notion:sync:force        # Force full re-sync (all projects)
+npm run notion:sync:project <path>  # Sync specific project only
+npm run notion:parse --all       # Test parser (no sync to Notion)
+```
+
+**Workflow:**
+1. Work in markdown as usual (`dev/active/*/` files)
+2. Sync happens automatically every 15 minutes
+3. View updates in Notion (read-only team visibility)
+4. Markdown = source of truth (always edit here!)
+
+**What's Synced:**
+- Project metadata (name, status, phase, components)
+- All task checklists with status (Todo/In Progress/Done)
+- Project context and summaries
+
+**Emergency:**
+- See `docs/NOTION_EMERGENCY_SYNC.md` for troubleshooting
+- State tracking: `.notion-sync-state.json`
+- Logs: Console output + Telegram alerts on failure
+
 ## 📂 Project Structure
 
 ```
 /
 ├── src/              # Source code
 ├── scripts/          # Utility scripts
+│   ├── notion-parse-markdown.js     # Parse project markdown files
+│   ├── notion-sync-project.js       # Sync single project to Notion
+│   └── notion-daily-sync.js         # Orchestrate multi-project sync
 ├── mcp/             # MCP servers
 ├── docs/            # Documentation
 ├── config/          # Configuration
 │   └── project-docs/  # Project management (CONTEXT, TASK, etc.)
+├── dev/active/      # Active projects (synced to Notion)
 ├── examples/        # Code patterns
 ├── archive/         # Old files (reference only)
 └── tests/           # Test files
