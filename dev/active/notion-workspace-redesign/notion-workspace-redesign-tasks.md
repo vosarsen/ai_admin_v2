@@ -1113,14 +1113,17 @@
 
 ### Time Tracking
 
-**Estimated Total:** 34 hours (Phases 0-2)
-**Actual Total:** ___ hours
-**Variance:** ___ hours (___%)
+**Estimated Total:** 35.5 hours (Phases 0-2, updated with agent recommendations)
+**Actual Total:** ~3 hours (Phase 0 only)
+**Variance:** -5 hours (-62% under estimate for Phase 0!)
 
 **Breakdown:**
-- Phase 0: ___ hours (est: 8h)
-- Phase 1: ___ hours (est: 20h)
-- Phase 2: ___ hours (est: 6h)
+- Phase 0: ~3 hours (est: 8h) ✅ COMPLETE
+  - Setup faster than expected
+  - Views deferred (manual, ~15 min completed by user)
+  - Core automation working
+- Phase 1: TBD (est: 21.5h) - Ready to start
+- Phase 2: TBD (est: 6h)
 
 ### Key Milestones
 
@@ -1134,17 +1137,42 @@
 
 ## 📝 Notes & Learnings
 
-### Blockers Encountered
-- [To be filled during implementation]
+### Blockers Encountered (Phase 0)
+- **Notion API annotations structure:** Initially placed annotations incorrectly in rich_text objects
+  - Solution: Moved annotations to rich_text level, not text level
+  - Pattern: `{text: {content}, annotations: {bold: true}}` not `{text: {content, annotations}}`
 
-### Quick Wins
-- [To be filled - unexpected benefits discovered]
+- **GitHub Actions Node version:** Baileys requires Node 20+, workflow used 18
+  - Solution: Updated workflow to use Node 20
+  - Learning: Check dependency requirements before deploying to CI
 
-### Challenges Overcome
-- [To be filled - how we solved difficult problems]
+### Quick Wins (Phase 0)
+- **MCP integration:** Using Notion MCP made database creation instant
+- **Script reusability:** Deployment logging script pattern works for any Notion write
+- **User engagement:** User immediately saw value and wanted higher sync frequency
+- **Under budget:** Completed Phase 0 in ~3h vs 8h estimate (62% faster)
 
-### Process Improvements
-- [To be filled - better ways discovered during work]
+### Challenges Overcome (Phase 0)
+1. **API rate limit concerns:**
+   - Calculated exact load for 15-min sync (0.022 req/sec vs 3 req/sec limit)
+   - Proved mathematically safe with 136x margin
+   - User confident to proceed
+
+2. **Workflow complexity:**
+   - User concerned about manual sync being "not very удобно и долго"
+   - Explained Phase 1 automation solves this completely
+   - Adjusted plan: 15-min sync instead of daily
+
+3. **Notion URL access:**
+   - User couldn't open Notion links (private workspace)
+   - Explained: Links work only for workspace members
+   - Showed how to navigate in Notion UI instead
+
+### Process Improvements (Phase 0)
+- **Documentation first:** Having detailed plan.md made implementation smooth
+- **Test early:** Testing GitHub Actions immediately caught Node version issue
+- **User feedback:** Listening to "too slow" feedback led to better 15-min sync decision
+- **Defer non-critical:** Views manual creation saved time, user happy to do it
 
 ---
 
