@@ -1915,10 +1915,14 @@
             position: absolute;
             top: 20px;
             right: 20px;
-            background: none;
-            border: none;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
             color: #f5f5f5;
-            font-size: 30px;
+            font-size: 24px;
+            font-weight: 300;
+            line-height: 1;
             cursor: pointer;
             width: 40px;
             height: 40px;
@@ -1930,8 +1934,14 @@
         }
 
         .modal-close:hover {
-            background: rgba(255, 255, 255, 0.1);
-            transform: rotate(90deg);
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+        }
+
+        .modal-close:active {
+            transform: scale(0.95);
         }
 
         .modal-header {
