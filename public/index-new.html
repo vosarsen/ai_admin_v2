@@ -2062,8 +2062,8 @@
             <ul class="nav-links" id="navLinks">
                 <li><a href="#features">ВОЗМОЖНОСТИ</a></li>
                 <li><a href="#pricing">ЦЕНЫ</a></li>
-                <li><a href="#contact">КОНТАКТЫ</a></li>
-                <li><a href="#contact" class="nav-cta">ПОПРОБОВАТЬ БЕСПЛАТНО</a></li>
+                <li><a href="#" class="modal-trigger">КОНТАКТЫ</a></li>
+                <li><a href="#" class="nav-cta modal-trigger">ПОПРОБОВАТЬ БЕСПЛАТНО</a></li>
             </ul>
         </nav>
     </header>
@@ -2073,7 +2073,7 @@
         <div class="hero-content">
             <h1>WhatsApp бот который понимает ваших клиентов</h1>
             <p>AI Admin автоматически отвечает на сообщения, записывает клиентов и управляет расписанием вашего салона красоты 24/7</p>
-            <a href="#contact" class="btn">ПОПРОБОВАТЬ БЕСПЛАТНО</a>
+            <a href="#" class="btn modal-trigger">ПОПРОБОВАТЬ БЕСПЛАТНО</a>
         </div>
         <div class="hero-image">
             <img src="hero-phone.png" alt="WhatsApp диалог с AI Admin">
@@ -2419,7 +2419,7 @@
                 <p class="price-label">Специальное предложение</p>
                 <div class="price">11,990₽</div>
                 <p class="price-period">в месяц</p>
-                <a href="#contact" class="btn">СТАТЬ ПАРТНЕРОМ</a>
+                <a href="#" class="btn modal-trigger">СТАТЬ ПАРТНЕРОМ</a>
             </div>
             <div class="pricing-card">
                 <p class="price-label">После пилота</p>
@@ -2456,7 +2456,7 @@
                 <div class="spots-progress">
                     <div class="spots-progress-bar"></div>
                 </div>
-                <a href="#contact" class="btn spots-btn">Занять 1 из 7 оставшихся мест в пилоте</a>
+                <a href="#" class="btn spots-btn modal-trigger">Занять 1 из 7 оставшихся мест в пилоте</a>
                 <p class="spots-deadline">Заявки рассматриваем в течение 24 часов. Deadline: 1 февраля 2025</p>
             </div>
         </div>
@@ -2853,15 +2853,17 @@
         const modal = document.getElementById('contactModal');
         const modalClose = document.getElementById('modalClose');
         const contactForm = document.getElementById('contactForm');
-        const modalTriggers = document.querySelectorAll('a[href="#contact"], .btn, .nav-cta, .spots-btn');
+        const modalTriggers = document.querySelectorAll('.modal-trigger');
 
         // Open modal
         modalTriggers.forEach(trigger => {
             trigger.addEventListener('click', (e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 modal.classList.add('active');
                 document.body.style.overflow = 'hidden';
-            });
+                return false;
+            }, true);
         });
 
         // Close modal
