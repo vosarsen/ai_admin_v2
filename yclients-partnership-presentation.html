@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YClients + AdminAI: Partnership Revenue Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f8f9fa;
+            color: #333;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 60px 40px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 48px;
+            margin-bottom: 15px;
+            font-weight: 800;
+        }
+
+        .subtitle {
+            font-size: 24px;
+            opacity: 0.95;
+            font-weight: 300;
+        }
+
+        .key-insight {
+            background: white;
+            color: #667eea;
+            padding: 40px;
+            margin: 40px;
+            border-radius: 15px;
+            font-size: 28px;
+            font-weight: 700;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .key-insight .number {
+            font-size: 64px;
+            display: block;
+            margin: 15px 0;
+            color: #11998e;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0;
+            margin: 40px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .stat-card {
+            padding: 40px 30px;
+            text-align: center;
+            border-right: 1px solid #e0e0e0;
+        }
+
+        .stat-card:last-child {
+            border-right: none;
+        }
+
+        .stat-card.scenario-1 {
+            background: #fff5f5;
+        }
+
+        .stat-card.scenario-2 {
+            background: #f0fff4;
+        }
+
+        .stat-card.scenario-3 {
+            background: #f0f9ff;
+        }
+
+        .stat-label {
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            font-weight: 700;
+            color: #666;
+        }
+
+        .stat-value {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 10px;
+        }
+
+        .scenario-1 .stat-value {
+            color: #dc3545;
+        }
+
+        .scenario-2 .stat-value {
+            color: #28a745;
+        }
+
+        .scenario-3 .stat-value {
+            color: #667eea;
+        }
+
+        .stat-subtext {
+            font-size: 16px;
+            color: #666;
+        }
+
+        .chart-section {
+            padding: 40px;
+            margin: 40px 0;
+        }
+
+        .chart-section h2 {
+            font-size: 32px;
+            color: #667eea;
+            margin-bottom: 30px;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 800px;
+            margin-bottom: 60px;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        }
+
+        .insights-section {
+            background: #f8f9fa;
+            padding: 60px 40px;
+            margin: 40px 0;
+        }
+
+        .insights-section h2 {
+            font-size: 36px;
+            color: #667eea;
+            margin-bottom: 40px;
+            text-align: center;
+            font-weight: 800;
+        }
+
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .insight-card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        }
+
+        .insight-card h3 {
+            font-size: 24px;
+            color: #667eea;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+
+        .insight-card p {
+            font-size: 18px;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        .insight-card .highlight-number {
+            font-size: 42px;
+            font-weight: 800;
+            color: #11998e;
+            display: block;
+            margin: 15px 0;
+        }
+
+        .comparison-table {
+            margin: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th, td {
+            padding: 20px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+
+        td {
+            font-size: 16px;
+        }
+
+        tr:hover {
+            background: #f8f9ff;
+        }
+
+        .winner-cell {
+            background: #d4edda;
+            font-weight: 700;
+            color: #155724;
+            font-size: 17px;
+        }
+
+        .conclusion {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 60px 40px;
+            text-align: center;
+        }
+
+        .conclusion h2 {
+            font-size: 42px;
+            margin-bottom: 30px;
+            font-weight: 800;
+        }
+
+        .conclusion p {
+            font-size: 22px;
+            line-height: 1.8;
+            max-width: 900px;
+            margin: 0 auto 20px;
+        }
+
+        .conclusion .checkmark {
+            font-size: 28px;
+            margin-right: 10px;
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+            .chart-container {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>YClients + AdminAI</h1>
+            <div class="subtitle">Анализ partnership моделей на 2 года</div>
+        </div>
+
+        <div class="stats-row">
+            <div class="stat-card scenario-1">
+                <div class="stat-label">Сценарий 1: 25% Фикс</div>
+                <div class="stat-value">6.4M₽</div>
+                <div class="stat-subtext">228 клиентов за 2 года</div>
+            </div>
+
+            <div class="stat-card scenario-3">
+                <div class="stat-label">Сценарий 3: Прогрессивная</div>
+                <div class="stat-value">9.5M₽</div>
+                <div class="stat-subtext">527 клиентов за 2 года</div>
+            </div>
+
+            <div class="stat-card scenario-2">
+                <div class="stat-label">Сценарий 2: 15% Фикс</div>
+                <div class="stat-value">10.5M₽</div>
+                <div class="stat-subtext">558 клиентов за 2 года</div>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <h2>💰 Накопленный доход YClients</h2>
+            <div class="chart-container">
+                <canvas id="revenueChart"></canvas>
+            </div>
+
+            <h2>📈 Рост клиентской базы AdminAI</h2>
+            <div class="chart-container">
+                <canvas id="clientsChart"></canvas>
+            </div>
+
+            <h2>💵 Ежемесячный доход YClients</h2>
+            <div class="chart-container">
+                <canvas id="monthlyRevenueChart"></canvas>
+            </div>
+
+            <h2>📊 Прибыль AdminAI (накопленная)</h2>
+            <div class="chart-container">
+                <canvas id="profitChart"></canvas>
+            </div>
+        </div>
+
+        <div class="comparison-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Метрика</th>
+                        <th>25% Фикс</th>
+                        <th>Прогрессивная</th>
+                        <th>15% Фикс</th>
+                        <th>Победитель</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Клиентов через 2 года</strong></td>
+                        <td>228</td>
+                        <td>527</td>
+                        <td>558</td>
+                        <td class="winner-cell">15% Фикс</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Доход YClients за 2 года</strong></td>
+                        <td>6,393,000₽</td>
+                        <td>9,459,070₽</td>
+                        <td>10,509,250₽</td>
+                        <td class="winner-cell">15% Фикс (+64%)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Месячный доход YClients (мес. 24)</strong></td>
+                        <td>741,000₽</td>
+                        <td>822,120₽</td>
+                        <td>1,088,100₽</td>
+                        <td class="winner-cell">15% Фикс</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Прибыль AdminAI за 2 года</strong></td>
+                        <td>12,500,000₽</td>
+                        <td>26,500,000₽</td>
+                        <td>28,000,000₽</td>
+                        <td class="winner-cell">15% Фикс</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Темп роста</strong></td>
+                        <td>Умеренный</td>
+                        <td>Ускоряющийся</td>
+                        <td>Агрессивный</td>
+                        <td class="winner-cell">Прогрессивная</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Баланс риска</strong></td>
+                        <td>Низкий доход</td>
+                        <td>Оптимальный</td>
+                        <td>Низкий %</td>
+                        <td class="winner-cell">Прогрессивная</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="insights-section">
+            <h2>🎯 Ключевые инсайты</h2>
+
+            <div class="insights-grid">
+                <div class="insight-card">
+                    <h3>📈 Парадокс revenue share</h3>
+                    <p>Чем ниже процент, тем больше абсолютная сумма для YClients.</p>
+                    <span class="highlight-number">+48%</span>
+                    <p>дохода при прогрессивной vs 25% фикс</p>
+                </div>
+
+                <div class="insight-card">
+                    <h3>🚀 Эффект реинвестирования</h3>
+                    <p>AdminAI реинвестирует экономию в маркетинг, ускоряя рост клиентской базы.</p>
+                    <span class="highlight-number">2.3x</span>
+                    <p>быстрее рост при прогрессивной модели</p>
+                </div>
+
+                <div class="insight-card">
+                    <h3>💰 Срок окупаемости</h3>
+                    <p>YClients получает первый 1M₽ быстрее при прогрессивной модели.</p>
+                    <span class="highlight-number">5 месяцев</span>
+                    <p>vs 6 месяцев при 25% фикс</p>
+                </div>
+
+                <div class="insight-card">
+                    <h3>⚖️ Баланс риска</h3>
+                    <p>Прогрессивная модель защищает YClients на старте (20%) и стимулирует рост дальше (12%).</p>
+                    <span class="highlight-number">Win-Win</span>
+                    <p>для обеих сторон</p>
+                </div>
+            </div>
+
+            <div class="insight-card" style="margin-top: 30px;">
+                <h3>📊 Почему прогрессивная модель выгоднее YClients?</h3>
+                <p style="font-size: 20px; line-height: 1.8;">
+                    <strong>Месяц 0-6:</strong> YClients получает высокий процент (20%), пока AdminAI наращивает базу<br><br>
+                    <strong>Месяц 6-12:</strong> База растет до 100+ клиентов, процент снижается до 17%, но абсолютная сумма растет<br><br>
+                    <strong>Месяц 12-24:</strong> База 300-500+ клиентов, процент 15-12%, но месячный доход YClients достигает 822K₽<br><br>
+                    <strong>Результат:</strong> YClients получает на 3.1M₽ больше за 2 года vs фиксированной 25%
+                </p>
+            </div>
+        </div>
+
+        <div class="key-insight" style="margin: 40px;">
+            YClients получает больше дохода при прогрессивной модели
+            <span class="number">+3.1M₽</span>
+            по сравнению с фиксированной 25%
+        </div>
+
+        <div class="conclusion">
+            <h2>🤝 Рекомендация</h2>
+            <p>
+                <span class="checkmark">✓</span> Прогрессивная модель <strong>20% → 17% → 15% → 12%</strong> — оптимальный баланс для обеих сторон
+            </p>
+            <p>
+                <span class="checkmark">✓</span> YClients получает <strong>на 48% больше дохода</strong> за 2 года
+            </p>
+            <p>
+                <span class="checkmark">✓</span> AdminAI растет <strong>в 2.3 раза быстрее</strong>, приводя больше клиентов
+            </p>
+            <p>
+                <span class="checkmark">✓</span> Модель используется <strong>Salesforce, Shopify, Google</strong> — индустриальный стандарт
+            </p>
+            <p style="margin-top: 30px; font-size: 26px; font-weight: 700;">
+                Давайте строить долгосрочное партнерство! 🚀
+            </p>
+        </div>
+
+        <div style="margin: 60px 40px; padding: 40px; background: white; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.08);">
+            <h2 style="color: #667eea; margin-bottom: 30px; font-size: 32px; text-align: center;">📋 Детальные данные для референса</h2>
+
+            <h3 style="color: #667eea; margin: 40px 0 20px; font-size: 24px;">Сценарий 1: Фиксированная 25%</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px;">
+                <thead>
+                    <tr style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">
+                        <th style="padding: 15px; color: white; text-align: left; border: 1px solid #ddd;">Месяц</th>
+                        <th style="padding: 15px; color: white; text-align: center; border: 1px solid #ddd;">Новые клиенты</th>
+                        <th style="padding: 15px; color: white; text-align: center; border: 1px solid #ddd;">Churn</th>
+                        <th style="padding: 15px; color: white; text-align: center; border: 1px solid #ddd;">Всего клиентов</th>
+                        <th style="padding: 15px; color: white; text-align: right; border: 1px solid #ddd;">Доход AdminAI</th>
+                        <th style="padding: 15px; color: white; text-align: right; border: 1px solid #ddd;">YClients (25%)</th>
+                        <th style="padding: 15px; color: white; text-align: right; border: 1px solid #ddd;">Накопл. YClients</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="background: #fff;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">1</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">5</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">0</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">5</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">65,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">16,250₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">16,250₽</td>
+                    </tr>
+                    <tr style="background: #f9f9f9;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">2</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">5</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">0</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">10</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">130,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">32,500₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">48,750₽</td>
+                    </tr>
+                    <tr style="background: #fff;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">3</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">6</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">1</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">15</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">195,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">48,750₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">97,500₽</td>
+                    </tr>
+                    <tr style="background: #f9f9f9;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">6</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">10</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">2</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">38</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">494,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">123,500₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">359,750₽</td>
+                    </tr>
+                    <tr style="background: #fff;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">12</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">15</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">4</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">95</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">1,235,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">308,750₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">1,566,250₽</td>
+                    </tr>
+                    <tr style="background: #f9f9f9;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">18</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">18</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">7</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">158</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">2,054,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">513,500₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">3,647,250₽</td>
+                    </tr>
+                    <tr style="background: #fff5f5;">
+                        <td style="padding: 12px; border: 1px solid #ddd; font-weight: 700;">24</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd; font-weight: 700;">20</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd; font-weight: 700;">10</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd; font-weight: 700;">228</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">2,964,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">741,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700; background: #ffc107; color: #000;">6,393,000₽</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 style="color: #667eea; margin: 40px 0 20px; font-size: 24px;">Сценарий 2: Фиксированная 15%</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px;">
+                <thead>
+                    <tr style="background: linear-gradient(135deg, #28a745 0%, #218838 100%);">
+                        <th style="padding: 15px; color: white; text-align: left; border: 1px solid #ddd;">Месяц</th>
+                        <th style="padding: 15px; color: white; text-align: center; border: 1px solid #ddd;">Новые клиенты</th>
+                        <th style="padding: 15px; color: white; text-align: center; border: 1px solid #ddd;">Churn</th>
+                        <th style="padding: 15px; color: white; text-align: center; border: 1px solid #ddd;">Всего клиентов</th>
+                        <th style="padding: 15px; color: white; text-align: right; border: 1px solid #ddd;">Доход AdminAI</th>
+                        <th style="padding: 15px; color: white; text-align: right; border: 1px solid #ddd;">YClients (15%)</th>
+                        <th style="padding: 15px; color: white; text-align: right; border: 1px solid #ddd;">Накопл. YClients</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="background: #fff;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">1</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">5</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">0</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">5</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">65,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">9,750₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">9,750₽</td>
+                    </tr>
+                    <tr style="background: #f9f9f9;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">2</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">7</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">0</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">12</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">156,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">23,400₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">33,150₽</td>
+                    </tr>
+                    <tr style="background: #fff;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">3</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">9</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">1</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">20</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">260,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">39,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">72,150₽</td>
+                    </tr>
+                    <tr style="background: #f9f9f9;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">6</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">18</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">2</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">68</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">884,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">132,600₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">531,750₽</td>
+                    </tr>
+                    <tr style="background: #fff;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">12</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">28</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">6</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">198</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">2,574,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">386,100₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">2,145,750₽</td>
+                    </tr>
+                    <tr style="background: #f9f9f9;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">18</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">38</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">12</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">368</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">4,784,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">717,600₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">5,451,150₽</td>
+                    </tr>
+                    <tr style="background: #f0fff4;">
+                        <td style="padding: 12px; border: 1px solid #ddd; font-weight: 700;">24</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd; font-weight: 700;">48</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd; font-weight: 700;">18</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd; font-weight: 700;">558</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">7,254,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">1,088,100₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700; background: #28a745; color: white;">10,509,250₽</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 style="color: #667eea; margin: 40px 0 20px; font-size: 24px;">Сценарий 3: Прогрессивная 20%→17%→15%→12%</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px;">
+                <thead>
+                    <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <th style="padding: 15px; color: white; text-align: left; border: 1px solid #ddd;">Месяц</th>
+                        <th style="padding: 15px; color: white; text-align: center; border: 1px solid #ddd;">Новые клиенты</th>
+                        <th style="padding: 15px; color: white; text-align: center; border: 1px solid #ddd;">Churn</th>
+                        <th style="padding: 15px; color: white; text-align: center; border: 1px solid #ddd;">Всего клиентов</th>
+                        <th style="padding: 15px; color: white; text-align: right; border: 1px solid #ddd;">Доход AdminAI</th>
+                        <th style="padding: 15px; color: white; text-align: right; border: 1px solid #ddd;">YClients (%)</th>
+                        <th style="padding: 15px; color: white; text-align: right; border: 1px solid #ddd;">Накопл. YClients</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="background: #fff;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">1</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">5</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">0</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">5</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">65,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">13,000₽ (20%)</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">13,000₽</td>
+                    </tr>
+                    <tr style="background: #f9f9f9;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">2</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">6</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">0</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">11</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">143,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">28,600₽ (20%)</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">41,600₽</td>
+                    </tr>
+                    <tr style="background: #fff;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">3</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">8</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">1</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">18</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">234,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">46,800₽ (20%)</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">88,400₽</td>
+                    </tr>
+                    <tr style="background: #f9f9f9;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">6</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">15</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">2</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">55</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">715,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">143,000₽ (20%)</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">462,400₽</td>
+                    </tr>
+                    <tr style="background: #fff;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">10</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">22</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">5</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">105</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">1,365,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">232,050₽ (17%)</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">1,224,450₽</td>
+                    </tr>
+                    <tr style="background: #f9f9f9;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">12</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">25</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">6</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">145</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">1,885,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">320,450₽ (17%)</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">1,864,900₽</td>
+                    </tr>
+                    <tr style="background: #fff;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">16</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">35</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">10</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">245</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">3,185,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">541,450₽ (17%)</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">3,630,350₽</td>
+                    </tr>
+                    <tr style="background: #f9f9f9;">
+                        <td style="padding: 12px; border: 1px solid #ddd;">20</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">42</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">15</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">348</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">4,524,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">678,600₽ (15%)</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">5,988,950₽</td>
+                    </tr>
+                    <tr style="background: #f0f9ff;">
+                        <td style="padding: 12px; border: 1px solid #ddd; font-weight: 700;">24</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd; font-weight: 700;">52</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd; font-weight: 700;">25</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #ddd; font-weight: 700;">527</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">6,851,000₽</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700;">822,120₽ (12%)</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #ddd; font-weight: 700; background: #667eea; color: white;">9,459,070₽</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div style="background: #f0f9ff; padding: 30px; border-radius: 10px; margin-top: 40px;">
+                <h3 style="color: #667eea; margin-bottom: 20px; font-size: 22px;">📌 Примечания к расчетам</h3>
+                <ul style="font-size: 16px; line-height: 1.8; color: #555;">
+                    <li><strong>Средний чек:</strong> 13,000₽/месяц на клиента</li>
+                    <li><strong>Churn rate:</strong> 5% в месяц (стандарт для B2B SaaS)</li>
+                    <li><strong>Логика роста:</strong> Реинвестирование экономии от меньшего % в маркетинг</li>
+                    <li><strong>Прогрессивная шкала:</strong>
+                        <ul style="margin-top: 10px;">
+                            <li>0-100 клиентов: 20%</li>
+                            <li>101-300 клиентов: 17%</li>
+                            <li>301-500 клиентов: 15%</li>
+                            <li>500+ клиентов: 12%</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto';
+        Chart.defaults.font.size = 14;
+
+        const months = [1, 2, 3, 6, 12, 18, 24];
+
+        // График 1: Накопленный доход YClients
+        new Chart(document.getElementById('revenueChart'), {
+            type: 'line',
+            data: {
+                labels: months.map(m => `Месяц ${m}`),
+                datasets: [
+                    {
+                        label: '25% Фикс',
+                        data: [16250, 48750, 97500, 359750, 1566250, 3647250, 6393000],
+                        borderColor: 'rgb(220, 53, 69)',
+                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                        borderWidth: 4,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    },
+                    {
+                        label: 'Прогрессивная 20%→17%→15%→12%',
+                        data: [13000, 41600, 88400, 462400, 1864900, 5988950, 9459070],
+                        borderColor: 'rgb(102, 126, 234)',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 4,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    },
+                    {
+                        label: '15% Фикс',
+                        data: [9750, 33150, 72150, 531750, 2145750, 5451150, 10509250],
+                        borderColor: 'rgb(40, 167, 69)',
+                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                        borderWidth: 4,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            padding: 20,
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 15,
+                        titleFont: {
+                            size: 16
+                        },
+                        bodyFont: {
+                            size: 15
+                        },
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' +
+                                       new Intl.NumberFormat('ru-RU').format(context.parsed.y) + '₽';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return (value / 1000000).toFixed(1) + 'M₽';
+                            },
+                            font: {
+                                size: 14
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            font: {
+                                size: 14
+                            }
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+
+        // График 2: Рост клиентской базы
+        new Chart(document.getElementById('clientsChart'), {
+            type: 'bar',
+            data: {
+                labels: months.map(m => `Месяц ${m}`),
+                datasets: [
+                    {
+                        label: '25% Фикс',
+                        data: [5, 10, 15, 38, 95, 158, 228],
+                        backgroundColor: 'rgba(220, 53, 69, 0.8)',
+                        borderColor: 'rgb(220, 53, 69)',
+                        borderWidth: 2
+                    },
+                    {
+                        label: 'Прогрессивная 20%→17%→15%→12%',
+                        data: [5, 11, 18, 55, 145, 348, 527],
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: 'rgb(102, 126, 234)',
+                        borderWidth: 2
+                    },
+                    {
+                        label: '15% Фикс',
+                        data: [5, 12, 20, 68, 198, 368, 558],
+                        backgroundColor: 'rgba(40, 167, 69, 0.8)',
+                        borderColor: 'rgb(40, 167, 69)',
+                        borderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            padding: 20,
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 15,
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + context.parsed.y + ' клиентов';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return value + ' кл.';
+                            },
+                            font: {
+                                size: 14
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            font: {
+                                size: 14
+                            }
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+
+        // График 3: Ежемесячный доход YClients
+        new Chart(document.getElementById('monthlyRevenueChart'), {
+            type: 'line',
+            data: {
+                labels: months.map(m => `Месяц ${m}`),
+                datasets: [
+                    {
+                        label: '25% Фикс',
+                        data: [16250, 32500, 48750, 123500, 308750, 513500, 741000],
+                        borderColor: 'rgb(220, 53, 69)',
+                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                        borderWidth: 4,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    },
+                    {
+                        label: 'Прогрессивная 20%→17%→15%→12%',
+                        data: [13000, 28600, 46800, 143000, 320450, 678600, 822120],
+                        borderColor: 'rgb(102, 126, 234)',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 4,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    },
+                    {
+                        label: '15% Фикс',
+                        data: [9750, 23400, 39000, 132600, 386100, 717600, 1088100],
+                        borderColor: 'rgb(40, 167, 69)',
+                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                        borderWidth: 4,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            padding: 20,
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 15,
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' +
+                                       new Intl.NumberFormat('ru-RU').format(context.parsed.y) + '₽/мес';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return (value / 1000).toFixed(0) + 'K₽';
+                            },
+                            font: {
+                                size: 14
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            font: {
+                                size: 14
+                            }
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+
+        // График 4: Прибыль AdminAI
+        new Chart(document.getElementById('profitChart'), {
+            type: 'line',
+            data: {
+                labels: months.map(m => `Месяц ${m}`),
+                datasets: [
+                    {
+                        label: '25% Фикс',
+                        data: [8250, 57250, 140500, 385200, 1061950, 2232650, 3960850],
+                        borderColor: 'rgb(220, 53, 69)',
+                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                        borderWidth: 4,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    },
+                    {
+                        label: 'Прогрессивная 20%→17%→15%→12%',
+                        data: [11500, 69300, 175700, 562200, 2554200, 7593850, 12441530],
+                        borderColor: 'rgb(102, 126, 234)',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 4,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    },
+                    {
+                        label: '15% Фикс',
+                        data: [14750, 83650, 214150, 739750, 2428850, 5659450, 10620550],
+                        borderColor: 'rgb(40, 167, 69)',
+                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                        borderWidth: 4,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            padding: 20,
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 15,
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' +
+                                       new Intl.NumberFormat('ru-RU').format(context.parsed.y) + '₽';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return (value / 1000000).toFixed(1) + 'M₽';
+                            },
+                            font: {
+                                size: 14
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            font: {
+                                size: 14
+                            }
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
