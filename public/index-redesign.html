@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#f0f4f8">
+    <title>Admin AI beta - Умный WhatsApp бот для салонов красоты</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            min-height: 100vh;
+            width: 100%;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #e0f2fe 0%, #f0f4f8 50%, #e0e7ff 100%);
+            color: #334155;
+            font-weight: 400;
+            line-height: 1.6;
+        }
+
+        /* 3D Glass Background Elements */
+        .glass-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .glass-sphere {
+            position: absolute;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.1));
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow:
+                0 8px 32px rgba(31, 38, 135, 0.15),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+            animation: float 20s ease-in-out infinite;
+        }
+
+        .sphere1 {
+            width: 400px;
+            height: 400px;
+            top: 10%;
+            right: 15%;
+            animation-delay: 0s;
+        }
+
+        .sphere2 {
+            width: 300px;
+            height: 300px;
+            bottom: 20%;
+            left: 10%;
+            animation-delay: -5s;
+        }
+
+        .sphere3 {
+            width: 200px;
+            height: 200px;
+            top: 60%;
+            right: 25%;
+            animation-delay: -10s;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translate(0, 0) scale(1);
+            }
+            25% {
+                transform: translate(30px, -30px) scale(1.05);
+            }
+            50% {
+                transform: translate(-20px, 40px) scale(0.95);
+            }
+            75% {
+                transform: translate(40px, 20px) scale(1.02);
+            }
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 40px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        header {
+            padding: 30px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 700;
+            color: #0f172a;
+            text-decoration: none;
+            letter-spacing: -0.5px;
+        }
+
+        .logo sup {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 400;
+        }
+
+        nav {
+            display: flex;
+            gap: 40px;
+        }
+
+        nav a {
+            color: #64748b;
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 500;
+            transition: color 0.3s ease;
+            position: relative;
+        }
+
+        nav a:hover {
+            color: #0f172a;
+        }
+
+        nav a::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            transition: width 0.3s ease;
+        }
+
+        nav a:hover::after {
+            width: 100%;
+        }
+
+        .header-cta {
+            padding: 12px 28px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .header-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        }
+
+        /* Side Contact Panel */
+        .contact-panel {
+            position: fixed;
+            right: -450px;
+            top: 0;
+            width: 450px;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(30px);
+            border-left: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: -10px 0 50px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 60px 40px;
+            overflow-y: auto;
+        }
+
+        .contact-panel.active {
+            right: 0;
+        }
+
+        .contact-close {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.05);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: #64748b;
+            transition: all 0.3s ease;
+        }
+
+        .contact-close:hover {
+            background: rgba(0, 0, 0, 0.1);
+            transform: rotate(90deg);
+        }
+
+        .contact-panel h2 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 10px;
+        }
+
+        .contact-panel p {
+            color: #64748b;
+            font-size: 16px;
+            margin-bottom: 40px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #475569;
+            margin-bottom: 8px;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 14px 18px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(203, 213, 225, 0.5);
+            border-radius: 12px;
+            font-family: 'Inter', sans-serif;
+            font-size: 15px;
+            color: #0f172a;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .form-submit {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .form-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        }
+
+        /* Panel Overlay */
+        .panel-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(5px);
+            z-index: 999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .panel-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 90vh;
+            display: flex;
+            align-items: center;
+            padding: 100px 0;
+        }
+
+        .hero-content {
+            max-width: 700px;
+        }
+
+        .hero h1 {
+            font-size: clamp(48px, 6vw, 72px);
+            font-weight: 800;
+            line-height: 1.1;
+            color: #0f172a;
+            margin-bottom: 24px;
+            letter-spacing: -2px;
+        }
+
+        .hero p {
+            font-size: clamp(18px, 2vw, 22px);
+            color: #64748b;
+            margin-bottom: 40px;
+            line-height: 1.7;
+            font-weight: 400;
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 18px 40px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 35px rgba(59, 130, 246, 0.4);
+        }
+
+        /* Feature Section with Lines */
+        .features {
+            padding: 120px 0;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 80px;
+        }
+
+        .section-header h2 {
+            font-size: clamp(36px, 5vw, 52px);
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 16px;
+            letter-spacing: -1px;
+        }
+
+        .section-header p {
+            font-size: 20px;
+            color: #64748b;
+        }
+
+        .feature-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .feature-item {
+            display: grid;
+            grid-template-columns: 80px 1fr;
+            gap: 40px;
+            padding: 60px 0;
+            border-bottom: 1px solid rgba(203, 213, 225, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .feature-item:first-child {
+            border-top: 1px solid rgba(203, 213, 225, 0.3);
+        }
+
+        .feature-item:hover {
+            background: rgba(255, 255, 255, 0.5);
+            padding-left: 20px;
+            padding-right: 20px;
+            margin: 0 -20px;
+        }
+
+        .feature-number {
+            font-size: 48px;
+            font-weight: 800;
+            color: #cbd5e1;
+            line-height: 1;
+        }
+
+        .feature-content h3 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 12px;
+        }
+
+        .feature-content p {
+            font-size: 18px;
+            color: #64748b;
+            line-height: 1.7;
+        }
+
+        /* CTA Section */
+        .cta-section {
+            padding: 120px 0;
+            text-align: center;
+        }
+
+        .cta-glass-card {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 80px 60px;
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(30px);
+            border-radius: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+        }
+
+        .cta-glass-card h2 {
+            font-size: clamp(36px, 5vw, 48px);
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 20px;
+            letter-spacing: -1px;
+        }
+
+        .cta-glass-card p {
+            font-size: 20px;
+            color: #64748b;
+            margin-bottom: 40px;
+        }
+
+        /* Footer */
+        footer {
+            padding: 60px 0 40px;
+            border-top: 1px solid rgba(203, 213, 225, 0.3);
+        }
+
+        footer p {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 20px;
+            }
+
+            .header-content {
+                padding: 0 20px;
+            }
+
+            nav {
+                display: none;
+            }
+
+            .contact-panel {
+                width: 100%;
+                right: -100%;
+            }
+
+            .hero h1 {
+                font-size: 40px;
+            }
+
+            .feature-item {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .feature-number {
+                font-size: 32px;
+            }
+
+            .cta-glass-card {
+                padding: 50px 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Glass Background -->
+    <div class="glass-bg">
+        <div class="glass-sphere sphere1"></div>
+        <div class="glass-sphere sphere2"></div>
+        <div class="glass-sphere sphere3"></div>
+    </div>
+
+    <!-- Panel Overlay -->
+    <div class="panel-overlay" id="panelOverlay"></div>
+
+    <!-- Contact Panel -->
+    <div class="contact-panel" id="contactPanel">
+        <button class="contact-close" id="closePanel">&times;</button>
+        <h2>Свяжитесь с нами</h2>
+        <p>Заполните форму и мы свяжемся с вами в течение 24 часов</p>
+
+        <form id="contactForm">
+            <div class="form-group">
+                <label for="name">Имя</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Телефон</label>
+                <input type="tel" id="phone" name="phone" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+
+            <div class="form-group">
+                <label for="message">Сообщение</label>
+                <textarea id="message" name="message" required></textarea>
+            </div>
+
+            <button type="submit" class="form-submit">Отправить заявку</button>
+        </form>
+    </div>
+
+    <!-- Header -->
+    <header>
+        <div class="header-content">
+            <a href="#" class="logo">ADMIN AI<sup>beta</sup></a>
+
+            <nav>
+                <a href="#features">Возможности</a>
+                <a href="#about">О продукте</a>
+                <a href="#pricing">Цены</a>
+            </nav>
+
+            <a href="#" class="header-cta" id="openPanel">Попробовать</a>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>WhatsApp бот для салонов красоты</h1>
+                <p>Автоматизируйте запись клиентов, управление расписанием и коммуникацию через WhatsApp с помощью AI</p>
+                <a href="#" class="cta-button" id="heroBtn">Начать бесплатно</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features" id="features">
+        <div class="container">
+            <div class="section-header">
+                <h2>Возможности</h2>
+                <p>Все что нужно для автоматизации вашего салона</p>
+            </div>
+
+            <div class="feature-list">
+                <div class="feature-item">
+                    <div class="feature-number">01</div>
+                    <div class="feature-content">
+                        <h3>Умные диалоги</h3>
+                        <p>AI понимает естественную речь и ведет диалог как живой администратор. Отвечает на вопросы, записывает клиентов и предлагает удобное время.</p>
+                    </div>
+                </div>
+
+                <div class="feature-item">
+                    <div class="feature-number">02</div>
+                    <div class="feature-content">
+                        <h3>Автоматическая запись</h3>
+                        <p>Бот самостоятельно записывает клиентов в YClients, проверяет свободное время и подтверждает записи без вашего участия.</p>
+                    </div>
+                </div>
+
+                <div class="feature-item">
+                    <div class="feature-number">03</div>
+                    <parameter name="feature-content">
+                        <h3>Напоминания и уведомления</h3>
+                        <p>Автоматические напоминания о записях, уведомления об изменениях и персонализированные предложения для каждого клиента.</p>
+                    </div>
+                </div>
+
+                <div class="feature-item">
+                    <div class="feature-number">04</div>
+                    <div class="feature-content">
+                        <h3>Работает 24/7</h3>
+                        <p>Никогда не упустите клиента - бот работает круглосуточно, даже когда вы спите или заняты с другими клиентами.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-glass-card">
+                <h2>Готовы автоматизировать ваш салон?</h2>
+                <p>Присоединяйтесь к 1,500+ салонам, которые уже работают с Admin AI beta</p>
+                <a href="#" class="cta-button" id="ctaBtn">Попробовать бесплатно</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p>© 2024 ADMIN AI. Все права защищены.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Contact Panel
+        const openPanel = document.getElementById('openPanel');
+        const heroBtn = document.getElementById('heroBtn');
+        const ctaBtn = document.getElementById('ctaBtn');
+        const closePanel = document.getElementById('closePanel');
+        const contactPanel = document.getElementById('contactPanel');
+        const panelOverlay = document.getElementById('panelOverlay');
+
+        function openContactPanel(e) {
+            e.preventDefault();
+            contactPanel.classList.add('active');
+            panelOverlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeContactPanel() {
+            contactPanel.classList.remove('active');
+            panelOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        openPanel.addEventListener('click', openContactPanel);
+        heroBtn.addEventListener('click', openContactPanel);
+        ctaBtn.addEventListener('click', openContactPanel);
+        closePanel.addEventListener('click', closeContactPanel);
+        panelOverlay.addEventListener('click', closeContactPanel);
+
+        // Form submission
+        document.getElementById('contactForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            alert('Спасибо! Мы свяжемся с вами в ближайшее время.');
+            closeContactPanel();
+            this.reset();
+        });
+
+        // Smooth scroll
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                const href = this.getAttribute('href');
+                if (href !== '#') {
+                    e.preventDefault();
+                    const target = document.querySelector(href);
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
