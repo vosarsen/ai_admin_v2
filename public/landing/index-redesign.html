@@ -343,7 +343,7 @@
             text-align: center;
         }
 
-        /* Stats with vertical lines */
+        /* Stats with curved lines */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -358,14 +358,25 @@
             position: relative;
         }
 
-        .stat-item:not(:last-child)::after {
-            content: '';
+        /* Curved divider lines */
+        .curved-divider {
             position: absolute;
-            right: 0;
-            top: 20%;
-            height: 60%;
+            top: 0;
+            height: 100%;
             width: 1px;
-            background: linear-gradient(180deg, transparent, rgba(203, 213, 225, 0.4) 20%, rgba(203, 213, 225, 0.4) 80%, transparent);
+            pointer-events: none;
+        }
+
+        .curved-divider svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .curved-divider path {
+            stroke: rgba(203, 213, 225, 0.3);
+            stroke-width: 1;
+            fill: none;
+            vector-effect: non-scaling-stroke;
         }
 
         .stat-number {
@@ -382,7 +393,7 @@
             font-weight: 500;
         }
 
-        /* Problems with vertical lines */
+        /* Problems with curved lines */
         .grid-4 {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -395,16 +406,6 @@
             position: relative;
             text-align: center;
             transition: all 0.3s ease;
-        }
-
-        .problem-card:not(:last-child)::after {
-            content: '';
-            position: absolute;
-            right: 0;
-            top: 20%;
-            height: 60%;
-            width: 1px;
-            background: linear-gradient(180deg, transparent, rgba(203, 213, 225, 0.4) 20%, rgba(203, 213, 225, 0.4) 80%, transparent);
         }
 
         .problem-card:hover {
@@ -646,7 +647,7 @@
             color: #06b6d4;
         }
 
-        /* Pricing with vertical lines */
+        /* Pricing with curved lines */
         .pricing-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -661,16 +662,6 @@
             text-align: center;
             transition: all 0.3s ease;
             position: relative;
-        }
-
-        .pricing-card:not(:last-child)::after {
-            content: '';
-            position: absolute;
-            right: 0;
-            top: 15%;
-            height: 70%;
-            width: 1px;
-            background: linear-gradient(180deg, transparent, rgba(203, 213, 225, 0.4) 20%, rgba(203, 213, 225, 0.4) 80%, transparent);
         }
 
         .pricing-card:hover {
@@ -808,10 +799,8 @@
                 grid-template-columns: 1fr;
             }
 
-            /* Remove vertical lines on mobile */
-            .stat-item::after,
-            .problem-card::after,
-            .pricing-card::after {
+            /* Hide curved dividers on mobile */
+            .curved-divider {
                 display: none;
             }
 
@@ -921,10 +910,20 @@
                 <div class="stat-item">
                     <div class="stat-number">1,500+</div>
                     <div class="stat-label">Активных салонов</div>
+                    <div class="curved-divider" style="right: 0;">
+                        <svg viewBox="0 0 2 200" preserveAspectRatio="none">
+                            <path d="M 1 30 L 1 50 C 1 70, 1 80, 1 90 L 1 170" />
+                        </svg>
+                    </div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-number">95%</div>
                     <div class="stat-label">Автоматизация</div>
+                    <div class="curved-divider" style="right: 0;">
+                        <svg viewBox="0 0 2 200" preserveAspectRatio="none">
+                            <path d="M 1 30 L 1 50 C 1 70, 1 80, 1 90 L 1 170" />
+                        </svg>
+                    </div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-number">24/7</div>
@@ -948,6 +947,11 @@
                     </div>
                     <div class="problem-title">Сообщения после 19:00</div>
                     <div class="problem-text">Клиенты уходят к конкурентам</div>
+                    <div class="curved-divider" style="right: 0;">
+                        <svg viewBox="0 0 2 200" preserveAspectRatio="none">
+                            <path d="M 1 30 L 1 50 C 1 70, 1 80, 1 90 L 1 170" />
+                        </svg>
+                    </div>
                 </div>
                 <div class="problem-card">
                     <div class="problem-number">.02</div>
@@ -958,6 +962,11 @@
                     </div>
                     <div class="problem-title">Администратор заболел</div>
                     <div class="problem-text">Записи теряются</div>
+                    <div class="curved-divider" style="right: 0;">
+                        <svg viewBox="0 0 2 200" preserveAspectRatio="none">
+                            <path d="M 1 30 L 1 50 C 1 70, 1 80, 1 90 L 1 170" />
+                        </svg>
+                    </div>
                 </div>
                 <div class="problem-card">
                     <div class="problem-number">.03</div>
@@ -968,6 +977,11 @@
                     </div>
                     <div class="problem-title">Текучка кадров</div>
                     <div class="problem-text">Новый админ каждые 3 месяца</div>
+                    <div class="curved-divider" style="right: 0;">
+                        <svg viewBox="0 0 2 200" preserveAspectRatio="none">
+                            <path d="M 1 30 L 1 50 C 1 70, 1 80, 1 90 L 1 170" />
+                        </svg>
+                    </div>
                 </div>
                 <div class="problem-card">
                     <div class="problem-number">.04</div>
@@ -1129,6 +1143,11 @@
                         <li>Email поддержка</li>
                     </ul>
                     <a href="#" class="cta-button">Выбрать план</a>
+                    <div class="curved-divider" style="right: 0;">
+                        <svg viewBox="0 0 2 200" preserveAspectRatio="none">
+                            <path d="M 1 30 L 1 50 C 1 70, 1 80, 1 90 L 1 170" />
+                        </svg>
+                    </div>
                 </div>
 
                 <div class="pricing-card featured">
@@ -1142,6 +1161,11 @@
                         <li>Персональный менеджер</li>
                     </ul>
                     <a href="#" class="cta-button">Выбрать план</a>
+                    <div class="curved-divider" style="right: 0;">
+                        <svg viewBox="0 0 2 200" preserveAspectRatio="none">
+                            <path d="M 1 30 L 1 50 C 1 70, 1 80, 1 90 L 1 170" />
+                        </svg>
+                    </div>
                 </div>
 
                 <div class="pricing-card">
