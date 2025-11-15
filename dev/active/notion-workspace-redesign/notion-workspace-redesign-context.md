@@ -1,8 +1,9 @@
 # Notion Workspace Redesign - Context & Key Decisions
 
-**Last Updated:** 2025-11-15
-**Phase:** 0 - Planning Complete, Implementation Ready
-**Status:** Research complete, plan approved, ready to execute
+**Last Updated:** 2025-11-15 (Phase 0 Complete)
+**Current Phase:** Phase 0 ✅ COMPLETE | Phase 1 Ready to Start
+**Status:** POC infrastructure deployed, sync automation planned
+**Next Session:** Begin Phase 1 implementation (sync scripts)
 
 ---
 
@@ -156,9 +157,18 @@ Option C: 1 Database (too simple)
 
 **Optional 4th (Future):** Deployments (if Phase 0-2 succeed and logging proves valuable)
 
-### Decision 3: Daily Cron, Not Real-Time File Watchers
-**Decided:** 2025-11-15
-**Reason:** Performance, reliability, simplicity
+### Decision 3: High-Frequency Cron Sync (UPDATED 2025-11-15)
+**Decided:** 2025-11-15 (Updated after user feedback)
+**Reason:** Near real-time updates without file watcher complexity
+
+**Evolution of Decision:**
+```
+Original Plan: Daily at 2am
+  ↓
+User Feedback: "Too slow, need more frequent updates"
+  ↓
+Final Decision: Every 15 minutes + nightly full sync
+```
 
 **Analysis:**
 ```
@@ -167,25 +177,55 @@ File Watcher (chokidar):
 - Resource intensive (RAM, CPU)
 - Fails at scale (100k+ files)
 - Complex state management
-- Single point of failure (daemon crash)
+❌ REJECTED
 
-Daily Cron (node-cron):
+Daily Cron (2am only):
 + Simple, reliable
+- Updates delayed 24h max
+❌ TOO SLOW per user feedback
+
+High-Frequency Cron (CHOSEN):
++ Near real-time (max 15 min delay)
++ Simple, reliable like daily cron
 + Low resource usage
 + Easy to debug
-+ Natural batching
-- Updates delayed until 2am
++ Can run manual sync anytime
+✅ BEST BALANCE
 ```
 
-**Choice:** Daily cron at 2am UTC+3
+**Final Choice:** Every 15 minutes (8:00-23:00) + nightly full sync
 
-**Rationale:**
-- Project updates rarely urgent (can wait until morning)
-- Team works 9am-6pm, sync overnight = fresh data at start
-- Reduces API calls by 95% (batch vs per-file)
-- PM2 can manage cron jobs easily
+**Configuration:**
+```javascript
+// Primary sync: Every 15 minutes during work hours
+cron.schedule('*/15 8-23 * * *', () => syncAllProjects());
 
-**Future:** Can add manual trigger for urgent updates
+// Safety sync: Full sync at night
+cron.schedule('0 2 * * *', () => syncAllProjects({ force: true }));
+
+// Manual trigger available anytime
+npm run notion:sync
+```
+
+**API Load Calculation (Safety Verified):**
+```
+64 syncs/day (15-min intervals, 16 hours)
+× 3 projects
+× 10 API calls/project (worst case)
+= 1,920 calls/day
+÷ 86,400 seconds
+= 0.022 req/sec
+
+Notion Limit: 3 req/sec
+Our Load: 0.022 req/sec (136x safety margin!)
+✅ COMPLETELY SAFE
+```
+
+**Rollback Plan:**
+- Can increase interval to 30 min (change `*/15` → `*/30`)
+- Can disable during high-load periods
+- Manual sync always available
+- Markdown remains source of truth
 
 ### Decision 4: BullMQ for Rate Limiting
 **Decided:** 2025-11-15
@@ -276,6 +316,277 @@ Decision Meeting (5 criteria)
 - Forces honest evaluation
 - Prevents "sunk cost fallacy" continuing
 - Based on measurable metrics, not gut feel
+
+---
+
+## ✅ Phase 0 Implementation Summary (2025-11-15)
+
+### What Was Built (Completed ~3 hours)
+
+**Infrastructure Created:**
+1. **3 Notion Databases** (via MCP API):
+   - Projects DB: `2ac0a520-3786-819a-b0ab-c7758efab9fb`
+   - Tasks DB: `2ac0a520-3786-81ed-8d10-ef3bc2974e3a`
+   - Knowledge Base DB: `2ac0a520-3786-81b6-8430-d98b279dc5f2`
+   - All with proper relations, properties, and schema
+
+2. **Automation Scripts Created:**
+   - `scripts/notion-log-deployment.js` - Logs deployments to Notion
+   - `scripts/notion-import-project.js` - Imports projects from markdown
+   - `scripts/notion-create-poc-checklist.js` - Creates evaluation checklist
+   - All scripts include retry logic and error handling
+
+3. **GitHub Actions Integration:**
+   - `.github/workflows/notion-deploy-log.yml` - Auto-logs deployments
+   - Fixed Node.js version issue (18→20 for Baileys compatibility)
+   - Tested successfully with manual workflow trigger
+   - Secret `NOTION_TOKEN` configured
+
+4. **Content Imported:**
+   - Client Reactivation Service v2 project
+   - POC Evaluation Checklist with 5 success criteria
+   - Test deployment entries (verified working)
+
+5. **Views Created** (Manual in Notion UI):
+   - Projects: Active Projects (Board), Timeline, By Phase
+   - Tasks: My Tasks, Current Sprint, Backlog, Completed
+   - User completed all views successfully
+
+**Key Technical Decisions:**
+- Notion SDK `@notionhq/client` installed and working
+- One-way sync architecture validated
+- BullMQ pattern confirmed for Phase 1
+- High-frequency sync (15 min) approved after API safety calculation
+
+**Files Modified/Created:**
+```
+.github/workflows/notion-deploy-log.yml          # GitHub Actions workflow
+scripts/notion-log-deployment.js                 # Deployment logger
+scripts/notion-import-project.js                 # Project importer
+scripts/notion-create-poc-checklist.js           # POC checklist generator
+dev/active/notion-workspace-redesign/
+  ├── notion-workspace-redesign-plan.md          # Strategic plan
+  ├── notion-workspace-redesign-context.md       # This file
+  ├── notion-workspace-redesign-tasks.md         # Task tracking
+  └── GITHUB_SECRETS_SETUP.md                    # Setup instructions
+package.json                                     # Added @notionhq/client
+```
+
+**Commits:**
+- `cac1a3c` - feat: Complete Notion Workspace Phase 0 POC
+- `7d68ae5` - fix: Update GitHub Actions to Node.js 20
+
+**Testing Results:**
+- ✅ Deployment logging works (3 test deployments logged)
+- ✅ Project import works (Client Reactivation v2 imported)
+- ✅ GitHub Actions tested successfully
+- ✅ All database IDs saved and validated
+- ✅ Views created and functional
+
+**Challenges Overcome:**
+1. **Notion API annotations structure:** Fixed rich_text annotations placement
+2. **GitHub Actions Node version:** Upgraded 18→20 for Baileys compatibility
+3. **API rate limiting:** Calculated safe sync frequency (every 15 min = 136x safety margin)
+
+**Deferred to Phase 1:**
+- Individual task parsing from tasks.md (will be automated)
+- Full documentation import (50 critical docs)
+- Automated sync scripts
+- BullMQ queue setup
+
+### Current State (Ready for Phase 1)
+
+**What Works Now:**
+- Manual deployment logging (script + GitHub Actions)
+- Manual project import (one-time script)
+- Notion databases fully functional with views
+- Team can start using Notion for viewing
+
+**What's Manual (To Be Automated in Phase 1):**
+- Syncing markdown tasks to Notion (currently one-time import only)
+- Updating project status (manual in Notion or markdown)
+- Creating new tasks (manual in both places)
+
+**User Workflow Currently:**
+1. Work in markdown as usual (`/dev-docs`, tasks.md checklists)
+2. Notion shows snapshot from Phase 0 import
+3. Can manually sync with `node scripts/notion-import-project.js` if needed
+4. After Phase 1: Full automation every 15 minutes
+
+**Next Immediate Steps (Phase 1 Start):**
+1. Create markdown parser (`scripts/notion-parse-markdown.js`)
+2. Create sync orchestrator (`scripts/notion-daily-sync.js`)
+3. Set up BullMQ queue with rate limiter
+4. Configure cron (15 min + nightly)
+5. Add manual sync npm command
+6. Test full sync cycle
+
+---
+
+## 🔧 Phase 1 Implementation Guide (For Next Session)
+
+### Critical Implementation Details
+
+**Markdown Parsing Strategy:**
+```javascript
+// Parse dev/active/*/tasks.md
+// Checkboxes → Task status mapping:
+- [ ]  → Status: Todo
+- [x]  → Status: Done
+- [~]  → Status: In Progress (custom convention)
+
+// Project metadata from plan.md:
+# Project Name       → Notion: Name property
+**Status:** Active  → Notion: Status select
+**Phase:** Phase 1  → Notion: Phase select
+Components mentioned → Notion: Component multi-select
+
+// Handle edge cases (see context.md for full list):
+- Empty files → skip with warning
+- No headings → use filename
+- Malformed checkboxes → normalize
+- Duplicate task names → take latest
+```
+
+**Sync Orchestration Flow:**
+```javascript
+// scripts/notion-daily-sync.js main flow:
+1. Scan dev/active/* for project directories
+2. For each project directory:
+   a. Check if files changed since last sync (optimization)
+   b. Parse plan.md, context.md, tasks.md
+   c. Queue sync job via BullMQ (respects rate limit)
+   d. Track success/failure
+3. Log summary to console + Telegram
+4. Update last-sync timestamp
+
+// State tracking (simple JSON file approach):
+{
+  "lastFullSync": "2025-11-15T02:00:00Z",
+  "projects": {
+    "client-reactivation-service-v2": {
+      "lastSync": "2025-11-15T09:30:00Z",
+      "notionPageId": "2ac0a520-3786-812d-a646-dfd6b77e56e5",
+      "taskCount": 47,
+      "errors": 0
+    }
+  }
+}
+```
+
+**BullMQ Configuration:**
+```javascript
+// Exact setup needed:
+const { Queue, Worker } = require('bullmq');
+
+const notionQueue = new Queue('notion-sync', {
+  connection: {
+    host: 'localhost',
+    port: 6380  // Redis tunnel port
+  },
+  limiter: {
+    max: 3,        // 3 requests
+    duration: 1000 // per second
+  }
+});
+
+const worker = new Worker('notion-sync', async job => {
+  const { type, data } = job.data;
+
+  switch(type) {
+    case 'sync-project':
+      return await syncProject(data);
+    case 'sync-task':
+      return await syncTask(data);
+    default:
+      throw new Error(`Unknown job type: ${type}`);
+  }
+}, {
+  connection: { host: 'localhost', port: 6380 },
+  limiter: { max: 3, duration: 1000 }
+});
+```
+
+**Cron Setup (PM2):**
+```javascript
+// Add to ecosystem.config.js or separate file:
+{
+  name: 'notion-sync',
+  script: 'scripts/notion-daily-sync.js',
+  instances: 1,
+  exec_mode: 'fork',
+  cron_restart: '*/15 8-23 * * *',  // Every 15 min, 8am-11pm
+  autorestart: false,
+  env: {
+    NOTION_TOKEN: process.env.NOTION_TOKEN,
+    NODE_ENV: 'production'
+  }
+}
+
+// Nightly full sync (separate process):
+{
+  name: 'notion-full-sync',
+  script: 'scripts/notion-daily-sync.js',
+  args: '--force-all',
+  cron_restart: '0 2 * * *',  // Daily at 2am
+  autorestart: false
+}
+```
+
+**Manual Sync Commands (package.json):**
+```json
+{
+  "scripts": {
+    "notion:sync": "node scripts/notion-daily-sync.js --now",
+    "notion:sync:project": "node scripts/notion-sync-project.js",
+    "notion:sync:force": "node scripts/notion-daily-sync.js --force-all",
+    "notion:health": "node scripts/notion-health-check.js"
+  }
+}
+```
+
+### Files to Create in Phase 1
+
+**Priority Order:**
+1. `scripts/notion-parse-markdown.js` (2h) - Core parsing logic
+2. `scripts/notion-sync-project.js` (2h) - Single project sync
+3. `scripts/notion-daily-sync.js` (2h) - Orchestrator
+4. `src/queue/notion-queue.ts` (2h) - BullMQ setup
+5. `scripts/notion-health-check.js` (1h) - Monitoring
+6. `docs/NOTION_SYNC_ARCHITECTURE.md` (1h) - Documentation
+7. `docs/NOTION_EMERGENCY_SYNC.md` (30min) - Troubleshooting
+
+**Testing Checklist:**
+- [ ] Parse client-reactivation-service-v2 correctly
+- [ ] Parse notion-workspace-redesign correctly
+- [ ] Handle empty files gracefully
+- [ ] Respect rate limit (monitor BullMQ)
+- [ ] Sync completes in <2 minutes
+- [ ] Manual trigger works
+- [ ] Cron runs automatically
+- [ ] Telegram alerts on failure
+
+### Known Gotchas for Phase 1
+
+1. **Redis Connection:** Use port 6380 (SSH tunnel), not 6379
+2. **Notion API:** Always include database_id in parent object
+3. **Task Deduplication:** Use task name as unique key, update not create
+4. **Idempotency:** Running sync twice = same result (no duplicates)
+5. **Error Handling:** One project failure shouldn't stop entire sync
+6. **Rate Limiting:** BullMQ handles it, but log if approaching limit
+
+### Success Metrics (Phase 1)
+
+**Must Achieve:**
+- Sync accuracy: 100% (all tasks matched)
+- Sync speed: <2 minutes for 3 projects
+- API rate: <3 req/sec (monitor logs)
+- Zero manual intervention for 1 week
+
+**Nice to Have:**
+- Smart sync (skip unchanged projects)
+- Bull Board dashboard
+- Detailed sync reports in Telegram
 
 ---
 
