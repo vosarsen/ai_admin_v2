@@ -274,90 +274,131 @@ async function findProjectTasks(projectPageId) {
 }
 
 /**
- * Create or update a single task in Notion
+ * Create or update a PHASE-LEVEL task in Notion
  */
-async function syncTask(task, projectPageId, existingTasks) {
-  // Check if task already exists (match by name)
-  const existing = existingTasks.find(t => {
-    const titleProp = t.properties.Name?.title?.[0]?.text?.content;
-    return titleProp === task.name;
+async function syncPhase(phase, projectPageId, existingPhases) {
+  // Check if phase already exists (match by name)
+  const existing = existingPhases.find(p => {
+    const titleProp = p.properties.Name?.title?.[0]?.text?.content;
+    return titleProp === phase.name;
   });
 
-  // Build task properties
+  // Build checklist text from array
+  const checklistText = phase.checklist.join('\n');
+
+  // Notion limit: rich_text max 2000 chars per block, max 100 blocks
+  // Split long checklists into multiple rich_text blocks
+  const MAX_CHARS = 1900; // Leave buffer
+  const checklistBlocks = [];
+
+  if (checklistText.length <= MAX_CHARS) {
+    checklistBlocks.push({ text: { content: checklistText } });
+  } else {
+    // Split by lines to avoid breaking in middle of task
+    const lines = phase.checklist;
+    let currentBlock = '';
+
+    for (const line of lines) {
+      const testBlock = currentBlock ? `${currentBlock}\n${line}` : line;
+
+      if (testBlock.length > MAX_CHARS) {
+        // Save current block and start new one
+        if (currentBlock) {
+          checklistBlocks.push({ text: { content: currentBlock } });
+        }
+        currentBlock = line;
+      } else {
+        currentBlock = testBlock;
+      }
+    }
+
+    // Save last block
+    if (currentBlock) {
+      checklistBlocks.push({ text: { content: currentBlock } });
+    }
+  }
+
+  // Build phase properties
   const properties = {
     Name: {
-      title: [{ text: { content: task.name } }]
+      title: [{ text: { content: phase.name } }]
     },
     Status: {
-      select: { name: task.status }
+      select: { name: phase.status }
     },
     Project: {
       relation: [{ id: projectPageId }]
+    },
+    Checklist: {
+      rich_text: checklistBlocks
+    },
+    'Phase Number': {
+      number: phase.phaseNumber
+    },
+    'Total Tasks': {
+      number: phase.totalTasks
+    },
+    'Completed Tasks': {
+      number: phase.completedTasks
     }
   };
 
-  // Add priority if available
-  if (task.priority) {
-    properties.Priority = {
-      select: { name: task.priority }
-    };
-  }
-
-  // Add estimated hours if available
-  if (task.estimatedHours !== null) {
-    properties['Estimated Hours'] = {
-      number: task.estimatedHours
-    };
-  }
-
   try {
     if (existing) {
-      // Check if task has changed (status or priority)
+      // Check if phase has changed (status, checklist, or completion)
       const existingStatus = existing.properties?.Status?.select?.name;
-      const existingPriority = existing.properties?.Priority?.select?.name;
 
-      const statusChanged = existingStatus !== task.status;
-      const priorityChanged = task.priority && existingPriority !== task.priority;
+      // Reconstruct existing checklist from all rich_text blocks
+      const existingChecklistBlocks = existing.properties?.Checklist?.rich_text || [];
+      const existingChecklist = existingChecklistBlocks
+        .map(block => block.text?.content || '')
+        .join('');
 
-      if (!statusChanged && !priorityChanged) {
-        // Task unchanged, skip update
-        return { action: 'skipped', task: task.name };
+      const existingCompleted = existing.properties?.['Completed Tasks']?.number || 0;
+
+      const statusChanged = existingStatus !== phase.status;
+      const checklistChanged = existingChecklist !== checklistText;
+      const completedChanged = existingCompleted !== phase.completedTasks;
+
+      if (!statusChanged && !checklistChanged && !completedChanged) {
+        // Phase unchanged, skip update
+        return { action: 'skipped', phase: phase.name };
       }
 
-      // Update existing task (only if changed)
+      // Update existing phase (only if changed)
       await retryWithBackoff(async () => {
         return await notion.pages.update({
           page_id: existing.id,
           properties
         });
-      }, 3, `Updating task "${task.name}"`);
+      }, 3, `Updating phase "${phase.name}"`);
 
-      return { action: 'updated', task: task.name };
+      return { action: 'updated', phase: phase.name };
     } else {
-      // Create new task
+      // Create new phase
       await retryWithBackoff(async () => {
         return await notion.pages.create({
           parent: { database_id: TASKS_DB },
           properties
         });
-      }, 3, `Creating task "${task.name}"`);
+      }, 3, `Creating phase "${phase.name}"`);
 
-      return { action: 'created', task: task.name };
+      return { action: 'created', phase: phase.name };
     }
   } catch (error) {
-    console.error(`❌ Failed to sync task "${task.name}":`, error.message);
-    return { action: 'failed', task: task.name, error: error.message };
+    console.error(`❌ Failed to sync phase "${phase.name}":`, error.message);
+    return { action: 'failed', phase: phase.name, error: error.message };
   }
 }
 
 /**
- * Sync all tasks for a project
+ * Sync all PHASES for a project (not individual tasks!)
  */
-async function syncProjectTasks(tasks, projectPageId) {
-  console.log(`\n📋 Syncing ${tasks.length} tasks...`);
+async function syncProjectTasks(phases, projectPageId) {
+  console.log(`\n📋 Syncing ${phases.length} phases...`);
 
-  // Get existing tasks first
-  const existingTasks = await findProjectTasks(projectPageId);
+  // Get existing phases first
+  const existingPhases = await findProjectTasks(projectPageId);
 
   const results = {
     created: [],
@@ -366,22 +407,22 @@ async function syncProjectTasks(tasks, projectPageId) {
     failed: []
   };
 
-  // Sync tasks one by one (BullMQ will handle this in production)
-  for (const task of tasks) {
-    const result = await syncTask(task, projectPageId, existingTasks);
+  // Sync phases one by one
+  for (const phase of phases) {
+    const result = await syncPhase(phase, projectPageId, existingPhases);
 
     if (result.action === 'created') {
-      results.created.push(result.task);
-      console.log(`  ✅ Created: ${result.task}`);
+      results.created.push(result.phase);
+      console.log(`  ✅ Created: ${result.phase} (${phase.completedTasks}/${phase.totalTasks} tasks)`);
     } else if (result.action === 'updated') {
-      results.updated.push(result.task);
-      console.log(`  🔄 Updated: ${result.task}`);
+      results.updated.push(result.phase);
+      console.log(`  🔄 Updated: ${result.phase} (${phase.completedTasks}/${phase.totalTasks} tasks)`);
     } else if (result.action === 'skipped') {
-      results.skipped.push(result.task);
-      // Don't log skipped tasks to keep output clean
+      results.skipped.push(result.phase);
+      // Don't log skipped phases to keep output clean
     } else if (result.action === 'failed') {
-      results.failed.push({ task: result.task, error: result.error });
-      console.log(`  ❌ Failed: ${result.task}`);
+      results.failed.push({ phase: result.phase, error: result.error });
+      console.log(`  ❌ Failed: ${result.phase}`);
     }
   }
 
@@ -427,32 +468,36 @@ async function syncProject(projectPath) {
     // Step 1: Sync project page
     const projectPage = await syncProjectPage(projectData);
 
-    // Step 2: Sync tasks
-    const taskResults = await syncProjectTasks(projectData.tasks, projectPage.id);
+    // Step 2: Sync phases (not individual tasks!)
+    const phaseResults = await syncProjectTasks(projectData.tasks, projectPage.id);
 
     // Step 3: Report results
     console.log(`\n📊 Sync Summary:`);
     console.log(`  Project: ${projectData.name} ✅`);
-    console.log(`  Tasks created: ${taskResults.created.length}`);
-    console.log(`  Tasks updated: ${taskResults.updated.length}`);
-    console.log(`  Tasks skipped: ${taskResults.skipped.length} (unchanged)`);
-    console.log(`  Tasks failed: ${taskResults.failed.length}`);
+    console.log(`  Phases created: ${phaseResults.created.length}`);
+    console.log(`  Phases updated: ${phaseResults.updated.length}`);
+    console.log(`  Phases skipped: ${phaseResults.skipped.length} (unchanged)`);
+    console.log(`  Phases failed: ${phaseResults.failed.length}`);
 
-    if (taskResults.failed.length > 0) {
-      console.log(`\n⚠️  Failed tasks:`);
-      taskResults.failed.forEach(f => {
-        console.log(`    - ${f.task}: ${f.error}`);
+    if (phaseResults.failed.length > 0) {
+      console.log(`\n⚠️  Failed phases:`);
+      phaseResults.failed.forEach(f => {
+        console.log(`    - ${f.phase}: ${f.error}`);
       });
     }
 
     return {
-      success: taskResults.failed.length === 0,
+      success: phaseResults.failed.length === 0,
       project: projectData.name,
       projectPageId: projectPage.id,
-      tasksCreated: taskResults.created.length,
-      tasksUpdated: taskResults.updated.length,
-      tasksFailed: taskResults.failed.length,
-      results: taskResults
+      phasesCreated: phaseResults.created.length,
+      phasesUpdated: phaseResults.updated.length,
+      phasesFailed: phaseResults.failed.length,
+      // Keep old names for backward compatibility
+      tasksCreated: phaseResults.created.length,
+      tasksUpdated: phaseResults.updated.length,
+      tasksFailed: phaseResults.failed.length,
+      results: phaseResults
     };
   } catch (error) {
     console.error(`\n❌ Sync failed:`, error.message);
