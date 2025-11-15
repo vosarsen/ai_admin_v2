@@ -1,8 +1,8 @@
 # Notion Workspace Redesign - Task Checklist
 
 **Last Updated:** 2025-11-15
-**Current Phase:** Phase 1 - COMPLETE ✅
-**Status:** Production ready, PM2 cron automation active
+**Current Phase:** Phase 1.5 - Tasks Database Restructure (NEW!)
+**Status:** Planning complete, ready to implement phase-level tasks
 
 ---
 
@@ -292,6 +292,249 @@
   - Would different approach work?
 - **Completed:** _____
 - **Decision:** _____
+
+---
+
+## 🔄 Phase 1.5: Tasks Database Restructure (3-4 hours total) **NEW!**
+
+**Goal:** Reduce task granularity from 253 individual tasks → 10-15 phase-level tasks
+**Reason:** User feedback "Задач слишком много, ничего не видно и не понятно"
+**Timeline:** Next session
+**Approach:** Phase-Level Tasks with Checklist Property (Proposal 1)
+
+### Database Schema Update (15 min)
+
+⬜ **R-1:** Add new properties to Tasks database [S - 15min]
+- [ ] Open Tasks database in Notion
+- [ ] Add "Checklist" property:
+  - Type: Text (Long text)
+  - Enable "Show as markdown" option
+  - This will store all sub-tasks as formatted text
+- [ ] Add "Phase Number" property:
+  - Type: Number
+  - Used for sorting phases in order
+- [ ] Add "Total Tasks" property:
+  - Type: Number
+  - Count of checklist items
+- [ ] Add "Completed Tasks" property:
+  - Type: Number
+  - Count of ☑ checked items
+- [ ] Add "Progress %" property:
+  - Type: Formula
+  - Formula: `prop("Completed Tasks") / prop("Total Tasks") * 100`
+  - Number format with 0 decimals
+- [ ] Verify all properties visible in table view
+- **Acceptance:** All 5 new properties added and functional
+- **Completed:** _____
+
+### Parser Modification (1 hour)
+
+⬜ **R-2:** Update markdown parser for phase extraction [M - 1h]
+- [ ] Open `scripts/notion-parse-markdown.js`
+- [ ] Modify `parseProjectTasks()` function:
+  - [ ] Change from parsing individual checkboxes to parsing phase sections
+  - [ ] Detect phase headers: `## 📦 DAY 1:` or `## Phase 1:`
+  - [ ] Extract phase name, number, estimated hours
+  - [ ] Collect all checkboxes under each phase into checklist array
+  - [ ] Convert checkbox symbols: ⬜ → ☐, ✅ → ☑, 🔄 → ⏳
+  - [ ] Handle indented sub-tasks (indent in checklist text)
+  - [ ] Calculate total tasks and completed tasks per phase
+  - [ ] Determine phase status: Todo (0%), In Progress (1-99%), Done (100%)
+- [ ] Add helper functions:
+  - [ ] `extractPhaseNumber(text)` - Parse "DAY 1", "Phase 2", etc.
+  - [ ] `extractEstimatedHours(text)` - Parse "(6-8 hours)"
+- [ ] Test parser with all 3 active projects
+- [ ] Verify output structure:
+  ```javascript
+  {
+    name: "DAY 1: Database Foundation",
+    phaseNumber: 1,
+    checklist: ["☐ 1.1 Task", "  ☐ Sub-task", "☐ 1.2 Task"],
+    totalTasks: 45,
+    completedTasks: 0,
+    status: "Todo",
+    estimatedHours: 7
+  }
+  ```
+- **Acceptance:** Parser outputs phase objects, not individual task objects
+- **Completed:** _____
+
+### Sync Script Modification (1.5 hours)
+
+⬜ **R-3:** Update sync script for phase-level tasks [M - 1.5h]
+- [ ] Open `scripts/notion-sync-project.js`
+- [ ] Replace `syncProjectTasks()` function:
+  - [ ] Rename to handle phases instead of tasks
+  - [ ] Call new `syncPhase()` for each phase
+  - [ ] Track created/updated/skipped/failed phases
+- [ ] Create new `syncPhase(phase, projectPageId, existingPhases)`:
+  - [ ] Find existing phase by name
+  - [ ] Build checklist text: `phase.checklist.join('\n')`
+  - [ ] Build Notion properties object with Checklist, Phase Number, Total Tasks, etc.
+  - [ ] Check if checklist/status/progress changed
+  - [ ] If changed: Update via `notion.pages.update()`
+  - [ ] If new: Create via `notion.pages.create()`
+  - [ ] If unchanged: Skip (log "⏭️ Skipped")
+- [ ] Update `findProjectPhases(projectPageId)`:
+  - [ ] Search for phase tasks (not individual tasks)
+  - [ ] Filter by Project relation
+  - [ ] Return array of existing phase tasks
+- [ ] Update logging to show phase counts:
+  - "✅ Created: DAY 1: Database Foundation"
+  - "🔄 Updated: DAY 2: Core Logic"
+  - "⏭️ Skipped: Phase 1: Foundation (unchanged)"
+- [ ] Test with one project (client-reactivation-service-v2)
+- **Acceptance:** Creates phase tasks with checklist property, not individual tasks
+- **Completed:** _____
+
+### Data Backup (15 min)
+
+⬜ **R-4:** Backup current 253 tasks before migration [S - 15min]
+- [ ] Open Tasks database in Notion
+- [ ] Click "..." → "Export"
+- [ ] Export as Markdown & CSV
+- [ ] Save to `dev/active/notion-workspace-redesign/backup-tasks-before-restructure-2025-11-15/`
+- [ ] Take screenshots of current database views (Active, In Progress, etc.)
+- [ ] Verify backup files readable
+- [ ] Commit backup to git
+- **Acceptance:** Can restore 253 tasks if needed
+- **Completed:** _____
+
+### Data Migration (30 min)
+
+⬜ **R-5:** Delete old tasks and create phase tasks [S - 30min]
+- [ ] **WARNING:** This step deletes 253 tasks (backup in R-4 completed!)
+- [ ] Open Tasks database in Notion
+- [ ] Select all tasks (Cmd/Ctrl + A)
+- [ ] Click "..." → "Delete"
+- [ ] Confirm deletion
+- [ ] Verify Tasks database is empty
+- [ ] Run sync script locally:
+  ```bash
+  node scripts/notion-sync-project.js \
+    --project=dev/active/client-reactivation-service-v2
+  ```
+- [ ] Check Notion: Should see ~6 phase tasks created
+- [ ] Verify each phase has:
+  - Correct name
+  - Checklist property filled
+  - Total/Completed tasks accurate
+  - Progress % calculated
+- [ ] Run for other projects:
+  ```bash
+  node scripts/notion-daily-sync.js
+  ```
+- [ ] Verify: ~10-15 total phase tasks (vs 253 before)
+- **Acceptance:** All phase tasks created, checklists complete
+- **Completed:** _____
+
+### Testing & Validation (30 min)
+
+⬜ **R-6:** Test new structure on desktop and mobile [S - 30min]
+- [ ] **Desktop Testing:**
+  - [ ] Open Tasks database
+  - [ ] Verify: ~10-15 phase tasks visible
+  - [ ] Click into one task
+  - [ ] Verify: Checklist property shows all sub-tasks
+  - [ ] Verify: Checkboxes formatted: ☐ and ☑
+  - [ ] Verify: Progress % calculated correctly
+  - [ ] Test filtering: Status = "In Progress" → Shows only active phases
+  - [ ] Test filtering: Project = "CRS-v2" → Shows only that project's phases
+  - [ ] Test search: Can find phases by name
+- [ ] **Mobile Testing:**
+  - [ ] Open Notion app on phone
+  - [ ] Navigate to Tasks database
+  - [ ] Verify: Loads quickly (no 5-second delay like before)
+  - [ ] Verify: Can scroll through all phases without lag
+  - [ ] Click into phase task
+  - [ ] Verify: Checklist readable on mobile
+  - [ ] Verify: Can expand/collapse checklist
+- [ ] **Sync Testing:**
+  - [ ] Edit one task in markdown: Change ⬜ to ✅
+  - [ ] Run sync: `node scripts/notion-daily-sync.js`
+  - [ ] Verify: Phase task updated in Notion
+  - [ ] Verify: Checklist shows ☑ instead of ☐
+  - [ ] Verify: Completed Tasks incremented
+  - [ ] Verify: Progress % updated
+  - [ ] Verify: Sync duration <1 min (was 5 min before)
+- **Acceptance:** Desktop + Mobile work well, sync accurate
+- **Completed:** _____
+
+### Production Deployment (15 min)
+
+⬜ **R-7:** Deploy changes to production server [S - 15min]
+- [ ] Commit all changes:
+  ```bash
+  git add scripts/notion-parse-markdown.js
+  git add scripts/notion-sync-project.js
+  git commit -m "feat(notion): Restructure Tasks DB - Phase-level with checklists (253 → 10-15 tasks)"
+  ```
+- [ ] Push to GitHub:
+  ```bash
+  git push origin main
+  ```
+- [ ] SSH to production:
+  ```bash
+  ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219
+  ```
+- [ ] Pull changes:
+  ```bash
+  cd /opt/ai-admin
+  git pull origin main
+  ```
+- [ ] Backup production Tasks database (same as R-4)
+- [ ] Delete production tasks (same as R-5)
+- [ ] Run sync:
+  ```bash
+  npm run notion:sync:force
+  ```
+- [ ] Verify phase tasks created on production
+- [ ] Monitor PM2 cron: `pm2 logs notion-sync-15min --lines 50`
+- **Acceptance:** Production using phase-level tasks
+- **Completed:** _____
+
+### Documentation Update (15 min)
+
+⬜ **R-8:** Update architecture docs with new structure [S - 15min]
+- [ ] Open `docs/NOTION_SYNC_ARCHITECTURE.md`
+- [ ] Add section: "## Task Granularity (Updated 2025-11-15)"
+  - Explain change from individual tasks to phase tasks
+  - Document new Tasks database schema
+  - Show markdown → Notion mapping examples
+  - Note benefits: 95% fewer tasks, faster sync
+- [ ] Update `CLAUDE.md` Notion section:
+  - Update task count: "10-15 phase tasks" instead of "253 tasks"
+  - Add note: "Each phase task contains checklist of sub-tasks"
+- [ ] Update this file (`notion-workspace-redesign-tasks.md`):
+  - Mark Phase 1.5 tasks complete
+  - Update time tracking
+- **Acceptance:** Documentation reflects new structure
+- **Completed:** _____
+
+### Monitoring & Feedback (Ongoing)
+
+⬜ **R-9:** Monitor for 1-2 days after deployment [Ongoing]
+- [ ] **Day 1:**
+  - [ ] Check PM2 cron runs successfully
+  - [ ] Verify no sync errors in logs
+  - [ ] Test mobile app usability
+  - [ ] Collect user feedback from Arsen
+- [ ] **Day 2:**
+  - [ ] Verify phase tasks updating correctly
+  - [ ] Check API rate (should be even lower now)
+  - [ ] Confirm sync duration <1 min
+  - [ ] Test edge cases (empty phase, all tasks done, etc.)
+- [ ] **Feedback Questions:**
+  - Is navigation easier now?
+  - Is mobile experience better?
+  - Can you find information faster?
+  - Any missing functionality?
+- [ ] **If issues found:**
+  - [ ] Document issue
+  - [ ] Assess severity
+  - [ ] Fix or rollback if critical
+- **Acceptance:** System stable for 2 days, user satisfied
+- **Completed:** _____
 
 ---
 
@@ -1108,6 +1351,7 @@
 |-------|--------|----------------|------------|-------|
 | **Phase 0: POC** | ✅ 100% Complete | 8 / 8 | ~3h / 8h | Views deferred, 3 DBs created |
 | **Phase 1: Foundation** | ✅ 100% Complete | 12 / 12 | ~4h / 21.5h | **PRODUCTION LIVE** - PM2 cron active |
+| **Phase 1.5: Restructure** | 🔄 Planning → Implementation | 0 / 9 | 0h / 3-4h | **NEW!** Reduce 253 → 10-15 tasks |
 | **Phase 2: Adoption** | ⬜ Ready to Start | 0 / 6 | 0h / 6h | Optional - Phase 1 fully operational |
 | **Phase 3: Optional** | ⬜ Not Planned | 0 / TBD | 0h / Variable | Evaluate after Phase 2 |
 

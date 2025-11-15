@@ -1,9 +1,10 @@
 # Notion Workspace Redesign - Context & Key Decisions
 
-**Last Updated:** 2025-11-15 (Phase 1 100% COMPLETE ✅ + Production ACTIVE ✅ + PM2 Cron ONLINE ✅)
-**Current Phase:** Phase 1 COMPLETE - Ready for Phase 2 (Team Adoption)
-**Status:** **PRODUCTION LIVE!** PM2 cron jobs running (every 15 min + nightly). Telegram alerts configured. Health: HEALTHY ✅
-**Next Session:** Optional Phase 2 (Team Adoption) or cleanup (move notion-mcp-integration to completed)
+**Last Updated:** 2025-11-15 (Phase 1.5 STARTING - Tasks Database Restructure)
+**Current Phase:** Phase 1.5 - Tasks Database Optimization (NEW!)
+**Status:** **PRODUCTION LIVE!** PM2 cron jobs running. Planning restructure from 253 tasks → 10-15 phase-level tasks
+**Next Session:** Implement Phase-Level Tasks with Checklist Property (Proposal 1)
+**User Feedback:** "Задач слишком много, ничего не видно и не понятно" - Need to reduce task granularity
 
 ---
 
@@ -1893,10 +1894,180 @@ pm2 start notion-sync-15min # To re-enable
 
 ---
 
-**Session End State:** 🎉 Phase 1 100% COMPLETE ✅ | Production LIVE | PM2 Cron ACTIVE | Health: HEALTHY | Same-Day Completion! 🚀
+**Session End State:** 🔄 Phase 1.5 PLANNED | Task Restructure Approved | Implementation Ready to Start
 
 **Production URLs:**
 - Projects: https://www.notion.so/2ac0a520-3786-819a-b0ab-c7758efab9fb
-- Tasks: https://www.notion.so/2ac0a520-3786-81ed-8d10-ef3bc2974e3a
+- Tasks: https://www.notion.so/2ac0a520-3786-81ed-8d10-ef3bc2974e3a (253 tasks → TO BE RESTRUCTURED)
 - Knowledge Base: https://www.notion.so/2ac0a520-3786-81b6-8430-d98b279dc5f2
+
+---
+
+## 🆕 Phase 1.5: Tasks Database Restructure (2025-11-15)
+
+### Problem Identified
+**User Feedback:** "Задач слишком много, ничего не видно и не понятно"
+
+**Current State:**
+- Tasks Database has **253 individual tasks** (overwhelming)
+- Each markdown checkbox becomes separate Notion task
+- Example: Client Reactivation v2 has 78 tasks across 6 phases
+- Hard to navigate, slow on mobile, poor overview
+
+**Analysis Completed:**
+- Plan agent analyzed 3 alternative structures
+- Evaluated pros/cons for 2-person team
+- Considered sync complexity, mobile performance, navigation
+
+### Solution Approved: Phase-Level Tasks with Checklist Property ⭐
+
+**New Structure:**
+```
+Tasks Database (10-15 phase-level tasks instead of 253)
+├── [CRS-v2] DAY 1: Database Foundation (0/45 tasks) - Todo
+│   └── Checklist Property:
+│       ☐ 1.1 Verify appointments_cache Table (CRITICAL!)
+│       ☐ 1.2 Create Migration File
+│       ☐ 1.3 Create Table: service_reactivation_intervals
+│       ... (45 items in checklist)
+├── [CRS-v2] DAY 2: Core Logic (0/18 tasks) - Todo
+│   └── Checklist Property: [18 items]
+└── [Notion] Phase 1: Foundation (12/12 tasks) - Done
+    └── Checklist Property: [12 items with ☑ completed]
+```
+
+**Key Changes:**
+1. **Task granularity:** Phase (DAY/Phase/Week) instead of individual checkbox
+2. **Checklist property:** All sub-tasks stored as formatted text with ☐/☑ checkboxes
+3. **Progress tracking:** Calculate "12/45 (27%)" from checklist completion
+4. **Dramatic reduction:** 253 individual tasks → 10-15 phase tasks (95% fewer!)
+
+**New Tasks Database Schema:**
+```javascript
+Properties:
+- Name (title): "[Project] Phase Name"
+- Status (select): Todo, In Progress, Review, Done
+- Project (relation): Link to Projects DB
+- Checklist (rich_text, long text): Markdown list with ☐/☑ checkboxes
+- Phase Number (number): 1, 2, 3...
+- Total Tasks (number): Count of items in checklist
+- Completed Tasks (number): Count of ☑ items
+- Progress % (formula): completedTasks / totalTasks * 100
+- Assignee (person): Who owns this phase
+- Priority (select): Critical, High, Medium, Low
+- Estimated Hours (number): Total for phase
+```
+
+**Markdown → Notion Mapping:**
+```javascript
+// In tasks.md:
+## 📦 DAY 1: Database Foundation (6-8 hours)
+
+### 1.1 Verify appointments_cache Table (CRITICAL!)
+- ⬜ Check table existence
+- ⬜ If exists: Verify columns
+
+### 1.2 Create Migration File
+- ⬜ Create migrations/20251112_reactivation_mvp_schema.sql
+- ⬜ Add header comments
+
+// Becomes ONE Notion task:
+Name: "[CRS-v2] DAY 1: Database Foundation"
+Status: Todo
+Checklist:
+  ☐ 1.1 Verify appointments_cache Table (CRITICAL!)
+    ☐ Check table existence
+    ☐ If exists: Verify columns
+  ☐ 1.2 Create Migration File
+    ☐ Create migrations/20251112_reactivation_mvp_schema.sql
+    ☐ Add header comments
+Total Tasks: 45
+Completed Tasks: 0
+Progress %: 0%
+```
+
+**Benefits:**
+- ✅ **95% reduction:** 253 → 10-15 tasks
+- ✅ **Easy navigation:** Clear phase overview
+- ✅ **Mobile-friendly:** Fast loading, minimal scrolling
+- ✅ **Detail preserved:** All sub-tasks in checklist property
+- ✅ **Faster sync:** <1 min (vs 5 min now)
+- ✅ **Lower API usage:** ~10-15 calls vs 253 calls
+- ✅ **Filtering works:** Can still filter by Status, Project, Assignee
+
+**Trade-offs Accepted:**
+- ⚠️ **No sub-task filtering:** Can't filter "show me all CRITICAL tasks"
+- ⚠️ **Checklist = text:** Not individual database records (but that's the point!)
+- ⚠️ **Manual progress:** Must parse checklist to calculate completion
+
+### Implementation Plan
+
+**Effort Estimate:** 3-4 hours
+
+**Files to Modify:**
+1. `scripts/notion-parse-markdown.js` (~1h)
+   - Change from parsing individual checkboxes to parsing phase sections
+   - Group tasks under `## DAY X` or `## Phase X` headings
+   - Build checklist array per phase
+   - Calculate total/completed tasks
+   - Determine phase status from completion
+
+2. `scripts/notion-sync-project.js` (~1.5h)
+   - Replace `syncTask()` with `syncPhase()`
+   - Create phase-level tasks with checklist property
+   - Update `findProjectPhases()` to search for phases not individual tasks
+   - Add change detection for checklists
+
+3. Notion Tasks Database (~15 min)
+   - Add "Checklist" property (rich_text, long text, show as markdown)
+   - Add "Phase Number" property (number)
+   - Add "Total Tasks" property (number)
+   - Add "Completed Tasks" property (number)
+   - Add "Progress %" formula property
+
+4. Data Migration (~30 min)
+   - Backup current 253 tasks (export or screenshot)
+   - Delete all existing tasks in Notion
+   - Re-run sync to create 10-15 phase tasks
+   - Verify all sub-tasks present in checklists
+   - Test on mobile
+
+**Testing Checklist:**
+- [ ] Parser extracts phases correctly from tasks.md
+- [ ] Checklist text formatted properly (☐/☑ checkboxes)
+- [ ] Progress calculation accurate (completed/total)
+- [ ] Sync creates phase tasks (not individual tasks)
+- [ ] Update detection works (skip unchanged phases)
+- [ ] Full sync completes in <1 min
+- [ ] Mobile view loads quickly
+- [ ] Can filter by phase status
+- [ ] Checklist readable and formatted nicely
+
+**Rollback Plan:**
+If new structure doesn't work:
+1. Keep backup of old 253-task export
+2. Revert parser changes (git checkout)
+3. Revert sync script changes
+4. Delete phase tasks
+5. Re-run old sync to restore 253 tasks
+
+**Next Immediate Steps (New Session):**
+1. Create todo list with implementation tasks
+2. Update Tasks database schema in Notion
+3. Modify `notion-parse-markdown.js` parser
+4. Modify `notion-sync-project.js` sync logic
+5. Test locally with one project
+6. Backup existing Notion tasks
+7. Run data migration
+8. Test on mobile
+9. Monitor for 1-2 days
+
+**Agent Recommendation:**
+- **Proposal 1** rated highest (⭐⭐⭐⭐⭐ navigation, mobile, API efficiency)
+- **Confidence:** 92% this will solve the problem
+- **Quote:** "Choose Proposal 1 - Solves the problem, simple implementation, fast sync, mobile-friendly"
+
+**User Approval:** ✅ "да, вариант 1 мне нравится"
+
+---
 
