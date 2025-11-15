@@ -191,6 +191,114 @@ function parseProjectContext(filePath) {
 }
 
 /**
+ * Extract project summary for team management view (Phase 2.0)
+ * Extracts: What is this? Why needed? Timeline. Risk Level.
+ *
+ * @param {string} planPath - Absolute path to plan.md file
+ * @param {string} contextPath - Absolute path to context.md file
+ * @returns {object} { summary, businessValue, timeline, risk }
+ */
+function extractProjectSummary(planPath, contextPath) {
+  const summary = {
+    summary: null,          // What is this? (1-2 sentences)
+    businessValue: null,    // Why needed? (1-2 sentences)
+    timeline: null,         // Time estimate (e.g., "4 days", "2-3 weeks")
+    risk: 'Medium'          // Risk level: Low/Medium/High
+  };
+
+  // Read plan.md
+  let planContent = '';
+  if (fs.existsSync(planPath)) {
+    planContent = fs.readFileSync(planPath, 'utf8');
+  }
+
+  // Read context.md
+  let contextContent = '';
+  if (fs.existsSync(contextPath)) {
+    contextContent = fs.readFileSync(contextPath, 'utf8');
+  }
+
+  // Extract "What is this?" - from Executive Summary > Mission or first paragraph after ## Executive Summary
+  const executiveSummaryMatch = planContent.match(/##\s*📋?\s*Executive Summary[\s\S]*?###\s*Mission\s*([\s\S]*?)(?=###|##|$)/i);
+  if (executiveSummaryMatch) {
+    const missionText = executiveSummaryMatch[1].trim();
+    // Extract first 1-2 sentences (up to 200 chars)
+    const sentences = missionText.split(/\.\s+/);
+    summary.summary = sentences.slice(0, 2).join('. ').substring(0, 200).trim();
+    if (!summary.summary.endsWith('.')) {
+      summary.summary += '.';
+    }
+  } else {
+    // Fallback: Try "What We're Building" from context.md
+    const whatBuildingMatch = contextContent.match(/###\s*What We're Building\s*([\s\S]*?)(?=###|##|$)/i);
+    if (whatBuildingMatch) {
+      const text = whatBuildingMatch[1].trim();
+      const sentences = text.split(/\.\s+/);
+      summary.summary = sentences.slice(0, 2).join('. ').substring(0, 200).trim();
+      if (!summary.summary.endsWith('.')) {
+        summary.summary += '.';
+      }
+    }
+  }
+
+  // Extract "Why needed?" - Priority order: Success Metrics > Key Requirements > Business Value
+  let successMetricsMatch = planContent.match(/###\s*Success Metrics\s*([\s\S]*?)(?=###|##|$)/i);
+
+  if (!successMetricsMatch) {
+    // Try Key Requirements
+    successMetricsMatch = planContent.match(/###\s*Key Requirements\s*\(MVP\)\s*([\s\S]*?)(?=###|##|$)/i);
+  }
+
+  if (successMetricsMatch) {
+    const metricsText = successMetricsMatch[1].trim();
+    // Extract first bullet point or first sentence
+    const bulletMatch = metricsText.match(/^-\s*\*\*([^*]+)\*\*:?\s*(.+?)$/m);
+    if (bulletMatch) {
+      // Found bullet: "- **Conversion Rate:** 15-20%..."
+      summary.businessValue = `${bulletMatch[1]}: ${bulletMatch[2]}`.substring(0, 200).trim();
+    } else {
+      // Extract first 1-2 sentences
+      const sentences = metricsText.split(/\.\s+/);
+      summary.businessValue = sentences.slice(0, 2).join('. ').substring(0, 200).trim();
+      if (!summary.businessValue.endsWith('.')) {
+        summary.businessValue += '.';
+      }
+    }
+  } else {
+    // Fallback: Try MVP Priorities from context.md
+    const mvpPrioritiesMatch = contextContent.match(/###\s*MVP Priorities\s*([\s\S]*?)(?=###|##|$)/i);
+    if (mvpPrioritiesMatch) {
+      const text = mvpPrioritiesMatch[1].trim();
+      // Extract first list item
+      const listItemMatch = text.match(/^\d+\.\s*[🥇🥈🥉]*\s*\*\*(.+?)\*\*/m);
+      if (listItemMatch) {
+        summary.businessValue = listItemMatch[1].trim();
+      }
+    }
+  }
+
+  // Extract Timeline - from **Timeline:** metadata
+  const timelineMatch = planContent.match(/\*\*Timeline:\*\*\s*(.+)/);
+  if (timelineMatch) {
+    summary.timeline = timelineMatch[1].trim();
+    // Clean up (remove dates, keep duration)
+    summary.timeline = summary.timeline.replace(/\(\d{4}-\d{2}-\d{2}.*?\)/g, '').trim();
+  }
+
+  // Extract Risk Level - from **Risk Level:** metadata
+  const riskMatch = planContent.match(/\*\*Risk Level:\*\*\s*[🟢🟡🔴]*\s*(Low|Medium|High)/i);
+  if (riskMatch) {
+    summary.risk = riskMatch[1];
+  } else if (planContent.match(/\*\*Complexity:\*\*\s*(Low|Medium|High)/i)) {
+    // Fallback: Use Complexity as Risk proxy
+    const complexityMatch = planContent.match(/\*\*Complexity:\*\*\s*(Low|Medium|High)/i);
+    summary.risk = complexityMatch[1];
+  }
+
+  return summary;
+}
+
+/**
  * Parse project tasks.md to extract PHASE-LEVEL tasks with checklists
  * @param {string} filePath - Absolute path to tasks.md file
  * @returns {Array<object>} Array of phase objects (not individual tasks!)
@@ -361,6 +469,9 @@ function parseProject(projectPath) {
     return null;
   }
 
+  // Extract project summary for team management view (Phase 2.0)
+  const projectSummary = extractProjectSummary(planFile, contextFile);
+
   // Calculate totals from phases (not individual tasks!)
   const totalTasks = tasks.reduce((sum, phase) => sum + phase.totalTasks, 0);
   const completedTasks = tasks.reduce((sum, phase) => sum + phase.completedTasks, 0);
@@ -373,6 +484,7 @@ function parseProject(projectPath) {
     dates: project.dates,
     context: context,
     tasks: tasks, // Now this is an array of phases, not individual tasks
+    summary: projectSummary, // NEW: Project summary for team management
     metadata: {
       projectPath,
       projectName,
@@ -461,5 +573,6 @@ module.exports = {
   parseProjectContext,
   parseProjectTasks,
   parseProject,
-  scanActiveProjects
+  scanActiveProjects,
+  extractProjectSummary // NEW: For Phase 2.0
 };
