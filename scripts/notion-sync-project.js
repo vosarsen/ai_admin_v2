@@ -68,40 +68,33 @@ async function retryWithBackoff(fn, maxRetries = 3, context = '') {
 }
 
 /**
- * Find existing project in Notion by name using search API
+ * Find existing project in Notion by name using databases.query API
  */
 async function findProjectByName(projectName) {
   try {
     const response = await retryWithBackoff(async () => {
-      return await notion.search({
-        query: projectName,
+      return await notion.databases.query({
+        database_id: PROJECTS_DB,
         filter: {
-          property: 'object',
-          value: 'page'
+          property: 'Name',
+          title: {
+            equals: projectName
+          }
         },
-        page_size: 100
+        page_size: 1
       });
-    }, 3, `Searching for project "${projectName}"`);
+    }, 3, `Querying for project "${projectName}"`);
 
-    // Filter results to find exact match in Projects database
-    const exactMatch = response.results.find(page => {
-      // Check if page is in Projects database
-      if (page.parent?.database_id !== PROJECTS_DB) return false;
-
-      // Check if title matches
-      const titleProp = page.properties?.Name?.title?.[0]?.text?.content;
-      return titleProp === projectName;
-    });
-
-    if (exactMatch) {
-      console.log(`✅ Found existing project: ${projectName} (${exactMatch.id})`);
-      return exactMatch;
+    if (response.results.length > 0) {
+      const project = response.results[0];
+      console.log(`✅ Found existing project: ${projectName} (${project.id})`);
+      return project;
     }
 
     console.log(`ℹ️  Project not found in Notion: ${projectName} (will create new)`);
     return null;
   } catch (error) {
-    console.error(`❌ Error searching for project:`, error.message);
+    console.error(`❌ Error querying for project:`, error.message);
     // Return null instead of throwing - we can create new if search fails
     return null;
   }
@@ -375,6 +368,22 @@ async function syncProjectTasks(tasks, projectPageId) {
  * Main sync function
  */
 async function syncProject(projectPath) {
+  // Input validation
+  if (!projectPath || typeof projectPath !== 'string') {
+    console.error(`❌ Invalid project path: ${projectPath}`);
+    return { success: false, error: 'Invalid project path' };
+  }
+
+  if (!fs.existsSync(projectPath)) {
+    console.error(`❌ Project path does not exist: ${projectPath}`);
+    return { success: false, error: 'Path not found' };
+  }
+
+  if (!fs.statSync(projectPath).isDirectory()) {
+    console.error(`❌ Project path is not a directory: ${projectPath}`);
+    return { success: false, error: 'Not a directory' };
+  }
+
   console.log(`\n🔄 Syncing project: ${projectPath}\n`);
 
   // Parse markdown files
@@ -382,6 +391,12 @@ async function syncProject(projectPath) {
   if (!projectData) {
     console.error(`❌ Failed to parse project at ${projectPath}`);
     return { success: false, error: 'Parse failed' };
+  }
+
+  // Validate parsed data
+  if (!projectData.name || projectData.name.trim().length === 0) {
+    console.error(`❌ Project has no name: ${projectPath}`);
+    return { success: false, error: 'Missing project name' };
   }
 
   try {
