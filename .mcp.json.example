@@ -1,0 +1,53 @@
+{
+  "mcpServers": {
+    "notion": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@notionhq/notion-mcp-server"
+      ],
+      "env": {
+        "NOTION_TOKEN": "your-notion-integration-token-here"
+      }
+    },
+    "whatsapp": {
+      "command": "node",
+      "args": [
+        "mcp/mcp-whatsapp/server.js"
+      ],
+      "env": {
+        "AI_ADMIN_API_URL": "http://localhost:3000",
+        "SECRET_KEY": "${SECRET_KEY}"
+      }
+    },
+    "redis": {
+      "command": "node",
+      "args": [
+        "mcp/mcp-redis/server.js"
+      ],
+      "env": {
+        "REDIS_URL": "redis://localhost:6380"
+      }
+    },
+    "supabase": {
+      "command": "node",
+      "args": [
+        "mcp/mcp-supabase/index.js"
+      ],
+      "env": {
+        "SUPABASE_URL": "${SUPABASE_URL}",
+        "SUPABASE_KEY": "${SUPABASE_KEY}"
+      }
+    },
+    "yclients": {
+      "command": "node",
+      "args": [
+        "mcp/mcp-yclients/server.js"
+      ],
+      "env": {
+        "YCLIENTS_API_KEY": "${YCLIENTS_API_KEY}",
+        "YCLIENTS_USER_TOKEN": "${YCLIENTS_USER_TOKEN}"
+      }
+    }
+  }
+}

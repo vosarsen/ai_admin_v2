@@ -27,6 +27,7 @@ const EventEmitter = require('events');
 const logger = require('../../utils/logger');
 const QRCode = require('qrcode');
 const { useSupabaseAuthState } = require('./auth-state-supabase');
+const { useTimewebAuthState } = require('./auth-state-timeweb');
 
 // Configuration constants
 const CONFIG = {
@@ -281,17 +282,23 @@ class WhatsAppSessionPool extends EventEmitter {
                 this.sessions.delete(validatedId);
             }
 
-            // Feature flag: Use database-backed auth state or file-based
+            // Feature flags: Choose auth state backend
+            // Priority: USE_LEGACY_SUPABASE > USE_DATABASE_AUTH_STATE > file-based (fallback)
+            const useLegacySupabase = process.env.USE_LEGACY_SUPABASE !== 'false';
             const useDatabaseAuth = process.env.USE_DATABASE_AUTH_STATE === 'true';
 
             let state, saveCreds;
 
-            if (useDatabaseAuth) {
-                // Database-backed auth state (production-ready)
-                logger.info(`🗄️  Using database auth state for company ${validatedId}`);
+            if (useLegacySupabase) {
+                // Supabase auth state (legacy, but currently default)
+                logger.info(`📦 Using Supabase auth state for company ${validatedId}`);
                 ({ state, saveCreds } = await useSupabaseAuthState(validatedId));
+            } else if (useDatabaseAuth) {
+                // Timeweb PostgreSQL auth state (new, production-ready)
+                logger.info(`🗄️  Using Timeweb PostgreSQL auth state for company ${validatedId}`);
+                ({ state, saveCreds } = await useTimewebAuthState(validatedId));
             } else {
-                // File-based auth state (legacy)
+                // File-based auth state (fallback for development/testing)
                 logger.info(`📁 Using file auth state for company ${validatedId}`);
                 const authPath = path.join(this.baseAuthPath, `company_${validatedId}`);
                 await fs.ensureDir(authPath);
