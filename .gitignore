@@ -208,3 +208,4 @@ sessions/
 sync-log.txt
 *.sync.log
 *-sync.log
+.notion-sync.lock

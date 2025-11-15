@@ -129,6 +129,37 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       max_memory_restart: '200M',
       autorestart: true
+    },
+    {
+      name: 'notion-sync-15min',
+      script: './scripts/notion-daily-sync.js',
+      instances: 1,
+      exec_mode: 'fork',
+      cron_restart: '*/15 8-23 * * *', // Every 15 minutes, 8am-11pm
+      autorestart: false, // Don't restart automatically, only via cron
+      env: {
+        NODE_ENV: 'production'
+      },
+      error_file: './logs/notion-sync-error.log',
+      out_file: './logs/notion-sync-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      max_memory_restart: '100M'
+    },
+    {
+      name: 'notion-sync-nightly',
+      script: './scripts/notion-daily-sync.js',
+      args: '--force-all', // Force full sync at night
+      instances: 1,
+      exec_mode: 'fork',
+      cron_restart: '0 2 * * *', // Daily at 2am
+      autorestart: false, // Don't restart automatically, only via cron
+      env: {
+        NODE_ENV: 'production'
+      },
+      error_file: './logs/notion-sync-nightly-error.log',
+      out_file: './logs/notion-sync-nightly-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      max_memory_restart: '100M'
     }
   ]
 };
