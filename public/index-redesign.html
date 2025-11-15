@@ -343,75 +343,99 @@
             text-align: center;
         }
 
-        /* Stats */
+        /* Stats with vertical lines */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 40px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0;
             margin-bottom: 60px;
+            position: relative;
         }
 
         .stat-item {
             text-align: center;
-            padding: 40px 20px;
-            background: rgba(255, 255, 255, 0.6);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-radius: 20px;
-            border: 1px solid rgba(203, 213, 225, 0.3);
+            padding: 60px 40px;
+            position: relative;
+        }
+
+        .stat-item:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 20%;
+            height: 60%;
+            width: 1px;
+            background: linear-gradient(180deg, transparent, rgba(203, 213, 225, 0.4) 20%, rgba(203, 213, 225, 0.4) 80%, transparent);
         }
 
         .stat-number {
-            font-size: 48px;
+            font-size: 56px;
             font-weight: 800;
             color: #0ea5e9;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
+            line-height: 1;
         }
 
         .stat-label {
             font-size: 16px;
             color: #64748b;
+            font-weight: 500;
         }
 
-        /* Problems Grid */
+        /* Problems with vertical lines */
         .grid-4 {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 30px;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0;
+            position: relative;
         }
 
         .problem-card {
-            padding: 40px 30px;
-            background: rgba(255, 255, 255, 0.6);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-radius: 20px;
-            border: 1px solid rgba(203, 213, 225, 0.3);
+            padding: 60px 30px;
+            position: relative;
+            text-align: center;
             transition: all 0.3s ease;
         }
 
+        .problem-card:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 20%;
+            height: 60%;
+            width: 1px;
+            background: linear-gradient(180deg, transparent, rgba(203, 213, 225, 0.4) 20%, rgba(203, 213, 225, 0.4) 80%, transparent);
+        }
+
         .problem-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(14, 165, 233, 0.15);
+            background: rgba(255, 255, 255, 0.3);
         }
 
         .problem-icon {
             width: 60px;
             height: 60px;
-            margin-bottom: 20px;
+            margin: 0 auto 20px;
             color: #0ea5e9;
+        }
+
+        .problem-number {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-bottom: 20px;
+            font-weight: 600;
         }
 
         .problem-title {
             font-size: 20px;
             font-weight: 700;
             color: #0f172a;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
         }
 
         .problem-text {
-            font-size: 16px;
+            font-size: 15px;
             color: #64748b;
+            line-height: 1.6;
         }
 
         /* Feature Section with Lines */
@@ -622,34 +646,43 @@
             color: #06b6d4;
         }
 
-        /* Pricing */
+        /* Pricing with vertical lines */
         .pricing-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 30px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0;
             max-width: 1200px;
             margin: 0 auto;
+            position: relative;
         }
 
         .pricing-card {
-            background: rgba(255, 255, 255, 0.6);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-radius: 30px;
-            border: 1px solid rgba(203, 213, 225, 0.3);
-            padding: 50px 40px;
+            padding: 60px 40px;
             text-align: center;
             transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .pricing-card:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 15%;
+            height: 70%;
+            width: 1px;
+            background: linear-gradient(180deg, transparent, rgba(203, 213, 225, 0.4) 20%, rgba(203, 213, 225, 0.4) 80%, transparent);
         }
 
         .pricing-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 20px 40px rgba(14, 165, 233, 0.15);
+            background: rgba(255, 255, 255, 0.3);
         }
 
         .pricing-card.featured {
-            background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(6, 182, 212, 0.1));
-            border-color: #0ea5e9;
+            background: rgba(14, 165, 233, 0.05);
+        }
+
+        .pricing-card.featured:hover {
+            background: rgba(14, 165, 233, 0.1);
         }
 
         .price-label {
@@ -768,6 +801,33 @@
                 font-size: 40px;
             }
 
+            /* Stack grids on mobile */
+            .stats-grid,
+            .grid-4,
+            .pricing-grid {
+                grid-template-columns: 1fr;
+            }
+
+            /* Remove vertical lines on mobile */
+            .stat-item::after,
+            .problem-card::after,
+            .pricing-card::after {
+                display: none;
+            }
+
+            /* Add horizontal dividers on mobile */
+            .stat-item:not(:last-child),
+            .problem-card:not(:last-child),
+            .pricing-card:not(:last-child) {
+                border-bottom: 1px solid rgba(203, 213, 225, 0.3);
+            }
+
+            .stat-item,
+            .problem-card,
+            .pricing-card {
+                padding: 40px 20px;
+            }
+
             .feature-item {
                 grid-template-columns: 1fr;
                 gap: 20px;
@@ -880,6 +940,7 @@
             <h2 class="section-title">Знакомые проблемы?</h2>
             <div class="grid-4">
                 <div class="problem-card">
+                    <div class="problem-number">.01</div>
                     <div class="problem-icon">
                         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -889,6 +950,7 @@
                     <div class="problem-text">Клиенты уходят к конкурентам</div>
                 </div>
                 <div class="problem-card">
+                    <div class="problem-number">.02</div>
                     <div class="problem-icon">
                         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -898,6 +960,7 @@
                     <div class="problem-text">Записи теряются</div>
                 </div>
                 <div class="problem-card">
+                    <div class="problem-number">.03</div>
                     <div class="problem-icon">
                         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -907,6 +970,7 @@
                     <div class="problem-text">Новый админ каждые 3 месяца</div>
                 </div>
                 <div class="problem-card">
+                    <div class="problem-number">.04</div>
                     <div class="problem-icon">
                         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
