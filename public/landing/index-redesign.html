@@ -57,52 +57,50 @@
 
         /* Header - три отдельные секции */
         header {
-            padding: 30px 0;
+            padding: 20px 0;
             position: sticky;
             top: 0;
             z-index: 100;
-            background: rgba(255, 255, 255, 0.8);
+            background: rgba(248, 250, 252, 0.7);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(203, 213, 225, 0.3);
+            border-bottom: 1px solid rgba(203, 213, 225, 0.2);
         }
 
         .header-content {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 0 40px;
+            padding: 0 60px;
             display: grid;
-            grid-template-columns: 200px 1fr 200px;
+            grid-template-columns: 150px 1fr 200px;
             align-items: center;
-            gap: 40px;
+            gap: 60px;
         }
 
         .logo {
-            font-size: 18px;
-            font-weight: 700;
-            color: #0f172a;
+            font-size: 16px;
+            font-weight: 600;
+            color: #64748b;
             text-decoration: none;
-            letter-spacing: -0.5px;
+            letter-spacing: 0.5px;
             justify-self: start;
         }
 
         .logo sup {
-            font-size: 11px;
-            color: #64748b;
-            font-weight: 400;
+            display: none;
         }
 
         nav {
             display: flex;
-            gap: 40px;
+            gap: 50px;
             justify-content: center;
         }
 
         nav a {
-            color: #64748b;
+            color: rgba(100, 116, 139, 0.8);
             text-decoration: none;
-            font-size: 15px;
-            font-weight: 500;
+            font-size: 14px;
+            font-weight: 400;
             transition: color 0.3s ease;
             position: relative;
         }
@@ -112,37 +110,38 @@
         }
 
         nav a::after {
-            content: '';
-            position: absolute;
-            bottom: -5px;
-            left: 0;
-            width: 0;
-            height: 2px;
-            background: linear-gradient(90deg, #0ea5e9, #06b6d4);
-            transition: width 0.3s ease;
-        }
-
-        nav a:hover::after {
-            width: 100%;
+            display: none;
         }
 
         .header-cta {
-            padding: 12px 28px;
-            background: linear-gradient(135deg, #0ea5e9, #06b6d4);
-            color: white;
+            padding: 14px 32px;
+            background: white;
+            color: #0f172a;
             text-decoration: none;
             border-radius: 50px;
             font-size: 14px;
-            font-weight: 600;
+            font-weight: 500;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
             justify-self: end;
             white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-cta::after {
+            content: '→';
+            font-size: 16px;
+            transition: transform 0.3s ease;
         }
 
         .header-cta:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(14, 165, 233, 0.4);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-cta:hover::after {
+            transform: translateX(4px);
         }
 
         /* Side Contact Panel */
