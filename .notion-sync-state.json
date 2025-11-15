@@ -1,5 +1,5 @@
 {
-  "lastFullSync": "2025-11-15T14:26:36.297Z",
+  "lastFullSync": "2025-11-15T15:40:55.148Z",
   "projects": {
     "client-reactivation-service": {
       "lastSync": "2025-11-15T14:26:14.265Z",
@@ -17,9 +17,9 @@
       "errors": 1
     },
     "notion-workspace-redesign": {
-      "lastSync": "2025-11-15T14:26:36.297Z",
+      "lastSync": "2025-11-15T15:40:55.148Z",
       "notionPageId": "2ac0a520-3786-8118-bcd9-d8bef7a769d6",
-      "taskCount": 4,
+      "taskCount": 5,
       "errors": 0
     }
   }
