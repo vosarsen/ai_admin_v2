@@ -17,11 +17,17 @@
 
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 const { scanActiveProjects } = require('./notion-parse-markdown');
 const { syncProject } = require('./notion-sync-project');
 
 // State file to track last sync times
 const STATE_FILE = path.join(__dirname, '../.notion-sync-state.json');
+const LOCK_FILE = path.join(__dirname, '../.notion-sync.lock');
+
+// Telegram config
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 /**
  * Load sync state from file
@@ -42,13 +48,106 @@ function loadState() {
 }
 
 /**
- * Save sync state to file
+ * Save sync state to file (atomic write)
  */
 function saveState(state) {
+  const tempFile = STATE_FILE + '.tmp';
+
   try {
-    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
+    // Write to temp file first
+    const content = JSON.stringify(state, null, 2);
+    fs.writeFileSync(tempFile, content, 'utf8');
+
+    // Atomic rename (POSIX)
+    fs.renameSync(tempFile, STATE_FILE);
+
   } catch (error) {
     console.error('❌ Failed to save state file:', error.message);
+
+    // Cleanup temp file if exists
+    try {
+      if (fs.existsSync(tempFile)) {
+        fs.unlinkSync(tempFile);
+      }
+    } catch (cleanupError) {
+      // Ignore cleanup errors
+    }
+  }
+}
+
+/**
+ * Acquire lock (prevent concurrent runs)
+ */
+function acquireLock() {
+  if (fs.existsSync(LOCK_FILE)) {
+    // Check if lock is stale (>1 hour old)
+    try {
+      const stats = fs.statSync(LOCK_FILE);
+      const lockAge = Date.now() - stats.mtime.getTime();
+      const ONE_HOUR = 60 * 60 * 1000;
+
+      if (lockAge > ONE_HOUR) {
+        console.log('⚠️  Stale lock detected (>1h old), removing...');
+        fs.unlinkSync(LOCK_FILE);
+      } else {
+        const lockData = JSON.parse(fs.readFileSync(LOCK_FILE, 'utf8'));
+        console.log(`⛔ Another sync is running (PID: ${lockData.pid}, started: ${lockData.startTime})`);
+        return false;
+      }
+    } catch (error) {
+      // If can't read lock, remove it
+      console.log('⚠️  Invalid lock file, removing...');
+      fs.unlinkSync(LOCK_FILE);
+    }
+  }
+
+  // Create lock file
+  try {
+    fs.writeFileSync(LOCK_FILE, JSON.stringify({
+      pid: process.pid,
+      startTime: new Date().toISOString()
+    }), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to create lock file:', error.message);
+    return false;
+  }
+}
+
+/**
+ * Release lock
+ */
+function releaseLock() {
+  try {
+    if (fs.existsSync(LOCK_FILE)) {
+      fs.unlinkSync(LOCK_FILE);
+    }
+  } catch (error) {
+    console.error('❌ Failed to release lock:', error.message);
+  }
+}
+
+/**
+ * Send Telegram alert
+ */
+async function sendTelegramAlert(message) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    console.log('⚠️  Telegram not configured, skipping alert');
+    return;
+  }
+
+  try {
+    await axios.post(
+      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+      {
+        chat_id: TELEGRAM_CHAT_ID,
+        text: message,
+        parse_mode: 'HTML'
+      }
+    );
+    console.log('✅ Telegram alert sent');
+  } catch (error) {
+    console.error('❌ Failed to send Telegram alert:', error.message);
   }
 }
 
@@ -86,14 +185,7 @@ function hasProjectChanged(projectPath, lastSyncTime) {
   }
 }
 
-/**
- * Send Telegram alert (if configured)
- */
-async function sendTelegramAlert(message) {
-  // TODO: Implement Telegram integration if needed
-  // For now, just log
-  console.log(`📱 [Telegram Alert] ${message}`);
-}
+// NOTE: sendTelegramAlert() is defined earlier in the file (line ~80)
 
 /**
  * Sync all projects
@@ -101,14 +193,28 @@ async function sendTelegramAlert(message) {
 async function syncAllProjects(options = {}) {
   const { forceAll = false } = options;
 
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('🔄 Notion Sync Orchestrator');
-  console.log(`⏰ Started: ${new Date().toISOString()}`);
-  console.log(`🔧 Mode: ${forceAll ? 'FULL SYNC (force all)' : 'SMART SYNC (skip unchanged)'}`);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  // Acquire lock to prevent concurrent runs
+  if (!acquireLock()) {
+    console.log('⛔ Sync already running, exiting...');
+    return {
+      success: false,
+      error: 'Another sync is already running',
+      duration: 0,
+      projects: [],
+      skipped: [],
+      failed: []
+    };
+  }
 
-  const startTime = Date.now();
-  const state = loadState();
+  try {
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔄 Notion Sync Orchestrator');
+    console.log(`⏰ Started: ${new Date().toISOString()}`);
+    console.log(`🔧 Mode: ${forceAll ? 'FULL SYNC (force all)' : 'SMART SYNC (skip unchanged)'}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+    const startTime = Date.now();
+    const state = loadState();
 
   // Scan for all active projects
   const activeDir = path.join(process.cwd(), 'dev/active');
@@ -275,20 +381,24 @@ async function syncAllProjects(options = {}) {
     );
   }
 
-  const allSuccessful = results.failed.length === 0;
-  return {
-    success: allSuccessful,
-    duration,
-    projects: results.synced,
-    skipped: results.skipped,
-    failed: results.failed,
-    summary: {
-      total: totalProjects,
-      synced: results.synced.length,
-      skipped: results.skipped.length,
-      failed: results.failed.length
-    }
-  };
+    const allSuccessful = results.failed.length === 0;
+    return {
+      success: allSuccessful,
+      duration,
+      projects: results.synced,
+      skipped: results.skipped,
+      failed: results.failed,
+      summary: {
+        total: totalProjects,
+        synced: results.synced.length,
+        skipped: results.skipped.length,
+        failed: results.failed.length
+      }
+    };
+  } finally {
+    // Always release lock
+    releaseLock();
+  }
 }
 
 // CLI interface
