@@ -1,9 +1,10 @@
 # Notion Ultimate Workspace Redesign - Strategic Implementation Plan
 
-**Last Updated:** 2025-11-15 (Phase 1 COMPLETE ✅)
-**Status:** **PRODUCTION LIVE** - Phase 0 & 1 Complete (7h actual vs 35.5h estimated)
-**Actual Effort:** 7 hours in 1 day (80% under estimate!) 🚀
+**Last Updated:** 2025-11-15 (Phase 1.5 PLANNING - Tasks Restructure)
+**Status:** **PRODUCTION LIVE** - Phase 0 & 1 Complete | Phase 1.5 Starting (Tasks DB optimization)
+**Actual Effort:** 7 hours (Phases 0-1) | Est. 3-4h for Phase 1.5
 **Team:** Arsen (implementation) + Arbak (future onboarding)
+**New Issue:** 253 tasks overwhelming → Restructuring to phase-level tasks (10-15 total)
 
 ---
 
@@ -1124,9 +1125,10 @@ Notion Health Check (Auto-generated)
 
 ---
 
-## 🎯 FINAL STATUS (2025-11-15)
+## 🎯 CURRENT STATUS (2025-11-15)
 
 **Phase 0 & 1:** ✅ **100% COMPLETE - PRODUCTION LIVE**
+**Phase 1.5:** 🔄 **PLANNING COMPLETE - READY TO IMPLEMENT**
 
 **Delivered:**
 - 3 Notion databases (Projects, Tasks, Knowledge Base)
@@ -1141,6 +1143,12 @@ Notion Health Check (Auto-generated)
 - API rate: 0.030 req/sec (136x safety margin)
 - Smart change detection (80% API savings)
 - Same-day completion (7h vs 35.5h estimated)
+
+**Phase 1.5 (Tasks Restructure):** 🆕 Reduce 253 tasks → 10-15 phase-level tasks
+- User feedback: "Задач слишком много, ничего не видно и не понятно"
+- Solution: Phase-Level Tasks with Checklist Property (Proposal 1)
+- Effort: 3-4 hours
+- Status: Planning complete, ready to implement
 
 **Phase 2 (Team Adoption):** Optional - System fully operational without it
 
