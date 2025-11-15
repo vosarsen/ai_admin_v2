@@ -142,6 +142,39 @@ async function syncProjectPage(projectData) {
     };
   }
 
+  // Phase 2.0: Add essential fields only (Summary moved to page content)
+  if (projectData.summary) {
+    // Timeline
+    if (projectData.summary.timeline) {
+      properties.Timeline = {
+        rich_text: [{ text: { content: projectData.summary.timeline } }]
+      };
+    }
+
+    // Risk Level (select)
+    if (projectData.summary.risk) {
+      properties['Risk Level'] = {
+        select: { name: projectData.summary.risk }
+      };
+    }
+  }
+
+  // Progress (auto-calculated from tasks)
+  if (projectData.metadata.totalTasks > 0) {
+    const progressPercent = Math.round(
+      (projectData.metadata.completedTasks / projectData.metadata.totalTasks) * 100
+    );
+    properties.Progress = {
+      number: progressPercent
+    };
+  }
+
+  // Priority (default to Medium if not set)
+  // Note: Can be manually changed in Notion
+  properties.Priority = {
+    select: { name: 'Medium' }
+  };
+
   // Add dates (only if properties exist - skip for now, can add later)
   // Note: These properties may need to be created in Notion database first
   // if (projectData.dates.lastUpdated) {
@@ -156,30 +189,16 @@ async function syncProjectPage(projectData) {
   //   };
   // }
 
-  // Build page content (children blocks)
+  // Build page content (children blocks) - Phase 2.0 RICH & INFORMATIVE template
   const children = [];
 
-  // Add summary if available
-  if (projectData.context && projectData.context.summary) {
-    children.push({
-      object: 'block',
-      type: 'paragraph',
-      paragraph: {
-        rich_text: [{ text: { content: projectData.context.summary } }]
-      }
-    });
-  }
+  const progressPercent = projectData.metadata.totalTasks > 0
+    ? Math.round((projectData.metadata.completedTasks / projectData.metadata.totalTasks) * 100)
+    : 0;
 
-  // Add divider
-  if (children.length > 0) {
-    children.push({
-      object: 'block',
-      type: 'divider',
-      divider: {}
-    });
-  }
+  const progressBar = '▓'.repeat(Math.floor(progressPercent / 10)) + '░'.repeat(10 - Math.floor(progressPercent / 10));
 
-  // Add metadata callout
+  // 📊 Project Overview Callout (compact)
   children.push({
     object: 'block',
     type: 'callout',
@@ -187,19 +206,302 @@ async function syncProjectPage(projectData) {
       icon: { emoji: '📊' },
       rich_text: [{
         text: {
-          content: `Tasks: ${projectData.metadata.completedTasks}/${projectData.metadata.totalTasks} completed | Source: ${projectData.metadata.projectPath}`
+          content: `${projectData.status || 'Unknown'} • ${progressBar} ${progressPercent}% • ${projectData.summary?.timeline || 'TBD'} • Risk: ${projectData.summary?.risk || 'Medium'} • ${projectData.components.join(', ')}`
         }
       }]
     }
   });
 
-  // Add source file path
+  // 🎯 Executive Summary
+  children.push({
+    object: 'block',
+    type: 'heading_1',
+    heading_1: {
+      rich_text: [{ text: { content: '🎯 Executive Summary' } }]
+    }
+  });
+
+  // What is this?
+  if (projectData.summary?.summary) {
+    children.push({
+      object: 'block',
+      type: 'heading_2',
+      heading_2: {
+        rich_text: [{ text: { content: 'What is this?' } }]
+      }
+    });
+
+    children.push({
+      object: 'block',
+      type: 'quote',
+      quote: {
+        rich_text: [{ text: { content: projectData.summary.summary } }]
+      }
+    });
+  }
+
+  // Why needed?
+  if (projectData.summary?.businessValue) {
+    children.push({
+      object: 'block',
+      type: 'heading_2',
+      heading_2: {
+        rich_text: [{ text: { content: 'Why needed?' } }]
+      }
+    });
+
+    children.push({
+      object: 'block',
+      type: 'quote',
+      quote: {
+        rich_text: [{ text: { content: projectData.summary.businessValue } }]
+      }
+    });
+  }
+
+  // 📈 Project Metrics
+  children.push({
+    object: 'block',
+    type: 'heading_2',
+    heading_2: {
+      rich_text: [{ text: { content: '📈 Project Metrics' } }]
+    }
+  });
+
+  const completedPhases = projectData.tasks.filter(p => p.status === 'Done').length;
+  const inProgressPhases = projectData.tasks.filter(p => p.status === 'In Progress').length;
+  const pendingPhases = projectData.tasks.filter(p => p.status === 'Todo' || p.status === 'Review').length;
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: {
+          content: `📦 Total Phases: ${projectData.tasks.length} (✅ ${completedPhases} completed, 🔄 ${inProgressPhases} in progress, ⬜ ${pendingPhases} pending)`
+        }
+      }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: {
+          content: `✅ Total Tasks: ${projectData.metadata.totalTasks} (${projectData.metadata.completedTasks} completed, ${projectData.metadata.totalTasks - projectData.metadata.completedTasks} remaining)`
+        }
+      }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: {
+          content: `📊 Overall Progress: ${progressBar} ${progressPercent}%`
+        }
+      }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: {
+          content: `⏱️ Timeline: ${projectData.summary?.timeline || 'To be determined'}`
+        }
+      }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: {
+          content: `🎯 Risk Level: ${projectData.summary?.risk || 'Medium'}`
+        }
+      }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: {
+          content: `🔧 Components: ${projectData.components.join(', ')}`
+        }
+      }]
+    }
+  });
+
+  // Divider
+  children.push({
+    object: 'block',
+    type: 'divider',
+    divider: {}
+  });
+
+  // 📋 Implementation Plan (detailed)
+  if (projectData.tasks && projectData.tasks.length > 0) {
+    children.push({
+      object: 'block',
+      type: 'heading_1',
+      heading_1: {
+        rich_text: [{ text: { content: '📋 Implementation Plan' } }]
+      }
+    });
+
+    children.push({
+      object: 'block',
+      type: 'paragraph',
+      paragraph: {
+        rich_text: [{
+          text: {
+            content: `This project is organized into ${projectData.tasks.length} phases with ${projectData.metadata.totalTasks} total tasks. Below is a detailed breakdown:`
+          }
+        }]
+      }
+    });
+
+    // Group phases by status
+    const donePhases = projectData.tasks.filter(p => p.status === 'Done');
+    const activePhases = projectData.tasks.filter(p => p.status === 'In Progress');
+    const upcomingPhases = projectData.tasks.filter(p => p.status === 'Todo' || p.status === 'Review');
+
+    // Completed Phases
+    if (donePhases.length > 0) {
+      children.push({
+        object: 'block',
+        type: 'heading_2',
+        heading_2: {
+          rich_text: [{ text: { content: `✅ Completed Phases (${donePhases.length})` } }]
+        }
+      });
+
+      donePhases.forEach(phase => {
+        children.push({
+          object: 'block',
+          type: 'bulleted_list_item',
+          bulleted_list_item: {
+            rich_text: [{
+              text: {
+                content: `${phase.name} — 100% (${phase.totalTasks} tasks)`
+              }
+            }]
+          }
+        });
+      });
+    }
+
+    // Active Phases
+    if (activePhases.length > 0) {
+      children.push({
+        object: 'block',
+        type: 'heading_2',
+        heading_2: {
+          rich_text: [{ text: { content: `🔄 In Progress (${activePhases.length})` } }]
+        }
+      });
+
+      activePhases.forEach(phase => {
+        const phaseProgress = phase.totalTasks > 0
+          ? Math.round((phase.completedTasks / phase.totalTasks) * 100)
+          : 0;
+        const phaseBar = '▓'.repeat(Math.floor(phaseProgress / 10)) + '░'.repeat(10 - Math.floor(phaseProgress / 10));
+
+        children.push({
+          object: 'block',
+          type: 'bulleted_list_item',
+          bulleted_list_item: {
+            rich_text: [{
+              text: {
+                content: `${phase.name} — ${phaseBar} ${phaseProgress}% (${phase.completedTasks}/${phase.totalTasks} tasks)`
+              }
+            }]
+          }
+        });
+      });
+    }
+
+    // Upcoming Phases
+    if (upcomingPhases.length > 0) {
+      children.push({
+        object: 'block',
+        type: 'heading_2',
+        heading_2: {
+          rich_text: [{ text: { content: `⬜ Upcoming Phases (${upcomingPhases.length})` } }]
+        }
+      });
+
+      upcomingPhases.forEach(phase => {
+        children.push({
+          object: 'block',
+          type: 'bulleted_list_item',
+          bulleted_list_item: {
+            rich_text: [{
+              text: {
+                content: `${phase.name} — ${phase.totalTasks} tasks`
+              }
+            }]
+          }
+        });
+      });
+    }
+  }
+
+  // Divider
+  children.push({
+    object: 'block',
+    type: 'divider',
+    divider: {}
+  });
+
+  // 🗂️ Project Structure
+  children.push({
+    object: 'block',
+    type: 'heading_1',
+    heading_1: {
+      rich_text: [{ text: { content: '🗂️ Project Structure' } }]
+    }
+  });
+
   children.push({
     object: 'block',
     type: 'paragraph',
     paragraph: {
       rich_text: [{
-        text: { content: `Source: ` }
+        text: {
+          content: `This project follows the standard /dev-docs structure with plan, context, and tasks files synchronized to Notion.`
+        }
+      }]
+    }
+  });
+
+  // Source Files
+  children.push({
+    object: 'block',
+    type: 'heading_2',
+    heading_2: {
+      rich_text: [{ text: { content: '📚 Source Files' } }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'paragraph',
+    paragraph: {
+      rich_text: [{
+        text: { content: 'Location: ' }
       }, {
         text: { content: projectData.metadata.projectPath },
         annotations: { code: true }
@@ -207,11 +509,118 @@ async function syncProjectPage(projectData) {
     }
   });
 
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: { content: `${projectData.metadata.projectName}-plan.md` },
+        annotations: { code: true }
+      }, {
+        text: { content: ' — Strategic plan and architecture' }
+      }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: { content: `${projectData.metadata.projectName}-context.md` },
+        annotations: { code: true }
+      }, {
+        text: { content: ' — Current state and key decisions' }
+      }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: { content: `${projectData.metadata.projectName}-tasks.md` },
+        annotations: { code: true }
+      }, {
+        text: { content: ' — Detailed task breakdown' }
+      }]
+    }
+  });
+
+  // Phase/Status info
+  if (projectData.phase || projectData.dates.lastUpdated) {
+    children.push({
+      object: 'block',
+      type: 'heading_2',
+      heading_2: {
+        rich_text: [{ text: { content: '📅 Timeline' } }]
+      }
+    });
+
+    if (projectData.dates.lastUpdated) {
+      children.push({
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: {
+          rich_text: [{
+            text: { content: `Last Updated: ${projectData.dates.lastUpdated}` }
+          }]
+        }
+      });
+    }
+
+    if (projectData.phase) {
+      children.push({
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: {
+          rich_text: [{
+            text: { content: `Current Phase: ${projectData.phase}` }
+          }]
+        }
+      });
+    }
+
+    if (projectData.dates.targetDate) {
+      children.push({
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: {
+          rich_text: [{
+            text: { content: `Target Date: ${projectData.dates.targetDate}` }
+          }]
+        }
+      });
+    }
+  }
+
+  // Callout footer
+  children.push({
+    object: 'block',
+    type: 'divider',
+    divider: {}
+  });
+
+  children.push({
+    object: 'block',
+    type: 'callout',
+    callout: {
+      icon: { emoji: '💡' },
+      rich_text: [{
+        text: {
+          content: `This page is auto-synced from markdown. Edit source files in ${projectData.metadata.projectPath} and run sync to update.`
+        }
+      }],
+      color: 'gray_background'
+    }
+  });
+
   try {
     let page;
 
     if (existing) {
-      // Update existing project
+      // Update existing project properties
       page = await retryWithBackoff(async () => {
         return await notion.pages.update({
           page_id: existing.id,
@@ -219,7 +628,35 @@ async function syncProjectPage(projectData) {
         });
       }, 3, `Updating project "${projectData.name}"`);
 
-      console.log(`✅ Updated project: ${projectData.name}`);
+      // Update page content: delete old blocks and add new ones
+      try {
+        // Get existing blocks
+        const blocksResponse = await notion.blocks.children.list({
+          block_id: existing.id
+        });
+
+        // Delete all existing blocks (skip archived ones)
+        for (const block of blocksResponse.results) {
+          if (!block.archived) {
+            try {
+              await notion.blocks.delete({ block_id: block.id });
+            } catch (deleteError) {
+              // Skip blocks that can't be deleted
+              console.warn(`⚠️  Skipped block ${block.id}: ${deleteError.message}`);
+            }
+          }
+        }
+
+        // Add new blocks
+        await notion.blocks.children.append({
+          block_id: existing.id,
+          children
+        });
+
+        console.log(`✅ Updated project: ${projectData.name} (properties + content)`);
+      } catch (contentError) {
+        console.warn(`⚠️  Updated properties but failed to update content: ${contentError.message}`);
+      }
     } else {
       // Create new project
       page = await retryWithBackoff(async () => {
@@ -274,90 +711,131 @@ async function findProjectTasks(projectPageId) {
 }
 
 /**
- * Create or update a single task in Notion
+ * Create or update a PHASE-LEVEL task in Notion
  */
-async function syncTask(task, projectPageId, existingTasks) {
-  // Check if task already exists (match by name)
-  const existing = existingTasks.find(t => {
-    const titleProp = t.properties.Name?.title?.[0]?.text?.content;
-    return titleProp === task.name;
+async function syncPhase(phase, projectPageId, existingPhases) {
+  // Check if phase already exists (match by name)
+  const existing = existingPhases.find(p => {
+    const titleProp = p.properties.Name?.title?.[0]?.text?.content;
+    return titleProp === phase.name;
   });
 
-  // Build task properties
+  // Build checklist text from array
+  const checklistText = phase.checklist.join('\n');
+
+  // Notion limit: rich_text max 2000 chars per block, max 100 blocks
+  // Split long checklists into multiple rich_text blocks
+  const MAX_CHARS = 1900; // Leave buffer
+  const checklistBlocks = [];
+
+  if (checklistText.length <= MAX_CHARS) {
+    checklistBlocks.push({ text: { content: checklistText } });
+  } else {
+    // Split by lines to avoid breaking in middle of task
+    const lines = phase.checklist;
+    let currentBlock = '';
+
+    for (const line of lines) {
+      const testBlock = currentBlock ? `${currentBlock}\n${line}` : line;
+
+      if (testBlock.length > MAX_CHARS) {
+        // Save current block and start new one
+        if (currentBlock) {
+          checklistBlocks.push({ text: { content: currentBlock } });
+        }
+        currentBlock = line;
+      } else {
+        currentBlock = testBlock;
+      }
+    }
+
+    // Save last block
+    if (currentBlock) {
+      checklistBlocks.push({ text: { content: currentBlock } });
+    }
+  }
+
+  // Build phase properties
   const properties = {
     Name: {
-      title: [{ text: { content: task.name } }]
+      title: [{ text: { content: phase.name } }]
     },
     Status: {
-      select: { name: task.status }
+      select: { name: phase.status }
     },
     Project: {
       relation: [{ id: projectPageId }]
+    },
+    Checklist: {
+      rich_text: checklistBlocks
+    },
+    'Phase Number': {
+      number: phase.phaseNumber
+    },
+    'Total Tasks': {
+      number: phase.totalTasks
+    },
+    'Completed Tasks': {
+      number: phase.completedTasks
     }
   };
 
-  // Add priority if available
-  if (task.priority) {
-    properties.Priority = {
-      select: { name: task.priority }
-    };
-  }
-
-  // Add estimated hours if available
-  if (task.estimatedHours !== null) {
-    properties['Estimated Hours'] = {
-      number: task.estimatedHours
-    };
-  }
-
   try {
     if (existing) {
-      // Check if task has changed (status or priority)
+      // Check if phase has changed (status, checklist, or completion)
       const existingStatus = existing.properties?.Status?.select?.name;
-      const existingPriority = existing.properties?.Priority?.select?.name;
 
-      const statusChanged = existingStatus !== task.status;
-      const priorityChanged = task.priority && existingPriority !== task.priority;
+      // Reconstruct existing checklist from all rich_text blocks
+      const existingChecklistBlocks = existing.properties?.Checklist?.rich_text || [];
+      const existingChecklist = existingChecklistBlocks
+        .map(block => block.text?.content || '')
+        .join('');
 
-      if (!statusChanged && !priorityChanged) {
-        // Task unchanged, skip update
-        return { action: 'skipped', task: task.name };
+      const existingCompleted = existing.properties?.['Completed Tasks']?.number || 0;
+
+      const statusChanged = existingStatus !== phase.status;
+      const checklistChanged = existingChecklist !== checklistText;
+      const completedChanged = existingCompleted !== phase.completedTasks;
+
+      if (!statusChanged && !checklistChanged && !completedChanged) {
+        // Phase unchanged, skip update
+        return { action: 'skipped', phase: phase.name };
       }
 
-      // Update existing task (only if changed)
+      // Update existing phase (only if changed)
       await retryWithBackoff(async () => {
         return await notion.pages.update({
           page_id: existing.id,
           properties
         });
-      }, 3, `Updating task "${task.name}"`);
+      }, 3, `Updating phase "${phase.name}"`);
 
-      return { action: 'updated', task: task.name };
+      return { action: 'updated', phase: phase.name };
     } else {
-      // Create new task
+      // Create new phase
       await retryWithBackoff(async () => {
         return await notion.pages.create({
           parent: { database_id: TASKS_DB },
           properties
         });
-      }, 3, `Creating task "${task.name}"`);
+      }, 3, `Creating phase "${phase.name}"`);
 
-      return { action: 'created', task: task.name };
+      return { action: 'created', phase: phase.name };
     }
   } catch (error) {
-    console.error(`❌ Failed to sync task "${task.name}":`, error.message);
-    return { action: 'failed', task: task.name, error: error.message };
+    console.error(`❌ Failed to sync phase "${phase.name}":`, error.message);
+    return { action: 'failed', phase: phase.name, error: error.message };
   }
 }
 
 /**
- * Sync all tasks for a project
+ * Sync all PHASES for a project (not individual tasks!)
  */
-async function syncProjectTasks(tasks, projectPageId) {
-  console.log(`\n📋 Syncing ${tasks.length} tasks...`);
+async function syncProjectTasks(phases, projectPageId) {
+  console.log(`\n📋 Syncing ${phases.length} phases...`);
 
-  // Get existing tasks first
-  const existingTasks = await findProjectTasks(projectPageId);
+  // Get existing phases first
+  const existingPhases = await findProjectTasks(projectPageId);
 
   const results = {
     created: [],
@@ -366,22 +844,22 @@ async function syncProjectTasks(tasks, projectPageId) {
     failed: []
   };
 
-  // Sync tasks one by one (BullMQ will handle this in production)
-  for (const task of tasks) {
-    const result = await syncTask(task, projectPageId, existingTasks);
+  // Sync phases one by one
+  for (const phase of phases) {
+    const result = await syncPhase(phase, projectPageId, existingPhases);
 
     if (result.action === 'created') {
-      results.created.push(result.task);
-      console.log(`  ✅ Created: ${result.task}`);
+      results.created.push(result.phase);
+      console.log(`  ✅ Created: ${result.phase} (${phase.completedTasks}/${phase.totalTasks} tasks)`);
     } else if (result.action === 'updated') {
-      results.updated.push(result.task);
-      console.log(`  🔄 Updated: ${result.task}`);
+      results.updated.push(result.phase);
+      console.log(`  🔄 Updated: ${result.phase} (${phase.completedTasks}/${phase.totalTasks} tasks)`);
     } else if (result.action === 'skipped') {
-      results.skipped.push(result.task);
-      // Don't log skipped tasks to keep output clean
+      results.skipped.push(result.phase);
+      // Don't log skipped phases to keep output clean
     } else if (result.action === 'failed') {
-      results.failed.push({ task: result.task, error: result.error });
-      console.log(`  ❌ Failed: ${result.task}`);
+      results.failed.push({ phase: result.phase, error: result.error });
+      console.log(`  ❌ Failed: ${result.phase}`);
     }
   }
 
@@ -427,32 +905,36 @@ async function syncProject(projectPath) {
     // Step 1: Sync project page
     const projectPage = await syncProjectPage(projectData);
 
-    // Step 2: Sync tasks
-    const taskResults = await syncProjectTasks(projectData.tasks, projectPage.id);
+    // Step 2: Sync phases (not individual tasks!)
+    const phaseResults = await syncProjectTasks(projectData.tasks, projectPage.id);
 
     // Step 3: Report results
     console.log(`\n📊 Sync Summary:`);
     console.log(`  Project: ${projectData.name} ✅`);
-    console.log(`  Tasks created: ${taskResults.created.length}`);
-    console.log(`  Tasks updated: ${taskResults.updated.length}`);
-    console.log(`  Tasks skipped: ${taskResults.skipped.length} (unchanged)`);
-    console.log(`  Tasks failed: ${taskResults.failed.length}`);
+    console.log(`  Phases created: ${phaseResults.created.length}`);
+    console.log(`  Phases updated: ${phaseResults.updated.length}`);
+    console.log(`  Phases skipped: ${phaseResults.skipped.length} (unchanged)`);
+    console.log(`  Phases failed: ${phaseResults.failed.length}`);
 
-    if (taskResults.failed.length > 0) {
-      console.log(`\n⚠️  Failed tasks:`);
-      taskResults.failed.forEach(f => {
-        console.log(`    - ${f.task}: ${f.error}`);
+    if (phaseResults.failed.length > 0) {
+      console.log(`\n⚠️  Failed phases:`);
+      phaseResults.failed.forEach(f => {
+        console.log(`    - ${f.phase}: ${f.error}`);
       });
     }
 
     return {
-      success: taskResults.failed.length === 0,
+      success: phaseResults.failed.length === 0,
       project: projectData.name,
       projectPageId: projectPage.id,
-      tasksCreated: taskResults.created.length,
-      tasksUpdated: taskResults.updated.length,
-      tasksFailed: taskResults.failed.length,
-      results: taskResults
+      phasesCreated: phaseResults.created.length,
+      phasesUpdated: phaseResults.updated.length,
+      phasesFailed: phaseResults.failed.length,
+      // Keep old names for backward compatibility
+      tasksCreated: phaseResults.created.length,
+      tasksUpdated: phaseResults.updated.length,
+      tasksFailed: phaseResults.failed.length,
+      results: phaseResults
     };
   } catch (error) {
     console.error(`\n❌ Sync failed:`, error.message);
