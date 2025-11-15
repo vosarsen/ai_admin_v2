@@ -2694,6 +2694,61 @@
             statsObserver.observe(stat);
         });
 
+        // ROI Calculator counter observer
+        const roiObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && !entry.target.dataset.animated) {
+                    entry.target.dataset.animated = 'true';
+                    const numberText = entry.target.textContent;
+
+                    // Extract number from text (handle "40,000₽/мес" format)
+                    const number = parseInt(numberText.replace(/[^0-9]/g, ''));
+
+                    if (number && !isNaN(number)) {
+                        const hasCurrency = numberText.includes('₽');
+                        const hasPercent = numberText.includes('%');
+                        const hasX = numberText.toLowerCase().includes('x');
+                        const hasMonths = numberText.includes('мес');
+                        const hasPerMonth = numberText.includes('/мес');
+
+                        // Custom animation function for ROI
+                        let start = 0;
+                        const duration = 2000;
+                        const increment = number / (duration / 16);
+
+                        const timer = setInterval(() => {
+                            start += increment;
+                            if (start >= number) {
+                                start = number;
+                                clearInterval(timer);
+                            }
+
+                            let displayValue = Math.floor(start).toLocaleString('ru-RU');
+
+                            if (hasPercent) {
+                                entry.target.textContent = displayValue + '%';
+                            } else if (hasX) {
+                                entry.target.textContent = displayValue + 'x';
+                            } else if (hasPerMonth) {
+                                entry.target.textContent = displayValue + '₽/мес';
+                            } else if (hasCurrency && hasMonths) {
+                                entry.target.textContent = displayValue + '₽ за ' + (number >= 40000 ? '6 мес' : '3 мес');
+                            } else if (hasCurrency) {
+                                entry.target.textContent = displayValue + '₽';
+                            } else {
+                                entry.target.textContent = displayValue;
+                            }
+                        }, 16);
+                    }
+                }
+            });
+        }, { threshold: 0.3 });
+
+        // Observe all ROI calculator values
+        document.querySelectorAll('.roi-value, .roi-total-value, .roi-bottom-value').forEach(value => {
+            roiObserver.observe(value);
+        });
+
         // Smooth scroll
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
