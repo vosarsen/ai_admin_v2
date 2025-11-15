@@ -1,0 +1,68 @@
+name: Log Deployment to Notion
+
+# Trigger this workflow after successful manual deployments
+# You can also trigger it manually via workflow_dispatch for testing
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: 'Git commit SHA'
+        required: true
+        default: 'manual-deploy'
+      status:
+        description: 'Deployment status'
+        required: true
+        type: choice
+        options:
+          - Success
+          - Failed
+          - Rolled Back
+      duration:
+        description: 'Deployment duration (minutes)'
+        required: false
+        default: '0'
+      services:
+        description: 'Services deployed (comma-separated)'
+        required: false
+        default: 'ai-admin-worker-v2'
+      notes:
+        description: 'Deployment notes'
+        required: false
+        default: ''
+
+jobs:
+  log-to-notion:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install @notionhq/client
+
+      - name: Log Deployment to Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        run: |
+          node scripts/notion-log-deployment.js \
+            --commit="${{ github.event.inputs.commit || github.sha }}" \
+            --status="${{ github.event.inputs.status || 'Success' }}" \
+            --duration="${{ github.event.inputs.duration || '0' }}" \
+            --services="${{ github.event.inputs.services || 'ai-admin-worker-v2' }}" \
+            --notes="${{ github.event.inputs.notes || 'Automated deployment from GitHub Actions' }}"
+
+      - name: Report Status
+        if: always()
+        run: |
+          if [ $? -eq 0 ]; then
+            echo "✅ Deployment logged to Notion successfully"
+          else
+            echo "⚠️ Failed to log deployment to Notion (non-critical)"
+          fi
