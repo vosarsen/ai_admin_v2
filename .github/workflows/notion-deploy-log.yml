@@ -41,11 +41,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
-          cache: 'npm'
+          node-version: '20'
 
-      - name: Install dependencies
-        run: npm install @notionhq/client
+      - name: Install only Notion SDK
+        run: npm install --no-save @notionhq/client
 
       - name: Log Deployment to Notion
         env:
