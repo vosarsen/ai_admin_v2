@@ -191,9 +191,9 @@ function parseProjectContext(filePath) {
 }
 
 /**
- * Parse project tasks.md to extract task list with statuses
+ * Parse project tasks.md to extract PHASE-LEVEL tasks with checklists
  * @param {string} filePath - Absolute path to tasks.md file
- * @returns {Array<object>} Array of task objects
+ * @returns {Array<object>} Array of phase objects (not individual tasks!)
  */
 function parseProjectTasks(filePath) {
   if (!fs.existsSync(filePath)) {
@@ -207,81 +207,126 @@ function parseProjectTasks(filePath) {
     return [];
   }
 
-  const tasks = [];
+  const phases = [];
   const lines = content.split('\n');
   let currentPhase = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Track current phase/section from ## headings
+    // Detect phase headers: ## 📦 DAY 1: Database Foundation (6-8 hours)
+    // OR: ## Phase 1: Some Title
+    // OR: ## ✅ Completed Phase
     const phaseMatch = line.match(/^##\s+(.+)$/);
     if (phaseMatch) {
-      currentPhase = phaseMatch[1].trim();
-      continue;
-    }
+      // Save previous phase if exists
+      if (currentPhase) {
+        phases.push(currentPhase);
+      }
 
-    // Edge Case 3: Malformed checkboxes - accept variations
-    // Patterns: - [ ], - [], -[ ], - [x], - [X], - [~]
-    const taskMatch = line.match(/^-\s*\[([x\sX~]?)\]\s*(.+)$/);
-    if (taskMatch) {
-      // Edge Case 7: Nested task lists - skip indented tasks
-      if (/^\s{2,}/.test(line)) {
+      const phaseName = phaseMatch[1].trim();
+
+      // Skip non-phase headings (legend, status, etc.)
+      if (/legend|status|task status/i.test(phaseName)) {
+        currentPhase = null;
         continue;
       }
 
-      const statusMarker = taskMatch[1].trim().toLowerCase();
-      const taskName = taskMatch[2].trim();
+      // Extract phase number from various patterns
+      let phaseNumber = phases.length + 1; // Default sequential
+      const dayMatch = phaseName.match(/DAY\s*(\d+)/i);
+      const phaseNumMatch = phaseName.match(/Phase\s*(\d+)/i);
+      if (dayMatch) {
+        phaseNumber = parseInt(dayMatch[1]);
+      } else if (phaseNumMatch) {
+        phaseNumber = parseInt(phaseNumMatch[1]);
+      }
 
-      // Skip empty task names
-      if (!taskName) continue;
-
-      // Normalize status
-      let status;
-      if (statusMarker === 'x') {
+      // Determine initial status from emoji or keywords
+      let status = 'Todo';
+      if (/^✅|completed|done/i.test(phaseName)) {
         status = 'Done';
-      } else if (statusMarker === '~') {
+      } else if (/^🔄|in progress|ongoing/i.test(phaseName)) {
         status = 'In Progress';
-      } else {
-        status = 'Todo';
+      } else if (/^⏸️|deferred|paused/i.test(phaseName)) {
+        status = 'Review'; // Map deferred to Review status
       }
 
-      // Detect priority from keywords in task name
-      let priority = 'Medium';
-      if (/CRITICAL|URGENT|⚠️|🚨/i.test(taskName)) {
-        priority = 'Critical';
-      } else if (/HIGH|IMPORTANT|⭐/i.test(taskName)) {
-        priority = 'High';
-      } else if (/LOW|NICE TO HAVE/i.test(taskName)) {
-        priority = 'Low';
-      }
-
-      // Extract estimated hours if present (e.g., [2h], [30min])
-      let estimatedHours = null;
-      const hoursMatch = taskName.match(/\[(\d+(?:\.\d+)?)\s*h(?:ours?)?\]/i);
-      const minsMatch = taskName.match(/\[(\d+)\s*min(?:utes?)?\]/i);
-      if (hoursMatch) {
-        estimatedHours = parseFloat(hoursMatch[1]);
-      } else if (minsMatch) {
-        estimatedHours = parseFloat(minsMatch[1]) / 60;
-      }
-
-      tasks.push({
-        name: taskName,
+      currentPhase = {
+        name: phaseName,
+        phaseNumber,
         status,
-        priority,
-        phase: currentPhase,
-        estimatedHours,
-        lineNumber: i + 1
-      });
+        checklist: [],
+        totalTasks: 0,
+        completedTasks: 0
+      };
+      continue;
+    }
+
+    // Collect checklist items (only if we're inside a phase)
+    if (currentPhase) {
+      // Match: - ⬜ Task or - ✅ Task or - [ ] Task or - [x] Task
+      const checkboxMatch = line.match(/^-\s*(?:([⬜✅🔄⏸️❌])|(?:\[([x\sX~]?)\]))\s*(.+)$/);
+      if (checkboxMatch) {
+        const emoji = checkboxMatch[1];
+        const markdown = checkboxMatch[2];
+        const text = checkboxMatch[3].trim();
+
+        if (!text) continue; // Skip empty
+
+        // Determine checkbox symbol
+        let checkbox = '☐';
+        let isCompleted = false;
+
+        if (emoji) {
+          // Emoji format: ⬜ ✅ 🔄 ⏸️ ❌
+          if (emoji === '✅') {
+            checkbox = '☑';
+            isCompleted = true;
+          } else if (emoji === '🔄') {
+            checkbox = '⧗'; // In progress symbol
+          } else {
+            checkbox = '☐';
+          }
+        } else if (markdown) {
+          // Markdown format: [x] [ ] [~]
+          const marker = markdown.trim().toLowerCase();
+          if (marker === 'x') {
+            checkbox = '☑';
+            isCompleted = true;
+          } else if (marker === '~') {
+            checkbox = '⧗';
+          } else {
+            checkbox = '☐';
+          }
+        }
+
+        currentPhase.checklist.push(`${checkbox} ${text}`);
+        currentPhase.totalTasks++;
+        if (isCompleted) {
+          currentPhase.completedTasks++;
+        }
+      }
     }
   }
 
-  // Edge Case 4: Duplicate task names - keep all (with line numbers to distinguish)
-  // We DON'T deduplicate - each checkbox is a separate task even if names match
+  // Save last phase
+  if (currentPhase) {
+    phases.push(currentPhase);
+  }
 
-  console.info(`✅ Parsed ${tasks.length} tasks from ${path.basename(filePath)}`);
-  return tasks;
+  // Update phase status based on completion
+  phases.forEach(phase => {
+    if (phase.completedTasks === phase.totalTasks && phase.totalTasks > 0) {
+      phase.status = 'Done';
+    } else if (phase.completedTasks > 0) {
+      phase.status = 'In Progress';
+    }
+    // else keep original status (Todo, Review, etc.)
+  });
+
+  console.info(`✅ Parsed ${phases.length} phases (${phases.reduce((sum, p) => sum + p.totalTasks, 0)} total tasks) from ${path.basename(filePath)}`);
+  return phases;
 }
 
 /**
@@ -316,6 +361,10 @@ function parseProject(projectPath) {
     return null;
   }
 
+  // Calculate totals from phases (not individual tasks!)
+  const totalTasks = tasks.reduce((sum, phase) => sum + phase.totalTasks, 0);
+  const completedTasks = tasks.reduce((sum, phase) => sum + phase.completedTasks, 0);
+
   return {
     name: project.name,
     status: project.status,
@@ -323,13 +372,15 @@ function parseProject(projectPath) {
     components: project.components,
     dates: project.dates,
     context: context,
-    tasks: tasks,
+    tasks: tasks, // Now this is an array of phases, not individual tasks
     metadata: {
       projectPath,
       projectName,
-      totalTasks: tasks.length,
-      completedTasks: tasks.filter(t => t.status === 'Done').length,
-      inProgressTasks: tasks.filter(t => t.status === 'In Progress').length
+      totalPhases: tasks.length,
+      totalTasks,
+      completedTasks,
+      completedPhases: tasks.filter(p => p.status === 'Done').length,
+      inProgressPhases: tasks.filter(p => p.status === 'In Progress').length
     }
   };
 }
