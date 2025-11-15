@@ -98,24 +98,26 @@ function parseProjectPlan(filePath) {
     project.phase = phaseMatch[1];
   }
 
-  // Extract components by searching for keywords
+  // Extract components by searching for keywords (PRIORITY ORDER - max 2)
   const componentKeywords = {
     'WhatsApp': /whatsapp|baileys|wa|messaging/gi,
-    'YClients': /yclients|booking|salon/gi,
-    'Database': /database|postgres|timeweb|supabase|migration|schema/gi,
     'AI': /\bai\b|gemini|openai|deepseek|prompt/gi,
+    'Database': /database|postgres|timeweb|supabase|migration|schema/gi,
+    'YClients': /yclients|booking|salon/gi,
     'Queue': /queue|bullmq|redis|job/gi,
     'Infrastructure': /infrastructure|deployment|pm2|docker|server/gi,
     'General': /general|misc|other/gi
   };
 
-  const components = new Set();
+  const components = [];
   for (const [component, regex] of Object.entries(componentKeywords)) {
     if (regex.test(content)) {
-      components.add(component);
+      components.push(component);
+      if (components.length === 2) break; // Max 2 components
     }
   }
-  project.components = Array.from(components);
+
+  project.components = components;
 
   // If no components detected, default to General
   if (project.components.length === 0) {
@@ -191,9 +193,137 @@ function parseProjectContext(filePath) {
 }
 
 /**
- * Parse project tasks.md to extract task list with statuses
+ * Extract project summary for team management view (Phase 2.0)
+ * Extracts: What is this? Why needed? Timeline. Risk Level.
+ *
+ * @param {string} planPath - Absolute path to plan.md file
+ * @param {string} contextPath - Absolute path to context.md file
+ * @returns {object} { summary, businessValue, timeline, risk }
+ */
+function extractProjectSummary(planPath, contextPath) {
+  const summary = {
+    summary: null,          // What is this? (1-2 sentences)
+    businessValue: null,    // Why needed? (1-2 sentences)
+    timeline: null,         // Time estimate (e.g., "4 days", "2-3 weeks")
+    risk: 'Medium'          // Risk level: Low/Medium/High
+  };
+
+  // Read plan.md
+  let planContent = '';
+  if (fs.existsSync(planPath)) {
+    planContent = fs.readFileSync(planPath, 'utf8');
+  }
+
+  // Read context.md
+  let contextContent = '';
+  if (fs.existsSync(contextPath)) {
+    contextContent = fs.readFileSync(contextPath, 'utf8');
+  }
+
+  // Extract "What is this?" - from Executive Summary > Mission or first paragraph after ## Executive Summary
+  const executiveSummaryMatch = planContent.match(/##\s*📋?\s*Executive Summary[\s\S]*?###\s*Mission\s*([\s\S]*?)(?=###|##|$)/i);
+  if (executiveSummaryMatch) {
+    const missionText = executiveSummaryMatch[1].trim();
+    // Extract first 1-2 sentences (up to 200 chars)
+    const sentences = missionText.split(/\.\s+/);
+    summary.summary = sentences.slice(0, 2).join('. ').substring(0, 200).trim();
+    if (!summary.summary.endsWith('.')) {
+      summary.summary += '.';
+    }
+  } else {
+    // Fallback: Try "What We're Building" from context.md
+    const whatBuildingMatch = contextContent.match(/###\s*What We're Building\s*([\s\S]*?)(?=###|##|$)/i);
+    if (whatBuildingMatch) {
+      const text = whatBuildingMatch[1].trim();
+      const sentences = text.split(/\.\s+/);
+      summary.summary = sentences.slice(0, 2).join('. ').substring(0, 200).trim();
+      if (!summary.summary.endsWith('.')) {
+        summary.summary += '.';
+      }
+    }
+  }
+
+  // Extract "Why needed?" - Priority order: Success Metrics > Key Requirements > Business Value
+  let successMetricsMatch = planContent.match(/###\s*Success Metrics\s*([\s\S]*?)(?=###|##|$)/i);
+
+  if (!successMetricsMatch) {
+    // Try Key Requirements
+    successMetricsMatch = planContent.match(/###\s*Key Requirements\s*\(MVP\)\s*([\s\S]*?)(?=###|##|$)/i);
+  }
+
+  if (successMetricsMatch) {
+    const metricsText = successMetricsMatch[1].trim();
+    // Extract first bullet point or first sentence
+    const bulletMatch = metricsText.match(/^-\s*\*\*([^*]+)\*\*:?\s*(.+?)$/m);
+    if (bulletMatch) {
+      // Found bullet: "- **Conversion Rate:** 15-20%..."
+      summary.businessValue = `${bulletMatch[1]}: ${bulletMatch[2]}`.substring(0, 200).trim();
+    } else {
+      // Extract first 1-2 sentences
+      const sentences = metricsText.split(/\.\s+/);
+      summary.businessValue = sentences.slice(0, 2).join('. ').substring(0, 200).trim();
+      if (!summary.businessValue.endsWith('.')) {
+        summary.businessValue += '.';
+      }
+    }
+  } else {
+    // Fallback: Try MVP Priorities from context.md
+    const mvpPrioritiesMatch = contextContent.match(/###\s*MVP Priorities\s*([\s\S]*?)(?=###|##|$)/i);
+    if (mvpPrioritiesMatch) {
+      const text = mvpPrioritiesMatch[1].trim();
+      // Extract first list item
+      const listItemMatch = text.match(/^\d+\.\s*[🥇🥈🥉]*\s*\*\*(.+?)\*\*/m);
+      if (listItemMatch) {
+        summary.businessValue = listItemMatch[1].trim();
+      }
+    }
+  }
+
+  // Extract Timeline - from **Timeline:** metadata
+  const timelineMatch = planContent.match(/\*\*Timeline:\*\*\s*(.+)/);
+  if (timelineMatch) {
+    let timeline = timelineMatch[1].trim();
+
+    // Clean up (remove dates)
+    timeline = timeline.replace(/\(\d{4}-\d{2}-\d{2}.*?\)/g, '').trim();
+
+    // Format: "4 days" or "2-3 weeks" => keep short
+    // If contains hours, format as "X days (Yh)"
+    const daysMatch = timeline.match(/(\d+(?:-\d+)?)\s*days?/i);
+    const hoursMatch = timeline.match(/(\d+(?:\.\d+)?)\s*hours?/i);
+
+    if (daysMatch && hoursMatch) {
+      // Both days and hours: "4 days (32h)"
+      summary.timeline = `${daysMatch[1]} days (${Math.round(parseFloat(hoursMatch[1]))}h)`;
+    } else if (daysMatch) {
+      // Only days: "4 days"
+      summary.timeline = `${daysMatch[1]} days`;
+    } else if (hoursMatch) {
+      // Only hours: "8h"
+      summary.timeline = `${Math.round(parseFloat(hoursMatch[1]))}h`;
+    } else {
+      // Keep original if can't parse
+      summary.timeline = timeline.substring(0, 30); // Max 30 chars
+    }
+  }
+
+  // Extract Risk Level - from **Risk Level:** metadata
+  const riskMatch = planContent.match(/\*\*Risk Level:\*\*\s*[🟢🟡🔴]*\s*(Low|Medium|High)/i);
+  if (riskMatch) {
+    summary.risk = riskMatch[1];
+  } else if (planContent.match(/\*\*Complexity:\*\*\s*(Low|Medium|High)/i)) {
+    // Fallback: Use Complexity as Risk proxy
+    const complexityMatch = planContent.match(/\*\*Complexity:\*\*\s*(Low|Medium|High)/i);
+    summary.risk = complexityMatch[1];
+  }
+
+  return summary;
+}
+
+/**
+ * Parse project tasks.md to extract PHASE-LEVEL tasks with checklists
  * @param {string} filePath - Absolute path to tasks.md file
- * @returns {Array<object>} Array of task objects
+ * @returns {Array<object>} Array of phase objects (not individual tasks!)
  */
 function parseProjectTasks(filePath) {
   if (!fs.existsSync(filePath)) {
@@ -207,81 +337,126 @@ function parseProjectTasks(filePath) {
     return [];
   }
 
-  const tasks = [];
+  const phases = [];
   const lines = content.split('\n');
   let currentPhase = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Track current phase/section from ## headings
+    // Detect phase headers: ## 📦 DAY 1: Database Foundation (6-8 hours)
+    // OR: ## Phase 1: Some Title
+    // OR: ## ✅ Completed Phase
     const phaseMatch = line.match(/^##\s+(.+)$/);
     if (phaseMatch) {
-      currentPhase = phaseMatch[1].trim();
-      continue;
-    }
+      // Save previous phase if exists
+      if (currentPhase) {
+        phases.push(currentPhase);
+      }
 
-    // Edge Case 3: Malformed checkboxes - accept variations
-    // Patterns: - [ ], - [], -[ ], - [x], - [X], - [~]
-    const taskMatch = line.match(/^-\s*\[([x\sX~]?)\]\s*(.+)$/);
-    if (taskMatch) {
-      // Edge Case 7: Nested task lists - skip indented tasks
-      if (/^\s{2,}/.test(line)) {
+      const phaseName = phaseMatch[1].trim();
+
+      // Skip non-phase headings (legend, status, etc.)
+      if (/legend|status|task status/i.test(phaseName)) {
+        currentPhase = null;
         continue;
       }
 
-      const statusMarker = taskMatch[1].trim().toLowerCase();
-      const taskName = taskMatch[2].trim();
+      // Extract phase number from various patterns
+      let phaseNumber = phases.length + 1; // Default sequential
+      const dayMatch = phaseName.match(/DAY\s*(\d+)/i);
+      const phaseNumMatch = phaseName.match(/Phase\s*(\d+)/i);
+      if (dayMatch) {
+        phaseNumber = parseInt(dayMatch[1]);
+      } else if (phaseNumMatch) {
+        phaseNumber = parseInt(phaseNumMatch[1]);
+      }
 
-      // Skip empty task names
-      if (!taskName) continue;
-
-      // Normalize status
-      let status;
-      if (statusMarker === 'x') {
+      // Determine initial status from emoji or keywords
+      let status = 'Todo';
+      if (/^✅|completed|done/i.test(phaseName)) {
         status = 'Done';
-      } else if (statusMarker === '~') {
+      } else if (/^🔄|in progress|ongoing/i.test(phaseName)) {
         status = 'In Progress';
-      } else {
-        status = 'Todo';
+      } else if (/^⏸️|deferred|paused/i.test(phaseName)) {
+        status = 'Review'; // Map deferred to Review status
       }
 
-      // Detect priority from keywords in task name
-      let priority = 'Medium';
-      if (/CRITICAL|URGENT|⚠️|🚨/i.test(taskName)) {
-        priority = 'Critical';
-      } else if (/HIGH|IMPORTANT|⭐/i.test(taskName)) {
-        priority = 'High';
-      } else if (/LOW|NICE TO HAVE/i.test(taskName)) {
-        priority = 'Low';
-      }
-
-      // Extract estimated hours if present (e.g., [2h], [30min])
-      let estimatedHours = null;
-      const hoursMatch = taskName.match(/\[(\d+(?:\.\d+)?)\s*h(?:ours?)?\]/i);
-      const minsMatch = taskName.match(/\[(\d+)\s*min(?:utes?)?\]/i);
-      if (hoursMatch) {
-        estimatedHours = parseFloat(hoursMatch[1]);
-      } else if (minsMatch) {
-        estimatedHours = parseFloat(minsMatch[1]) / 60;
-      }
-
-      tasks.push({
-        name: taskName,
+      currentPhase = {
+        name: phaseName,
+        phaseNumber,
         status,
-        priority,
-        phase: currentPhase,
-        estimatedHours,
-        lineNumber: i + 1
-      });
+        checklist: [],
+        totalTasks: 0,
+        completedTasks: 0
+      };
+      continue;
+    }
+
+    // Collect checklist items (only if we're inside a phase)
+    if (currentPhase) {
+      // Match: - ⬜ Task or - ✅ Task or - [ ] Task or - [x] Task
+      const checkboxMatch = line.match(/^-\s*(?:([⬜✅🔄⏸️❌])|(?:\[([x\sX~]?)\]))\s*(.+)$/);
+      if (checkboxMatch) {
+        const emoji = checkboxMatch[1];
+        const markdown = checkboxMatch[2];
+        const text = checkboxMatch[3].trim();
+
+        if (!text) continue; // Skip empty
+
+        // Determine checkbox symbol
+        let checkbox = '☐';
+        let isCompleted = false;
+
+        if (emoji) {
+          // Emoji format: ⬜ ✅ 🔄 ⏸️ ❌
+          if (emoji === '✅') {
+            checkbox = '☑';
+            isCompleted = true;
+          } else if (emoji === '🔄') {
+            checkbox = '⧗'; // In progress symbol
+          } else {
+            checkbox = '☐';
+          }
+        } else if (markdown) {
+          // Markdown format: [x] [ ] [~]
+          const marker = markdown.trim().toLowerCase();
+          if (marker === 'x') {
+            checkbox = '☑';
+            isCompleted = true;
+          } else if (marker === '~') {
+            checkbox = '⧗';
+          } else {
+            checkbox = '☐';
+          }
+        }
+
+        currentPhase.checklist.push(`${checkbox} ${text}`);
+        currentPhase.totalTasks++;
+        if (isCompleted) {
+          currentPhase.completedTasks++;
+        }
+      }
     }
   }
 
-  // Edge Case 4: Duplicate task names - keep all (with line numbers to distinguish)
-  // We DON'T deduplicate - each checkbox is a separate task even if names match
+  // Save last phase
+  if (currentPhase) {
+    phases.push(currentPhase);
+  }
 
-  console.info(`✅ Parsed ${tasks.length} tasks from ${path.basename(filePath)}`);
-  return tasks;
+  // Update phase status based on completion
+  phases.forEach(phase => {
+    if (phase.completedTasks === phase.totalTasks && phase.totalTasks > 0) {
+      phase.status = 'Done';
+    } else if (phase.completedTasks > 0) {
+      phase.status = 'In Progress';
+    }
+    // else keep original status (Todo, Review, etc.)
+  });
+
+  console.info(`✅ Parsed ${phases.length} phases (${phases.reduce((sum, p) => sum + p.totalTasks, 0)} total tasks) from ${path.basename(filePath)}`);
+  return phases;
 }
 
 /**
@@ -316,6 +491,13 @@ function parseProject(projectPath) {
     return null;
   }
 
+  // Extract project summary for team management view (Phase 2.0)
+  const projectSummary = extractProjectSummary(planFile, contextFile);
+
+  // Calculate totals from phases (not individual tasks!)
+  const totalTasks = tasks.reduce((sum, phase) => sum + phase.totalTasks, 0);
+  const completedTasks = tasks.reduce((sum, phase) => sum + phase.completedTasks, 0);
+
   return {
     name: project.name,
     status: project.status,
@@ -323,13 +505,16 @@ function parseProject(projectPath) {
     components: project.components,
     dates: project.dates,
     context: context,
-    tasks: tasks,
+    tasks: tasks, // Now this is an array of phases, not individual tasks
+    summary: projectSummary, // NEW: Project summary for team management
     metadata: {
       projectPath,
       projectName,
-      totalTasks: tasks.length,
-      completedTasks: tasks.filter(t => t.status === 'Done').length,
-      inProgressTasks: tasks.filter(t => t.status === 'In Progress').length
+      totalPhases: tasks.length,
+      totalTasks,
+      completedTasks,
+      completedPhases: tasks.filter(p => p.status === 'Done').length,
+      inProgressPhases: tasks.filter(p => p.status === 'In Progress').length
     }
   };
 }
@@ -410,5 +595,6 @@ module.exports = {
   parseProjectContext,
   parseProjectTasks,
   parseProject,
-  scanActiveProjects
+  scanActiveProjects,
+  extractProjectSummary // NEW: For Phase 2.0
 };

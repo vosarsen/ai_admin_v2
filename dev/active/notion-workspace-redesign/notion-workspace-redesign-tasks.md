@@ -1558,3 +1558,160 @@
 - Knowledge Base: https://www.notion.so/2ac0a520-3786-81b6-8430-d98b279dc5f2
 - POC Checklist: https://www.notion.so/2ac0a520-3786-819a-89a7-c58377bb7263
 - Client Reactivation Project: https://www.notion.so/2ac0a520-3786-812d-a646-dfd6b77e56e5
+# Add to notion-workspace-redesign-tasks.md after Phase 1.5 section:
+
+## 🚀 Phase 2.0: Team Management Structure (8-11 hours total) **CURRENT**
+
+**Goal:** Transform Notion into team management hub (projects as strategic cards)
+**Timeline:** 1-1.5 days
+**Decision Gate:** After user validates project card format
+
+### Phase A: Parser Changes (2-3 hours)
+
+⬜ **A-1:** Add extractProjectSummary() function [M - 1h]
+- [ ] Read plan.md and context.md
+- [ ] Extract "What is this?" from Executive Summary or first paragraph
+- [ ] Extract "Why needed?" from Mission/Business Value section
+- [ ] Extract Timeline from plan.md metadata
+- [ ] Extract Risk Level from plan.md
+- [ ] Return { summary, businessValue, timeline, risk }
+- [ ] Test with all 3 projects
+- **Acceptance:** Summary extracted for all projects
+
+⬜ **A-2:** Modify parseProject() to include summary data [S - 30min]
+- [ ] Call extractProjectSummary() in parseProject()
+- [ ] Add summary fields to returned object
+- [ ] Update metadata calculation (keep totalPhases)
+- [ ] Test parser: npm run notion:parse -- --all
+- **Acceptance:** Parsed data includes summary/value/timeline
+
+⬜ **A-3:** Verify phase grouping still works [S - 15min]
+- [ ] Confirm parseProjectTasks() returns phases (not individual tasks)
+- [ ] Verify progress calculation from phases
+- [ ] Test with client-reactivation-service-v2
+- **Acceptance:** 9 phases parsed, progress calculated
+
+### Phase B: Sync Script Updates (3-4 hours)
+
+⬜ **B-1:** Add new properties to Projects database sync [M - 1.5h]
+- [ ] Modify syncProjectPage() in notion-sync-project.js
+- [ ] Add Summary (rich_text)
+- [ ] Add Business Value (rich_text)
+- [ ] Add Timeline (rich_text)
+- [ ] Add Progress (number, auto-calculated)
+- [ ] Add Risk Level (select)
+- [ ] Keep existing properties (Name, Status, Components, etc.)
+- **Acceptance:** Projects sync with new fields
+
+⬜ **B-2:** Create project page content template [M - 1.5h]
+- [ ] Build children blocks for project page:
+  - Metadata callout (status, owner, progress, target, risk)
+  - "What is this?" section (summary)
+  - "Why needed?" section (business value)
+  - "Implementation Plan" section (phases with progress)
+  - "Required Resources" section (from plan.md)
+  - "Dev Docs" link
+- [ ] Use toggle blocks for collapsible sections
+- [ ] Format with emoji and visual hierarchy
+- **Acceptance:** Project page renders with all sections
+
+⬜ **B-3:** Link phases to projects correctly [S - 30min]
+- [ ] Verify Task database relation to Projects
+- [ ] Ensure phases link to parent project
+- [ ] Calculate project progress from linked phases
+- [ ] Test relation integrity
+- **Acceptance:** Phases appear in project relation
+
+⬜ **B-4:** Test sync with one project [S - 30min]
+- [ ] Run: npm run notion:sync:project dev/active/client-reactivation-service-v2
+- [ ] Verify summary populated
+- [ ] Verify business value shown
+- [ ] Verify phases linked
+- [ ] Verify progress calculated
+- [ ] Check mobile view
+- **Acceptance:** Single project syncs perfectly
+
+### Phase C: Notion Database Setup (1-2 hours) **MANUAL**
+
+⬜ **C-1:** Update Projects database properties [M - 45min]
+- [ ] Open existing Projects database in Notion
+- [ ] Add new properties:
+  - Summary (Text, Long text, Show as markdown)
+  - Business Value (Text, Long text, Show as markdown)
+  - Timeline (Text)
+  - Progress (Number, format as %)
+  - Risk Level (Select: Low/Medium/High)
+  - Owner (Person)
+  - Target Date (Date)
+  - Priority (Select: High/Medium/Low)
+- [ ] Update database ID in scripts if changed
+- **Acceptance:** All properties exist
+
+⬜ **C-2:** Create Team Lead Board view [S - 20min]
+- [ ] New view: Board
+- [ ] Group by: Status
+- [ ] Sort by: Priority DESC, Target Date ASC
+- [ ] Properties shown: Name, Owner, Progress, Target Date, Components
+- [ ] Hide: Summary, Business Value (show in page only)
+- [ ] Set as default view
+- **Acceptance:** Board shows 3 projects grouped by status
+
+⬜ **C-3:** Create additional views [M - 30min]
+- [ ] My Projects view (Table, filter: Owner = Me)
+- [ ] Timeline view (Timeline, date: Target Date)
+- [ ] All Projects view (Table, no filters)
+- [ ] Test each view on mobile
+- **Acceptance:** 4 views operational
+
+⬜ **C-4:** Create project page template [S - 20min]
+- [ ] Create template with sections structure
+- [ ] Add placeholder content
+- [ ] Set as default for new projects
+- **Acceptance:** New projects use template
+
+### Phase D: Testing & Migration (2 hours)
+
+⬜ **D-1:** Test with all 3 projects [M - 45min]
+- [ ] Sync client-reactivation-service
+- [ ] Sync client-reactivation-service-v2
+- [ ] Sync notion-workspace-redesign
+- [ ] Verify summaries extracted correctly
+- [ ] Verify progress calculations
+- [ ] Check all phases linked
+- **Acceptance:** All 3 projects in Notion
+
+⬜ **D-2:** User acceptance testing [M - 30min]
+- [ ] User reviews project cards
+- [ ] Test on mobile (iOS/Android)
+- [ ] Get feedback on clarity
+- [ ] Check "30-second understanding" metric
+- [ ] Verify team lead can answer: "What's everyone doing?"
+- **Acceptance:** User says "удобно и понятно"
+
+⬜ **D-3:** Iterate based on feedback [M - 30min]
+- [ ] Adjust template structure if needed
+- [ ] Fix any summary extraction issues
+- [ ] Refine view configurations
+- [ ] Update documentation
+- **Acceptance:** User satisfied
+
+⬜ **D-4:** Documentation & handoff [S - 15min]
+- [ ] Update context.md with final decisions
+- [ ] Document manual fields (Owner, Target Date)
+- [ ] Update CLAUDE.md with new structure
+- [ ] Add screenshots to docs/
+- **Acceptance:** Next developer can maintain
+
+### Success Metrics (Phase 2.0)
+
+**Primary:**
+- [ ] Team lead can see project status in <30 seconds
+- [ ] Developer can understand project in <2 minutes
+- [ ] Mobile view loads fast (<2 sec)
+- [ ] User says: "удобно и понятно" (convenient and clear)
+
+**Secondary:**
+- [ ] 3 project cards (not 25 tasks) as primary view
+- [ ] Progress auto-updates from markdown
+- [ ] Manual fields (Owner, Target Date) work
+- [ ] Phases still accessible for detail view
