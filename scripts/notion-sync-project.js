@@ -189,7 +189,7 @@ async function syncProjectPage(projectData) {
   //   };
   // }
 
-  // Build page content (children blocks) - Phase 2.0 IMPROVED template
+  // Build page content (children blocks) - Phase 2.0 RICH & INFORMATIVE template
   const children = [];
 
   const progressPercent = projectData.metadata.totalTasks > 0
@@ -198,7 +198,7 @@ async function syncProjectPage(projectData) {
 
   const progressBar = '▓'.repeat(Math.floor(progressPercent / 10)) + '░'.repeat(10 - Math.floor(progressPercent / 10));
 
-  // 📊 Project Overview Callout
+  // 📊 Project Overview Callout (compact)
   children.push({
     object: 'block',
     type: 'callout',
@@ -206,19 +206,28 @@ async function syncProjectPage(projectData) {
       icon: { emoji: '📊' },
       rich_text: [{
         text: {
-          content: `${projectData.status || 'Unknown'} • ${progressBar} ${progressPercent}% • ${projectData.summary?.timeline || 'Timeline TBD'} • Risk: ${projectData.summary?.risk || 'Medium'}`
+          content: `${projectData.status || 'Unknown'} • ${progressBar} ${progressPercent}% • ${projectData.summary?.timeline || 'TBD'} • Risk: ${projectData.summary?.risk || 'Medium'} • ${projectData.components.join(', ')}`
         }
       }]
     }
   });
 
-  // 🎯 What is this?
+  // 🎯 Executive Summary
+  children.push({
+    object: 'block',
+    type: 'heading_1',
+    heading_1: {
+      rich_text: [{ text: { content: '🎯 Executive Summary' } }]
+    }
+  });
+
+  // What is this?
   if (projectData.summary?.summary) {
     children.push({
       object: 'block',
       type: 'heading_2',
       heading_2: {
-        rich_text: [{ text: { content: '🎯 What is this?' } }]
+        rich_text: [{ text: { content: 'What is this?' } }]
       }
     });
 
@@ -231,13 +240,13 @@ async function syncProjectPage(projectData) {
     });
   }
 
-  // 💡 Why needed?
+  // Why needed?
   if (projectData.summary?.businessValue) {
     children.push({
       object: 'block',
       type: 'heading_2',
       heading_2: {
-        rich_text: [{ text: { content: '💡 Why needed?' } }]
+        rich_text: [{ text: { content: 'Why needed?' } }]
       }
     });
 
@@ -250,6 +259,91 @@ async function syncProjectPage(projectData) {
     });
   }
 
+  // 📈 Project Metrics
+  children.push({
+    object: 'block',
+    type: 'heading_2',
+    heading_2: {
+      rich_text: [{ text: { content: '📈 Project Metrics' } }]
+    }
+  });
+
+  const completedPhases = projectData.tasks.filter(p => p.status === 'Done').length;
+  const inProgressPhases = projectData.tasks.filter(p => p.status === 'In Progress').length;
+  const pendingPhases = projectData.tasks.filter(p => p.status === 'Todo' || p.status === 'Review').length;
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: {
+          content: `📦 Total Phases: ${projectData.tasks.length} (✅ ${completedPhases} completed, 🔄 ${inProgressPhases} in progress, ⬜ ${pendingPhases} pending)`
+        }
+      }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: {
+          content: `✅ Total Tasks: ${projectData.metadata.totalTasks} (${projectData.metadata.completedTasks} completed, ${projectData.metadata.totalTasks - projectData.metadata.completedTasks} remaining)`
+        }
+      }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: {
+          content: `📊 Overall Progress: ${progressBar} ${progressPercent}%`
+        }
+      }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: {
+          content: `⏱️ Timeline: ${projectData.summary?.timeline || 'To be determined'}`
+        }
+      }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: {
+          content: `🎯 Risk Level: ${projectData.summary?.risk || 'Medium'}`
+        }
+      }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: {
+          content: `🔧 Components: ${projectData.components.join(', ')}`
+        }
+      }]
+    }
+  });
+
   // Divider
   children.push({
     object: 'block',
@@ -257,19 +351,15 @@ async function syncProjectPage(projectData) {
     divider: {}
   });
 
-  // 📋 Implementation Plan (toggle blocks for each phase)
+  // 📋 Implementation Plan (detailed)
   if (projectData.tasks && projectData.tasks.length > 0) {
     children.push({
       object: 'block',
-      type: 'heading_2',
-      heading_2: {
+      type: 'heading_1',
+      heading_1: {
         rich_text: [{ text: { content: '📋 Implementation Plan' } }]
       }
     });
-
-    // Summary of phases
-    const completedPhases = projectData.tasks.filter(p => p.status === 'Done').length;
-    const inProgressPhases = projectData.tasks.filter(p => p.status === 'In Progress').length;
 
     children.push({
       object: 'block',
@@ -277,33 +367,96 @@ async function syncProjectPage(projectData) {
       paragraph: {
         rich_text: [{
           text: {
-            content: `${completedPhases}/${projectData.tasks.length} phases completed • ${inProgressPhases} in progress • ${projectData.metadata.completedTasks}/${projectData.metadata.totalTasks} total tasks`
+            content: `This project is organized into ${projectData.tasks.length} phases with ${projectData.metadata.totalTasks} total tasks. Below is a detailed breakdown:`
           }
         }]
       }
     });
 
-    // Phases as bulleted list
-    projectData.tasks.forEach(phase => {
-      const phaseProgress = phase.totalTasks > 0
-        ? Math.round((phase.completedTasks / phase.totalTasks) * 100)
-        : 0;
+    // Group phases by status
+    const donePhases = projectData.tasks.filter(p => p.status === 'Done');
+    const activePhases = projectData.tasks.filter(p => p.status === 'In Progress');
+    const upcomingPhases = projectData.tasks.filter(p => p.status === 'Todo' || p.status === 'Review');
 
-      const statusEmoji = phase.status === 'Done' ? '✅' :
-                         phase.status === 'In Progress' ? '🔄' : '⬜';
-
+    // Completed Phases
+    if (donePhases.length > 0) {
       children.push({
         object: 'block',
-        type: 'bulleted_list_item',
-        bulleted_list_item: {
-          rich_text: [{
-            text: {
-              content: `${statusEmoji} ${phase.name} — ${phaseProgress}% (${phase.completedTasks}/${phase.totalTasks} tasks)`
-            }
-          }]
+        type: 'heading_2',
+        heading_2: {
+          rich_text: [{ text: { content: `✅ Completed Phases (${donePhases.length})` } }]
         }
       });
-    });
+
+      donePhases.forEach(phase => {
+        children.push({
+          object: 'block',
+          type: 'bulleted_list_item',
+          bulleted_list_item: {
+            rich_text: [{
+              text: {
+                content: `${phase.name} — 100% (${phase.totalTasks} tasks)`
+              }
+            }]
+          }
+        });
+      });
+    }
+
+    // Active Phases
+    if (activePhases.length > 0) {
+      children.push({
+        object: 'block',
+        type: 'heading_2',
+        heading_2: {
+          rich_text: [{ text: { content: `🔄 In Progress (${activePhases.length})` } }]
+        }
+      });
+
+      activePhases.forEach(phase => {
+        const phaseProgress = phase.totalTasks > 0
+          ? Math.round((phase.completedTasks / phase.totalTasks) * 100)
+          : 0;
+        const phaseBar = '▓'.repeat(Math.floor(phaseProgress / 10)) + '░'.repeat(10 - Math.floor(phaseProgress / 10));
+
+        children.push({
+          object: 'block',
+          type: 'bulleted_list_item',
+          bulleted_list_item: {
+            rich_text: [{
+              text: {
+                content: `${phase.name} — ${phaseBar} ${phaseProgress}% (${phase.completedTasks}/${phase.totalTasks} tasks)`
+              }
+            }]
+          }
+        });
+      });
+    }
+
+    // Upcoming Phases
+    if (upcomingPhases.length > 0) {
+      children.push({
+        object: 'block',
+        type: 'heading_2',
+        heading_2: {
+          rich_text: [{ text: { content: `⬜ Upcoming Phases (${upcomingPhases.length})` } }]
+        }
+      });
+
+      upcomingPhases.forEach(phase => {
+        children.push({
+          object: 'block',
+          type: 'bulleted_list_item',
+          bulleted_list_item: {
+            rich_text: [{
+              text: {
+                content: `${phase.name} — ${phase.totalTasks} tasks`
+              }
+            }]
+          }
+        });
+      });
+    }
   }
 
   // Divider
@@ -313,11 +466,32 @@ async function syncProjectPage(projectData) {
     divider: {}
   });
 
-  // 📚 Source Files
+  // 🗂️ Project Structure
   children.push({
     object: 'block',
-    type: 'heading_3',
-    heading_3: {
+    type: 'heading_1',
+    heading_1: {
+      rich_text: [{ text: { content: '🗂️ Project Structure' } }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'paragraph',
+    paragraph: {
+      rich_text: [{
+        text: {
+          content: `This project follows the standard /dev-docs structure with plan, context, and tasks files synchronized to Notion.`
+        }
+      }]
+    }
+  });
+
+  // Source Files
+  children.push({
+    object: 'block',
+    type: 'heading_2',
+    heading_2: {
       rich_text: [{ text: { content: '📚 Source Files' } }]
     }
   });
@@ -327,9 +501,118 @@ async function syncProjectPage(projectData) {
     type: 'paragraph',
     paragraph: {
       rich_text: [{
+        text: { content: 'Location: ' }
+      }, {
         text: { content: projectData.metadata.projectPath },
         annotations: { code: true }
       }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: { content: `${projectData.metadata.projectName}-plan.md` },
+        annotations: { code: true }
+      }, {
+        text: { content: ' — Strategic plan and architecture' }
+      }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: { content: `${projectData.metadata.projectName}-context.md` },
+        annotations: { code: true }
+      }, {
+        text: { content: ' — Current state and key decisions' }
+      }]
+    }
+  });
+
+  children.push({
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        text: { content: `${projectData.metadata.projectName}-tasks.md` },
+        annotations: { code: true }
+      }, {
+        text: { content: ' — Detailed task breakdown' }
+      }]
+    }
+  });
+
+  // Phase/Status info
+  if (projectData.phase || projectData.dates.lastUpdated) {
+    children.push({
+      object: 'block',
+      type: 'heading_2',
+      heading_2: {
+        rich_text: [{ text: { content: '📅 Timeline' } }]
+      }
+    });
+
+    if (projectData.dates.lastUpdated) {
+      children.push({
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: {
+          rich_text: [{
+            text: { content: `Last Updated: ${projectData.dates.lastUpdated}` }
+          }]
+        }
+      });
+    }
+
+    if (projectData.phase) {
+      children.push({
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: {
+          rich_text: [{
+            text: { content: `Current Phase: ${projectData.phase}` }
+          }]
+        }
+      });
+    }
+
+    if (projectData.dates.targetDate) {
+      children.push({
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: {
+          rich_text: [{
+            text: { content: `Target Date: ${projectData.dates.targetDate}` }
+          }]
+        }
+      });
+    }
+  }
+
+  // Callout footer
+  children.push({
+    object: 'block',
+    type: 'divider',
+    divider: {}
+  });
+
+  children.push({
+    object: 'block',
+    type: 'callout',
+    callout: {
+      icon: { emoji: '💡' },
+      rich_text: [{
+        text: {
+          content: `This page is auto-synced from markdown. Edit source files in ${projectData.metadata.projectPath} and run sync to update.`
+        }
+      }],
+      color: 'gray_background'
     }
   });
 
@@ -352,9 +635,16 @@ async function syncProjectPage(projectData) {
           block_id: existing.id
         });
 
-        // Delete all existing blocks
+        // Delete all existing blocks (skip archived ones)
         for (const block of blocksResponse.results) {
-          await notion.blocks.delete({ block_id: block.id });
+          if (!block.archived) {
+            try {
+              await notion.blocks.delete({ block_id: block.id });
+            } catch (deleteError) {
+              // Skip blocks that can't be deleted
+              console.warn(`⚠️  Skipped block ${block.id}: ${deleteError.message}`);
+            }
+          }
         }
 
         // Add new blocks
