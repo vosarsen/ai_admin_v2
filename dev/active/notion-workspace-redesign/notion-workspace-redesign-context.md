@@ -1,10 +1,222 @@
 # Notion Workspace Redesign - Context & Key Decisions
 
-**Last Updated:** 2025-11-15 (Phase 1.5 STARTING - Tasks Database Restructure)
-**Current Phase:** Phase 1.5 - Tasks Database Optimization (NEW!)
-**Status:** **PRODUCTION LIVE!** PM2 cron jobs running. Planning restructure from 253 tasks → 10-15 phase-level tasks
-**Next Session:** Implement Phase-Level Tasks with Checklist Property (Proposal 1)
-**User Feedback:** "Задач слишком много, ничего не видно и не понятно" - Need to reduce task granularity
+**Last Updated:** 2025-11-15 (Phase 1.5 COMPLETE + Phase 2.0 PLANNING)
+**Current Phase:** Phase 2.0 - Team Management Structure (PIVOT!)
+**Status:** **Phase 1.5 DEPLOYED** - 990 tasks → 25 phases (97.5% reduction) | **Phase 2.0 PLANNED**
+**Next Session:** Implement Team Management Structure (Projects as strategic cards, not task lists)
+**Critical Learning:** User needs MANAGEMENT VIEW (who/what/when/status), NOT micro-task tracking
+**User Requirements:** See high-level projects, ownership, progress %, status, deadlines, resource needs
+
+---
+
+## 🎯 Phase 1.5 Execution Summary (2025-11-15)
+
+### What Was Done
+**Duration:** 3 hours (parser + sync + migration)
+**Commit:** 367428d - "feat(notion): Phase 1.5 - Tasks Database Restructure"
+
+**Changes Implemented:**
+1. ✅ Added 5 new properties to Tasks database:
+   - Checklist (rich_text, multi-block support)
+   - Phase Number (number)
+   - Total Tasks, Completed Tasks (numbers)
+   - Progress % (formula)
+
+2. ✅ Updated `scripts/notion-parse-markdown.js`:
+   - Refactored `parseProjectTasks()` to extract phases (## headers)
+   - Parse checklist arrays with ☐/☑ checkboxes
+   - Auto-detect completion from checkbox state
+
+3. ✅ Updated `scripts/notion-sync-project.js`:
+   - Created `syncPhase()` function
+   - Multi-block rich_text chunking (2000 char limit)
+   - Smart change detection
+
+4. ✅ Migration executed:
+   - Backup: 943 tasks → `backups/notion-tasks-backup-*.json`
+   - Archived: 990 old tasks
+   - Created: 25 phase-level tasks
+   - Duration: 31 minutes
+
+**Results:**
+- client-reactivation-service: 8 phases (69 tasks in checklists)
+- client-reactivation-service-v2: 9 phases (286 tasks)
+- notion-workspace-redesign: 8 phases (296 tasks)
+- **Reduction: 990 → 25 tasks (97.5%)**
+
+### Critical User Feedback
+
+**User Response:** "всё равно неудобно. слишком много"
+
+**Analysis (via plan-reviewer agent):**
+- Problem NOT quantity (25 still feels like "too many")
+- Problem IS **information hierarchy and cognitive load**
+- User needs MANAGEMENT view, not task tracking
+- Quote: "ничего не видно и не понятно" = about clarity, not numbers
+
+### Phase 1.5 Post-Mortem
+
+**What Went Wrong:**
+- ❌ Solved WRONG problem (reduced numbers, not improved clarity)
+- ❌ Lost task granularity (checklist = text blob, not queryable)
+- ❌ Broke Notion paradigm (tasks should be database records)
+- ❌ No individual task tracking (can't mark done in Notion)
+- ❌ No filtering by assignee/priority/date
+
+**What Phase 1.5 Actually Did:**
+- ✅ Reduced database rows (performance win)
+- ✅ Faster mobile loads
+- ❌ Made management HARDER (lost functionality)
+
+**Decision:** PIVOT to Phase 2.0
+
+---
+
+## 🚀 Phase 2.0 Planning (2025-11-15)
+
+### New Understanding of User Needs
+
+**User Quote (translated):**
+> "мне не важно знать каждую задачу которых 990 штук. мне нужно видеть какие глобальные задачи есть. что из этого в реализации/в беклоге/в очереди на выполнение/выполнено. будет здорово видеть так же процент реализации тех, которые в процессе реализации."
+
+**Translation:**
+- Don't care about 990 micro-tasks
+- Need to see **high-level projects**
+- Status: In Development / Backlog / Queue / Done
+- Progress % for in-progress items
+- **Each project card must show:**
+  - What is it? (description)
+  - Why needed? (business value)
+  - Implementation plan (compressed /dev-docs)
+  - Time estimate
+  - Required resources
+  - **So team can understand: what/why/how/when**
+- **Team visibility:** Who took what, status, deadlines
+
+**Use Case:** Team lead managing developers, not micro-managing tasks
+
+### Phase 2.0 Architecture (from Plan agent)
+
+**Goal:** Transform Notion into **Team Management Hub**
+
+**Projects Database = Strategic Project Cards**
+
+| Property | Type | Purpose | Auto-Sync? |
+|----------|------|---------|------------|
+| Name | Title | Project name | ✅ |
+| Status | Select | Backlog → Queue → In Progress → Review → Done | ✅ |
+| Owner | Person | Who's working on it | ❌ Manual |
+| Priority | Select | High/Medium/Low | ❌ Manual |
+| Progress | Number | 0-100% | ✅ Auto-calculated |
+| Summary | Text | What is this? (1-2 sentences) | ✅ |
+| Business Value | Text | Why needed? | ✅ |
+| Timeline | Text | Time estimate | ✅ |
+| Target Date | Date | Deadline | ❌ Manual |
+| Components | Multi-select | Backend/AI/Database etc | ✅ |
+| Risk Level | Select | Low/Medium/High | ✅ |
+
+**Project Page Template:**
+```
+┌────────────────────────────────────────┐
+│ 📊 Client Reactivation Service v2     │
+│ Status: 🔄 In Progress | Owner: @Dev  │
+│ Progress: ▓▓▓░░░░░░░ 25% (19/78)     │
+│ Target: Nov 20 | Risk: 🟢 Low         │
+├────────────────────────────────────────┤
+│ 🎯 What: Build AI-powered reactivation│
+│ 💡 Why: Recover dormant clients       │
+│ 📋 Plan:                               │
+│   ✅ Day 1: Database - 100% (45/45)   │
+│   🔄 Day 2: Logic - 39% (7/18)        │
+│   ⬜ Day 3: Integration - 0% (0/10)   │
+│ ⚙️ Resources: PostgreSQL, Redis, AI   │
+└────────────────────────────────────────┘
+```
+
+**Views:**
+1. **Team Lead Board** - Board view grouped by Status
+2. **My Projects** - Filter by Owner = Current User
+3. **Timeline** - Gantt view by Target Date
+4. **All Projects** - Table with all properties
+
+### Implementation Plan
+
+**Phase A: Parser Changes** (2-3h)
+- Extract summary from plan.md/context.md
+- Extract business value, timeline, resources
+- Group tasks by phases (Day 1, Day 2)
+- Calculate progress from checklist completion
+
+**Phase B: Sync Updates** (3-4h)
+- Update Projects database schema
+- Sync high-level data (summary, value, timeline)
+- Create/update project pages with template sections
+- Link phases to Project Phases database
+
+**Phase C: Notion Setup** (1-2h)
+- Create Projects (v2) database manually
+- Set up properties and views
+- Create project page template
+- Test with 2-3 projects
+
+**Phase D: Migration** (2h)
+- Test with client-reactivation-service-v2
+- Verify mobile view
+- Full sync all projects
+
+**Total Effort:** 8-11 hours (1-1.5 days)
+
+### Key Decisions
+
+**Decision 1: Keep Phase-Level Tasks**
+- Tasks database keeps 25 phases (not reverting to 990)
+- But Projects database becomes PRIMARY view
+- Tasks = implementation details (for developers)
+- Projects = management view (for team lead)
+
+**Decision 2: Two-Database Hybrid**
+- Projects database: Management layer (3 cards)
+- Tasks database: Implementation layer (25 phases)
+- Relation links them together
+
+**Decision 3: Manual + Auto Fields**
+- Auto-sync: Summary, Progress, Status, Components
+- Manual: Owner, Target Date, Priority
+- Reason: Owner/deadline are team decisions, not code
+
+**Decision 4: Markdown Still Source of Truth**
+- dev/active/* files remain primary
+- Notion = read-only visibility layer
+- Automation handles sync
+
+### Files to Modify (Phase 2.0)
+
+1. `scripts/notion-parse-markdown.js`:
+   - Add `extractProjectSummary()` function
+   - Extract "What" from plan.md Executive Summary
+   - Extract "Why" from plan.md Mission/Business Value
+   - Extract Timeline from plan.md
+   - Keep existing `parseProjectTasks()` (phases work)
+
+2. `scripts/notion-sync-project.js`:
+   - Add `updateProjectsDatabase()` function
+   - Create project page with template sections
+   - Sync summary, business value, timeline
+   - Link to Project Phases database
+
+3. Notion (manual):
+   - Create "Projects (v2)" database
+   - Set up 4 views (Board, My Projects, Timeline, All)
+   - Create project page template
+   - Get new database ID
+
+### Next Steps (for continuation)
+
+1. **Start with Phase A** (parser changes)
+2. **Test with 1 project** before full sync
+3. **Get user feedback** on project card format
+4. **Iterate** on template structure
+5. **Full migration** when validated
 
 ---
 
