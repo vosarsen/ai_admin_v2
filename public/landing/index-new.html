@@ -2710,6 +2710,7 @@
                         const hasX = numberText.toLowerCase().includes('x');
                         const hasMonths = numberText.includes('мес');
                         const hasPerMonth = numberText.includes('/мес');
+                        const hasDays = numberText.includes('дней') || numberText.includes('дня') || numberText.includes('день');
 
                         // Custom animation function for ROI
                         let start = 0;
@@ -2729,6 +2730,13 @@
                                 entry.target.textContent = displayValue + '%';
                             } else if (hasX) {
                                 entry.target.textContent = displayValue + 'x';
+                            } else if (hasDays) {
+                                // Правильное склонение для "день/дня/дней"
+                                const num = Math.floor(start);
+                                let dayWord = 'дней';
+                                if (num === 1) dayWord = 'день';
+                                else if (num >= 2 && num <= 4) dayWord = 'дня';
+                                entry.target.textContent = num + ' ' + dayWord;
                             } else if (hasPerMonth) {
                                 entry.target.textContent = displayValue + '₽/мес';
                             } else if (hasCurrency && hasMonths) {
