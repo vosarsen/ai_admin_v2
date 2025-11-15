@@ -23,14 +23,17 @@ Quick reference for Claude Code when working with AI Admin v2.
 
 Use MCP servers instead of SSH/scripts for faster access:
 
-| Server | Purpose | Example |
-|--------|---------|---------|
-| @logs | PM2 logs | `@logs logs_tail service:ai-admin-worker-v2 lines:50` |
-| @whatsapp | Test messages | `@whatsapp send_message phone:79001234567 message:"Test"` |
-| @supabase | Database | `@supabase query_table table:clients filters:{"phone":"79001234567"}` |
-| @redis | Context cache | `@redis get_context phone:79001234567` |
+| Server | Purpose | Example | Status |
+|--------|---------|---------|--------|
+| @whatsapp | Test messages | `@whatsapp send_message phone:79001234567 message:"Test"` | ✅ Custom |
+| @redis | Context cache | `@redis get_context phone:79001234567` | ✅ Custom |
+| @supabase | Database | `@supabase query_table table:clients filters:{"phone":"79001234567"}` | ✅ Custom |
+| @yclients | YClients API | `@yclients get_available_slots date:2025-11-15` | ✅ Custom |
+| @notion | Task management | `@notion create_page parent_id:xxxxx title:"New Task"` | ✅ Official |
 
+**Configuration:** All servers configured in `.mcp.json` (see `.mcp.json.example`)
 **Redis tunnel required:** `./scripts/maintain-redis-tunnel.sh start`
+**Notion setup:** See `docs/NOTION_MCP_SETUP.md`
 
 ## 🎯 Claude Code Skills System - ✅ ПОЛНОСТЬЮ РАБОТАЕТ
 
