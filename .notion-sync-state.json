@@ -1,0 +1,26 @@
+{
+  "lastFullSync": "2025-11-15T11:53:11.359Z",
+  "projects": {
+    "client-reactivation-service": {
+      "lastSync": "2025-11-15T11:48:24.033Z",
+      "notionPageId": "2ac0a520-3786-81ee-ae6b-c2240dfa2e69",
+      "taskCount": 21,
+      "errors": 0
+    },
+    "client-reactivation-service-v2": {
+      "lastSync": "2025-11-15T11:49:04.435Z",
+      "notionPageId": "2ac0a520-3786-812d-a646-dfd6b77e56e5",
+      "taskCount": 35,
+      "errors": 0
+    },
+    "notion-mcp-integration": {
+      "errors": 1
+    },
+    "notion-workspace-redesign": {
+      "lastSync": "2025-11-15T11:53:11.359Z",
+      "notionPageId": "2ac0a520-3786-8144-b0c3-d946641a54f3",
+      "taskCount": 197,
+      "errors": 0
+    }
+  }
+}
