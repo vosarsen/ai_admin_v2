@@ -312,7 +312,19 @@ async function syncTask(task, projectPageId, existingTasks) {
 
   try {
     if (existing) {
-      // Update existing task
+      // Check if task has changed (status or priority)
+      const existingStatus = existing.properties?.Status?.select?.name;
+      const existingPriority = existing.properties?.Priority?.select?.name;
+
+      const statusChanged = existingStatus !== task.status;
+      const priorityChanged = task.priority && existingPriority !== task.priority;
+
+      if (!statusChanged && !priorityChanged) {
+        // Task unchanged, skip update
+        return { action: 'skipped', task: task.name };
+      }
+
+      // Update existing task (only if changed)
       await retryWithBackoff(async () => {
         return await notion.pages.update({
           page_id: existing.id,
@@ -350,6 +362,7 @@ async function syncProjectTasks(tasks, projectPageId) {
   const results = {
     created: [],
     updated: [],
+    skipped: [],
     failed: []
   };
 
@@ -363,6 +376,9 @@ async function syncProjectTasks(tasks, projectPageId) {
     } else if (result.action === 'updated') {
       results.updated.push(result.task);
       console.log(`  🔄 Updated: ${result.task}`);
+    } else if (result.action === 'skipped') {
+      results.skipped.push(result.task);
+      // Don't log skipped tasks to keep output clean
     } else if (result.action === 'failed') {
       results.failed.push({ task: result.task, error: result.error });
       console.log(`  ❌ Failed: ${result.task}`);
@@ -419,6 +435,7 @@ async function syncProject(projectPath) {
     console.log(`  Project: ${projectData.name} ✅`);
     console.log(`  Tasks created: ${taskResults.created.length}`);
     console.log(`  Tasks updated: ${taskResults.updated.length}`);
+    console.log(`  Tasks skipped: ${taskResults.skipped.length} (unchanged)`);
     console.log(`  Tasks failed: ${taskResults.failed.length}`);
 
     if (taskResults.failed.length > 0) {
