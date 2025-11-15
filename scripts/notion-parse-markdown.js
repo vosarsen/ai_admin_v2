@@ -98,24 +98,26 @@ function parseProjectPlan(filePath) {
     project.phase = phaseMatch[1];
   }
 
-  // Extract components by searching for keywords
+  // Extract components by searching for keywords (PRIORITY ORDER - max 2)
   const componentKeywords = {
     'WhatsApp': /whatsapp|baileys|wa|messaging/gi,
-    'YClients': /yclients|booking|salon/gi,
-    'Database': /database|postgres|timeweb|supabase|migration|schema/gi,
     'AI': /\bai\b|gemini|openai|deepseek|prompt/gi,
+    'Database': /database|postgres|timeweb|supabase|migration|schema/gi,
+    'YClients': /yclients|booking|salon/gi,
     'Queue': /queue|bullmq|redis|job/gi,
     'Infrastructure': /infrastructure|deployment|pm2|docker|server/gi,
     'General': /general|misc|other/gi
   };
 
-  const components = new Set();
+  const components = [];
   for (const [component, regex] of Object.entries(componentKeywords)) {
     if (regex.test(content)) {
-      components.add(component);
+      components.push(component);
+      if (components.length === 2) break; // Max 2 components
     }
   }
-  project.components = Array.from(components);
+
+  project.components = components;
 
   // If no components detected, default to General
   if (project.components.length === 0) {
