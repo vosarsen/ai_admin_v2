@@ -193,6 +193,42 @@ function parseProjectContext(filePath) {
 }
 
 /**
+ * Extract full plan content BEFORE Implementation Phases section
+ * This includes Executive Summary, Architecture, Flows, etc.
+ * Used for comprehensive page content (development diary style)
+ *
+ * @param {string} planPath - Absolute path to plan.md file
+ * @returns {string|null} - Raw markdown content before Implementation Phases, or null if not found
+ */
+function extractPlanContent(planPath) {
+  if (!fs.existsSync(planPath)) {
+    console.warn(`⚠️  Plan file not found: ${planPath}`);
+    return null;
+  }
+
+  const content = fs.readFileSync(planPath, 'utf8');
+  if (content.trim().length === 0) {
+    console.warn(`⚠️  Empty plan file: ${planPath}`);
+    return null;
+  }
+
+  // Find the line with "## 📐 Implementation Phases" or "## Implementation Phases"
+  const lines = content.split('\n');
+  const phaseLineIndex = lines.findIndex(line =>
+    /^##\s*📐?\s*Implementation Phases/i.test(line)
+  );
+
+  if (phaseLineIndex === -1) {
+    // If no Implementation Phases section found, return everything except first line (title)
+    console.warn(`⚠️  No Implementation Phases section found in plan.md, using all content`);
+    return lines.slice(1).join('\n').trim();
+  }
+
+  // Return everything BEFORE Implementation Phases (excluding title line)
+  return lines.slice(1, phaseLineIndex).join('\n').trim();
+}
+
+/**
  * Extract project summary for team management view (Phase 2.0)
  * Extracts: What is this? Why needed? Timeline. Risk Level.
  *
@@ -494,6 +530,9 @@ function parseProject(projectPath) {
   // Extract project summary for team management view (Phase 2.0)
   const projectSummary = extractProjectSummary(planFile, contextFile);
 
+  // Extract full plan content for comprehensive page (development diary style)
+  const planContent = extractPlanContent(planFile);
+
   // Calculate totals from phases (not individual tasks!)
   const totalTasks = tasks.reduce((sum, phase) => sum + phase.totalTasks, 0);
   const completedTasks = tasks.reduce((sum, phase) => sum + phase.completedTasks, 0);
@@ -507,6 +546,7 @@ function parseProject(projectPath) {
     context: context,
     tasks: tasks, // Now this is an array of phases, not individual tasks
     summary: projectSummary, // NEW: Project summary for team management
+    planContent: planContent, // NEW: Full plan content (before Implementation Phases)
     metadata: {
       projectPath,
       projectName,
@@ -596,5 +636,6 @@ module.exports = {
   parseProjectTasks,
   parseProject,
   scanActiveProjects,
-  extractProjectSummary // NEW: For Phase 2.0
+  extractProjectSummary, // NEW: For Phase 2.0
+  extractPlanContent     // NEW: For development diary style page content
 };
