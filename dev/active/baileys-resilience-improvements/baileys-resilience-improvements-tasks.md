@@ -3,14 +3,14 @@
 **Last Updated:** November 19, 2025
 **Status:** In Progress
 **Total Tasks:** 17
-**Progress:** 6/17 (35%)
+**Progress:** 7/17 (41%)
 
 ---
 
 ## Phase 1: Emergency Preparedness (CRITICAL - Days 1-7)
 
 **Timeline:** Nov 20-26, 2025
-**Progress:** 6/8 (75%)
+**Progress:** 7/8 (88%)
 
 ### Section 1: Emergency Rollback Capability
 
@@ -112,18 +112,19 @@
     - [x] Manual cleanup trigger available (checkSessionHealth function)
     - [x] Cleanup events logged to Sentry (with age distribution context)
 
-- [ ] **Task 2.4:** Create Health Check Dashboard
+- [x] **Task 2.4:** Create Health Check Dashboard ✅
   - **Effort:** M (5 hours)
   - **Priority:** P1
   - **Assignee:** Backend Developer (CLI tool)
-  - **File:** `scripts/monitoring/database-health.js` (new)
+  - **Completed:** November 19, 2025
+  - **File:** `scripts/monitoring/database-health.js` (new, 414 lines)
   - **Acceptance:**
-    - [ ] Shows connection pool status
-    - [ ] Query latency chart (P50, P95, P99)
-    - [ ] Expired keys count
-    - [ ] Recent errors and alerts
-    - [ ] Run via `npm run health-check`
-    - [ ] Auto-refreshes every 10 seconds
+    - [x] Shows connection pool status (current/avg/peak + health)
+    - [x] Query latency chart (P50, P95, P99, avg + success rate)
+    - [x] Expired keys count + age distribution (5 buckets)
+    - [x] Recent errors and slow queries (verbose mode)
+    - [x] Run via `npm run health-check` (added to package.json)
+    - [x] Auto-refreshes every 10 seconds (--watch flag)
 
 **Phase 1 Checkpoint:** Nov 26, 2025
 - [ ] All CRITICAL tasks complete (Tasks 1.1-1.3, 2.1-2.2)
