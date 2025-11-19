@@ -160,6 +160,21 @@ module.exports = {
       out_file: './logs/notion-sync-nightly-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       max_memory_restart: '100M'
+    },
+    {
+      name: 'cleanup-expired-keys',
+      script: './scripts/cleanup/cleanup-expired-session-keys.js',
+      instances: 1,
+      exec_mode: 'fork',
+      cron_restart: '0 3 * * *', // Daily at 3 AM UTC
+      autorestart: false, // Don't restart automatically, only via cron
+      env: {
+        NODE_ENV: 'production'
+      },
+      error_file: './logs/cleanup-expired-keys-error.log',
+      out_file: './logs/cleanup-expired-keys-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      max_memory_restart: '50M'
     }
   ]
 };
