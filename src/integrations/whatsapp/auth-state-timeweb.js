@@ -302,10 +302,14 @@ function reviveBuffers(obj) {
  * Create database-backed auth state for Baileys (Timeweb PostgreSQL)
  *
  * @param {string} companyId - Company ID (e.g., '962302')
+ * @param {Object} options - Options { sessionPool: WhatsAppSessionPool }
  * @returns {Promise<{state: {creds, keys}, saveCreds: Function}>}
  */
-async function useTimewebAuthState(companyId) {
+async function useTimewebAuthState(companyId, options = {}) {
   logger.info(`🔐 Initializing Timeweb PostgreSQL auth state for company ${companyId}`);
+
+  // Extract sessionPool for cache support (Phase 2 - Task 3.1)
+  const { sessionPool } = options;
 
   // Validate company ID (defense-in-depth)
   if (!companyId || typeof companyId !== 'string') {
@@ -323,6 +327,7 @@ async function useTimewebAuthState(companyId) {
   // =========================================================================
 
   let creds;
+  let usingCache = false; // Track if we're using cached credentials (Phase 2 - Task 3.1)
 
   try {
     const result = await queryWithMetrics(
@@ -344,17 +349,72 @@ async function useTimewebAuthState(companyId) {
       // Load existing credentials and revive Buffer objects
       creds = reviveBuffers(authData.creds);
       logger.info(`✅ Loaded existing credentials for ${companyId}`);
+
+      // Update cache after successful load (Phase 2 - Task 3.1)
+      // Note: We'll update with full keys after creating the keys interface
+      if (sessionPool) {
+        sessionPool.setCachedCredentials(companyId, creds, {});
+        logger.debug(`💾 Updated credentials cache for ${companyId}`);
+      }
     }
   } catch (error) {
     logger.error(`Failed to load credentials for ${companyId}:`, error);
-    Sentry.captureException(error, {
-      tags: {
-        component: 'baileys_auth',
-        operation: 'load_credentials',
-        company_id: companyId
+
+    // Phase 2 - Task 3.1: Fallback to cache during PostgreSQL outages
+    if (sessionPool) {
+      const cached = sessionPool.getCachedCredentials(companyId);
+
+      if (cached && cached.creds) {
+        const cacheAge = Math.round((Date.now() - (cached._timestamp || 0)) / 1000);
+        logger.warn(`⚠️ PostgreSQL unavailable, using cached credentials for ${companyId} (age: ${cacheAge}s)`);
+
+        creds = cached.creds;
+        usingCache = true; // Mark that we're using cache
+
+        // Alert via Sentry (warning level - not critical)
+        Sentry.captureMessage('Using cached credentials due to PostgreSQL failure', {
+          level: 'warning',
+          tags: {
+            component: 'baileys_auth',
+            operation: 'load_credentials_from_cache',
+            company_id: companyId,
+            fallback: 'cache'
+          },
+          extra: {
+            cacheAge,
+            originalError: error.message,
+            postgresError: error.code || 'unknown'
+          }
+        });
+
+        // Continue with cached credentials (don't throw)
+      } else {
+        // No cache available - this is critical
+        logger.error(`❌ No cached credentials available for ${companyId} - cannot continue`);
+        Sentry.captureException(error, {
+          tags: {
+            component: 'baileys_auth',
+            operation: 'load_credentials',
+            company_id: companyId,
+            cache_available: 'false'
+          },
+          extra: {
+            message: 'PostgreSQL failed and no cache available'
+          }
+        });
+        throw error;
       }
-    });
-    throw error;
+    } else {
+      // No sessionPool provided - cannot use cache
+      Sentry.captureException(error, {
+        tags: {
+          component: 'baileys_auth',
+          operation: 'load_credentials',
+          company_id: companyId
+        }
+      });
+      throw error;
+    }
   }
 
   // =========================================================================
@@ -553,6 +613,13 @@ async function useTimewebAuthState(companyId) {
   // =========================================================================
 
   async function saveCreds() {
+    // Phase 2 - Task 3.1: Don't save to PostgreSQL while using cache
+    // This prevents data inconsistency during outages
+    if (usingCache) {
+      logger.warn(`⚠️ Skipping credentials save to PostgreSQL for ${companyId} (using cache mode)`);
+      return;
+    }
+
     try {
       await queryWithMetrics(
         `INSERT INTO whatsapp_auth (company_id, creds, updated_at)
@@ -564,6 +631,12 @@ async function useTimewebAuthState(companyId) {
       );
 
       logger.debug(`💾 Credentials saved for ${companyId}`);
+
+      // Update cache after successful save (Phase 2 - Task 3.1)
+      if (sessionPool) {
+        sessionPool.setCachedCredentials(companyId, creds, {});
+        logger.debug(`💾 Updated credentials cache after save for ${companyId}`);
+      }
     } catch (error) {
       logger.error(`Error saving credentials for ${companyId}:`, error);
       Sentry.captureException(error, {
@@ -573,7 +646,8 @@ async function useTimewebAuthState(companyId) {
           company_id: companyId
         }
       });
-      throw error;
+      // Don't throw - allow WhatsApp to continue with in-memory credentials
+      // Next save will retry
     }
   }
 
