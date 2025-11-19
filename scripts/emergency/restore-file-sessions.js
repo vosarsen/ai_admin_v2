@@ -302,30 +302,53 @@ async function updateEnv() {
             envContent = await fs.readFile(CONFIG.ENV_FILE, 'utf-8');
         }
 
-        // Update USE_REPOSITORY_PATTERN to false
+        // Update multiple environment variables for file-based auth
         const updatedEnv = envContent
             .split('\n')
             .map(line => {
                 if (line.startsWith('USE_REPOSITORY_PATTERN=')) {
                     return 'USE_REPOSITORY_PATTERN=false';
                 }
+                if (line.startsWith('USE_DATABASE_AUTH_STATE=')) {
+                    return 'USE_DATABASE_AUTH_STATE=false';
+                }
+                if (line.startsWith('USE_LEGACY_SUPABASE=')) {
+                    return 'USE_LEGACY_SUPABASE=false';
+                }
                 return line;
             })
             .join('\n');
 
-        // If USE_REPOSITORY_PATTERN not found, add it
-        if (!updatedEnv.includes('USE_REPOSITORY_PATTERN=')) {
-            envContent += '\n# Emergency rollback - use file-based auth\nUSE_REPOSITORY_PATTERN=false\n';
-        } else {
-            envContent = updatedEnv;
+        // Add missing variables if not found
+        let finalEnv = updatedEnv;
+        if (!finalEnv.includes('USE_REPOSITORY_PATTERN=')) {
+            finalEnv += '\nUSE_REPOSITORY_PATTERN=false';
+        }
+        if (!finalEnv.includes('USE_DATABASE_AUTH_STATE=')) {
+            finalEnv += '\nUSE_DATABASE_AUTH_STATE=false';
+        }
+        if (!finalEnv.includes('USE_LEGACY_SUPABASE=')) {
+            finalEnv += '\nUSE_LEGACY_SUPABASE=false';
+        }
+
+        // Add emergency rollback header comment if not present
+        if (!finalEnv.includes('# Emergency rollback')) {
+            finalEnv = finalEnv.replace(
+                /USE_REPOSITORY_PATTERN=false/,
+                '# Emergency rollback - use file-based auth\nUSE_REPOSITORY_PATTERN=false'
+            );
         }
 
         if (options.dryRun) {
             logger.info('[DRY RUN] Would update .env file');
             logger.info('[DRY RUN] USE_REPOSITORY_PATTERN=false');
+            logger.info('[DRY RUN] USE_DATABASE_AUTH_STATE=false');
+            logger.info('[DRY RUN] USE_LEGACY_SUPABASE=false');
         } else {
-            await fs.writeFile(CONFIG.ENV_FILE, envContent, 'utf-8');
+            await fs.writeFile(CONFIG.ENV_FILE, finalEnv, 'utf-8');
             logger.success('Updated .env: USE_REPOSITORY_PATTERN=false');
+            logger.success('Updated .env: USE_DATABASE_AUTH_STATE=false');
+            logger.success('Updated .env: USE_LEGACY_SUPABASE=false');
         }
     } catch (error) {
         logger.error(`Environment update failed: ${error.message}`);
