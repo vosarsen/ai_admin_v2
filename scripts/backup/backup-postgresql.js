@@ -155,7 +155,6 @@ async function createBackup(backupPath) {
 
   // Build pg_dump command
   const pgDumpCmd = [
-    'PGPASSWORD=' + CONFIG.DB_PASSWORD,
     'pg_dump',
     `-h ${CONFIG.DB_HOST}`,
     `-p ${CONFIG.DB_PORT}`,
@@ -173,7 +172,7 @@ async function createBackup(backupPath) {
   ].join(' ');
 
   if (CONFIG.VERBOSE) {
-    logger.info(`📝 Executing: ${pgDumpCmd.replace(CONFIG.DB_PASSWORD, '****')}`);
+    logger.info(`📝 Executing: ${pgDumpCmd} (with PGPASSWORD env)`);
   }
 
   try {
@@ -187,10 +186,14 @@ async function createBackup(backupPath) {
       };
     }
 
-    // Execute pg_dump
+    // Execute pg_dump with PGPASSWORD in environment
     const { stdout, stderr } = await execAsync(pgDumpCmd, {
       shell: '/bin/bash',
-      maxBuffer: 10 * 1024 * 1024 // 10MB buffer
+      maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+      env: {
+        ...process.env,
+        PGPASSWORD: CONFIG.DB_PASSWORD
+      }
     });
 
     // Get backup file size
