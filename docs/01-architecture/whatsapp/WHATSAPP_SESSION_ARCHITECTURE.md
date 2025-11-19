@@ -85,11 +85,16 @@ node scripts/reinit-baileys-session.js # Процесс 3
                  │
                  ▼
 ┌─────────────────────────────────────────────┐
-│            File System                       │
-│  baileys_sessions/                          │
-│    ├── company_962302/                      │
-│    ├── company_123456/                      │
-│    └── company_XXXXXX/                      │
+│      Timeweb PostgreSQL Database            │
+│  (a84c973324fdaccfc68d929d.twc1.net)        │
+│                                             │
+│  whatsapp_auth:   1 record                  │
+│    - company_id: 962302                     │
+│    - credentials (JSON)                     │
+│                                             │
+│  whatsapp_keys:   1,313 records             │
+│    - company_id + key_id (composite PK)     │
+│    - key_data (session keys)                │
 └─────────────────────────────────────────────┘
 ```
 
@@ -327,7 +332,13 @@ npm install @whiskeysockets/baileys @hapi/boom qrcode express-validator validato
 ```env
 # .env файл
 REDIS_URL=redis://localhost:6379
-WHATSAPP_SESSION_PATH=./baileys_sessions
+
+# Database Configuration (PostgreSQL only, no file storage)
+USE_REPOSITORY_PATTERN=true           # ✅ Use Timeweb PostgreSQL
+USE_LEGACY_SUPABASE=false             # ❌ Legacy Supabase (deprecated)
+TIMEWEB_DATABASE_URL=postgresql://... # Timeweb connection string
+
+# Rate limiting & monitoring
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=30
 HEALTH_CHECK_INTERVAL=30000
@@ -517,46 +528,51 @@ if (timer) {
 5. **Используйте WebSocket** для real-time обновлений
 6. **Регулярно очищайте** старые сессии неактивных компаний
 7. **Логируйте все ошибки** для последующего анализа
-8. **Делайте бэкапы** директории baileys_sessions
+8. **Делайте бэкапы базы данных** (PostgreSQL dumps для whatsapp_auth и whatsapp_keys)
 
 ## 🔄 Миграция со старой архитектуры
 
-### Шаг 1: Остановить все старые процессы
-```bash
-# Найти все процессы
-ps aux | grep baileys
+> **✅ Migration Completed:** November 19, 2025
+>
+> File-based sessions are no longer supported. All session data is stored in **Timeweb PostgreSQL**.
+>
+> See detailed migration history:
+> - Phase 0 (Nov 6-8): `dev/completed/database-migration-completion/PHASE_0.7_COMPLETION_SUMMARY.md`
+> - Phase 1-5 (Nov 9-12): `dev/completed/database-migration-supabase-timeweb/`
+> - Cleanup (Nov 19): `docs/03-development-diary/2025-11-19-baileys-file-sessions-cleanup.md`
 
-# Остановить их
-killall node
-pm2 stop all
+### Current Architecture (as of Nov 2025)
+
+**Database Storage (PostgreSQL):**
+```sql
+-- Timeweb PostgreSQL (a84c973324fdaccfc68d929d.twc1.net:5432)
+whatsapp_auth:   1 record     -- Authentication credentials
+whatsapp_keys:   1,313 records -- Session keys
 ```
 
-### Шаг 2: Очистить старые данные
-```bash
-# Бэкап на всякий случай
-cp -r baileys_auth_info baileys_auth_info_backup
-
-# Удалить старые данные
-rm -rf baileys_auth_info/*
+**Environment Configuration:**
+```env
+USE_REPOSITORY_PATTERN=true   # ✅ Timeweb PostgreSQL
+USE_LEGACY_SUPABASE=false     # ❌ Deprecated
 ```
 
-### Шаг 3: Развернуть новую версию
-```bash
-# Скопировать новые файлы
-git add .
-git commit -m "feat: improved WhatsApp session architecture"
-git push
+**No file-based storage** - all legacy code and directories removed (4.1 MB freed).
 
-# На сервере
-git pull
-pm2 restart ai-admin-api
-```
+### Historical Migration Timeline
 
-### Шаг 4: Инициализировать сессии
-```bash
-# Для каждой компании
-curl -X POST http://localhost:3000/api/whatsapp/sessions/962302/initialize
-```
+1. **Phase 0 (Nov 6-8, 2025):** File → PostgreSQL
+   - Migrated 1 auth + 728 keys from `baileys_sessions/`
+   - 28,700% faster than estimated (10 min vs 48h)
+
+2. **Phase 1-5 (Nov 9-12, 2025):** Full DB Migration
+   - Supabase → Timeweb PostgreSQL
+   - Repository pattern + transactions
+   - 1,490 records migrated, zero data loss
+
+3. **Cleanup (Nov 19, 2025):** Legacy Code Removal
+   - Deleted all `baileys_sessions*` directories (4.1 MB)
+   - Archived 7 migration scripts (61K lines)
+   - Removed file-based fallback from `session-pool.js`
 
 ## 📞 Поддержка
 
@@ -568,5 +584,5 @@ curl -X POST http://localhost:3000/api/whatsapp/sessions/962302/initialize
 
 ---
 
-*Документация обновлена: 10 сентября 2025*
+*Документация обновлена: 19 ноября 2025* (PostgreSQL migration completed)
 *Версия архитектуры: 2.0.0*
