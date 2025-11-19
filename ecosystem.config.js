@@ -175,6 +175,21 @@ module.exports = {
       out_file: './logs/cleanup-expired-keys-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       max_memory_restart: '50M'
+    },
+    {
+      name: 'backup-postgresql',
+      script: './scripts/backup/backup-postgresql.js',
+      instances: 1,
+      exec_mode: 'fork',
+      cron_restart: '0 3 * * *', // Daily at 3 AM UTC (06:00 MSK)
+      autorestart: false, // Don't restart automatically, only via cron
+      env: {
+        NODE_ENV: 'production'
+      },
+      error_file: './logs/backup-postgresql-error.log',
+      out_file: './logs/backup-postgresql-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      max_memory_restart: '100M'
     }
   ]
 };
