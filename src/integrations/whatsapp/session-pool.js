@@ -40,7 +40,7 @@ const CONFIG = {
     MIN_PHONE_LENGTH: 10,
     MAX_PHONE_LENGTH: 15,
     CACHE_FILE_PATH: path.join(process.cwd(), '.baileys-cache.json'), // Phase 2 - Task 3.1.1
-    CACHE_TTL_MS: 5 * 60 * 1000 // 5 minutes TTL
+    CACHE_TTL_MS: parseInt(process.env.CREDENTIALS_CACHE_TTL_MS) || (5 * 60 * 1000) // From env or default 5 minutes
 };
 
 class WhatsAppSessionPool extends EventEmitter {
