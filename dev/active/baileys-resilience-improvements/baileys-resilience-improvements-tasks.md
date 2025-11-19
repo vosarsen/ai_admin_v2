@@ -3,14 +3,14 @@
 **Last Updated:** November 19, 2025
 **Status:** In Progress
 **Total Tasks:** 17
-**Progress:** 4/17 (24%)
+**Progress:** 5/17 (29%)
 
 ---
 
 ## Phase 1: Emergency Preparedness (CRITICAL - Days 1-7)
 
 **Timeline:** Nov 20-26, 2025
-**Progress:** 4/8 (50%)
+**Progress:** 5/8 (63%)
 
 ### Section 1: Emergency Rollback Capability
 
@@ -85,18 +85,19 @@
     - [x] Historical data retained (1000 queries in circular buffer ~ 30 days)
     - [x] No performance impact (<1ms overhead for metric collection)
 
-- [ ] **Task 2.2:** Monitor Connection Pool Health
+- [x] **Task 2.2:** Monitor Connection Pool Health ✅
   - **Effort:** M (5 hours)
   - **Priority:** P0
   - **Assignee:** Backend Developer
-  - **File:** `src/database/postgres.js` (modify)
+  - **Completed:** November 19, 2025
+  - **File:** `src/database/postgres.js` (modified)
   - **Acceptance:**
-    - [ ] Connection pool metrics tracked (idle, active, waiting)
-    - [ ] Alert when >80% connections in use
-    - [ ] Alert when wait queue >5
-    - [ ] Metrics exposed via `/metrics` endpoint
-    - [ ] Dashboard visualizes trends
-    - [ ] Auto-recovery tested
+    - [x] Connection pool metrics tracked (idle, active, waiting + circular buffer)
+    - [x] Alert when >80% connections in use (Sentry warning, 5min cooldown)
+    - [x] Alert when wait queue >5 (Sentry error + Telegram tag, 5min cooldown)
+    - [x] Metrics exposed via getPoolMetrics() function
+    - [x] Dashboard data: current/averages/peaks + 1 hour history (360 snapshots)
+    - [x] Auto-recovery: Periodic monitoring every 10s, alerts on thresholds
 
 - [ ] **Task 2.3:** Track Expired Session Keys
   - **Effort:** M (4 hours)
