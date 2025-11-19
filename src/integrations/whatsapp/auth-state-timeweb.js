@@ -648,6 +648,53 @@ async function getAuthStateStats() {
 }
 
 /**
+ * Get key age distribution for dashboard
+ * Shows how many keys are in each age bucket
+ *
+ * @returns {Promise<object>} Age distribution stats
+ */
+async function getKeyAgeDistribution() {
+  try {
+    const result = await queryWithMetrics(`
+      SELECT
+        COUNT(*) FILTER (WHERE updated_at >= NOW() - INTERVAL '1 day') as last_1_day,
+        COUNT(*) FILTER (WHERE updated_at >= NOW() - INTERVAL '7 days' AND updated_at < NOW() - INTERVAL '1 day') as last_7_days,
+        COUNT(*) FILTER (WHERE updated_at >= NOW() - INTERVAL '14 days' AND updated_at < NOW() - INTERVAL '7 days') as last_14_days,
+        COUNT(*) FILTER (WHERE updated_at >= NOW() - INTERVAL '30 days' AND updated_at < NOW() - INTERVAL '14 days') as last_30_days,
+        COUNT(*) FILTER (WHERE updated_at < NOW() - INTERVAL '30 days') as older_than_30_days,
+        COUNT(*) as total_keys
+      FROM whatsapp_keys
+    `);
+
+    return result.rows[0];
+  } catch (error) {
+    logger.error('Error getting key age distribution:', error);
+    Sentry.captureException(error, {
+      tags: {
+        component: 'baileys_auth',
+        operation: 'get_key_age_distribution'
+      }
+    });
+    return null;
+  }
+}
+
+/**
+ * Expired keys monitoring state
+ */
+const expiredKeysMonitoring = {
+  lastCheckTime: 0,
+  lastExpiredCount: 0,
+  lastAlertTime: 0,
+  alertCooldown: 30 * 60 * 1000, // 30 minutes between alerts
+  thresholds: {
+    healthy: 100,
+    warning: 100,
+    critical: 500
+  }
+};
+
+/**
  * Check session health and return status with thresholds
  *
  * Health levels:
@@ -655,9 +702,10 @@ async function getAuthStateStats() {
  * - warning: 100-500 expired keys
  * - critical: >500 expired keys
  *
+ * @param {boolean} sendAlerts - Whether to send Sentry alerts (default: false)
  * @returns {Promise<{status: string, auth_records: number, total_keys: number, expired_keys: number, threshold: object}>}
  */
-async function checkSessionHealth() {
+async function checkSessionHealth(sendAlerts = false) {
   try {
     const stats = await getAuthStateStats();
 
@@ -673,16 +721,66 @@ async function checkSessionHealth() {
 
     const expiredKeys = parseInt(stats.expired_keys) || 0;
 
+    // Update monitoring state
+    expiredKeysMonitoring.lastCheckTime = Date.now();
+    expiredKeysMonitoring.lastExpiredCount = expiredKeys;
+
     // Define health status based on expired keys
     let status = 'healthy';
     let message = 'Session health is good';
+    let alertLevel = null;
 
-    if (expiredKeys >= 500) {
+    if (expiredKeys >= expiredKeysMonitoring.thresholds.critical) {
       status = 'critical';
       message = `${expiredKeys} expired keys - cleanup needed urgently`;
-    } else if (expiredKeys >= 100) {
+      alertLevel = 'error';
+    } else if (expiredKeys >= expiredKeysMonitoring.thresholds.warning) {
       status = 'warning';
       message = `${expiredKeys} expired keys - consider cleanup`;
+      alertLevel = 'warning';
+    }
+
+    // Send alerts if enabled and threshold exceeded
+    if (sendAlerts && alertLevel) {
+      const now = Date.now();
+      const timeSinceLastAlert = now - expiredKeysMonitoring.lastAlertTime;
+
+      if (timeSinceLastAlert > expiredKeysMonitoring.alertCooldown) {
+        logger.warn(`🚨 Expired session keys ${status}:`, {
+          expired_keys: expiredKeys,
+          total_keys: stats.total_keys,
+          threshold: status === 'critical'
+            ? expiredKeysMonitoring.thresholds.critical
+            : expiredKeysMonitoring.thresholds.warning
+        });
+
+        // Get age distribution for alert context
+        const ageDistribution = await getKeyAgeDistribution();
+
+        Sentry.captureMessage(`Expired session keys ${status}`, {
+          level: alertLevel,
+          tags: {
+            component: 'baileys_auth',
+            category: 'maintenance',
+            session_health: status,
+            alert_type: status === 'critical' ? 'telegram' : undefined
+          },
+          extra: {
+            expired_keys: expiredKeys,
+            total_keys: stats.total_keys,
+            threshold: status === 'critical'
+              ? expiredKeysMonitoring.thresholds.critical
+              : expiredKeysMonitoring.thresholds.warning,
+            percentage: ((expiredKeys / stats.total_keys) * 100).toFixed(2) + '%',
+            age_distribution: ageDistribution,
+            recommendation: status === 'critical'
+              ? 'Run cleanup immediately: node scripts/cleanup/cleanup-expired-session-keys.js'
+              : 'Schedule cleanup soon'
+          }
+        });
+
+        expiredKeysMonitoring.lastAlertTime = now;
+      }
     }
 
     return {
@@ -692,9 +790,9 @@ async function checkSessionHealth() {
       total_keys: parseInt(stats.total_keys) || 0,
       expired_keys: expiredKeys,
       thresholds: {
-        healthy: '< 100 expired keys',
-        warning: '100-500 expired keys',
-        critical: '> 500 expired keys'
+        healthy: `< ${expiredKeysMonitoring.thresholds.healthy} expired keys`,
+        warning: `${expiredKeysMonitoring.thresholds.warning}-${expiredKeysMonitoring.thresholds.critical - 1} expired keys`,
+        critical: `≥ ${expiredKeysMonitoring.thresholds.critical} expired keys`
       },
       timestamp: new Date().toISOString()
     };
@@ -717,10 +815,52 @@ async function checkSessionHealth() {
   }
 }
 
+/**
+ * Start periodic expired keys monitoring
+ * Checks every 5 minutes and sends alerts if thresholds exceeded
+ */
+function startExpiredKeysMonitoring() {
+  // Initial check
+  checkSessionHealth(true).catch(err => {
+    logger.error('Initial expired keys check failed:', err);
+  });
+
+  // Periodic checks every 5 minutes
+  const monitoringInterval = setInterval(async () => {
+    try {
+      await checkSessionHealth(true);
+    } catch (error) {
+      logger.error('Periodic expired keys check failed:', error);
+    }
+  }, 5 * 60 * 1000); // 5 minutes
+
+  logger.info('🔍 Expired session keys monitoring started (5min intervals)');
+
+  // Clean up on shutdown
+  process.on('SIGINT', () => {
+    clearInterval(monitoringInterval);
+  });
+  process.on('SIGTERM', () => {
+    clearInterval(monitoringInterval);
+  });
+
+  return monitoringInterval;
+}
+
 module.exports = {
   useTimewebAuthState,
   removeTimewebAuthState,
   getAuthStateStats,
   checkSessionHealth,
-  getQueryMetrics
+  getQueryMetrics,
+  getKeyAgeDistribution,
+  startExpiredKeysMonitoring
 };
+
+// Auto-start expired keys monitoring on module load (if in production)
+if (process.env.NODE_ENV === 'production' || process.env.AUTO_START_MONITORING === 'true') {
+  // Delay startup by 5 seconds to ensure database is ready
+  setTimeout(() => {
+    startExpiredKeysMonitoring();
+  }, 5000);
+}

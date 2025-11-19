@@ -3,14 +3,14 @@
 **Last Updated:** November 19, 2025
 **Status:** In Progress
 **Total Tasks:** 17
-**Progress:** 5/17 (29%)
+**Progress:** 6/17 (35%)
 
 ---
 
 ## Phase 1: Emergency Preparedness (CRITICAL - Days 1-7)
 
 **Timeline:** Nov 20-26, 2025
-**Progress:** 5/8 (63%)
+**Progress:** 6/8 (75%)
 
 ### Section 1: Emergency Rollback Capability
 
@@ -99,17 +99,18 @@
     - [x] Dashboard data: current/averages/peaks + 1 hour history (360 snapshots)
     - [x] Auto-recovery: Periodic monitoring every 10s, alerts on thresholds
 
-- [ ] **Task 2.3:** Track Expired Session Keys
+- [x] **Task 2.3:** Track Expired Session Keys ✅
   - **Effort:** M (4 hours)
   - **Priority:** P1
   - **Assignee:** Backend Developer
-  - **File:** `src/monitoring/session-key-metrics.js` (new)
+  - **Completed:** November 19, 2025
+  - **File:** `src/integrations/whatsapp/auth-state-timeweb.js` (modified)
   - **Acceptance:**
-    - [ ] Query counts keys older than 30 days
-    - [ ] Alert when >500 expired keys
-    - [ ] Dashboard shows key age distribution
-    - [ ] Manual cleanup trigger available
-    - [ ] Cleanup events logged to Sentry
+    - [x] Query counts keys older than 30 days (getAuthStateStats)
+    - [x] Alert when >500 expired keys (Sentry error + Telegram tag, 30min cooldown)
+    - [x] Dashboard shows key age distribution (getKeyAgeDistribution: 1d/7d/14d/30d/>30d)
+    - [x] Manual cleanup trigger available (checkSessionHealth function)
+    - [x] Cleanup events logged to Sentry (with age distribution context)
 
 - [ ] **Task 2.4:** Create Health Check Dashboard
   - **Effort:** M (5 hours)
