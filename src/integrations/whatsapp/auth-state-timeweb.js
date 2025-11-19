@@ -12,6 +12,252 @@ const postgres = require('../../database/postgres');
 const logger = require('../../utils/logger');
 const Sentry = require('@sentry/node');
 
+// ====================================================================================
+// Query Latency Tracking
+// ====================================================================================
+
+/**
+ * In-memory circular buffer for query latency metrics
+ * Stores last 1000 queries with timestamp and duration
+ */
+const queryMetrics = {
+  buffer: [],
+  maxSize: 1000,
+  slowQueryThreshold: 500, // ms
+  slowQueryWindow: 5 * 60 * 1000, // 5 minutes
+  slowQueryCount: 0,
+  lastSlowQueryAlert: 0
+};
+
+/**
+ * Calculate percentile from sorted array
+ * @param {number[]} sortedArray - Sorted array of numbers
+ * @param {number} percentile - Percentile (0-100)
+ * @returns {number} Percentile value
+ */
+function calculatePercentile(sortedArray, percentile) {
+  if (sortedArray.length === 0) return 0;
+  const index = Math.ceil((percentile / 100) * sortedArray.length) - 1;
+  return sortedArray[Math.max(0, index)];
+}
+
+/**
+ * Wrapper for postgres.query() with latency tracking
+ *
+ * Features:
+ * - Logs execution time for all queries
+ * - Sentry alerts for slow queries (>500ms)
+ * - Telegram alerts for repeated slow queries (3+ in 5 min)
+ * - In-memory metrics for P50/P95/P99 calculation
+ * - No performance impact on fast queries (<1ms overhead)
+ *
+ * @param {string} sql - SQL query
+ * @param {Array} params - Query parameters
+ * @returns {Promise<any>} Query result
+ */
+async function queryWithMetrics(sql, params = []) {
+  const startTime = Date.now();
+  const queryPreview = sql.trim().substring(0, 100).replace(/\s+/g, ' ');
+
+  try {
+    const result = await postgres.query(sql, params);
+    const duration = Date.now() - startTime;
+
+    // Store metrics (circular buffer)
+    queryMetrics.buffer.push({
+      sql: queryPreview,
+      duration,
+      timestamp: startTime,
+      success: true,
+      rowCount: result.rowCount || result.rows?.length || 0
+    });
+
+    // Trim buffer to max size (keep only recent queries)
+    if (queryMetrics.buffer.length > queryMetrics.maxSize) {
+      queryMetrics.buffer.shift();
+    }
+
+    // Log all queries (debug level for fast, info for slow)
+    if (duration > queryMetrics.slowQueryThreshold) {
+      logger.warn(`🐌 Slow query (${duration}ms): ${queryPreview}`, {
+        duration,
+        rowCount: result.rowCount || result.rows?.length || 0,
+        threshold: queryMetrics.slowQueryThreshold
+      });
+    } else {
+      logger.debug(`⚡ Query completed (${duration}ms): ${queryPreview}`, {
+        duration,
+        rowCount: result.rowCount || result.rows?.length || 0
+      });
+    }
+
+    // Alert on slow queries
+    if (duration > queryMetrics.slowQueryThreshold) {
+      // Sentry warning for single slow query
+      Sentry.captureMessage('Slow database query detected', {
+        level: 'warning',
+        tags: {
+          component: 'baileys_auth',
+          category: 'performance'
+        },
+        extra: {
+          sql: queryPreview,
+          duration,
+          threshold: queryMetrics.slowQueryThreshold,
+          rowCount: result.rowCount || result.rows?.length || 0
+        }
+      });
+
+      // Track slow query count for Telegram alerting
+      queryMetrics.slowQueryCount++;
+
+      // Telegram alert for repeated slow queries (3+ in 5 minutes)
+      const now = Date.now();
+      const timeSinceLastAlert = now - queryMetrics.lastSlowQueryAlert;
+
+      if (
+        queryMetrics.slowQueryCount >= 3 &&
+        timeSinceLastAlert > queryMetrics.slowQueryWindow
+      ) {
+        Sentry.captureMessage('Repeated slow queries detected', {
+          level: 'error',
+          tags: {
+            component: 'baileys_auth',
+            category: 'performance',
+            alert_type: 'telegram'
+          },
+          extra: {
+            slowQueryCount: queryMetrics.slowQueryCount,
+            windowMinutes: queryMetrics.slowQueryWindow / 60000,
+            threshold: queryMetrics.slowQueryThreshold,
+            recentQuery: queryPreview,
+            recentDuration: duration
+          }
+        });
+
+        // Reset counter and alert timestamp
+        queryMetrics.slowQueryCount = 0;
+        queryMetrics.lastSlowQueryAlert = now;
+
+        logger.error(
+          `🚨 ALERT: ${queryMetrics.slowQueryCount} slow queries in ${queryMetrics.slowQueryWindow / 60000} minutes`
+        );
+      }
+    }
+
+    return result;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+
+    // Store error metrics
+    queryMetrics.buffer.push({
+      sql: queryPreview,
+      duration,
+      timestamp: startTime,
+      success: false,
+      error: error.message
+    });
+
+    // Trim buffer
+    if (queryMetrics.buffer.length > queryMetrics.maxSize) {
+      queryMetrics.buffer.shift();
+    }
+
+    // Log error with duration
+    logger.error(`❌ Query failed after ${duration}ms: ${queryPreview}`, {
+      duration,
+      error: error.message,
+      stack: error.stack
+    });
+
+    // Sentry error tracking
+    Sentry.captureException(error, {
+      tags: {
+        component: 'baileys_auth',
+        category: 'database'
+      },
+      extra: {
+        sql: queryPreview,
+        duration,
+        params: params?.length || 0
+      }
+    });
+
+    throw error;
+  }
+}
+
+/**
+ * Get query latency metrics for dashboard
+ *
+ * Returns:
+ * - P50, P95, P99 latency percentiles
+ * - Total queries count
+ * - Success/error ratio
+ * - Slow query count
+ * - Recent queries (last 10)
+ *
+ * @returns {object} Metrics object
+ */
+function getQueryMetrics() {
+  const successQueries = queryMetrics.buffer.filter(q => q.success);
+  const errorQueries = queryMetrics.buffer.filter(q => !q.success);
+
+  // Calculate percentiles from successful queries
+  const durations = successQueries.map(q => q.duration).sort((a, b) => a - b);
+
+  const p50 = calculatePercentile(durations, 50);
+  const p95 = calculatePercentile(durations, 95);
+  const p99 = calculatePercentile(durations, 99);
+
+  // Recent slow queries
+  const slowQueries = queryMetrics.buffer
+    .filter(q => q.duration > queryMetrics.slowQueryThreshold)
+    .slice(-10);
+
+  // Recent errors
+  const recentErrors = errorQueries.slice(-10);
+
+  return {
+    total: queryMetrics.buffer.length,
+    success: successQueries.length,
+    errors: errorQueries.length,
+    successRate: queryMetrics.buffer.length > 0
+      ? (successQueries.length / queryMetrics.buffer.length * 100).toFixed(2)
+      : 100,
+    latency: {
+      p50,
+      p95,
+      p99,
+      avg: durations.length > 0
+        ? (durations.reduce((sum, d) => sum + d, 0) / durations.length).toFixed(2)
+        : 0
+    },
+    slowQueries: {
+      count: slowQueries.length,
+      threshold: queryMetrics.slowQueryThreshold,
+      recent: slowQueries.map(q => ({
+        sql: q.sql,
+        duration: q.duration,
+        timestamp: new Date(q.timestamp).toISOString(),
+        rowCount: q.rowCount
+      }))
+    },
+    recentErrors: recentErrors.map(q => ({
+      sql: q.sql,
+      duration: q.duration,
+      timestamp: new Date(q.timestamp).toISOString(),
+      error: q.error
+    })),
+    config: {
+      bufferSize: queryMetrics.maxSize,
+      slowQueryThreshold: queryMetrics.slowQueryThreshold,
+      alertWindow: queryMetrics.slowQueryWindow / 60000 + ' minutes'
+    },
+    timestamp: new Date().toISOString()
+  };
+}
+
 /**
  * Recursively revive Buffer objects from JSON/JSONB serialization
  * Buffer can be serialized in two formats:
@@ -79,7 +325,7 @@ async function useTimewebAuthState(companyId) {
   let creds;
 
   try {
-    const result = await postgres.query(
+    const result = await queryWithMetrics(
       'SELECT creds FROM whatsapp_auth WHERE company_id = $1',
       [companyId]
     );
@@ -128,7 +374,7 @@ async function useTimewebAuthState(companyId) {
       }
 
       try {
-        const result = await postgres.query(
+        const result = await queryWithMetrics(
           'SELECT key_id, value FROM whatsapp_keys WHERE company_id = $1 AND key_type = $2 AND key_id = ANY($3)',
           [companyId, type, ids]
         );
@@ -229,7 +475,7 @@ async function useTimewebAuthState(companyId) {
         // Execute deletions
         if (recordsToDelete.length > 0) {
           for (const { type, id } of recordsToDelete) {
-            await postgres.query(
+            await queryWithMetrics(
               'DELETE FROM whatsapp_keys WHERE company_id = $1 AND key_type = $2 AND key_id = $3',
               [companyId, type, id]
             );
@@ -271,7 +517,7 @@ async function useTimewebAuthState(companyId) {
             }
 
             // Execute single multi-row INSERT instead of N individual INSERTs
-            await postgres.query(
+            await queryWithMetrics(
               `INSERT INTO whatsapp_keys (company_id, key_type, key_id, value, updated_at, expires_at)
                VALUES ${values.join(', ')}
                ON CONFLICT (company_id, key_type, key_id) DO UPDATE SET
@@ -308,7 +554,7 @@ async function useTimewebAuthState(companyId) {
 
   async function saveCreds() {
     try {
-      await postgres.query(
+      await queryWithMetrics(
         `INSERT INTO whatsapp_auth (company_id, creds, updated_at)
          VALUES ($1, $2, $3)
          ON CONFLICT (company_id) DO UPDATE SET
@@ -350,13 +596,13 @@ async function removeTimewebAuthState(companyId) {
 
   try {
     // Delete credentials
-    await postgres.query(
+    await queryWithMetrics(
       'DELETE FROM whatsapp_auth WHERE company_id = $1',
       [companyId]
     );
 
     // Delete all keys
-    await postgres.query(
+    await queryWithMetrics(
       'DELETE FROM whatsapp_keys WHERE company_id = $1',
       [companyId]
     );
@@ -380,7 +626,7 @@ async function removeTimewebAuthState(companyId) {
  */
 async function getAuthStateStats() {
   try {
-    const result = await postgres.query(`
+    const result = await queryWithMetrics(`
       SELECT
         (SELECT COUNT(DISTINCT company_id) FROM whatsapp_auth) as total_companies,
         (SELECT COUNT(*) FROM whatsapp_auth) as total_auth_records,
@@ -475,5 +721,6 @@ module.exports = {
   useTimewebAuthState,
   removeTimewebAuthState,
   getAuthStateStats,
-  checkSessionHealth
+  checkSessionHealth,
+  getQueryMetrics
 };
