@@ -23,7 +23,7 @@ const Sentry = require('@sentry/node');
 const queryMetrics = {
   buffer: [],
   maxSize: 1000,
-  slowQueryThreshold: 500, // ms
+  slowQueryThreshold: parseInt(process.env.DB_QUERY_LATENCY_THRESHOLD_MS) || 500, // From env or default 500ms
   slowQueryWindow: 5 * 60 * 1000, // 5 minutes
   slowQueryCount: 0,
   lastSlowQueryAlert: 0
