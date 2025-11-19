@@ -153,13 +153,14 @@ async function ensureDirectories() {
 async function createBackup(backupPath) {
   const startTime = Date.now();
 
-  // Build pg_dump command
+  // Build PostgreSQL connection string (safer for special characters in password)
+  const encodedPassword = encodeURIComponent(CONFIG.DB_PASSWORD);
+  const connectionString = `postgresql://${CONFIG.DB_USER}:${encodedPassword}@${CONFIG.DB_HOST}:${CONFIG.DB_PORT}/${CONFIG.DB_NAME}?sslmode=require`;
+
+  // Build pg_dump command using connection string
   const pgDumpCmd = [
     'pg_dump',
-    `-h ${CONFIG.DB_HOST}`,
-    `-p ${CONFIG.DB_PORT}`,
-    `-U ${CONFIG.DB_USER}`,
-    `-d ${CONFIG.DB_NAME}`,
+    `"${connectionString}"`,
     '--verbose',
     '--clean',
     '--if-exists',
@@ -172,7 +173,8 @@ async function createBackup(backupPath) {
   ].join(' ');
 
   if (CONFIG.VERBOSE) {
-    logger.info(`📝 Executing: ${pgDumpCmd} (with PGPASSWORD env)`);
+    const maskedCmd = pgDumpCmd.replace(encodedPassword, '****');
+    logger.info(`📝 Executing: ${maskedCmd}`);
   }
 
   try {
@@ -186,14 +188,10 @@ async function createBackup(backupPath) {
       };
     }
 
-    // Execute pg_dump with PGPASSWORD in environment
+    // Execute pg_dump
     const { stdout, stderr } = await execAsync(pgDumpCmd, {
       shell: '/bin/bash',
-      maxBuffer: 10 * 1024 * 1024, // 10MB buffer
-      env: {
-        ...process.env,
-        PGPASSWORD: CONFIG.DB_PASSWORD
-      }
+      maxBuffer: 10 * 1024 * 1024 // 10MB buffer
     });
 
     // Get backup file size
