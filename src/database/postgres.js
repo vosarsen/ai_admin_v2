@@ -18,7 +18,7 @@ const poolMetrics = {
   snapshots: [], // Circular buffer of pool state snapshots
   maxSnapshots: 360, // 360 snapshots × 10s = 1 hour of history
   alertThresholds: {
-    highUsage: 0.8, // 80% connections in use
+    highUsage: parseFloat(process.env.DB_POOL_USAGE_THRESHOLD) || 0.8, // From env or default 80% connections in use
     highWaitQueue: 5, // 5+ queries waiting
   },
   alerts: {

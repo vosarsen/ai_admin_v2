@@ -35,8 +35,8 @@ const telegramNotifier = require('../../src/services/telegram-notifier');
 // ====================================================================================
 
 const CONFIG = {
-  RETENTION_DAYS: 30,                    // Delete keys older than 30 days
-  RETENTION_INTERVAL: '30 days',         // PostgreSQL interval syntax
+  RETENTION_DAYS: parseInt(process.env.DB_CLEANUP_RETENTION_DAYS) || 30,  // From env or default 30 days
+  RETENTION_INTERVAL: `${parseInt(process.env.DB_CLEANUP_RETENTION_DAYS) || 30} days`,  // PostgreSQL interval syntax
   DRY_RUN: process.argv.includes('--dry-run'),
   VERBOSE: process.argv.includes('--verbose'),
 };
