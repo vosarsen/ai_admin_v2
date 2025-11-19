@@ -806,6 +806,41 @@ class WhatsAppSessionPool extends EventEmitter {
     }
 
     /**
+     * Revive Buffer objects from JSON (Phase 2 - Task 3.1.1)
+     * Buffers are serialized as {type: 'Buffer', data: [...]} by JSON.stringify
+     * This function recursively converts them back to Buffer objects
+     */
+    reviveBuffers(obj) {
+        if (!obj || typeof obj !== 'object') {
+            return obj;
+        }
+
+        // Check if this is a serialized Buffer object
+        if (obj.type === 'Buffer' && obj.data !== undefined) {
+            // Handle array format: {type: 'Buffer', data: [1,2,3]}
+            if (Array.isArray(obj.data)) {
+                return Buffer.from(obj.data);
+            }
+            // Handle base64 string format: {type: 'Buffer', data: "base64=="}
+            if (typeof obj.data === 'string') {
+                return Buffer.from(obj.data, 'base64');
+            }
+        }
+
+        // Recursively process arrays
+        if (Array.isArray(obj)) {
+            return obj.map(item => this.reviveBuffers(item));
+        }
+
+        // Recursively process plain objects
+        const revived = {};
+        for (const [key, value] of Object.entries(obj)) {
+            revived[key] = this.reviveBuffers(value);
+        }
+        return revived;
+    }
+
+    /**
      * Load credentials cache from file (Phase 2 - Task 3.1.1)
      * Called on startup to restore cache from previous session
      */
@@ -834,8 +869,14 @@ class WhatsAppSessionPool extends EventEmitter {
                 const age = now - cacheEntry.timestamp;
 
                 if (age <= CONFIG.CACHE_TTL_MS) {
-                    // Cache still valid - restore it
-                    this.credentialsCache.set(companyId, cacheEntry);
+                    // Cache still valid - restore it with Buffer revival
+                    const revivedEntry = {
+                        creds: this.reviveBuffers(cacheEntry.creds),
+                        keys: cacheEntry.keys,
+                        timestamp: cacheEntry.timestamp
+                    };
+
+                    this.credentialsCache.set(companyId, revivedEntry);
                     loaded++;
                     logger.info(`💾 Restored cache for company ${companyId} (age: ${Math.round(age / 1000)}s)`);
                 } else {
