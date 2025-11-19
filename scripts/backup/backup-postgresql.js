@@ -52,11 +52,11 @@ const execAsync = promisify(exec);
 
 const CONFIG = {
   // Database connection (from environment)
-  DB_HOST: process.env.TIMEWEB_PG_HOST || 'a84c973324fdaccfc68d929d.twc1.net',
-  DB_PORT: process.env.TIMEWEB_PG_PORT || '5432',
-  DB_NAME: process.env.TIMEWEB_PG_DATABASE || 'default_db',
-  DB_USER: process.env.TIMEWEB_PG_USER || 'gen_user',
-  DB_PASSWORD: process.env.TIMEWEB_PG_PASSWORD,
+  DB_HOST: process.env.POSTGRES_HOST || 'a84c973324fdaccfc68d929d.twc1.net',
+  DB_PORT: process.env.POSTGRES_PORT || '5432',
+  DB_NAME: process.env.POSTGRES_DATABASE || 'default_db',
+  DB_USER: process.env.POSTGRES_USER || 'gen_user',
+  DB_PASSWORD: process.env.POSTGRES_PASSWORD,
 
   // Backup paths
   BACKUP_ROOT: process.env.BACKUP_ROOT || '/var/backups/postgresql',
