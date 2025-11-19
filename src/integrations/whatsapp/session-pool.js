@@ -21,6 +21,8 @@ const {
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
 const EventEmitter = require('events');
+const fs = require('fs').promises;
+const path = require('path');
 const logger = require('../../utils/logger');
 const QRCode = require('qrcode');
 const { useSupabaseAuthState } = require('./auth-state-supabase');
@@ -35,7 +37,9 @@ const CONFIG = {
     HEALTH_CHECK_INTERVAL_MS: 60 * 1000, // 1 minute
     PAIRING_CODE_TIMEOUT_MS: 60 * 1000, // 1 minute
     MIN_PHONE_LENGTH: 10,
-    MAX_PHONE_LENGTH: 15
+    MAX_PHONE_LENGTH: 15,
+    CACHE_FILE_PATH: path.join(process.cwd(), '.baileys-cache.json'), // Phase 2 - Task 3.1.1
+    CACHE_TTL_MS: 5 * 60 * 1000 // 5 minutes TTL
 };
 
 class WhatsAppSessionPool extends EventEmitter {
@@ -97,6 +101,10 @@ class WhatsAppSessionPool extends EventEmitter {
         try {
             this.startHealthChecks();
             this.startCacheCleanup();
+
+            // Load cache from file (Phase 2 - Task 3.1.1)
+            await this.loadCacheFromFile();
+
             logger.info('✅ Improved WhatsApp Session Pool initialized');
         } catch (error) {
             logger.error('Failed to initialize WhatsApp Session Pool:', error);
@@ -736,6 +744,12 @@ class WhatsAppSessionPool extends EventEmitter {
         });
 
         logger.debug(`💾 Credentials cached for company ${companyId}`);
+
+        // Persist cache to file (Phase 2 - Task 3.1.1)
+        // Fire-and-forget - don't await to avoid blocking
+        this.saveCacheToFile().catch(err => {
+            logger.error('Failed to save cache to file:', err);
+        });
     }
 
     /**
@@ -749,6 +763,11 @@ class WhatsAppSessionPool extends EventEmitter {
 
         if (had) {
             logger.debug(`🗑️ Cleared credentials cache for company ${companyId}`);
+
+            // Persist cache to file (Phase 2 - Task 3.1.1)
+            this.saveCacheToFile().catch(err => {
+                logger.error('Failed to save cache to file:', err);
+            });
         }
     }
 
@@ -783,6 +802,86 @@ class WhatsAppSessionPool extends EventEmitter {
 
         if (cleaned > 0) {
             logger.info(`🧹 Cleaned ${cleaned} expired cache entries`);
+        }
+    }
+
+    /**
+     * Load credentials cache from file (Phase 2 - Task 3.1.1)
+     * Called on startup to restore cache from previous session
+     */
+    async loadCacheFromFile() {
+        try {
+            const cacheFilePath = CONFIG.CACHE_FILE_PATH;
+
+            // Check if file exists
+            try {
+                await fs.access(cacheFilePath);
+            } catch {
+                logger.debug('📂 No cache file found, starting with empty cache');
+                return;
+            }
+
+            // Read and parse cache file
+            const cacheData = await fs.readFile(cacheFilePath, 'utf8');
+            const parsedCache = JSON.parse(cacheData);
+
+            // Restore cache entries, validating TTL
+            const now = Date.now();
+            let loaded = 0;
+            let expired = 0;
+
+            for (const [companyId, cacheEntry] of Object.entries(parsedCache)) {
+                const age = now - cacheEntry.timestamp;
+
+                if (age <= CONFIG.CACHE_TTL_MS) {
+                    // Cache still valid - restore it
+                    this.credentialsCache.set(companyId, cacheEntry);
+                    loaded++;
+                    logger.info(`💾 Restored cache for company ${companyId} (age: ${Math.round(age / 1000)}s)`);
+                } else {
+                    // Cache expired - skip
+                    expired++;
+                    logger.debug(`⏱️ Skipped expired cache for company ${companyId} (age: ${Math.round(age / 1000)}s)`);
+                }
+            }
+
+            logger.info(`✅ Cache loaded from file: ${loaded} valid, ${expired} expired`);
+        } catch (error) {
+            // Graceful degradation - log error but continue with empty cache
+            logger.error('Failed to load cache from file:', error);
+            logger.warn('⚠️ Starting with empty cache due to load error');
+        }
+    }
+
+    /**
+     * Save credentials cache to file (Phase 2 - Task 3.1.1)
+     * Called after cache updates to persist across restarts
+     */
+    async saveCacheToFile() {
+        try {
+            const cacheFilePath = CONFIG.CACHE_FILE_PATH;
+
+            // Convert Map to plain object for JSON serialization
+            const cacheObject = {};
+            for (const [companyId, cacheEntry] of this.credentialsCache.entries()) {
+                cacheObject[companyId] = cacheEntry;
+            }
+
+            // Atomic write: write to temp file, then rename
+            const tempPath = `${cacheFilePath}.tmp`;
+            await fs.writeFile(tempPath, JSON.stringify(cacheObject, null, 2), 'utf8');
+
+            // Set restrictive permissions (only owner can read/write)
+            await fs.chmod(tempPath, 0o600);
+
+            // Atomic rename
+            await fs.rename(tempPath, cacheFilePath);
+
+            logger.debug(`💾 Cache saved to file: ${Object.keys(cacheObject).length} entries`);
+        } catch (error) {
+            // Non-critical error - cache still works in-memory
+            logger.error('Failed to save cache to file:', error);
+            logger.warn('⚠️ Cache file save failed, continuing with in-memory only');
         }
     }
 
