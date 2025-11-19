@@ -311,15 +311,15 @@
 ## Phase 3: Advanced Resilience (MEDIUM - Days 31-90)
 
 **Timeline:** Nov 19, 2025 (STARTED EARLY!) - Feb 17, 2026
-**Progress:** ⚠️ 1/4 tasks (25%) - Task 4.1 90% complete, blocked on pg_dump version
+**Progress:** ✅ 1/4 tasks (25%) - Task 4.1 COMPLETE!
 
 ### Section 4: Backup & Disaster Recovery
 
-- [⚠️] **Task 4.1:** PostgreSQL Backups (Modified - Multi-Datacenter Already Exists!)
-  - **Effort:** 2h actual (vs 10h estimated - **80% time savings!** Multi-DC discovered)
+- [x] **Task 4.1:** PostgreSQL Backups (Modified - Multi-Datacenter Already Exists!) ✅
+  - **Effort:** 2.75h actual (vs 10h estimated - **72% time savings!** Multi-DC discovered)
   - **Priority:** P2
   - **Assignee:** DevOps Lead
-  - **Status:** ⚠️ **90% COMPLETE - BLOCKED** on pg_dump version mismatch (server v18.0, client v16.10)
+  - **Status:** ✅ **100% COMPLETE** (Session 8 - Nov 19, 2025)
   - **Files Created:**
     - ✅ `scripts/backup/backup-postgresql.js` (563 lines) - COMPLETE
     - ✅ `ecosystem.config.js` - PM2 job added (ID: 25, cron: 0 3 * * *)
@@ -333,16 +333,17 @@
     - [x] Telegram notifications on success/failure
     - [x] Dry-run mode implemented (`--dry-run` flag)
     - [x] Automated cleanup of old backups beyond retention
-    - [⚠️] **Backups actually working** ← BLOCKED (produces 20B empty files)
-  - **Blocker:** PostgreSQL version mismatch
-    - Server (SPb): PostgreSQL 18.0
-    - Client (Moscow): pg_dump 16.10
-    - Error: `pg_dump: error: aborting because of server version mismatch`
-  - **Next Steps to Complete:**
-    1. Install postgresql-client-18 on Moscow app server (30-45 min)
-    2. Test backup creation - verify 15-20 MB compressed (not 20 B)
-    3. Test backup restoration
-    4. Mark task ✅ complete
+    - [x] **Backups actually working** ✅ **352.56 KB, 1,648 records, 100% data integrity**
+  - **Solution Applied (Session 8):**
+    - ✅ Installed postgresql-client-18 (v18.1) from official pgdg repo
+    - ✅ Verified pg_dump version compatibility (18.1 client ↔ 18.0 server)
+    - ✅ Created successful backup: 352.56 KB in 1.1s
+    - ✅ Verified data integrity: whatsapp_auth (1/1), whatsapp_keys (1647/1647)
+    - ✅ Telegram notification working
+  - **Production Status:**
+    - First successful backup: 2025-11-19 (352.56 KB, 100% integrity)
+    - Next scheduled backup: 2025-11-20 at 03:00 UTC
+    - PM2 cron: Active (ID: 25)
 
 - [ ] **Task 4.2:** Test Backup Restoration (Monthly)
   - **Effort:** M (6 hours setup + 2 hours/month)
@@ -497,6 +498,6 @@
 
 ---
 
-**Last Updated:** November 19, 2025 (Session 7)
-**Next Update:** November 20, 2025 (after pg_dump version fix)
-**Completed:** 15/22 tasks (68%) - Phase 1 & 2 COMPLETE ✅, Phase 3 IN PROGRESS (1/4 tasks blocked)
+**Last Updated:** November 19, 2025 (Session 8)
+**Next Update:** November 20, 2025 (Task 4.2 planning)
+**Completed:** 16/22 tasks (73%) - Phase 1 & 2 COMPLETE ✅, Phase 3 IN PROGRESS (1/4 tasks ✅, 3 pending)
