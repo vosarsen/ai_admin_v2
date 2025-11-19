@@ -44,6 +44,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const { execSync } = require('child_process');
 const readline = require('readline');
+const Sentry = require('@sentry/node');
 
 // Configuration
 const CONFIG = {
@@ -243,6 +244,19 @@ async function exportPostgreSQLToFiles() {
     } catch (error) {
         await pool.end();
         logger.error(`Export failed: ${error.message}`);
+
+        Sentry.captureException(error, {
+            tags: {
+                component: 'emergency_restore',
+                operation: 'export_postgresql_to_files',
+                emergency: 'true'
+            },
+            extra: {
+                companyId: options.companyId || 'all',
+                dryRun: options.dryRun
+            }
+        });
+
         throw error;
     }
 }
@@ -284,6 +298,19 @@ async function restoreArchivedCode() {
         }
     } catch (error) {
         logger.error(`Code restore failed: ${error.message}`);
+
+        Sentry.captureException(error, {
+            tags: {
+                component: 'emergency_restore',
+                operation: 'restore_archived_code',
+                emergency: 'true'
+            },
+            extra: {
+                emergencyTag: CONFIG.EMERGENCY_TAG,
+                dryRun: options.dryRun
+            }
+        });
+
         throw error;
     }
 }
@@ -352,6 +379,19 @@ async function updateEnv() {
         }
     } catch (error) {
         logger.error(`Environment update failed: ${error.message}`);
+
+        Sentry.captureException(error, {
+            tags: {
+                component: 'emergency_restore',
+                operation: 'update_env',
+                emergency: 'true'
+            },
+            extra: {
+                envFile: CONFIG.ENV_FILE,
+                dryRun: options.dryRun
+            }
+        });
+
         throw error;
     }
 }
@@ -383,6 +423,19 @@ async function restartBaileysService() {
         }
     } catch (error) {
         logger.error(`Service restart failed: ${error.message}`);
+
+        Sentry.captureException(error, {
+            tags: {
+                component: 'emergency_restore',
+                operation: 'restart_service',
+                emergency: 'true'
+            },
+            extra: {
+                serviceName: CONFIG.SERVICE_NAME,
+                dryRun: options.dryRun
+            }
+        });
+
         throw error;
     }
 }
@@ -516,6 +569,26 @@ ${COLORS.GREEN}╔════════════════════�
         logger.error('Stack trace:');
         console.error(error.stack);
 
+        // Capture critical failure to Sentry
+        Sentry.captureException(error, {
+            level: 'fatal',
+            tags: {
+                component: 'emergency_restore',
+                operation: 'main',
+                emergency: 'true',
+                restore_failed: 'true'
+            },
+            extra: {
+                duration,
+                dryRun: options.dryRun,
+                skipExport: options.skipExport,
+                skipRestart: options.skipRestart,
+                companyId: options.companyId,
+                rtoTarget: 600,
+                rtoPassed: duration < 600
+            }
+        });
+
         console.log(`
 ${COLORS.RED}╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
@@ -537,6 +610,17 @@ ${COLORS.RED}╔═════════════════════�
 if (require.main === module) {
     main().catch(error => {
         console.error('Unhandled error:', error);
+
+        // Capture unhandled errors to Sentry
+        Sentry.captureException(error, {
+            level: 'fatal',
+            tags: {
+                component: 'emergency_restore',
+                operation: 'unhandled',
+                emergency: 'true'
+            }
+        });
+
         process.exit(1);
     });
 }
