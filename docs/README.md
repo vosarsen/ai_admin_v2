@@ -5,8 +5,8 @@ Complete documentation for the AI Admin v2 WhatsApp bot system.
 ## Quick Links
 
 - [Troubleshooting Guide](TROUBLESHOOTING.md) - Common issues and solutions
-- [Claude Code Guide](CLAUDE_CODE_MASTER_GUIDE.md) - Essential for AI development
-- [Claude Code Skills Integration](CLAUDE_CODE_SKILLS_INTEGRATION_SUMMARY.md) - Skills system documentation
+- [Claude Code Guide](02-guides/claude-code/CLAUDE_CODE_MASTER_GUIDE.md) - Essential for AI development
+- [Claude Code Skills Integration](02-guides/claude-code/CLAUDE_CODE_SKILLS_INTEGRATION_SUMMARY.md) - Skills system documentation
 - [Development Diary](03-development-diary/) - Chronological project history
 
 ## Documentation Structure

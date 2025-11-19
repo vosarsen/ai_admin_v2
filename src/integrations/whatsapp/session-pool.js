@@ -13,7 +13,6 @@
 const {
     makeWASocket,
     DisconnectReason,
-    useMultiFileAuthState,
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
     Browsers,
@@ -21,8 +20,6 @@ const {
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
-const path = require('path');
-const fs = require('fs-extra');
 const EventEmitter = require('events');
 const logger = require('../../utils/logger');
 const QRCode = require('qrcode');
@@ -47,7 +44,6 @@ class WhatsAppSessionPool extends EventEmitter {
 
         // Core data structures
         this.sessions = new Map(); // companyId -> session
-        this.authPaths = new Map(); // companyId -> authPath
         this.reconnectAttempts = new Map(); // companyId -> attempts
         this.reconnectTimers = new Map(); // companyId -> timer
         this.qrCodes = new Map(); // companyId -> qrCode
@@ -83,9 +79,6 @@ class WhatsAppSessionPool extends EventEmitter {
             lastError: null
         };
 
-        // Directory for storing sessions
-        this.baseAuthPath = path.join(process.cwd(), 'baileys_sessions');
-
         // Initialize async - store promise for later await
         this.initPromise = this.initialize();
     }
@@ -95,7 +88,6 @@ class WhatsAppSessionPool extends EventEmitter {
      */
     async initialize() {
         try {
-            await this.ensureBaseDirectory();
             this.startHealthChecks();
             logger.info('✅ Improved WhatsApp Session Pool initialized');
         } catch (error) {
@@ -111,15 +103,6 @@ class WhatsAppSessionPool extends EventEmitter {
      */
     async waitForInit() {
         await this.initPromise;
-    }
-
-    /**
-     * Creates base directory for sessions
-     */
-    async ensureBaseDirectory() {
-        await fs.ensureDir(this.baseAuthPath);
-        // Ensure proper permissions
-        await fs.chmod(this.baseAuthPath, 0o700);
     }
 
 
@@ -290,20 +273,15 @@ class WhatsAppSessionPool extends EventEmitter {
             let state, saveCreds;
 
             if (useLegacySupabase) {
-                // Supabase auth state (legacy, but currently default)
+                // Supabase auth state (legacy)
                 logger.info(`📦 Using Supabase auth state for company ${validatedId}`);
                 ({ state, saveCreds } = await useSupabaseAuthState(validatedId));
             } else if (useDatabaseAuth) {
-                // Timeweb PostgreSQL auth state (new, production-ready)
+                // Timeweb PostgreSQL auth state (production)
                 logger.info(`🗄️  Using Timeweb PostgreSQL auth state for company ${validatedId}`);
                 ({ state, saveCreds } = await useTimewebAuthState(validatedId));
             } else {
-                // File-based auth state (fallback for development/testing)
-                logger.info(`📁 Using file auth state for company ${validatedId}`);
-                const authPath = path.join(this.baseAuthPath, `company_${validatedId}`);
-                await fs.ensureDir(authPath);
-                this.authPaths.set(validatedId, authPath);
-                ({ state, saveCreds } = await useMultiFileAuthState(authPath));
+                throw new Error('No auth state provider configured. Set USE_LEGACY_SUPABASE=true or USE_REPOSITORY_PATTERN=true');
             }
 
             // Get latest Baileys version for better compatibility
@@ -925,7 +903,6 @@ class WhatsAppSessionPool extends EventEmitter {
         this.failureCount.clear();
         this.lastFailureTime.clear();
         this.qrCodes.clear();
-        this.authPaths.clear();
         this.reconnectAttempts.clear();
 
         logger.info('✅ WhatsApp Session Pool shutdown complete');
