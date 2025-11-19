@@ -1036,7 +1036,11 @@ class WhatsAppSessionPool extends EventEmitter {
         this.lastFailureTime.clear();
         this.qrCodes.clear();
         this.reconnectAttempts.clear();
-        this.credentialsCache.clear(); // Phase 2 - Task 3.1
+
+        // NOTE: credentialsCache NOT cleared on shutdown
+        // Reason: If shutdown is graceful, cache may help on quick restart
+        // However, cache is in-memory only and won't persist across process restarts
+        // TODO: Consider persisting cache to disk/Redis for true cross-restart resilience
 
         logger.info('✅ WhatsApp Session Pool shutdown complete');
     }
