@@ -1,9 +1,67 @@
 # Baileys PostgreSQL Resilience Improvements - Context
 
-**Last Updated:** November 19, 2025 (Session 3 - Phase 2 Task 3.1 Implementation Complete)
-**Status:** Phase 2 - Task 3.1 **86% COMPLETE** (6/7 steps done, testing pending)
+**Last Updated:** November 19, 2025 (Session 4 - Task 3.1 Testing & Critical Bug Discovery)
+**Status:** Phase 2 - Task 3.1 **NEEDS ENHANCEMENT** (in-memory works, file persistence needed)
 **Priority:** HIGH
-**Next Session:** Complete Task 3.1 testing (15-20 min) OR proceed to Task 3.2
+**Next Session:** Implement Task 3.1.1 (File-based cache persistence) OR proceed to Task 3.2
+
+---
+
+## 🔍 SESSION 4 SUMMARY (Nov 19, 2025) - CRITICAL CACHE LIMITATION DISCOVERED
+
+### Testing Revealed Fundamental Issue with In-Memory Cache ⚠️
+
+**What Happened:**
+- Began testing Task 3.1 (in-memory credentials cache)
+- Simulated PostgreSQL outage by changing DB host to invalid
+- Restarted service to trigger cache fallback
+- **CRITICAL FINDING:** Cache cleared on process restart!
+
+**Root Cause:**
+```javascript
+// session-pool.js line 1039 (REMOVED):
+this.credentialsCache.clear(); // ← Was clearing cache on shutdown
+```
+
+**Fundamental Limitation:**
+- In-memory cache does NOT persist across process restarts
+- Cache only useful for outages within running process (no restart needed)
+- Test plan assumed restart scenario, which revealed this limitation
+
+**Value of Current Implementation:**
+✅ **Still useful** for in-process PostgreSQL outages:
+- PostgreSQL becomes unavailable during runtime
+- Process continues running (no restart)
+- Cache provides fallback for 5 minutes
+- WhatsApp stays connected
+
+❌ **NOT useful** for:
+- PostgreSQL outages requiring process restart
+- Cold starts after deployment
+- PM2 automatic restarts
+- Server reboots
+
+**Fix Applied (Commit 06bfb6a):**
+- Removed `credentialsCache.clear()` from shutdown method
+- Added documentation about in-memory limitation
+- Added TODO for file-based or Redis persistence
+
+**Next Steps - Two Options:**
+
+**Option A: Implement File-Based Cache Persistence (Task 3.1.1 - NEW)**
+- Estimated: 1-2 hours
+- Save cache to file on updates (e.g., `.baileys-cache.json`)
+- Load cache from file on startup
+- Verify TTL before using cached data
+- Provides true cross-restart resilience
+
+**Option B: Accept Current Limitation & Continue**
+- Mark Task 3.1 as complete with limitation documented
+- In-memory cache still provides value for runtime outages
+- File persistence can be future enhancement
+- Proceed to Task 3.2 (Automated Key Cleanup Job)
+
+**Recommendation:** Option A - file persistence is straightforward (1-2h) and makes cache truly useful for all scenarios.
 
 ---
 
