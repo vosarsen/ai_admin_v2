@@ -120,4 +120,4 @@ node scripts/manage-prompts.js list
 - `src/services/ai/provider-factory.js` - фабрика провайдеров
 - `src/services/ai-admin-v2/prompt-manager.js` - менеджер промптов
 - `src/services/ai-admin-v2/prompts/` - директория с промптами
-- `docs/ai-provider-system.md` - документация системы
+- `docs/01-architecture/ai-system/AI_PROVIDER_SYSTEM.md` - документация системы

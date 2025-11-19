@@ -12,7 +12,7 @@ Quick reference for Claude Code when working with AI Admin v2.
 **Key documentation to check:**
 - `config/project-docs/CONTEXT.md` - Where we left off
 - `config/project-docs/TASK.md` - Current tasks
-- **`docs/CLAUDE_CODE_MASTER_GUIDE.md`** - 🚀 **ПОЛНОЕ РУКОВОДСТВО по Claude Code (NEW!)**
+- **`docs/02-guides/claude-code/CLAUDE_CODE_MASTER_GUIDE.md`** - 🚀 **ПОЛНОЕ РУКОВОДСТВО по Claude Code (NEW!)**
 - `docs/TROUBLESHOOTING.md` - Common issues
 - `docs/02-guides/telegram/TELEGRAM_BOT_QUICK_REFERENCE.md` - 🤖 Telegram бот управление
 - `docs/02-guides/marketplace/AUTHORIZATION_QUICK_REFERENCE.md` - ⚡ YClients авторизация
@@ -33,7 +33,7 @@ Use MCP servers instead of SSH/scripts for faster access:
 
 **Configuration:** All servers configured in `.mcp.json` (see `.mcp.json.example`)
 **Redis tunnel required:** `./scripts/maintain-redis-tunnel.sh start`
-**Notion setup:** See `docs/NOTION_MCP_SETUP.md`
+**Notion setup:** See `docs/02-guides/notion/NOTION_MCP_SETUP.md`
 
 ## 🎯 Claude Code Skills System - ✅ ПОЛНОСТЬЮ РАБОТАЕТ
 
@@ -349,7 +349,7 @@ curl -X POST http://localhost:3000/api/sync/schedules/today
 
 **Common issues:**
 1. "Извините, произошла ошибка" → Check logs: `@logs logs_tail service:ai-admin-worker-v2`
-2. Session errors → Check Baileys cleanup: `ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "ls -1 /opt/ai-admin/baileys_sessions/company_* | wc -l"`
+2. Session errors → Check WhatsApp service: `ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 logs baileys-whatsapp-service --lines 50"`
 3. Redis connection → Ensure tunnel: `./scripts/maintain-redis-tunnel.sh status`
 4. Too many Telegram alerts → See `docs/TELEGRAM_ALERTS_TROUBLESHOOTING.md`
 5. WhatsApp file accumulation → See `docs/WHATSAPP_MONITORING_GUIDE.md`
@@ -437,12 +437,12 @@ npm run notion:health            # Health check + stats
 - Implementation plan grouped by status (✅ Done / 🔄 In Progress / ⬜ Upcoming)
 
 **Team Onboarding:**
-- Read: `docs/NOTION_WORKSPACE_GUIDE.md` - Comprehensive guide (789 lines)
-- Execute: `docs/NOTION_PHASE2_CHECKLIST.md` - Organizational tasks (guided tour, permissions, mobile)
+- Read: `docs/02-guides/notion/NOTION_WORKSPACE_GUIDE.md` - Comprehensive guide (789 lines)
+- Execute: `docs/02-guides/notion/NOTION_PHASE2_CHECKLIST.md` - Organizational tasks (guided tour, permissions, mobile)
 - Estimated time: 1-2 hours (requires manual execution)
 
 **Emergency:**
-- See `docs/NOTION_EMERGENCY_SYNC.md` for troubleshooting
+- See `docs/02-guides/notion/NOTION_EMERGENCY_SYNC.md` for troubleshooting
 - State tracking: `.notion-sync-state.json`
 - Logs: Console output + Telegram alerts on failure
 

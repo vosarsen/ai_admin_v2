@@ -80,7 +80,7 @@
 
 1. **Полная техническая документация**: `/docs/features/reschedule-booking-complete.md`
 2. **Development diary**: `/docs/development-diary/2025-07-29-reschedule-booking-completion.md`
-3. **API Reference**: `/docs/api/reschedule-booking-api.md`
+3. **API Reference**: `/docs/01-architecture/features/RESCHEDULE_BOOKING_API.md`
 4. **Этот summary файл**: `/RESCHEDULE_IMPLEMENTATION_SUMMARY.md`
 
 ## Рекомендации
