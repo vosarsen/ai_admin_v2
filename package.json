@@ -20,6 +20,7 @@
     "backup:service": "node scripts/automated-backup-service.js start",
     "monitor": "node scripts/whatsapp-safe-monitor.js",
     "health": "node scripts/whatsapp-health-check.js",
+    "health-check": "node scripts/monitoring/database-health.js",
     "notion:sync": "node scripts/notion-daily-sync.js",
     "notion:sync:force": "node scripts/notion-daily-sync.js --force-all",
     "notion:sync:project": "node scripts/notion-sync-project.js",
