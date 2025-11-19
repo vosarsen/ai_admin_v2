@@ -59,6 +59,12 @@ class WhatsAppSessionPool extends EventEmitter {
         this.circuitBreakerThreshold = CONFIG.CIRCUIT_BREAKER_THRESHOLD;
         this.circuitBreakerCooldown = CONFIG.CIRCUIT_BREAKER_COOLDOWN_MS;
 
+        // In-memory credentials cache (Phase 2 - Task 3.1)
+        // Provides 5-minute grace period during PostgreSQL outages
+        this.credentialsCache = new Map(); // companyId -> { creds, keys, timestamp }
+        this.cacheExpiryMs = 5 * 60 * 1000; // 5 minutes TTL
+        this.cacheCleanupInterval = 60 * 1000; // Cleanup every 1 minute
+
         // Configuration
         this.maxReconnectAttempts = CONFIG.MAX_RECONNECT_ATTEMPTS;
         this.reconnectDelay = CONFIG.RECONNECT_DELAY_MS;
@@ -66,6 +72,7 @@ class WhatsAppSessionPool extends EventEmitter {
 
         // Timers (for cleanup)
         this.healthCheckTimer = null;
+        this.cacheCleanupTimer = null;
 
         // Metrics
         this.metrics = {
@@ -89,6 +96,7 @@ class WhatsAppSessionPool extends EventEmitter {
     async initialize() {
         try {
             this.startHealthChecks();
+            this.startCacheCleanup();
             logger.info('✅ Improved WhatsApp Session Pool initialized');
         } catch (error) {
             logger.error('Failed to initialize WhatsApp Session Pool:', error);
@@ -279,7 +287,8 @@ class WhatsAppSessionPool extends EventEmitter {
             } else if (useDatabaseAuth) {
                 // Timeweb PostgreSQL auth state (production)
                 logger.info(`🗄️  Using Timeweb PostgreSQL auth state for company ${validatedId}`);
-                ({ state, saveCreds } = await useTimewebAuthState(validatedId));
+                // Pass sessionPool instance for credentials cache support (Phase 2 - Task 3.1)
+                ({ state, saveCreds } = await useTimewebAuthState(validatedId, { sessionPool: this }));
             } else {
                 throw new Error('No auth state provider configured. Set USE_LEGACY_SUPABASE=true or USE_REPOSITORY_PATTERN=true');
             }
@@ -668,6 +677,122 @@ class WhatsAppSessionPool extends EventEmitter {
     }
 
     /**
+     * =================================================================================
+     * CREDENTIALS CACHE METHODS (Phase 2 - Task 3.1)
+     * =================================================================================
+     * Provides 5-minute grace period during PostgreSQL outages
+     */
+
+    /**
+     * Get cached credentials for company (if not expired)
+     * @param {string} companyId - Company ID
+     * @returns {Object|null} - Cached {creds, keys} or null if expired/missing
+     */
+    getCachedCredentials(companyId) {
+        const cached = this.credentialsCache.get(companyId);
+
+        if (!cached) {
+            return null;
+        }
+
+        const age = Date.now() - cached.timestamp;
+
+        if (age > this.cacheExpiryMs) {
+            logger.debug(`⏱️ Cache expired for company ${companyId} (age: ${Math.round(age / 1000)}s)`);
+            this.credentialsCache.delete(companyId);
+            return null;
+        }
+
+        logger.info(`💾 Using cached credentials for company ${companyId} (age: ${Math.round(age / 1000)}s)`);
+        return {
+            creds: cached.creds,
+            keys: cached.keys
+        };
+    }
+
+    /**
+     * Set cached credentials for company
+     * @param {string} companyId - Company ID
+     * @param {Object} creds - Credentials object
+     * @param {Object} keys - Keys interface (will be serialized to object)
+     */
+    setCachedCredentials(companyId, creds, keys) {
+        // Deep clone to prevent mutations
+        const cachedCreds = JSON.parse(JSON.stringify(creds));
+
+        // Store keys interface methods separately (we'll need to reconstruct them)
+        // For now, we only cache the data that can be serialized
+        const cachedKeys = {
+            // We'll store a snapshot of keys, not the interface methods
+            // The interface will be reconstructed when loading from cache
+            _isCached: true,
+            _timestamp: Date.now()
+        };
+
+        this.credentialsCache.set(companyId, {
+            creds: cachedCreds,
+            keys: cachedKeys,
+            timestamp: Date.now()
+        });
+
+        logger.debug(`💾 Credentials cached for company ${companyId}`);
+    }
+
+    /**
+     * Clear cached credentials for company
+     * Called on successful reconnection to ensure fresh data
+     * @param {string} companyId - Company ID
+     */
+    clearCachedCredentials(companyId) {
+        const had = this.credentialsCache.has(companyId);
+        this.credentialsCache.delete(companyId);
+
+        if (had) {
+            logger.debug(`🗑️ Cleared credentials cache for company ${companyId}`);
+        }
+    }
+
+    /**
+     * Start periodic cache cleanup (removes expired entries)
+     */
+    startCacheCleanup() {
+        this.cacheCleanupTimer = setInterval(() => {
+            this.cleanExpiredCache();
+        }, this.cacheCleanupInterval);
+
+        logger.debug('Cache cleanup initialized (runs every 60s)');
+    }
+
+    /**
+     * Clean expired cache entries
+     * Called periodically to prevent memory leaks
+     */
+    cleanExpiredCache() {
+        const now = Date.now();
+        let cleaned = 0;
+
+        for (const [companyId, cached] of this.credentialsCache.entries()) {
+            const age = now - cached.timestamp;
+
+            if (age > this.cacheExpiryMs) {
+                this.credentialsCache.delete(companyId);
+                cleaned++;
+                logger.debug(`🗑️ Cleaned expired cache for company ${companyId} (age: ${Math.round(age / 1000)}s)`);
+            }
+        }
+
+        if (cleaned > 0) {
+            logger.info(`🧹 Cleaned ${cleaned} expired cache entries`);
+        }
+    }
+
+    /**
+     * =================================================================================
+     * END CREDENTIALS CACHE METHODS
+     * =================================================================================
+     */
+
+    /**
      * Sends message to WhatsApp
      */
     async sendMessage(companyId, phone, message, options = {}) {
@@ -870,6 +995,13 @@ class WhatsAppSessionPool extends EventEmitter {
             logger.debug('Health check timer cleared');
         }
 
+        // Clear cache cleanup interval
+        if (this.cacheCleanupTimer) {
+            clearInterval(this.cacheCleanupTimer);
+            this.cacheCleanupTimer = null;
+            logger.debug('Cache cleanup timer cleared');
+        }
+
         // Close all sessions
         const sessionIds = Array.from(this.sessions.keys());
         logger.info(`Closing ${sessionIds.length} active sessions...`);
@@ -904,6 +1036,7 @@ class WhatsAppSessionPool extends EventEmitter {
         this.lastFailureTime.clear();
         this.qrCodes.clear();
         this.reconnectAttempts.clear();
+        this.credentialsCache.clear(); // Phase 2 - Task 3.1
 
         logger.info('✅ WhatsApp Session Pool shutdown complete');
     }
