@@ -17,7 +17,8 @@ Quick reference for Claude Code when working with AI Admin v2.
 - `docs/02-guides/telegram/TELEGRAM_BOT_QUICK_REFERENCE.md` - 🤖 Telegram бот управление
 - `docs/02-guides/marketplace/AUTHORIZATION_QUICK_REFERENCE.md` - ⚡ YClients авторизация
 - `docs/01-architecture/database/TIMEWEB_POSTGRES_SUMMARY.md` - 🗄️ Timeweb PostgreSQL миграция
-- **`dev/active/database-migration-supabase-timeweb/`** - 🎯 **ACTIVE: Database Migration Plan**
+- **`dev/active/database-migration-supabase-timeweb/`** - 🎯 **COMPLETE: Database Migration** (Nov 11, 2025)
+- **`dev/active/baileys-resilience-improvements/`** - 🔄 **ACTIVE: Baileys Resilience** (Phase 3: 25% complete)
 
 ## 🔧 Essential MCP Servers
 
@@ -621,8 +622,58 @@ ENABLE_DUAL_WRITE=false           # Phase 3 will enable
   - Phase 0.8: `datacenter-migration-msk-spb/PHASE_08_EXECUTION_REPORT.md`
 
 ---
-**Last updated:** November 9, 2025
+
+## 🛡️ Baileys Resilience Improvements (ACTIVE - Phase 3)
+
+**Status:** Phase 1 & 2 COMPLETE ✅ | Phase 3: 25% (1/4 tasks done)
+**Location:** `dev/active/baileys-resilience-improvements/`
+
+### Latest Update (Session 8 - Nov 19, 2025)
+
+**Task 4.1 Completed:** PostgreSQL Backups ✅
+- **Problem Solved:** pg_dump version mismatch (server v18.0, client v16.10)
+- **Solution:** Installed postgresql-client-18 from official pgdg repo
+- **Result:** Backups working perfectly (352.56 KB, 100% data integrity)
+- **Production:** Daily backups scheduled (03:00 UTC), retention 7 daily + 4 monthly
+
+**Key Achievements:**
+- ✅ Emergency rollback capability (<10 min RTO) - Task 1.1-1.3
+- ✅ Database health monitoring (Sentry + Telegram) - Task 2.1-2.4
+- ✅ In-memory credentials cache (5-min grace period) - Task 3.1
+- ✅ File-based cache persistence (survives restarts) - Task 3.1.1
+- ✅ Automated key cleanup (daily 3 AM) - Task 3.2
+- ✅ PostgreSQL backups (daily, verified) - Task 4.1
+
+**Remaining Tasks (Phase 3):**
+- ⏸️ Task 4.2: Backup restoration testing (6h estimated)
+- ⏸️ Task 4.3: Disaster recovery checklist (4h estimated)
+- ⏸️ Task 4.4: Backup validation automation (4h estimated)
+
+**Progress:** 16/22 tasks complete (73%)
+
+**Documentation:**
+- Plan: `baileys-resilience-improvements-plan.md` (1,004 lines)
+- Context: `baileys-resilience-improvements-context.md` (Session 8 summary)
+- Tasks: `baileys-resilience-improvements-tasks.md` (503 lines, detailed checklist)
+
+**Quick Commands:**
+```bash
+# Test backup (dry-run)
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "cd /opt/ai-admin && node scripts/backup/backup-postgresql.js --dry-run"
+
+# Create backup manually
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "cd /opt/ai-admin && node scripts/backup/backup-postgresql.js"
+
+# Check backup size
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "ls -lh /var/backups/postgresql/daily/"
+
+# Check PM2 cron status
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 info backup-postgresql"
+```
+
+---
+**Last updated:** November 19, 2025 (Session 8)
 **Current branch:** main (GitHub Flow с короткими feature ветками)
 **AI Provider:** Gemini 2.5 Flash (via USA VPN) - 2.6x faster, $77/month savings 🚀
-**Latest change:** 🏆 Skills Auto-Activation System - ПОЛНОСТЬЮ РАБОТАЕТ! Все 3 хука операционны, тестирование пройдено (EN + RU) ✅
+**Latest change:** 🛡️ Baileys Resilience - Task 4.1 PostgreSQL Backups COMPLETE! Phase 3: 25% ✅
 **Infrastructure Status:** 100% Complete - Skills System ✅ | Dev Docs ✅ | 10 Agents ✅ | Hook Pipeline ✅ | Error Handling ✅
