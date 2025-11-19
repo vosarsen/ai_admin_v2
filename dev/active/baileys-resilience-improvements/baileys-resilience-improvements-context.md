@@ -1,13 +1,228 @@
 # Baileys PostgreSQL Resilience Improvements - Context
 
-**Last Updated:** November 19, 2025 (Session 6 - Code Review Fixes COMPLETE ✅)
-**Status:** Phase 1 & 2 - **100% COMPLETE** ✅ + **Code Review Fixes APPLIED** ✅
-**Priority:** HIGH
-**Next Session:** Phase 3 starts Dec 20, 2025 (or deploy to production first)
+**Last Updated:** November 19, 2025 (Session 7 - Phase 3 Task 4.1 IN PROGRESS ⚠️)
+**Status:** Phase 1 & 2 - **100% COMPLETE** ✅ | Phase 3 - **IN PROGRESS** (Task 4.1 blocked)
+**Priority:** MEDIUM (blocked on PostgreSQL version mismatch issue)
+**Next Session:** Fix pg_dump version issue OR adjust backup strategy
 
 ---
 
-## 🎉 SESSION 6 SUMMARY - CODE REVIEW FIXES COMPLETE! (Nov 19, 2025)
+## ⚠️ SESSION 7 SUMMARY - PHASE 3 TASK 4.1 BLOCKED (Nov 19, 2025)
+
+**Started:** Phase 3 Task 4.1 - PostgreSQL Backup Script (Modified Multi-Region Strategy)
+**Duration:** ~2 hours
+**Status:** ⚠️ **BLOCKED** - Critical pg_dump version mismatch discovered
+**Deployment:** Session 6 fixes deployed successfully, all services running
+
+### 🎯 What Was Accomplished
+
+**1. Session 6 Production Deployment (30 min)** ✅
+- Deployed 7 commits from Session 6 (code review fixes)
+- All PM2 services restarted successfully
+- CredentialsCache initialized and working
+- Cache file created: `.baileys-cache.json` (11,652 bytes, permissions 600)
+- Cleanup job registered in PM2 (ID: 21, cron: 0 3 * * *)
+- WhatsApp connected successfully (79936363848)
+- **Result:** Grade improved A- (89/100) → A+ (98/100 estimated)
+
+**2. Multi-Datacenter Architecture Discovered** ✅
+- **Key Finding:** Infrastructure already has multi-datacenter setup!
+  - App Server: Timeweb Moscow (46.149.70.219)
+  - PostgreSQL: Timeweb St. Petersburg (a84c973324fdaccfc68d929d.twc1.net)
+  - Both have daily Timeweb backups (00:15 MSK, 1 version, overwrites)
+- **Impact:** Task 4.1 simplified from 10 hours to ~5 hours (multi-region already exists!)
+
+**3. PostgreSQL Backup Script Created** ✅
+- **File:** `scripts/backup/backup-postgresql.js` (563 lines)
+- **Features:**
+  - Daily backups: 03:00 UTC (06:00 MSK)
+  - Retention: 7 daily + 4 monthly
+  - Sentry integration (error tracking + metrics)
+  - Telegram notifications
+  - Dry-run mode for testing
+  - Automated cleanup of old backups
+- **PM2 Config:** Added to ecosystem.config.js (ID: 25, cron: 0 3 * * *)
+- **Commits:** 4 total (aaa8e7e, f36f322, dc55e26, 0991e63)
+
+### 🐛 Critical Issue Discovered - BLOCKER
+
+**Problem:** PostgreSQL version mismatch prevents backups
+```
+pg_dump: error: aborting because of server version mismatch
+server version: 18.0 (Ubuntu 18.0-1.pgdg24.04+3)
+pg_dump version: 16.10 (Ubuntu 16.10-0ubuntu0.24.04.1)
+```
+
+**Root Cause:**
+- PostgreSQL server (SPb datacenter): **v18.0**
+- pg_dump client (Moscow app server): **v16.10**
+- pg_dump refuses to backup newer server versions (security measure)
+
+**Attempted Fixes:**
+1. ❌ PGPASSWORD via command string → Special characters in password (`<`, `>`, `|`)
+2. ❌ PGPASSWORD via env options → Still version mismatch
+3. ❌ PostgreSQL connection string with URL encoding → Version mismatch
+4. ⏸️ Install postgresql-client-18 → Package not found in Ubuntu 24.04 repos
+
+**Symptoms:**
+- Backup created but **only 20 bytes** (empty gzipped file)
+- No data dumped due to version abort
+- Script completes "successfully" but produces unusable backup
+
+### 📊 Current State
+
+**Files Created/Modified:**
+1. `scripts/backup/backup-postgresql.js` (563 lines) - Backup script
+2. `ecosystem.config.js` - Added backup-postgresql PM2 job
+3. `/var/backups/postgresql/` - Backup directories created (700 permissions)
+
+**Git Commits (Session 7):**
+- `aaa8e7e` - feat(backup): Add PostgreSQL backup script
+- `f36f322` - fix(backup): Pass PGPASSWORD via env
+- `dc55e26` - fix(backup): Use correct env variable names
+- `0991e63` - fix(backup): Use PostgreSQL connection string
+
+**Production Status:**
+- ✅ Script deployed and registered in PM2
+- ✅ Directories created with correct permissions
+- ❌ Backups failing (version mismatch - 20 byte empty files)
+- ⏸️ Cron job will run tomorrow at 03:00 UTC (will fail)
+
+**Database Stats:**
+- whatsapp_keys: 1,647 records
+- whatsapp_auth: 1 record
+- Expected backup size: ~15-20 MB compressed
+- Actual backup size: 20 B (empty)
+
+### 🔧 Key Technical Decisions
+
+**1. Multi-Region Strategy Adjusted:**
+- **Original Plan:** Create S3 multi-region backups from scratch (10h)
+- **Actual Reality:** Multi-datacenter already exists (Moscow + SPb)
+- **New Plan:** Add PostgreSQL-specific backups with retention (2h)
+- **Rationale:** Complements Timeweb server backups, enables granular recovery
+
+**2. Backup Architecture:**
+```
+Timeweb Backups (existing):
+  ├── Moscow App Server: Daily full snapshot (1 version)
+  └── SPb PostgreSQL Server: Daily full snapshot (1 version)
+
+PostgreSQL Backups (new - blocked):
+  ├── Daily: pg_dump to /var/backups/postgresql/daily/
+  ├── Monthly: Archive to monthly/ subfolder
+  └── Retention: 7 daily, 4 monthly
+```
+
+**3. Password Handling Evolution:**
+- Try 1: `PGPASSWORD=password pg_dump` → Shell interprets special chars
+- Try 2: Pass via execAsync env → Still fails (wrong var names)
+- Try 3: Connection string with URL encoding → Version mismatch blocks
+- **Final:** Connection string approach is correct, but blocked by pg_dump version
+
+### ⚠️ Blockers & Next Steps
+
+**BLOCKER:** Cannot create backups until pg_dump version issue resolved
+
+**Option A: Install PostgreSQL 18 Client** (RECOMMENDED)
+- Add PostgreSQL APT repository for v18
+- Install postgresql-client-18 package
+- Update PATH or pg_dump command to use v18
+- **Estimated:** 30-45 minutes
+- **Risk:** Low (only client tools, no server changes)
+
+**Commands to try next session:**
+```bash
+# Add PostgreSQL APT repo
+ssh root@46.149.70.219 "curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-archive-keyring.gpg"
+ssh root@46.149.70.219 "echo 'deb [signed-by=/usr/share/keyrings/postgresql-archive-keyring.gpg] http://apt.postgresql.org/pub/repos/apt noble-pgdg main' > /etc/apt/sources.list.d/pgdg.list"
+ssh root@46.149.70.219 "apt update && apt install -y postgresql-client-18"
+ssh root@46.149.70.219 "which pg_dump && pg_dump --version"
+```
+
+**Option B: Run Backups on PostgreSQL Server** (Alternative)
+- SSH to SPb PostgreSQL server directly
+- Run pg_dump locally (same version)
+- Store backups on PostgreSQL server
+- **Estimated:** 1-2 hours (need SPb server access)
+- **Risk:** Medium (need credentials/access to different server)
+
+**Option C: Use pg_dumpall with --schema-only** (Workaround)
+- Add `--no-version-check` flag to pg_dump
+- May work but risky (version incompatibility)
+- **Not recommended:** Could produce corrupted backups
+
+**Option D: Defer Task 4.1, Start Task 4.2** (Pivot)
+- Skip automated backups for now
+- Focus on backup restoration testing procedures
+- Test Timeweb backup restoration manually
+- **Estimated:** 1 hour
+- **Value:** Still provides disaster recovery capability
+
+### 📝 Lessons Learned
+
+**1. Always Check Versions First:**
+- Should have verified pg_dump and PostgreSQL versions before coding
+- `pg_dump --version` and `SELECT version()` queries upfront
+- Saves hours of debugging
+
+**2. Multi-Datacenter ≠ Multi-Region Backups:**
+- Discovered infrastructure better than expected
+- But Timeweb backups still single-version (overwrites)
+- PostgreSQL-specific backups still valuable for granular recovery
+
+**3. Special Characters in Passwords:**
+- URL encoding solves most issues
+- Connection strings safer than individual parameters
+- Always test with actual credentials early
+
+**4. Test in Stages:**
+- Test connection first (psql)
+- Test simple dump (single table)
+- Then add complexity (compression, multiple tables)
+- Faster to debug incremental failures
+
+### 🔗 Related Files
+
+**Implementation:**
+- `scripts/backup/backup-postgresql.js` - Main backup script (blocked)
+- `ecosystem.config.js` - PM2 configuration (backup-postgresql job registered)
+- `.env` - PostgreSQL credentials (POSTGRES_* variables)
+
+**Documentation:**
+- `dev/active/baileys-resilience-improvements/baileys-resilience-improvements-plan.md` - Original plan
+- `dev/active/baileys-resilience-improvements/baileys-resilience-improvements-tasks.md` - Task checklist
+- `dev/active/baileys-resilience-improvements/baileys-resilience-code-review.md` - Code review (A- → A+)
+
+**Dependencies:**
+- PostgreSQL server: a84c973324fdaccfc68d929d.twc1.net:5432 (v18.0)
+- pg_dump client: /usr/bin/pg_dump (v16.10) ← **NEEDS UPGRADE**
+
+### 💡 Recommendations for Next Session
+
+**Priority 1: Unblock Backups** (30-45 min)
+1. Add PostgreSQL APT repository
+2. Install postgresql-client-18
+3. Verify pg_dump v18 installed
+4. Test backup creation
+5. Verify backup size (should be ~15-20 MB, not 20 B)
+
+**Priority 2: Complete Task 4.1** (30 min)
+6. Test backup restoration
+7. Verify data integrity (row counts)
+8. Document procedures
+9. Mark Task 4.1 complete
+
+**Priority 3: Start Task 4.2** (1 hour)
+10. Create backup restoration test script
+11. Test monthly restoration procedure
+12. Document RTO/RPO metrics
+
+**Total Time to Completion:** ~2-3 hours
+
+---
+
+## 🎉 SESSION 6 SUMMARY - CODE REVIEW FIXES COMPLETE! (Nov 19, 2025 - Earlier)
 
 **Completed:** All Priority 1 & Priority 2 code review fixes
 **Duration:** ~4 hours (estimated 6.75 hours - 41% faster!)
