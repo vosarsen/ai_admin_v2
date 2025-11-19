@@ -42,9 +42,52 @@ function calculatePercentile(sortedArray, percentile) {
 }
 
 /**
- * Wrapper for postgres.query() with latency tracking
+ * Retry query with exponential backoff
+ * Handles transient PostgreSQL failures (network issues, temporary unavailability)
+ *
+ * @param {Function} queryFn - Async function that executes the query
+ * @param {number} maxAttempts - Maximum retry attempts (default: 3)
+ * @returns {Promise<any>} Query result
+ */
+async function retryWithBackoff(queryFn, maxAttempts = 3) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await queryFn();
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry on non-transient errors
+      const isTransientError =
+        error.code === 'ENOTFOUND' ||    // DNS failure
+        error.code === 'ECONNREFUSED' ||  // Connection refused
+        error.code === 'ETIMEDOUT' ||     // Timeout
+        error.code === 'ECONNRESET' ||    // Connection reset
+        error.code === '08006' ||         // PostgreSQL connection failure
+        error.code === '08003' ||         // Connection does not exist
+        error.code === '57P03';           // Cannot connect now
+
+      if (!isTransientError || attempt === maxAttempts) {
+        throw error;
+      }
+
+      // Exponential backoff: 100ms, 200ms, 400ms
+      const delay = 100 * Math.pow(2, attempt - 1);
+      logger.warn(`⚠️ Query failed (attempt ${attempt}/${maxAttempts}), retrying in ${delay}ms: ${error.message}`);
+
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Wrapper for postgres.query() with latency tracking and retry logic
  *
  * Features:
+ * - Retry with exponential backoff (3 attempts: 100ms, 200ms, 400ms)
  * - Logs execution time for all queries
  * - Sentry alerts for slow queries (>500ms)
  * - Telegram alerts for repeated slow queries (3+ in 5 min)
@@ -60,7 +103,10 @@ async function queryWithMetrics(sql, params = []) {
   const queryPreview = sql.trim().substring(0, 100).replace(/\s+/g, ' ');
 
   try {
-    const result = await postgres.query(sql, params);
+    // Execute query with retry logic for transient failures
+    const result = await retryWithBackoff(async () => {
+      return await postgres.query(sql, params);
+    });
     const duration = Date.now() - startTime;
 
     // Store metrics (circular buffer)
