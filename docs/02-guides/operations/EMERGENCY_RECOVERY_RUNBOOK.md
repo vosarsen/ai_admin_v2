@@ -43,10 +43,10 @@ This runbook provides step-by-step procedures for recovering WhatsApp sessions d
 
 | Role | Name | Contact | Availability |
 |------|------|---------|--------------|
-| **Primary On-Call** | TBD | TBD | 24/7 |
-| **Backup On-Call** | TBD | TBD | 24/7 |
-| **DevOps Lead** | TBD | TBD | Business hours |
-| **Database Admin** | TBD | TBD | Business hours |
+| **Primary On-Call** | @vosarsen | Telegram: @vosarsen | 24/7 |
+| **Backup On-Call** | Support Team | Email: support@adminai.tech | 24/7 |
+| **DevOps Lead** | @vosarsen | Telegram: @vosarsen | Business hours |
+| **Database Admin** | @vosarsen | Telegram: @vosarsen, Email: support@adminai.tech | Business hours |
 
 **Escalation Path:**
 1. Primary On-Call (0-5 min)
