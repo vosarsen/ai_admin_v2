@@ -27,6 +27,7 @@ const logger = require('../../utils/logger');
 const QRCode = require('qrcode');
 const { useSupabaseAuthState } = require('./auth-state-supabase');
 const { useTimewebAuthState } = require('./auth-state-timeweb');
+const CredentialsCache = require('./credentials-cache'); // Phase 2 - Refactored cache
 
 // Configuration constants
 const CONFIG = {
@@ -63,11 +64,13 @@ class WhatsAppSessionPool extends EventEmitter {
         this.circuitBreakerThreshold = CONFIG.CIRCUIT_BREAKER_THRESHOLD;
         this.circuitBreakerCooldown = CONFIG.CIRCUIT_BREAKER_COOLDOWN_MS;
 
-        // In-memory credentials cache (Phase 2 - Task 3.1)
+        // Credentials cache (Phase 2 - Refactored to separate class)
         // Provides 5-minute grace period during PostgreSQL outages
-        this.credentialsCache = new Map(); // companyId -> { creds, keys, timestamp }
-        this.cacheExpiryMs = 5 * 60 * 1000; // 5 minutes TTL
-        this.cacheCleanupInterval = 60 * 1000; // Cleanup every 1 minute
+        this.credentialsCache = new CredentialsCache({
+            ttlMs: CONFIG.CACHE_TTL_MS,
+            cleanupIntervalMs: 60 * 1000,
+            cacheFilePath: CONFIG.CACHE_FILE_PATH
+        });
 
         // Configuration
         this.maxReconnectAttempts = CONFIG.MAX_RECONNECT_ATTEMPTS;
@@ -76,7 +79,7 @@ class WhatsAppSessionPool extends EventEmitter {
 
         // Timers (for cleanup)
         this.healthCheckTimer = null;
-        this.cacheCleanupTimer = null;
+        // cacheCleanupTimer moved to CredentialsCache class
 
         // Metrics
         this.metrics = {
@@ -100,10 +103,9 @@ class WhatsAppSessionPool extends EventEmitter {
     async initialize() {
         try {
             this.startHealthChecks();
-            this.startCacheCleanup();
 
-            // Load cache from file (Phase 2 - Task 3.1.1)
-            await this.loadCacheFromFile();
+            // Initialize credentials cache (Phase 2 - Refactored to separate class)
+            await this.credentialsCache.initialize();
 
             logger.info('✅ Improved WhatsApp Session Pool initialized');
         } catch (error) {
@@ -693,25 +695,19 @@ class WhatsAppSessionPool extends EventEmitter {
 
     /**
      * Get cached credentials for company (if not expired)
+     * Wrapper method - delegates to CredentialsCache class
      * @param {string} companyId - Company ID
      * @returns {Object|null} - Cached {creds, keys} or null if expired/missing
      */
     getCachedCredentials(companyId) {
+        // Delegate to CredentialsCache class
         const cached = this.credentialsCache.get(companyId);
 
         if (!cached) {
             return null;
         }
 
-        const age = Date.now() - cached.timestamp;
-
-        if (age > this.cacheExpiryMs) {
-            logger.debug(`⏱️ Cache expired for company ${companyId} (age: ${Math.round(age / 1000)}s)`);
-            this.credentialsCache.delete(companyId);
-            return null;
-        }
-
-        logger.info(`💾 Using cached credentials for company ${companyId} (age: ${Math.round(age / 1000)}s)`);
+        logger.info(`💾 Using cached credentials for company ${companyId}`);
         return {
             creds: cached.creds,
             keys: cached.keys
@@ -720,211 +716,32 @@ class WhatsAppSessionPool extends EventEmitter {
 
     /**
      * Set cached credentials for company
+     * Wrapper method - delegates to CredentialsCache class
      * @param {string} companyId - Company ID
      * @param {Object} creds - Credentials object
      * @param {Object} keys - Keys interface (will be serialized to object)
      */
     setCachedCredentials(companyId, creds, keys) {
-        // Deep clone to prevent mutations
-        const cachedCreds = JSON.parse(JSON.stringify(creds));
-
-        // Store keys interface methods separately (we'll need to reconstruct them)
-        // For now, we only cache the data that can be serialized
-        const cachedKeys = {
-            // We'll store a snapshot of keys, not the interface methods
-            // The interface will be reconstructed when loading from cache
-            _isCached: true,
-            _timestamp: Date.now()
-        };
-
-        this.credentialsCache.set(companyId, {
-            creds: cachedCreds,
-            keys: cachedKeys,
-            timestamp: Date.now()
-        });
-
-        logger.debug(`💾 Credentials cached for company ${companyId}`);
-
-        // Persist cache to file (Phase 2 - Task 3.1.1)
-        // Fire-and-forget - don't await to avoid blocking
-        this.saveCacheToFile().catch(err => {
-            logger.error('Failed to save cache to file:', err);
-        });
+        // Delegate to CredentialsCache class
+        // Cache class handles: deep clone, persistence, TTL
+        this.credentialsCache.set(companyId, creds, keys);
     }
 
     /**
      * Clear cached credentials for company
      * Called on successful reconnection to ensure fresh data
+     * Wrapper method - delegates to CredentialsCache class
      * @param {string} companyId - Company ID
      */
     clearCachedCredentials(companyId) {
-        const had = this.credentialsCache.has(companyId);
-        this.credentialsCache.delete(companyId);
-
-        if (had) {
-            logger.debug(`🗑️ Cleared credentials cache for company ${companyId}`);
-
-            // Persist cache to file (Phase 2 - Task 3.1.1)
-            this.saveCacheToFile().catch(err => {
-                logger.error('Failed to save cache to file:', err);
-            });
-        }
+        // Delegate to CredentialsCache class
+        // Cache class handles: persistence
+        this.credentialsCache.clear(companyId);
     }
 
-    /**
-     * Start periodic cache cleanup (removes expired entries)
-     */
-    startCacheCleanup() {
-        this.cacheCleanupTimer = setInterval(() => {
-            this.cleanExpiredCache();
-        }, this.cacheCleanupInterval);
-
-        logger.debug('Cache cleanup initialized (runs every 60s)');
-    }
-
-    /**
-     * Clean expired cache entries
-     * Called periodically to prevent memory leaks
-     */
-    cleanExpiredCache() {
-        const now = Date.now();
-        let cleaned = 0;
-
-        for (const [companyId, cached] of this.credentialsCache.entries()) {
-            const age = now - cached.timestamp;
-
-            if (age > this.cacheExpiryMs) {
-                this.credentialsCache.delete(companyId);
-                cleaned++;
-                logger.debug(`🗑️ Cleaned expired cache for company ${companyId} (age: ${Math.round(age / 1000)}s)`);
-            }
-        }
-
-        if (cleaned > 0) {
-            logger.info(`🧹 Cleaned ${cleaned} expired cache entries`);
-        }
-    }
-
-    /**
-     * Revive Buffer objects from JSON (Phase 2 - Task 3.1.1)
-     * Buffers are serialized as {type: 'Buffer', data: [...]} by JSON.stringify
-     * This function recursively converts them back to Buffer objects
-     */
-    reviveBuffers(obj) {
-        if (!obj || typeof obj !== 'object') {
-            return obj;
-        }
-
-        // Check if this is a serialized Buffer object
-        if (obj.type === 'Buffer' && obj.data !== undefined) {
-            // Handle array format: {type: 'Buffer', data: [1,2,3]}
-            if (Array.isArray(obj.data)) {
-                return Buffer.from(obj.data);
-            }
-            // Handle base64 string format: {type: 'Buffer', data: "base64=="}
-            if (typeof obj.data === 'string') {
-                return Buffer.from(obj.data, 'base64');
-            }
-        }
-
-        // Recursively process arrays
-        if (Array.isArray(obj)) {
-            return obj.map(item => this.reviveBuffers(item));
-        }
-
-        // Recursively process plain objects
-        const revived = {};
-        for (const [key, value] of Object.entries(obj)) {
-            revived[key] = this.reviveBuffers(value);
-        }
-        return revived;
-    }
-
-    /**
-     * Load credentials cache from file (Phase 2 - Task 3.1.1)
-     * Called on startup to restore cache from previous session
-     */
-    async loadCacheFromFile() {
-        try {
-            const cacheFilePath = CONFIG.CACHE_FILE_PATH;
-
-            // Check if file exists
-            try {
-                await fs.access(cacheFilePath);
-            } catch {
-                logger.debug('📂 No cache file found, starting with empty cache');
-                return;
-            }
-
-            // Read and parse cache file
-            const cacheData = await fs.readFile(cacheFilePath, 'utf8');
-            const parsedCache = JSON.parse(cacheData);
-
-            // Restore cache entries, validating TTL
-            const now = Date.now();
-            let loaded = 0;
-            let expired = 0;
-
-            for (const [companyId, cacheEntry] of Object.entries(parsedCache)) {
-                const age = now - cacheEntry.timestamp;
-
-                if (age <= CONFIG.CACHE_TTL_MS) {
-                    // Cache still valid - restore it with Buffer revival
-                    const revivedEntry = {
-                        creds: this.reviveBuffers(cacheEntry.creds),
-                        keys: cacheEntry.keys,
-                        timestamp: cacheEntry.timestamp
-                    };
-
-                    this.credentialsCache.set(companyId, revivedEntry);
-                    loaded++;
-                    logger.info(`💾 Restored cache for company ${companyId} (age: ${Math.round(age / 1000)}s)`);
-                } else {
-                    // Cache expired - skip
-                    expired++;
-                    logger.debug(`⏱️ Skipped expired cache for company ${companyId} (age: ${Math.round(age / 1000)}s)`);
-                }
-            }
-
-            logger.info(`✅ Cache loaded from file: ${loaded} valid, ${expired} expired`);
-        } catch (error) {
-            // Graceful degradation - log error but continue with empty cache
-            logger.error('Failed to load cache from file:', error);
-            logger.warn('⚠️ Starting with empty cache due to load error');
-        }
-    }
-
-    /**
-     * Save credentials cache to file (Phase 2 - Task 3.1.1)
-     * Called after cache updates to persist across restarts
-     */
-    async saveCacheToFile() {
-        try {
-            const cacheFilePath = CONFIG.CACHE_FILE_PATH;
-
-            // Convert Map to plain object for JSON serialization
-            const cacheObject = {};
-            for (const [companyId, cacheEntry] of this.credentialsCache.entries()) {
-                cacheObject[companyId] = cacheEntry;
-            }
-
-            // Atomic write: write to temp file, then rename
-            const tempPath = `${cacheFilePath}.tmp`;
-            await fs.writeFile(tempPath, JSON.stringify(cacheObject, null, 2), 'utf8');
-
-            // Set restrictive permissions (only owner can read/write)
-            await fs.chmod(tempPath, 0o600);
-
-            // Atomic rename
-            await fs.rename(tempPath, cacheFilePath);
-
-            logger.debug(`💾 Cache saved to file: ${Object.keys(cacheObject).length} entries`);
-        } catch (error) {
-            // Non-critical error - cache still works in-memory
-            logger.error('Failed to save cache to file:', error);
-            logger.warn('⚠️ Cache file save failed, continuing with in-memory only');
-        }
-    }
+    // Cache methods moved to CredentialsCache class
+    // startCacheCleanup(), cleanExpiredCache(), reviveBuffers()
+    // loadCacheFromFile(), saveCacheToFile() now handled by cache.initialize()
 
     /**
      * =================================================================================
@@ -1135,12 +952,8 @@ class WhatsAppSessionPool extends EventEmitter {
             logger.debug('Health check timer cleared');
         }
 
-        // Clear cache cleanup interval
-        if (this.cacheCleanupTimer) {
-            clearInterval(this.cacheCleanupTimer);
-            this.cacheCleanupTimer = null;
-            logger.debug('Cache cleanup timer cleared');
-        }
+        // Shutdown credentials cache (saves to file and stops cleanup timer)
+        await this.credentialsCache.shutdown();
 
         // Close all sessions
         const sessionIds = Array.from(this.sessions.keys());
