@@ -106,6 +106,10 @@ app.use('/api/whatsapp', whatsappManagement);
 const calendarRoutes = require('./routes/calendar');
 app.use('/api/calendar', calendarRoutes);
 
+// Demo chat routes
+const demoChatRoutes = require('./routes/demo-chat');
+app.use('/api', demoChatRoutes);
+
 // Cache monitoring routes
 const cacheRoutes = require('./routes/cache-stats');
 app.use('/api/cache', cacheRoutes);
