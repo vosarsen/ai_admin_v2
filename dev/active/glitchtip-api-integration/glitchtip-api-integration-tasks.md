@@ -1,8 +1,8 @@
 # GlitchTip API Integration - Task Checklist
 
-**Last Updated:** 2025-11-24 (Phase 0 Complete)
-**Status:** Phase 0 Complete ✅ → Phase 1 In Progress 🔄
-**Progress:** 2.5/31 hours (8%) - Actual: 2.5h vs 6h planned (58% faster!)
+**Last Updated:** 2025-11-24 (Phase 1 Complete)
+**Status:** Phase 0 ✅ Complete | Phase 1 ✅ Complete → Phase 2 Next
+**Progress:** 5.75/31 hours (19%) - Actual: 5.75h vs 12h planned (52% faster!)
 
 ---
 
@@ -11,17 +11,18 @@
 | Phase | Tasks | Effort | Status | Progress |
 |-------|-------|--------|--------|----------|
 | Phase 0: Setup | 3 | 6h → 2.5h | ✅ Complete | 100% (58% faster!) |
-| Phase 1: Investigation | 3 | 6h → 3h | ✅ 95% Complete | 95% (50% faster!) |
+| Phase 1: Investigation | 3 | 6h → 3.25h | ✅ Complete | 100% (46% faster!) |
 | Phase 2: Metrics | 3 | 4h | Not Started | 0% |
 | Phase 3: Bot | 3 | 4h | Not Started | 0% |
 | Phase 4: Runbooks | 3 | 5h | Not Started | 0% |
 | Phase 5: Webhooks | 3 | 6h | Not Started | 0% |
 | **TOTAL** | **18** | **31h** | **18% Complete** | **5.5h spent** |
 
-**Session 1 Summary (2025-11-24):**
+**Session 1-2 Summary (2025-11-24):**
 - Phase 0: ✅ DONE (2.5h) - API Token + Library
-- Phase 1: ✅ 95% DONE (3h) - Investigation Helper (minor bug remains)
-- **Total:** 5.5h spent / 31h planned (18% complete, running 50% faster!)
+- Phase 1: ✅ DONE (3.25h) - Investigation Helper + socket hang up fix
+- **Total:** 5.75h spent / 31h planned (19% complete, running 52% faster!)
+- **Fix:** Used auto-error-resolver agent to debug socket hang up (15 min)
 
 ---
 
@@ -100,12 +101,12 @@
 
 ---
 
-## Phase 1: Investigation Helper ✅ 95% COMPLETE (Week 1, Days 3-5: 3 hours actual)
+## Phase 1: Investigation Helper ✅ 100% COMPLETE (Week 1, Days 3-5: 3.25 hours actual)
 
 **Objective:** Automate error investigation (codebase search, git history, similar issues)
 
-**Status:** ✅ 95% Complete (minor socket hang up bug to fix)
-**Time Spent:** 3 hours (vs 6 hours planned - 50% faster!)
+**Status:** ✅ 100% Complete!
+**Time Spent:** 3.25 hours (vs 6 hours planned - 46% faster!)
 
 ### Task 1.1: Core Investigation Logic ✅ COMPLETE (2 hours actual vs 3 hours, M)
 - [x] Create `scripts/investigate-error.js` (370 lines)
@@ -155,7 +156,7 @@
 
 ---
 
-### Task 1.3: Comment Integration ✅ COMPLETE (1 hour actual, S)
+### Task 1.3: Comment Integration ✅ COMPLETE (1.25 hours actual, S)
 - [x] Format investigation findings as markdown:
   - [x] Section: Related Files
   - [x] Section: Recent Commits
@@ -177,11 +178,11 @@
 - [x] Posted to GlitchTip issue via curl/API ✅
 - [x] Includes related files (0-10) ✅
 - [x] Includes recent commits (0-5) ✅
-- [ ] **BUG:** Socket hang up when called from investigate-error.js
-  - Works: curl, API client direct
-  - Doesn't work: investigate-error.js line 297
-  - Hypothesis: async/await flow or axios instance issue
-  - **Fix time:** 15 minutes estimated
+- [x] **FIXED:** Socket hang up bug resolved! ✅
+  - Root cause: `Connection: close` header forced socket closure
+  - Solution: Removed header, added explicit HTTP agents with keepAlive:false
+  - Tested: Issue #2 and #1 both succeed
+  - Fix time: 15 minutes actual (as estimated!)
 
 ---
 
