@@ -288,6 +288,12 @@ async function investigateError(issueId) {
     const investigation = { stackFrames, relatedFiles, commitsMap, searchKeyword };
     const markdown = formatMarkdown(issue, investigation);
 
+    console.log(`${colors.dim}      Comment length: ${markdown.length} chars${colors.reset}`);
+
+    // Debug: Save markdown to file
+    require('fs').writeFileSync('/tmp/investigation-comment.md', markdown);
+    console.log(`${colors.dim}      Saved to: /tmp/investigation-comment.md${colors.reset}`);
+
     await client.addComment(ORG_SLUG, issueId, markdown);
     console.log(`${colors.green}✓${colors.reset} Comment posted successfully!\n`);
 
