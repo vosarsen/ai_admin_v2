@@ -3730,20 +3730,13 @@
             padding: 15px 20px;
             display: flex;
             gap: 10px;
-            align-items: center;
+            align-items: stretch;
             position: relative;
-        }
-
-        .chat-input-wrapper {
-            flex: 1;
-            position: relative;
-            display: flex;
-            align-items: center;
         }
 
         .chat-input {
-            width: 100%;
-            padding: 12px 50px 12px 16px;
+            flex: 1;
+            padding: 12px 16px;
             background: rgba(255, 255, 255, 0.05);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -3765,17 +3758,14 @@
         }
 
         .chat-send-btn {
-            position: absolute;
-            right: 6px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 36px;
-            height: 36px;
-            padding: 0;
-            background: rgba(167, 139, 250, 0.8);
-            border: none;
-            border-radius: 50%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 30px;
             color: white;
+            font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
             display: flex;
@@ -3784,21 +3774,24 @@
         }
 
         .chat-send-btn svg {
-            width: 20px;
-            height: 20px;
+            width: 24px;
+            height: 24px;
             transform: rotate(-45deg);
             transition: transform 0.3s ease;
         }
 
         .chat-send-btn:hover:not(:disabled) {
-            background: rgba(167, 139, 250, 1);
-            transform: translateY(-50%) scale(1.05);
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .chat-send-btn:hover:not(:disabled) svg {
+            transform: rotate(-45deg);
         }
 
         .chat-send-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
-            background: rgba(255, 255, 255, 0.1);
         }
 
 
@@ -3888,18 +3881,6 @@
             box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
         }
 
-        body[data-theme="light"] .chat-send-btn {
-            background: rgba(167, 139, 250, 0.9);
-        }
-
-        body[data-theme="light"] .chat-send-btn:hover:not(:disabled) {
-            background: rgba(167, 139, 250, 1);
-        }
-
-        body[data-theme="light"] .chat-send-btn:disabled {
-            background: rgba(0, 0, 0, 0.1);
-        }
-
         /* Mobile responsive */
         @media (max-width: 768px) {
             .demo-chat-widget {
@@ -3920,7 +3901,17 @@
             }
 
             .chat-input-area {
+                flex-direction: row;
                 gap: 8px;
+            }
+
+            .chat-input {
+                flex: 1;
+            }
+
+            .chat-send-btn {
+                width: auto;
+                padding: 12px;
             }
 
             .shortcuts-toggle {
@@ -4115,9 +4106,7 @@
             <!-- Left Column: Text Content -->
             <div class="demo-text-column">
                 <h2>Попробуйте бота прямо сейчас</h2>
-                <h3>Бот работает как настоящий администратор</h3>
-                <p>Admin AI beta понимает естественную речь и ведет диалог так же, как живой человек. Бот автоматически записывает клиентов, предлагает удобное время и отвечает на любые вопросы.</p>
-                <p>Клиенты даже не замечают, что общаются с ботом — настолько естественно проходит диалог.</p>
+                <p>Admin AI понимает естественную речь и записывает клиентов автоматически. Диалог настолько естественный, что клиенты не замечают, что общаются с ботом.</p>
             </div>
 
             <!-- Right Column: Chat Widget -->
@@ -4185,20 +4174,18 @@
                             </button>
                         </div>
 
-                        <div class="chat-input-wrapper">
-                            <textarea
-                                class="chat-input"
-                                id="demoInput"
-                                placeholder="Напишите ваш вопрос..."
-                                rows="1"
-                                maxlength="500"
-                            ></textarea>
-                            <button class="chat-send-btn" id="demoSend">
-                                <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                                </svg>
-                            </button>
-                        </div>
+                        <textarea
+                            class="chat-input"
+                            id="demoInput"
+                            placeholder="Напишите ваш вопрос..."
+                            rows="1"
+                            maxlength="500"
+                        ></textarea>
+                        <button class="chat-send-btn" id="demoSend">
+                            <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
