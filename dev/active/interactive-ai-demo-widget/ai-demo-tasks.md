@@ -61,58 +61,62 @@
 - [ ] Test demo mode prevents real bookings
 - [ ] Test error handling (invalid inputs, AI failures)
 
-## Phase 2: Frontend Widget (2-3 hours)
+## Phase 2: Frontend Widget (2-3 hours) ✅ COMPLETED
 
-### HTML Structure
-- [ ] Decide on inline vs separate file
-- [ ] Create widget container HTML
-- [ ] Add chat header with title and close button
-- [ ] Create messages container
-- [ ] Add templates container
-- [ ] Create input area with textarea and send button
-- [ ] Add to appropriate section in index.html
+### HTML Structure ✅
+- [x] Decide on inline vs separate file (inline in index.html)
+- [x] Create widget container HTML
+- [x] Add chat header with title and status indicator
+- [x] Create messages container
+- [x] Add templates container
+- [x] Create input area with textarea and send button
+- [x] Add to appropriate section in index.html (after demo section)
 
-### CSS Styling
-- [ ] Define widget dimensions (desktop/mobile)
-- [ ] Add glass morphism styles to container
-- [ ] Style chat header
-- [ ] Create message bubble styles (user/bot)
-- [ ] Add typing indicator animation
-- [ ] Style template buttons
-- [ ] Style input area
-- [ ] Add mobile responsive styles (fullscreen on mobile)
-- [ ] Theme support (dark/light)
+### CSS Styling ✅
+- [x] Define widget dimensions (desktop/mobile)
+- [x] Add glass morphism styles to container
+- [x] Style chat header
+- [x] Create message bubble styles (user/bot)
+- [x] Add typing indicator animation
+- [x] Style template buttons
+- [x] Style input area
+- [x] Add mobile responsive styles (single column on mobile)
+- [x] Theme support (dark/light)
 
-### JavaScript Logic
-- [ ] Initialize widget state
-- [ ] Generate UUID session ID on load
-- [ ] Implement widget open/close
-- [ ] Create sendMessage() function
-- [ ] Add API call to /api/demo-chat
-- [ ] Parse and display AI response
-- [ ] Implement addMessage() (user/bot)
-- [ ] Add typing indicator logic
-- [ ] Implement auto-scroll to bottom
-- [ ] Handle Enter key to send
+### JavaScript Logic ✅
+- [x] Initialize widget state
+- [x] Generate UUID session ID on load
+- [x] Create sendMessage() function
+- [x] Add API call to /api/demo-chat
+- [x] Parse and display AI response
+- [x] Implement addMessage() (user/bot)
+- [x] Add typing indicator logic
+- [x] Implement auto-scroll to bottom
+- [x] Handle Enter key to send (Shift+Enter for new line)
 
-### Template Buttons
-- [ ] Create template data array
-- [ ] Render template buttons dynamically
-- [ ] Add click handlers for each template
-- [ ] Hide templates after first interaction
-- [ ] Style template buttons with icons
+### Template Buttons ✅
+- [x] Create template buttons (4 buttons)
+- [x] Add click handlers for each template
+- [x] Hide templates after first interaction
+- [x] Style template buttons with icons
+- [x] "Записаться на стрижку" ✂️
+- [x] "Узнать цены" 💰
+- [x] "Свободное время на завтра" 📅
+- [x] "Перенести запись" 🔄
 
-### Animations
-- [ ] Message slide-in animation
-- [ ] Typing dots animation (3 bouncing dots)
-- [ ] Widget open/close animation
-- [ ] Smooth scroll behavior
+### Animations ✅
+- [x] Message slide-in animation
+- [x] Typing dots animation (3 bouncing dots)
+- [x] Smooth scroll behavior
+- [x] Auto-resize textarea
 
-### Error Handling
-- [ ] Show error message for failed API calls
-- [ ] Handle rate limit errors gracefully
-- [ ] Show loading state during API call
-- [ ] Disable send button while loading
+### Error Handling ✅
+- [x] Show error message for failed API calls
+- [x] Handle rate limit errors gracefully
+- [x] Show loading state during API call
+- [x] Disable send button while loading
+- [x] Display messages remaining counter
+- [x] Handle demo limit reached state
 
 ## Phase 3: Integration & Testing (1 hour)
 
@@ -249,12 +253,12 @@
 | Phase | Tasks | Time | Status |
 |-------|-------|------|--------|
 | 0. Planning & Setup | 5 tasks | 30 min | ✅ Done |
-| 1. Backend Development | 25 tasks | 1-2 hours | ⏸️ Waiting |
-| 2. Frontend Widget | 30 tasks | 2-3 hours | ⏸️ Waiting |
-| 3. Integration & Testing | 20 tasks | 1 hour | ⏸️ Waiting |
+| 1. Backend Development | 25 tasks | 1-2 hours | ✅ Done |
+| 2. Frontend Widget | 30 tasks | 2-3 hours | ✅ Done |
+| 3. Integration & Testing | 20 tasks | 1 hour | 🚧 Next |
 | 4. Placement & Deployment | 15 tasks | 30 min | ⏸️ Waiting |
 | 5. Monitoring & Iteration | Ongoing | - | ⏸️ Waiting |
-| **TOTAL** | **95 tasks** | **5-7 hours** | **5% complete** |
+| **TOTAL** | **95 tasks** | **5-7 hours** | **~65% complete** |
 
 ## Dependencies
 
