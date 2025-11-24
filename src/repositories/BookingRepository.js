@@ -97,8 +97,11 @@ class BookingRepository extends BaseRepository {
     if (!bookingData.yclients_record_id) {
       throw new Error('yclients_record_id is required for upsert');
     }
+    if (!bookingData.company_id) {
+      throw new Error('company_id is required for upsert');
+    }
 
-    return this.upsertOne('bookings', bookingData, ['yclients_record_id']);
+    return super.upsert('bookings', bookingData, ['yclients_record_id', 'company_id']);
   }
 
   /**
