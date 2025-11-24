@@ -1,8 +1,8 @@
 # Interactive AI Bot Demo Widget - Context
 
-**Status:** ✅ PRODUCTION READY - All Bugs Fixed & Deployed
-**Last Updated:** 2025-11-25 (z-index overlay fix)
-**Phase:** Backend + Frontend complete, all bugs fixed, deployed to production
+**Status:** ✅ PRODUCTION READY - Reverted to Non-Overlay Layout
+**Last Updated:** 2025-11-25 (reverted overlay changes per user request)
+**Phase:** Backend + Frontend complete, using standard layout (shortcuts below messages)
 
 ## Current State
 
@@ -36,12 +36,27 @@ Completed:
 **Fix:** Changed from `const AIAdminV2 = require('...'); new AIAdminV2()` to `const aiAdminV2 = require('...'); aiAdminV2.processMessage()`
 **Status:** Fixed in commit 3bf1cc4, deployed to production
 
-### Bug 2: Z-Index Overlay Issue
+### Bug 2: Z-Index Overlay Issue (REVERTED)
 **Issue:** Chat messages (bot bubbles) were overlaying on top of shortcut buttons despite shortcuts having `position: absolute` and `z-index: 10`
 **Root Cause:** `.chat-messages` container had no positioning context or z-index, causing individual message elements to render on the same stacking layer as `.chat-templates`
 **Fix:** Added `position: relative` and `z-index: 1` to `.chat-messages` to create proper stacking hierarchy (messages: z-index 1, shortcuts: z-index 10)
 **File:** `public/landing/index.html` (lines 3271-3282)
-**Status:** Fixed in commit 8cf7784, deployed to production
+**Status:** Fixed in commit 8cf7784, but **REVERTED in commit 15ec114** per user request
+
+### Layout Revert (Current State)
+**Date:** 2025-11-25
+**Action:** Reverted overlay shortcut layout back to standard flow layout
+**Changes Reverted:**
+- Removed `position: absolute` from `.chat-templates` (was overlaying on messages)
+- Removed `z-index: 10` and gradient background from shortcuts
+- Removed `padding-bottom: 200px` from `.chat-messages`
+- Removed light theme gradient for shortcuts
+- Removed mobile responsive positioning for shortcuts
+**What Remains:**
+- ✅ Dynamic contextual suggestions (updateSuggestions function)
+- ✅ Backend suggestion generation logic
+- ✅ All other widget functionality
+**Status:** Reverted in commit 15ec114, deployed to production
 
 Next Steps:
 - 🚧 Monitor real user interactions
