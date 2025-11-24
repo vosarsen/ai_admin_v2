@@ -43,7 +43,10 @@ class GlitchTipAPI {
         'Authorization': `Bearer ${apiToken}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json'
-      }
+      },
+      // Keep-alive settings to prevent socket hang up
+      httpAgent: new (require('http').Agent)({ keepAlive: false }),
+      httpsAgent: new (require('https').Agent)({ keepAlive: false })
     });
 
     // Add response interceptor for error handling
@@ -123,8 +126,8 @@ class GlitchTipAPI {
       );
 
       const { data } = await this.client.get(`/organizations/${orgSlug}/issues/`, {
-        params: cleanParams,
-        timeout: 60000 // Increase timeout for large responses
+        params: cleanParams
+        // Note: timeout is set in axios instance (this.timeout), no need to override here
       });
       return data;
     } catch (error) {
@@ -182,8 +185,8 @@ class GlitchTipAPI {
       // Body format: { "data": { "text": "comment" } }
       const { data } = await this.client.post(
         `/issues/${issueId}/comments/`,
-        { data: { text } },
-        { timeout: 60000 } // Increase timeout for large markdown comments
+        { data: { text } }
+        // Note: timeout is set in axios instance (this.timeout), no need to override here
       );
       return data;
     } catch (error) {
