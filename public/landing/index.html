@@ -3542,7 +3542,7 @@
         }
 
         .chat-send-btn {
-            padding: 14px 22px;
+            padding: 14px;
             background: rgba(255, 255, 255, 0.08);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -3555,12 +3555,13 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            min-width: 48px;
         }
 
         .chat-send-btn svg {
             width: 24px;
             height: 24px;
-            transform: rotate(45deg);
+            transform: rotate(-45deg);
             transition: transform 0.3s ease;
         }
 
@@ -3571,7 +3572,7 @@
         }
 
         .chat-send-btn:hover:not(:disabled) svg {
-            transform: rotate(45deg) translateX(2px) translateY(-2px);
+            transform: rotate(-45deg) translateX(2px) translateY(-2px);
         }
 
         .chat-send-btn:disabled {
