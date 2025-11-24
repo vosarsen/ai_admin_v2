@@ -1,7 +1,7 @@
 # Website Improvements - Tasks
 
-**Status:** ✅ All Completed
-**Last Updated:** 2025-11-24 16:20
+**Status:** 🚧 In Progress - New feature requested
+**Last Updated:** 2025-11-24 21:30
 
 ## Completed Tasks ✅
 
@@ -129,14 +129,96 @@ All high priority tasks completed successfully:
 2. ✅ Duplicate files cleaned up
 3. ✅ Git history organized
 
-## No Pending Tasks
+## Today's Session Tasks (Nov 24, Evening) ✅
 
-All website improvement tasks have been completed successfully. The site is production-ready with:
-- Working contact form
-- Professional UI/UX
-- No visual artifacts
-- Clean codebase
-- Updated contact information
+### Logo Redesign
+- [x] Change logo from superscript to inline format with pink dot
+- [x] Style pink dot (color, size, shadow)
+- [x] Position dot vertically (pixel-perfect alignment)
+- [x] Update header and footer logos
+- [x] Update privacy-policy.html for consistency
+
+### Navigation Improvements
+- [x] Link КОНТАКТЫ button to contact form section
+- [x] Remove modal-trigger class from navigation
+
+### UX Improvements
+- [x] Reduce contact section padding (100px → 60px)
+- [x] Tighten container gaps (60px → 40px)
+- [x] Reduce contact info spacing
+- [x] Make section more compact overall
+
+### Mobile Performance
+- [x] Disable ROI calculator animations on mobile
+- [x] Remove opacity transitions
+- [x] Remove transform animations
+- [x] Test on mobile viewport
+
+### Page Restructuring
+- [x] Remove "Готовы автоматизировать ваш салон?" CTA section
+- [x] Move Contact Section to after FAQ
+- [x] Update page flow and navigation anchors
+- [x] Test all internal links
+
+### Visual Polish
+- [x] Add margin-bottom to contact section (80px)
+- [x] Create visual separation from footer
+- [x] Deploy all changes to production
+- [x] Commit and push to GitHub
+
+## Pending Tasks 🚧
+
+### Interactive AI Bot Demo Widget (NEW)
+- [ ] **Backend Development**
+  - [ ] Create `/api/demo-chat` POST endpoint
+  - [ ] Integrate with existing AI service
+  - [ ] Add rate limiting for demo users
+  - [ ] Implement demo mode flag (prevent real bookings)
+  - [ ] Set up ephemeral session management
+  - [ ] Add error handling and logging
+
+- [ ] **Frontend Development**
+  - [ ] Design chat widget UI (WhatsApp-inspired)
+  - [ ] Create chat message bubbles (user vs bot)
+  - [ ] Add typing indicator animation
+  - [ ] Implement message input with send button
+  - [ ] Add theme support (dark/light)
+  - [ ] Make mobile-responsive
+
+- [ ] **Quick-Start Templates**
+  - [ ] Add "Записаться на стрижку" button
+  - [ ] Add "Узнать цены" button
+  - [ ] Add "Свободное время на завтра" button
+  - [ ] Add "Перенести запись" button
+  - [ ] Style template buttons to match design
+
+- [ ] **Integration**
+  - [ ] Connect frontend to backend API
+  - [ ] Add loading states
+  - [ ] Handle errors gracefully
+  - [ ] Add "This is a demo" messaging
+  - [ ] Test full conversation flows
+
+- [ ] **Placement Decision**
+  - [ ] Get user input on placement
+  - [ ] Option A: In "Возможности" section
+  - [ ] Option B: New "Попробуйте сами" section
+  - [ ] Option C: Hero section
+  - [ ] Implement in chosen location
+
+- [ ] **Testing**
+  - [ ] Test multiple conversation scenarios
+  - [ ] Test rate limiting
+  - [ ] Test error handling
+  - [ ] Test on mobile devices
+  - [ ] Test both themes
+  - [ ] User acceptance testing
+
+- [ ] **Deployment**
+  - [ ] Deploy backend endpoint
+  - [ ] Deploy frontend changes
+  - [ ] Monitor for errors
+  - [ ] Gather user feedback
 
 ## Testing Checklist ✅
 

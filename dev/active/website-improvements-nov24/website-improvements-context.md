@@ -1,13 +1,12 @@
 # Website Improvements - Context
 
-**Status:** ✅ All tasks completed successfully
-**Last Updated:** 2025-11-24 16:20
-**Session:** Main landing page improvements and cleanup
+**Status:** 🚧 In Progress - New features being added
+**Last Updated:** 2025-11-24 21:30
+**Session:** Logo redesign, page restructuring, and interactive demo planning
 
 ## Current State
 
-All website improvements have been completed and deployed to production:
-
+Previous session improvements (all completed and deployed):
 1. ✅ Contact form email integration working
 2. ✅ Success modal with animations implemented
 3. ✅ Contact icons updated to clean outlines
@@ -16,6 +15,88 @@ All website improvements have been completed and deployed to production:
 6. ✅ Privacy policy page updated and with footer
 7. ✅ Old versions cleaned up from repository
 8. ✅ Contact information updated everywhere
+
+**Today's Session (Nov 24, 21:00-21:30):**
+1. ✅ Logo redesigned: Changed from `ADMIN<sup>AI</sup>` to `ADMIN AI.` with pink dot
+2. ✅ Logo dot positioning: Pixel-perfect alignment (`top: 1px`)
+3. ✅ Navigation fix: КОНТАКТЫ button now links to contact section
+4. ✅ Contact section compactness: Reduced padding and gaps
+5. ✅ Mobile ROI fix: Disabled animations to prevent jerky loading
+6. ✅ Page restructuring: Removed CTA section, moved Contact after FAQ
+7. ✅ Footer spacing: Added 80px margin between Contact and Footer
+8. 🚧 **NEW REQUEST:** Interactive AI bot demo widget (starting next)
+
+## Today's Session Details (Nov 24, Evening)
+
+### 8. Logo Redesign
+- **Change:** From `ADMIN<sup>AI</sup>` to `ADMIN AI.` with pink dot
+- **Implementation:**
+  - HTML: Changed to `ADMIN AI<span class="pink-dot">.</span>`
+  - CSS: `.logo .pink-dot` with color #EC4899, font-size 1.3em
+  - Positioning: Multiple iterations (-2px → 4px → 1px final)
+  - Text shadow for emphasis: `0 0 8px rgba(236, 72, 153, 0.5)`
+- **Files:** `public/landing/index.html` lines 555-562 (CSS), 3147 (header logo), 3738 (footer logo)
+- **Also updated:** `public/landing/privacy-policy.html` for consistency
+- **Result:** Modern logo with branded pink accent dot
+
+### 9. Navigation Link Fix
+- **Change:** КОНТАКТЫ button now scrolls to contact form
+- **Implementation:** Changed `href="#"` with `modal-trigger` class to `href="#contact-section"`
+- **Files:** `public/landing/index.html` line 3159
+- **Result:** Direct access to contact form instead of opening modal
+
+### 10. Contact Section Compactness
+- **Changes:**
+  - Section padding: 100px → 60px
+  - Container gap: 60px → 40px
+  - Contact info gap: 30px → 20px
+  - Subtitle margin: 60px → 40px
+- **Files:** `public/landing/index.html` lines 1158-1179
+- **Result:** More compact, less vertical space
+
+### 11. Mobile ROI Calculator Fix
+- **Problem:** Jerky loading animations on mobile devices
+- **Solution:** Disabled all animations for mobile (max-width: 768px)
+- **Disabled animations:**
+  - `.roi-header`: opacity and animation
+  - `.roi-icon`: animation
+  - `.roi-item`: opacity, transform, and animation
+- **Files:** `public/landing/index.html` lines 2301-2316
+- **Result:** Smooth, instant loading on mobile
+
+### 12. Page Section Reordering
+- **Changes:**
+  - Removed: "Готовы автоматизировать ваш салон?" CTA section
+  - Moved: Contact Section from after Pricing to after FAQ
+- **New page order:**
+  - Hero → Возможности → ROI → Интеграция → Pricing → Grand Slam → Гарантии → FAQ → **Contact** → Footer
+- **Files:** `public/landing/index.html` lines 3732-3800 (new location)
+- **Git commit:** `7872c1e` - "refactor: reorder page sections"
+- **Result:** Better page flow with contact form at the end
+
+### 13. Footer Spacing Fix
+- **Problem:** No gap between Contact Section and Footer
+- **Solution:** Added `margin-bottom: 80px` to `.contact-section`
+- **Files:** `public/landing/index.html` line 1162
+- **Git commit:** `c978480` - "style: add margin-bottom to contact section"
+- **Result:** Visual separation between sections
+
+### 14. Interactive AI Bot Demo (NEW REQUEST - NOT STARTED)
+- **User Request:** Add live chat demo widget to landing page
+- **Requirements:**
+  - Real AI bot integration (not simulation)
+  - Template quick-start buttons (e.g., "Записаться на стрижку", "Узнать цены")
+  - Chat interface similar to WhatsApp screenshot provided
+  - Should demonstrate actual bot conversation flow
+- **Placement:** User suggested "Как это работает" section or similar
+- **Status:** 🚧 Planning phase, not implemented yet
+- **Next Steps:**
+  1. Create API endpoint for demo bot chat
+  2. Design chat widget UI matching site design
+  3. Implement frontend chat interface
+  4. Add quick-start template buttons
+  5. Connect to real AI backend
+  6. Test conversation flows
 
 ## Key Decisions Made
 
@@ -179,6 +260,8 @@ All changes deployed successfully:
 4. Website accessible at https://ai-admin.app
 
 ### Git Commits
+
+**Previous Session:**
 - `7b0cefa`: fix: prevent form input background transition on theme load
 - `edafc51`: fix: completely remove transitions and apply theme backgrounds instantly
 - `83c3698`: feat: update privacy policy page to match new site design
@@ -186,6 +269,16 @@ All changes deployed successfully:
 - `2fbe03a`: fix: remove duplicate footer from privacy policy page
 - `6521d21`: chore: remove old landing page versions
 - `54218cf`: fix: update contact information in privacy policy
+
+**Today's Session (Nov 24, evening):**
+- `90227d0`: style: refine logo pink dot positioning and styling
+- `63b80c5`: feat: linked 'Пилотная программа' footer link to Grand Slam Offer section
+- `152a7d1`: feat: linked 'Преимущества' footer link to ROI calculator section
+- `aad9d00`: feat: added anchor to 'Простая интеграция' section for navigation scroll
+- `a1447dd`: fix: changed modal close button to simple X icon matching mobile menu style
+- `4b90d33`: fix: removed animations from mobile menu buttons for better performance
+- `7872c1e`: refactor: reorder page sections - remove CTA, move Contact section after FAQ
+- `c978480`: style: add margin-bottom to contact section
 
 ## Contact Information (Updated)
 
@@ -236,14 +329,51 @@ All changes deployed successfully:
 
 ## Next Steps
 
-None - all tasks completed. The website is production-ready with:
-- ✅ Working contact form with email integration
-- ✅ Professional success modal
-- ✅ Consistent design (icons, corners, colors)
-- ✅ No visual artifacts (FOUC eliminated)
-- ✅ Updated privacy policy with footer
-- ✅ Clean repository
-- ✅ Current contact information
+### Immediate (Interactive AI Bot Demo)
+1. **Create backend API endpoint** for demo chat
+   - Endpoint: `/api/demo-chat` (POST)
+   - Integrate with existing AI service
+   - Add rate limiting for demo users
+   - Consider using separate demo context (don't mix with real clients)
+
+2. **Design chat widget UI**
+   - WhatsApp-inspired interface
+   - Glass morphism matching site design
+   - Dark/light theme support
+   - Typing indicators
+   - Message bubbles (user vs bot)
+
+3. **Implement frontend**
+   - Create chat widget component
+   - Add template quick-start buttons:
+     - "Записаться на стрижку"
+     - "Узнать цены"
+     - "Свободное время на завтра"
+     - "Перенести запись"
+   - Message input with send button
+   - Scroll to bottom on new messages
+   - Mobile-responsive design
+
+4. **Integration considerations**
+   - Use real AI backend (user specified)
+   - Demo mode flag to prevent real bookings
+   - Session management (ephemeral chats)
+   - Clear "This is a demo" messaging
+
+5. **Placement options**
+   - Option A: In "Возможности" section (show capabilities)
+   - Option B: New "Попробуйте сами" section before pricing
+   - Option C: Hero section (bold placement)
+   - **Decision needed from user**
+
+### Completed This Session
+- ✅ Logo redesigned with pink dot
+- ✅ Navigation links fixed
+- ✅ Contact section made compact
+- ✅ Mobile ROI animations disabled
+- ✅ Page sections reordered
+- ✅ Footer spacing added
+- ✅ All changes deployed to production
 
 ## Testing Verification
 
