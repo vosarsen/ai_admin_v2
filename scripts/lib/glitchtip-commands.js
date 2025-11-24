@@ -14,6 +14,7 @@
  */
 
 const GlitchTipAPI = require('./glitchtip-api');
+const { validateIssueId, validateHours, validateComponent } = require('./validation');
 const { execSync } = require('child_process');
 const path = require('path');
 
