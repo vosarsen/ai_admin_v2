@@ -1,9 +1,167 @@
 # GlitchTip API Integration - Context & Key Information
 
-**Last Updated:** 2025-11-24 (Phase 0 Execution)
-**Status:** Phase 0 Complete (58% faster than planned!) → Phase 1 Ready
-**Phase:** Phase 0 Complete ✅ | Phase 1 Next
-**Progress:** 2.5/45 hours (6%) - Phase 0: 2.5h actual vs 6h planned
+**Last Updated:** 2025-11-24 18:00 (Session 1 Complete - Context Reset)
+**Status:** Phase 0 ✅ Complete | Phase 1 ✅ 95% Complete → Minor bug to fix
+**Phase:** Phase 1 (Investigation Helper) - Almost done
+**Progress:** 5.5/31 hours (18%) - Running 50% faster than planned!
+
+---
+
+## 🚨 CURRENT STATE (Session 1 End)
+
+### What Just Happened
+Completed Phase 0 + Phase 1 (Investigation Helper). Everything works when tested directly, but there's a **socket hang up** bug when running the full `investigate-error.js` script that needs 15 minutes of debugging.
+
+### Next Immediate Steps
+1. **Debug socket hang up in investigate-error.js** (15 min)
+   - API client works when called directly ✅
+   - Comments API endpoint works via curl ✅
+   - But investigate-error.js gets "socket hang up" when calling client.addComment()
+   - Likely async/await flow issue in line ~297 of investigate-error.js
+
+2. **Alternative:** Skip debug, move to Phase 2 (Daily Metrics - 4h)
+   - Investigation script is 95% working
+   - Can fix bug later in Phase 6 (polish)
+
+### Uncommitted Changes
+- **None** - All work committed to feature/glitchtip-api-integration branch
+- Latest commit: `6b8da75` - "feat: Complete Phase 1 Investigation Helper"
+- Branch pushed to GitHub ✅
+
+### Critical Discovery: GlitchTip Comments API
+**IMPORTANT:** Spent 2 hours debugging comments API. Final working solution:
+
+**Endpoint:** `POST /api/0/issues/{issue_id}/comments/` (NO organization slug!)
+**Body:** `{ "data": { "text": "markdown content" } }`
+**Headers:** `Authorization: Bearer {token}`, `Content-Type: application/json`
+
+**What DOESN'T work:**
+- ❌ `/organizations/{org}/issues/{id}/comments/` (403 Forbidden)
+- ❌ `{ "text": "..." }` (field required error)
+- ❌ `{ "comment": "..." }` (field required error)
+
+**Testing Commands (use these!):**
+```bash
+# Test via curl (WORKS):
+curl -X POST -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"data":{"text":"Test"}}' \
+  http://localhost:8080/api/0/issues/2/comments/
+
+# Test via API client directly (WORKS):
+cd /opt/ai-admin && node -e "
+const GlitchTipAPI = require('./scripts/lib/glitchtip-api');
+const client = new GlitchTipAPI('http://localhost:8080', 'TOKEN');
+client.addComment('admin-ai', '2', 'Test')
+  .then(r => console.log('✅', r.id))
+  .catch(e => console.log('❌', e.message));
+"
+
+# Full investigation script (HAS BUG):
+node scripts/investigate-error.js 2  # Gets socket hang up
+```
+
+**The Bug:** When investigate-error.js calls `client.addComment()` at line ~297, it gets "socket hang up". But the SAME code works when run directly. This suggests async/await timing issue or axios instance problem.
+
+---
+
+## 🎯 Phase 1 Execution Results (2025-11-24)
+
+### Summary
+**Status:** ✅ **95% COMPLETE** - 3 hours actual vs 6 hours planned (50% faster!)
+
+**What We Accomplished:**
+- ✅ Core Investigation Logic (stack trace, ripgrep, git commits, markdown)
+- ✅ Similar Issues Search (already in API client)
+- ✅ Comment Integration (API fixed, tested, working - minor bug remains)
+
+### Task 1.1: Core Investigation Logic ✅
+**Time:** 2 hours (planned: 3 hours) - **33% faster!**
+
+**Completed:**
+- Created `scripts/investigate-error.js` (370 lines)
+- **Stack Trace Parsing:** Extracts file paths, function names, line numbers from error traces
+- **Codebase Search:** Uses ripgrep to find related files (cross-platform path detection)
+- **Git History:** Gets recent commits (5 per file) for context
+- **Markdown Report:** Formats findings as rich markdown with sections
+
+**Key Implementation Details:**
+```javascript
+// Ripgrep path detection (cross-platform)
+let rgPath = 'rg';
+try {
+  rgPath = execSync('which rg', { encoding: 'utf-8' }).trim();
+} catch (e) {
+  // Try common paths
+  const paths = ['/usr/bin/rg', '/usr/local/bin/rg', '/opt/homebrew/bin/rg'];
+  for (const p of paths) {
+    if (existsSync(p)) { rgPath = p; break; }
+  }
+}
+```
+
+**Files:**
+- `scripts/investigate-error.js` - Main script
+- Installed ripgrep on server: `apt-get install ripgrep`
+
+### Task 1.2: Similar Issues Search ✅
+**Time:** 0 hours (already implemented!)
+
+**Completed:**
+- `searchIssues(orgSlug, query, limit, sort)` method already exists in API client
+- Can query: `is:resolved similar-title` to find past solutions
+- Future: Add to investigation script (5 lines of code)
+
+### Task 1.3: Comment Integration ✅
+**Time:** 1 hour (planned: 1 hour) - **On target!**
+
+**Completed:**
+- Fixed GlitchTip comments API endpoint (see Critical Discovery above)
+- Updated `scripts/lib/glitchtip-api.js` addComment() method
+- Tested via curl ✅ (creates comment ID 1, 2, 3, 4, 5...)
+- Tested via API client directly ✅ (works perfectly)
+- ⚠️ investigate-error.js integration has socket hang up bug
+
+**What Changed in API Client:**
+```javascript
+// BEFORE (didn't work):
+await this.client.post(`/organizations/${orgSlug}/issues/${issueId}/comments/`, { text });
+
+// AFTER (works!):
+await this.client.post(`/issues/${issueId}/comments/`,
+  { data: { text } },
+  { timeout: 60000 }
+);
+```
+
+### The Socket Hang Up Bug 🐛
+
+**Symptom:**
+```
+investigate-error.js:297 → client.addComment(ORG_SLUG, issueId, markdown)
+Error: Network error: socket hang up
+```
+
+**What Works:**
+- ✅ `curl` with same endpoint + body → Creates comment
+- ✅ API client called directly from Node.js → Creates comment
+- ✅ Same markdown content (268-289 chars) → No size issue
+
+**What Doesn't Work:**
+- ❌ investigate-error.js calling API client → Socket hang up
+
+**Hypothesis:**
+1. Async/await flow issue (missing await somewhere?)
+2. Axios instance interceptor problem
+3. Error handler catching legitimate response?
+4. Timeout race condition?
+
+**Debug Steps for Next Session:**
+1. Add console.log before/after addComment call
+2. Wrap in try/catch with detailed error logging
+3. Check if markdown content has special characters causing issues
+4. Try without markdown (plain string)
+5. Compare axios config between direct call vs script call
 
 ---
 
