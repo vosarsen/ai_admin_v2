@@ -89,10 +89,10 @@ function verifySignature(req) {
  * POST /api/webhooks/glitchtip
  *
  * Receives webhooks from GlitchTip and sends Telegram alerts.
- * Rate limited to 100 requests per 15 minutes.
+ * Rate limited by default SmartRateLimiter (30 req/min per identifier).
  */
 router.post('/',
-  rateLimiter({ windowMs: 15 * 60 * 1000, max: 100 }),
+  rateLimiter,
   async (req, res) => {
   const startTime = Date.now();
 
