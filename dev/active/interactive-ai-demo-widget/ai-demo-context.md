@@ -58,9 +58,10 @@ Completed:
 
 ### Horizontal Shortcuts Bar Implementation (Current)
 **Date:** 2025-11-25
-**Action:** Replaced dropdown with compact horizontal shortcuts bar
+**Action:** Replaced dropdown with compact horizontal shortcuts bar, moved toggle to input area
 **Features:**
-- ✅ Lightning icon toggle button (36x36px circle)
+- ✅ Lightning icon toggle button (40x40px circle, purple highlighted)
+- ✅ Toggle positioned in input area (left of text field)
 - ✅ Horizontal scrolling list of auto-width chips
 - ✅ Each chip auto-sizes based on text length (no fixed width)
 - ✅ Hidden scrollbar for clean appearance
@@ -68,9 +69,10 @@ Completed:
 - ✅ 4 dynamic shortcut chips with emoji icons
 - ✅ Auto-icon mapping based on suggestion text (getIconForSuggestion)
 - ✅ Glass morphism design matching chat UI
-- ✅ Light theme support
+- ✅ Light theme support (purple toggle highlight on both themes)
 - ✅ Mobile responsive (compact layout)
-- ✅ Purple accent when toggle is active
+- ✅ Removed colorGlow animations from input field
+- ✅ Simplified send button hover (no lift animation)
 
 **Icon Mapping:**
 - ✂️ - Стрижка, волосы
@@ -94,15 +96,20 @@ Completed:
 - ✅ All other widget functionality
 
 **Technical Details:**
-- Toggle: 36x36px circle with lightning SVG icon
+- Toggle: 40x40px circle with lightning SVG icon (purple highlighted)
+- Toggle position: In chat-input-area, left of text field
+- Toggle default: rgba(102, 126, 234, 0.15) background, #667eea icon color
+- Toggle hover: rgba(102, 126, 234, 0.25) background
+- Toggle active: rgba(102, 126, 234, 0.3) background
 - Chips: `inline-flex` with `white-space: nowrap` for auto-width
 - Container: Horizontal scroll with `overflow-x: auto`
 - Transition: 0.3s ease for show/hide animation
-- Toggle active state: rgba(102, 126, 234, 0.2) background
 - Chip hover: `translateY(-2px)` lift effect
-- File: `public/landing/index.html` (lines 3547-3665, 4063-4089, 5406-5638)
+- Input field: No colorGlow animations (clean, static)
+- Send button: Simple hover (no translateY)
+- File: `public/landing/index.html` (lines 3547-3665, 4063-4105, 5406-5638)
 
-**Status:** Implemented in commit 191750e, ready for production testing
+**Status:** Implemented in commit 05b175e, deployed to production
 
 Next Steps:
 - 🚧 Monitor real user interactions
