@@ -58,13 +58,18 @@ Completed:
 
 ### Vertical Shortcuts Menu Implementation (Current)
 **Date:** 2025-11-25
-**Action:** Redesigned shortcuts as vertical popup menu with rainbow glow toggle
+**Action:** Redesigned shortcuts as vertical popup menu with rainbow glow toggle + advanced FAB animations
 **Features:**
 - ✅ Lightning icon toggle button (40x40px circle, neutral color)
 - ✅ Rainbow glow animation around toggle (3s infinite loop)
+- ✅ **Icon rotation**: Lightning rotates 45° when menu opens (like Plus → X)
 - ✅ Toggle positioned in input area (left of text field)
 - ✅ Vertical popup menu (220px width, rounded corners)
 - ✅ Menu appears above toggle button (position: absolute, bottom: 100%)
+- ✅ **Menu scale animation**: Scales from 0.95 to 1.0 on open
+- ✅ **Staggered entrance**: Each button appears with 0.05s incremental delay
+- ✅ **Blur entrance effect**: Buttons animate from blur(10px) to clear
+- ✅ **X-offset animation**: Buttons slide from left (-20px) to position
 - ✅ 4 vertical shortcut buttons with emoji icons
 - ✅ Buttons slide right on hover (translateX(4px))
 - ✅ Auto-icon mapping based on suggestion text (getIconForSuggestion)
@@ -74,6 +79,7 @@ Completed:
 - ✅ Input field border-radius increased to 30px
 - ✅ Send button border-radius increased to 30px
 - ✅ No colorGlow animations on input/send button
+- ✅ Smooth cubic-bezier easing (0.4, 0, 0.2, 1) for natural motion
 
 **Icon Mapping:**
 - ✂️ - Стрижка, волосы
@@ -101,17 +107,24 @@ Completed:
 - Toggle background: rgba(255, 255, 255, 0.08) matching input field
 - Rainbow glow: 6-color animation (red → orange → yellow → green → blue → purple) 3s loop
 - Toggle position: In chat-input-area, left of text field
+- **Icon rotation**: Rotates 45° on menu open (0.3s cubic-bezier)
 - Menu: position: absolute, bottom: 100%, left: 0
 - Menu size: 220px width, auto height, 12px border-radius
 - Menu background: rgba(80, 80, 90, 0.95) dark theme, rgba(255, 255, 255, 0.95) light theme
+- **Menu animation**: Scale 0.95→1.0 + translateY 20px→0 + opacity (0.6s, delay 0.1s)
 - Buttons: 12px padding, flex layout with icon + text
+- **Staggered entrance**: Each button delayed by 0.05s increments (0.05s, 0.1s, 0.15s, 0.2s)
+- **Blur entrance**: Buttons animate from blur(10px) to clear
+- **X-offset animation**: Buttons slide from translateX(-20px) to 0
 - Button hover: rgba(255, 255, 255, 0.15) background, translateX(4px) slide
-- Transition: 0.3s ease for show/hide animation (opacity + translateY)
+- Easing: cubic-bezier(0.4, 0, 0.2, 1) for smooth motion
 - Input field: border-radius 30px, no animations
 - Send button: border-radius 30px, simple hover
-- File: `public/landing/index.html` (lines 3547-3691, 4080-4120, 5396-5638)
+- File: `public/landing/index.html` (lines 3547-3714, 4080-4120, 5396-5638)
 
-**Status:** Implemented in commit 1bc4044, deployed to production
+**Inspired by:** 21st.dev Floating Action Menu component patterns
+
+**Status:** Implemented in commit 699fd9f, deployed to production
 
 Next Steps:
 - 🚧 Monitor real user interactions
