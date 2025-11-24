@@ -152,6 +152,18 @@ Completed:
   - Light theme support with proper contrast
 - ✅ **Toggle button height matched**: Changed from fixed `40px` to `padding: 12px` (matches input field height)
 
+### Latest UX Improvements (2025-11-25, commit 1e5a986):
+- ✅ **Removed subtitle**: "Отвечает как настоящий администратор" removed for cleaner header
+- ✅ **Branding update**: Changed "AI Admin" → "Admin AI" throughout (chat header)
+- ✅ **Faster animations**: Shortcuts animation sped up 2x
+  - Transition: 0.3s → 0.15s
+  - Stagger delays: 0.05s/0.1s/0.15s/0.2s → 0.02s/0.04s/0.06s/0.08s
+- ✅ **Auto-width shortcuts**: Added `width: fit-content` - each shortcut adjusts to text length
+- ✅ **Mobile layout improved**: Send button stays on right side of input (flex-row)
+  - Compact gap: 8px
+  - Auto-width send button: `padding: 12px`
+  - Toggle button first (order: -1)
+
 Next Steps:
 - 🚧 Monitor real user interactions
 - 🚧 Gather analytics and feedback
