@@ -117,7 +117,15 @@ class GlitchTipAPI {
    */
   async getIssues(orgSlug, params = {}) {
     try {
-      const { data } = await this.client.get(`/organizations/${orgSlug}/issues/`, { params });
+      // Clean params - remove undefined values
+      const cleanParams = Object.fromEntries(
+        Object.entries(params).filter(([_, v]) => v !== undefined && v !== null)
+      );
+
+      const { data } = await this.client.get(`/organizations/${orgSlug}/issues/`, {
+        params: cleanParams,
+        timeout: 60000 // Increase timeout for large responses
+      });
       return data;
     } catch (error) {
       throw new Error(`Failed to get issues: ${error.message}`);
