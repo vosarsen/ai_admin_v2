@@ -69,10 +69,11 @@ Completed:
 - ✅ **Individual shortcut boxes**: Each button is separate element
   - Background: rgba(255, 255, 255, 0.06)
   - backdrop-filter: blur(20px)
-  - border-radius: 12px
+  - border-radius: 30px (matching input field)
   - box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15)
   - 240px width, 6px gap
-- ✅ **No emoji icons**: Text-only centered buttons
+  - Left-aligned text (justify-content: flex-start)
+- ✅ **No emoji icons**: Text-only left-aligned buttons
 - ✅ **Staggered entrance**: Each button appears with 0.05s incremental delay
 - ✅ **Blur entrance effect**: Buttons animate from blur(10px) to clear
 - ✅ **X-offset animation**: Buttons slide from left (-20px) to position
@@ -121,9 +122,12 @@ Completed:
   - Background: rgba(255, 255, 255, 0.06)
   - backdrop-filter: blur(20px)
   - border: 1px solid rgba(255, 255, 255, 0.12)
-  - border-radius: 12px
-  - padding: 14px 18px
-  - font-size: 16px, font-weight: 500
+  - border-radius: 30px (matching input field)
+  - padding: 12px 16px (matching input field)
+  - font-family: 'Exo 2', sans-serif (matching UI)
+  - font-size: 15px (matching input field)
+  - font-weight: 400 (normal weight)
+  - text-align: left, justify-content: flex-start
   - box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15)
 - **Emoji hidden**: .chip-icon { display: none }
 - **Staggered entrance**: Each button delayed by 0.05s increments (0.05s, 0.1s, 0.15s, 0.2s)
@@ -137,7 +141,7 @@ Completed:
 
 **Inspired by:** iOS shortcut menus + 21st.dev FAB patterns
 
-**Status:** Implemented in commit e61a842, deployed to production
+**Status:** Implemented in commit e61a842, UI styling refined in commit 21a4c3c, deployed to production
 
 Next Steps:
 - 🚧 Monitor real user interactions
