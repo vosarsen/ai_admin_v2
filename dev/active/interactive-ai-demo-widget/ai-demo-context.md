@@ -1,8 +1,8 @@
 # Interactive AI Bot Demo Widget - Context
 
-**Status:** ✅ PRODUCTION READY - Bug Fixed & Deployed
-**Last Updated:** 2025-11-24 23:50
-**Phase:** Backend + Frontend complete, bug fixed, deployed to production
+**Status:** ✅ PRODUCTION READY - All Bugs Fixed & Deployed
+**Last Updated:** 2025-11-25 (z-index overlay fix)
+**Phase:** Backend + Frontend complete, all bugs fixed, deployed to production
 
 ## Current State
 
@@ -25,13 +25,23 @@ Completed:
   - Backend: commit 4831390
   - Frontend: commit c658db7
   - Bug fix: commit 3bf1cc4
+  - Overlay shortcuts: commit 88859e3
+  - Z-index fix: commit 8cf7784
 
-## Bug Fixed
+## Bugs Fixed
 
+### Bug 1: AIAdminV2 Constructor Error
 **Issue:** `TypeError: AIAdminV2 is not a constructor`
 **Root Cause:** In `src/services/ai-admin-v2/index.js`, the module exports an instance (`module.exports = new AIAdminV2()`), not a class. Was incorrectly trying to create `new AIAdminV2()` in demo-chat route.
 **Fix:** Changed from `const AIAdminV2 = require('...'); new AIAdminV2()` to `const aiAdminV2 = require('...'); aiAdminV2.processMessage()`
 **Status:** Fixed in commit 3bf1cc4, deployed to production
+
+### Bug 2: Z-Index Overlay Issue
+**Issue:** Chat messages (bot bubbles) were overlaying on top of shortcut buttons despite shortcuts having `position: absolute` and `z-index: 10`
+**Root Cause:** `.chat-messages` container had no positioning context or z-index, causing individual message elements to render on the same stacking layer as `.chat-templates`
+**Fix:** Added `position: relative` and `z-index: 1` to `.chat-messages` to create proper stacking hierarchy (messages: z-index 1, shortcuts: z-index 10)
+**File:** `public/landing/index.html` (lines 3271-3282)
+**Status:** Fixed in commit 8cf7784, deployed to production
 
 Next Steps:
 - 🚧 Monitor real user interactions
