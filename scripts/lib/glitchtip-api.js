@@ -171,16 +171,19 @@ class GlitchTipAPI {
   /**
    * Add a comment to an issue
    *
-   * @param {string} orgSlug - Organization slug
+   * @param {string} orgSlug - Organization slug (not used in GlitchTip, kept for API consistency)
    * @param {string|number} issueId - Issue ID
    * @param {string} text - Comment text (supports markdown)
    * @returns {Promise<object>} Created comment
    */
   async addComment(orgSlug, issueId, text) {
     try {
+      // GlitchTip comments endpoint: /api/0/issues/{issue_id}/comments/
+      // Body format: { "data": { "text": "comment" } }
       const { data } = await this.client.post(
-        `/organizations/${orgSlug}/issues/${issueId}/comments/`,
-        { data: { text } }
+        `/issues/${issueId}/comments/`,
+        { data: { text } },
+        { timeout: 60000 } // Increase timeout for large markdown comments
       );
       return data;
     } catch (error) {
