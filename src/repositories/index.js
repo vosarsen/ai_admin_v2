@@ -18,6 +18,7 @@ const StaffRepository = require('./StaffRepository');
 const StaffScheduleRepository = require('./StaffScheduleRepository');
 const DialogContextRepository = require('./DialogContextRepository');
 const CompanyRepository = require('./CompanyRepository');
+const BookingRepository = require('./BookingRepository');
 
 module.exports = {
   BaseRepository,
@@ -26,5 +27,6 @@ module.exports = {
   StaffRepository,
   StaffScheduleRepository,
   DialogContextRepository,
-  CompanyRepository
+  CompanyRepository,
+  BookingRepository
 };
