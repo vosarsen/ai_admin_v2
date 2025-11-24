@@ -3229,6 +3229,7 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             overflow: hidden;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            position: relative;
         }
 
         .chat-header {
@@ -3269,6 +3270,7 @@
 
         .chat-messages {
             padding: 20px;
+            padding-bottom: 200px;
             min-height: 250px;
             max-height: 250px;
             overflow-y: auto;
@@ -3545,11 +3547,19 @@
         }
 
         .chat-templates {
+            position: absolute;
+            bottom: 60px;
+            left: 20px;
+            right: 20px;
             padding: 15px 20px;
             display: flex;
             flex-direction: column;
             gap: 8px;
             align-items: flex-start;
+            background: linear-gradient(to top, rgba(20, 20, 30, 0.95) 0%, rgba(20, 20, 30, 0.85) 50%, transparent 100%);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            z-index: 10;
         }
 
         .template-btn {
@@ -3682,6 +3692,10 @@
             color: rgba(0, 0, 0, 0.4);
         }
 
+        body[data-theme="light"] .chat-templates {
+            background: linear-gradient(to top, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 50%, transparent 100%);
+        }
+
         /* Mobile responsive */
         @media (max-width: 768px) {
             .demo-chat-widget {
@@ -3708,6 +3722,13 @@
 
             .chat-input, .chat-send-btn {
                 width: 100%;
+            }
+
+            .chat-templates {
+                bottom: 70px;
+                left: 15px;
+                right: 15px;
+                padding: 12px 15px;
             }
         }
 
