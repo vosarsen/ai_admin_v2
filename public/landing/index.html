@@ -3544,138 +3544,123 @@
             30% { transform: translateY(-10px); opacity: 1; }
         }
 
-        /* Dropdown Container */
-        .dropdown-container {
-            position: relative;
-            padding: 12px 20px;
+        /* Shortcuts Bar */
+        .shortcuts-bar {
+            padding: 10px 20px;
             border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
         }
 
-        /* Dropdown Trigger Button */
-        .dropdown-trigger {
-            width: 100%;
-            padding: 10px 16px;
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
+        .shortcuts-bar::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Toggle Button (Lightning Icon) */
+        .shortcuts-toggle {
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08);
             border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 14px;
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 14px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
             transition: all 0.2s ease;
-        }
-
-        .dropdown-trigger:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(255, 255, 255, 0.25);
-        }
-
-        .dropdown-trigger.active {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: rgba(255, 255, 255, 0.3);
-        }
-
-        .dropdown-icon {
-            width: 16px;
-            height: 16px;
-            transition: transform 0.3s ease;
-        }
-
-        .dropdown-trigger.active .dropdown-icon {
-            transform: rotate(180deg);
-        }
-
-        .dropdown-label {
-            font-weight: 500;
-        }
-
-        /* Shortcuts Dropdown Menu */
-        .shortcuts-dropdown {
-            position: absolute;
-            bottom: 100%;
-            left: 20px;
-            right: 20px;
-            margin-bottom: 8px;
-            background: rgba(30, 30, 40, 0.98);
-            backdrop-filter: blur(20px);
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
-            opacity: 0;
-            transform: translateY(10px) scale(0.95);
-            visibility: hidden;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 100;
-            max-height: 320px;
-            overflow: hidden;
-        }
-
-        .shortcuts-dropdown.active {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-            visibility: visible;
-        }
-
-        .shortcuts-dropdown-content {
-            padding: 8px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            max-height: 320px;
-            overflow-y: auto;
-        }
-
-        .shortcuts-dropdown-content::-webkit-scrollbar {
-            width: 4px;
-        }
-
-        .shortcuts-dropdown-content::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 2px;
-        }
-
-        .template-btn {
-            padding: 12px 14px;
-            background: rgba(255, 255, 255, 0.06);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 12px;
-            color: white;
-            font-size: 15px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-align: left;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            width: 100%;
-        }
-
-        .template-btn:hover {
-            background: rgba(255, 255, 255, 0.12);
-            border-color: rgba(255, 255, 255, 0.2);
-            transform: scale(1.02);
-        }
-
-        .template-btn:active {
-            transform: scale(0.98);
-            background: rgba(255, 255, 255, 0.08);
-        }
-
-        .template-icon {
-            font-size: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             flex-shrink: 0;
         }
 
-        .template-text {
+        .shortcuts-toggle svg {
+            width: 18px;
+            height: 18px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .shortcuts-toggle:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.25);
+            transform: scale(1.05);
+        }
+
+        .shortcuts-toggle:active {
+            transform: scale(0.95);
+        }
+
+        .shortcuts-toggle.active {
+            background: rgba(102, 126, 234, 0.2);
+            border-color: rgba(102, 126, 234, 0.4);
+        }
+
+        .shortcuts-toggle.active svg {
+            color: #667eea;
+        }
+
+        /* Shortcuts List (Horizontal Scroll) */
+        .shortcuts-list {
+            display: flex;
+            gap: 8px;
+            align-items: center;
             flex: 1;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            max-height: 36px;
+            opacity: 1;
+            transition: all 0.3s ease;
+        }
+
+        .shortcuts-list::-webkit-scrollbar {
+            display: none;
+        }
+
+        .shortcuts-list.hidden {
+            opacity: 0;
+            max-height: 0;
+            overflow: hidden;
+        }
+
+        /* Shortcut Chip (Auto-width) */
+        .shortcut-chip {
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 18px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .shortcut-chip:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .shortcut-chip:active {
+            transform: translateY(0);
+        }
+
+        .chip-icon {
+            font-size: 16px;
+            line-height: 1;
+        }
+
+        .chip-text {
             font-weight: 400;
         }
 
@@ -3784,30 +3769,38 @@
             color: rgba(0, 0, 0, 0.4);
         }
 
-        body[data-theme="light"] .dropdown-trigger {
+        body[data-theme="light"] .shortcuts-bar {
+            border-top-color: rgba(0, 0, 0, 0.08);
+        }
+
+        body[data-theme="light"] .shortcuts-toggle {
             background: rgba(0, 0, 0, 0.05);
-            border-color: rgba(0, 0, 0, 0.15);
+            border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        body[data-theme="light"] .shortcuts-toggle svg {
             color: rgba(0, 0, 0, 0.8);
         }
 
-        body[data-theme="light"] .dropdown-trigger:hover {
+        body[data-theme="light"] .shortcuts-toggle:hover {
             background: rgba(0, 0, 0, 0.08);
-            border-color: rgba(0, 0, 0, 0.25);
+            border-color: rgba(0, 0, 0, 0.2);
         }
 
-        body[data-theme="light"] .dropdown-trigger.active {
-            background: rgba(0, 0, 0, 0.1);
-            border-color: rgba(0, 0, 0, 0.3);
+        body[data-theme="light"] .shortcuts-toggle.active {
+            background: rgba(102, 126, 234, 0.15);
+            border-color: rgba(102, 126, 234, 0.3);
         }
 
-        body[data-theme="light"] .shortcuts-dropdown {
-            background: rgba(245, 245, 250, 0.98);
+        body[data-theme="light"] .shortcut-chip {
+            background: rgba(0, 0, 0, 0.05);
             border-color: rgba(0, 0, 0, 0.12);
-            box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.1);
+            color: #333;
         }
 
-        body[data-theme="light"] .dropdown-container {
-            border-top-color: rgba(0, 0, 0, 0.08);
+        body[data-theme="light"] .shortcut-chip:hover {
+            background: rgba(0, 0, 0, 0.1);
+            border-color: rgba(0, 0, 0, 0.2);
         }
 
         /* Mobile responsive */
@@ -4068,37 +4061,31 @@
                         </div>
                     </div>
 
-                    <!-- Dropdown Container -->
-                    <div class="dropdown-container">
-                        <!-- Dropdown Menu (hidden by default, opens upward) -->
-                        <div class="shortcuts-dropdown" id="shortcutsDropdown">
-                            <div class="shortcuts-dropdown-content" id="demoTemplates">
-                                <button class="template-btn" data-message="Записаться на стрижку">
-                                    <span class="template-icon">✂️</span>
-                                    <span class="template-text">Записаться на стрижку</span>
-                                </button>
-                                <button class="template-btn" data-message="Узнать цены на услуги">
-                                    <span class="template-icon">💰</span>
-                                    <span class="template-text">Узнать цены</span>
-                                </button>
-                                <button class="template-btn" data-message="Какое свободное время на завтра?">
-                                    <span class="template-icon">📅</span>
-                                    <span class="template-text">Свободное время на завтра</span>
-                                </button>
-                                <button class="template-btn" data-message="Перенести мою запись">
-                                    <span class="template-icon">🔄</span>
-                                    <span class="template-text">Перенести запись</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Dropdown Trigger Button -->
-                        <button class="dropdown-trigger" id="dropdownTrigger">
-                            <svg class="dropdown-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <!-- Shortcuts Bar -->
+                    <div class="shortcuts-bar">
+                        <button class="shortcuts-toggle" id="shortcutsToggle" aria-label="Быстрые действия">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M13 10V3L4 14h7v7l9-11h-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
-                            <span class="dropdown-label">примеры</span>
                         </button>
+                        <div class="shortcuts-list" id="shortcutsList">
+                            <button class="shortcut-chip" data-message="Записаться на стрижку">
+                                <span class="chip-icon">✂️</span>
+                                <span class="chip-text">Записаться на стрижку</span>
+                            </button>
+                            <button class="shortcut-chip" data-message="Узнать цены на услуги">
+                                <span class="chip-icon">💰</span>
+                                <span class="chip-text">Узнать цены</span>
+                            </button>
+                            <button class="shortcut-chip" data-message="Какое свободное время на завтра?">
+                                <span class="chip-icon">📅</span>
+                                <span class="chip-text">Свободное время на завтра</span>
+                            </button>
+                            <button class="shortcut-chip" data-message="Перенести мою запись">
+                                <span class="chip-icon">🔄</span>
+                                <span class="chip-text">Перенести запись</span>
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Chat Input -->
@@ -5421,33 +5408,16 @@
         const demoInput = document.getElementById('demoInput');
         const demoSend = document.getElementById('demoSend');
         const demoTyping = document.getElementById('demoTyping');
-        const demoTemplates = document.getElementById('demoTemplates');
-        const dropdownTrigger = document.getElementById('dropdownTrigger');
-        const shortcutsDropdown = document.getElementById('shortcutsDropdown');
+        const shortcutsList = document.getElementById('shortcutsList');
+        const shortcutsToggle = document.getElementById('shortcutsToggle');
         // const demoLimitNotice = document.getElementById('demoLimitNotice'); // REMOVED
         // const messagesRemainingSpan = document.getElementById('messagesRemaining'); // REMOVED
 
-        // Dropdown Toggle
-        dropdownTrigger.addEventListener('click', (e) => {
+        // Shortcuts Toggle
+        shortcutsToggle.addEventListener('click', (e) => {
             e.stopPropagation();
-            dropdownTrigger.classList.toggle('active');
-            shortcutsDropdown.classList.toggle('active');
-        });
-
-        // Close dropdown when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!shortcutsDropdown.contains(e.target) && !dropdownTrigger.contains(e.target)) {
-                dropdownTrigger.classList.remove('active');
-                shortcutsDropdown.classList.remove('active');
-            }
-        });
-
-        // Close dropdown after selecting a shortcut
-        demoTemplates.addEventListener('click', (e) => {
-            if (e.target.closest('.template-btn')) {
-                dropdownTrigger.classList.remove('active');
-                shortcutsDropdown.classList.remove('active');
-            }
+            shortcutsToggle.classList.toggle('active');
+            shortcutsList.classList.toggle('hidden');
         });
 
         // Auto-resize textarea
@@ -5627,42 +5597,42 @@
         }
 
         function updateSuggestions(suggestions) {
-            // Clear existing buttons
-            demoTemplates.innerHTML = '';
+            // Clear existing chips
+            shortcutsList.innerHTML = '';
 
-            // Create new buttons from suggestions
+            // Create new chips from suggestions
             suggestions.forEach(suggestionText => {
-                const button = document.createElement('button');
-                button.className = 'template-btn';
-                button.setAttribute('data-message', suggestionText);
+                const chip = document.createElement('button');
+                chip.className = 'shortcut-chip';
+                chip.setAttribute('data-message', suggestionText);
 
                 // Add icon
                 const iconSpan = document.createElement('span');
-                iconSpan.className = 'template-icon';
+                iconSpan.className = 'chip-icon';
                 iconSpan.textContent = getIconForSuggestion(suggestionText);
 
                 // Add text
                 const textSpan = document.createElement('span');
-                textSpan.className = 'template-text';
+                textSpan.className = 'chip-text';
                 textSpan.textContent = suggestionText;
 
-                button.appendChild(iconSpan);
-                button.appendChild(textSpan);
+                chip.appendChild(iconSpan);
+                chip.appendChild(textSpan);
 
                 // Add click handler
-                button.addEventListener('click', () => {
+                chip.addEventListener('click', () => {
                     sendDemoMessage(suggestionText);
                 });
 
-                demoTemplates.appendChild(button);
+                shortcutsList.appendChild(chip);
             });
         }
 
-        // Template button click handlers
-        const templateButtons = document.querySelectorAll('.template-btn');
-        templateButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                const message = button.getAttribute('data-message');
+        // Shortcut chip click handlers
+        const shortcutChips = document.querySelectorAll('.shortcut-chip');
+        shortcutChips.forEach(chip => {
+            chip.addEventListener('click', () => {
+                const message = chip.getAttribute('data-message');
                 sendDemoMessage(message);
             });
         });
