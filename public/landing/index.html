@@ -3697,7 +3697,7 @@
             transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             opacity: 1;
-            transform: translateX(0);
+            transform: translateY(0);
             filter: blur(0px);
         }
 
@@ -3709,7 +3709,7 @@
         /* Staggered entrance animation */
         .shortcuts-list.hidden .shortcut-chip {
             opacity: 0;
-            transform: translateX(-20px);
+            transform: translateY(20px);
             filter: blur(10px);
         }
 
@@ -3732,12 +3732,12 @@
         .shortcut-chip:hover {
             background: rgba(255, 255, 255, 0.12);
             border-color: rgba(255, 255, 255, 0.2);
-            transform: translateX(4px);
+            transform: translateY(-2px);
             box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
         }
 
         .shortcut-chip:active {
-            transform: translateX(0);
+            transform: translateY(0);
         }
 
         .chat-input-area {
