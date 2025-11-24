@@ -3548,9 +3548,6 @@
         .shortcuts-bar {
             padding: 10px 20px;
             border-top: 1px solid rgba(255, 255, 255, 0.08);
-            display: flex;
-            align-items: center;
-            gap: 10px;
             overflow-x: auto;
             overflow-y: hidden;
             scrollbar-width: none;
@@ -3561,14 +3558,14 @@
             display: none;
         }
 
-        /* Toggle Button (Lightning Icon) */
+        /* Toggle Button (Lightning Icon) - now in input area */
         .shortcuts-toggle {
-            width: 36px;
-            height: 36px;
-            min-width: 36px;
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(102, 126, 234, 0.15);
+            border: 1px solid rgba(102, 126, 234, 0.3);
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -3578,14 +3575,14 @@
         }
 
         .shortcuts-toggle svg {
-            width: 18px;
-            height: 18px;
-            color: rgba(255, 255, 255, 0.9);
+            width: 20px;
+            height: 20px;
+            color: #667eea;
         }
 
         .shortcuts-toggle:hover {
-            background: rgba(255, 255, 255, 0.12);
-            border-color: rgba(255, 255, 255, 0.25);
+            background: rgba(102, 126, 234, 0.25);
+            border-color: rgba(102, 126, 234, 0.5);
             transform: scale(1.05);
         }
 
@@ -3594,12 +3591,12 @@
         }
 
         .shortcuts-toggle.active {
-            background: rgba(102, 126, 234, 0.2);
-            border-color: rgba(102, 126, 234, 0.4);
+            background: rgba(102, 126, 234, 0.3);
+            border-color: rgba(102, 126, 234, 0.6);
         }
 
         .shortcuts-toggle.active svg {
-            color: #667eea;
+            color: #7c8ef7;
         }
 
         /* Shortcuts List (Horizontal Scroll) */
@@ -3681,14 +3678,12 @@
             color: white;
             font-size: 15px;
             transition: background 0.3s ease, border-color 0.3s ease;
-            animation: colorGlow 6s ease-in-out infinite;
         }
 
         .chat-input:focus {
             outline: none;
             border-color: rgba(255, 255, 255, 0.3);
             background: rgba(255, 255, 255, 0.08);
-            animation: colorGlowFocus 6s ease-in-out infinite;
         }
 
         .chat-input::placeholder {
@@ -3719,13 +3714,12 @@
         }
 
         .chat-send-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            background: rgba(255, 255, 255, 0.15);
-            border-color: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.25);
         }
 
         .chat-send-btn:hover:not(:disabled) svg {
-            transform: rotate(-45deg) translateX(2px) translateY(-2px);
+            transform: rotate(-45deg);
         }
 
         .chat-send-btn:disabled {
@@ -3774,22 +3768,22 @@
         }
 
         body[data-theme="light"] .shortcuts-toggle {
-            background: rgba(0, 0, 0, 0.05);
-            border-color: rgba(0, 0, 0, 0.12);
+            background: rgba(102, 126, 234, 0.12);
+            border-color: rgba(102, 126, 234, 0.25);
         }
 
         body[data-theme="light"] .shortcuts-toggle svg {
-            color: rgba(0, 0, 0, 0.8);
+            color: #667eea;
         }
 
         body[data-theme="light"] .shortcuts-toggle:hover {
-            background: rgba(0, 0, 0, 0.08);
-            border-color: rgba(0, 0, 0, 0.2);
+            background: rgba(102, 126, 234, 0.2);
+            border-color: rgba(102, 126, 234, 0.4);
         }
 
         body[data-theme="light"] .shortcuts-toggle.active {
-            background: rgba(102, 126, 234, 0.15);
-            border-color: rgba(102, 126, 234, 0.3);
+            background: rgba(102, 126, 234, 0.25);
+            border-color: rgba(102, 126, 234, 0.5);
         }
 
         body[data-theme="light"] .shortcut-chip {
@@ -4063,11 +4057,6 @@
 
                     <!-- Shortcuts Bar -->
                     <div class="shortcuts-bar">
-                        <button class="shortcuts-toggle" id="shortcutsToggle" aria-label="Быстрые действия">
-                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M13 10V3L4 14h7v7l9-11h-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </button>
                         <div class="shortcuts-list" id="shortcutsList">
                             <button class="shortcut-chip" data-message="Записаться на стрижку">
                                 <span class="chip-icon">✂️</span>
@@ -4090,6 +4079,11 @@
 
                     <!-- Chat Input -->
                     <div class="chat-input-area">
+                        <button class="shortcuts-toggle" id="shortcutsToggle" aria-label="Быстрые действия">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M13 10V3L4 14h7v7l9-11h-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
                         <textarea
                             class="chat-input"
                             id="demoInput"
