@@ -1,5 +1,6 @@
 const logger = require('../../utils/logger');
-const { supabase } = require('../../database/supabase');
+const postgres = require('../../database/postgres');
+const { BookingRepository } = require('../../repositories');
 const { YclientsClient } = require('../../integrations/yclients/client');
 const whatsappClient = require('../../integrations/whatsapp/client');
 const config = require('../../config');
@@ -31,6 +32,7 @@ class BookingMonitorService {
   constructor() {
     this.yclientsClient = new YclientsClient();
     this.whatsappClient = whatsappClient;
+    this.bookingRepo = new BookingRepository(postgres.pool);
     this.checkInterval = config.bookingMonitor?.checkInterval || 60000; // 1 минута по умолчанию
     this.duplicateCheckWindow = config.bookingMonitor?.duplicateCheckWindow || 60 * 60 * 1000; // 1 час по умолчанию
     this.isRunning = false;
@@ -156,11 +158,7 @@ class BookingMonitorService {
       }
 
       // Получаем предыдущее состояние записи из БД
-      const { data: previousState } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('yclients_record_id', parseInt(recordId))
-        .single();
+      const previousState = await this.bookingRepo.findByRecordId(parseInt(recordId));
 
       // Подготавливаем текущее состояние для таблицы bookings
       const currentState = {
@@ -190,9 +188,7 @@ class BookingMonitorService {
       // Если записи нет в БД - это новая запись
       if (!previousState) {
         // Сохраняем состояние
-        await supabase
-          .from('bookings')
-          .insert(currentState);
+        await this.bookingRepo.upsert(currentState);
 
         // Отправляем уведомление о создании только для attendance = 0 (ожидается)
         // и только если запись НЕ создана ботом
@@ -212,11 +208,11 @@ class BookingMonitorService {
 
       if (changes.length === 0) {
         // Обновляем только updated_at
-        await supabase
-          .from('bookings')
-          .update({ updated_at: now.toISOString() })
-          .eq('yclients_record_id', parseInt(recordId));
-        
+        await this.bookingRepo.update('bookings',
+          { yclients_record_id: parseInt(recordId) },
+          { updated_at: now.toISOString() }
+        );
+
         logger.debug(`✅ No changes in booking ${recordId}`);
         return;
       }
@@ -227,10 +223,10 @@ class BookingMonitorService {
         updated_at: now.toISOString()
       };
 
-      await supabase
-        .from('bookings')
-        .update(updateData)
-        .eq('yclients_record_id', parseInt(recordId));
+      await this.bookingRepo.update('bookings',
+        { yclients_record_id: parseInt(recordId) },
+        updateData
+      );
 
       // Отправляем уведомления об изменениях
       await this.sendChangeNotifications(record, changes, previousState);
