@@ -3561,35 +3561,38 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             flex-shrink: 0;
             position: relative;
-            animation: rainbowGlow 3s linear infinite;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
         }
 
-        /* Rainbow glow animation */
-        @keyframes rainbowGlow {
+        /* Radial rotating glow - pseudo element */
+        .shortcuts-toggle::before {
+            content: '';
+            position: absolute;
+            inset: -3px;
+            border-radius: 50%;
+            background: conic-gradient(
+                from 0deg,
+                rgba(255, 0, 0, 0.6),
+                rgba(255, 127, 0, 0.6),
+                rgba(255, 255, 0, 0.6),
+                rgba(0, 255, 0, 0.6),
+                rgba(0, 0, 255, 0.6),
+                rgba(139, 0, 255, 0.6),
+                rgba(255, 0, 0, 0.6)
+            );
+            animation: rotateGlow 3s linear infinite;
+            z-index: -1;
+            filter: blur(8px);
+        }
+
+        @keyframes rotateGlow {
             0% {
-                box-shadow: 0 0 10px rgba(255, 0, 0, 0.5), 0 0 20px rgba(255, 0, 0, 0.3);
-            }
-            16.66% {
-                box-shadow: 0 0 10px rgba(255, 127, 0, 0.5), 0 0 20px rgba(255, 127, 0, 0.3);
-            }
-            33.33% {
-                box-shadow: 0 0 10px rgba(255, 255, 0, 0.5), 0 0 20px rgba(255, 255, 0, 0.3);
-            }
-            50% {
-                box-shadow: 0 0 10px rgba(0, 255, 0, 0.5), 0 0 20px rgba(0, 255, 0, 0.3);
-            }
-            66.66% {
-                box-shadow: 0 0 10px rgba(0, 0, 255, 0.5), 0 0 20px rgba(0, 0, 255, 0.3);
-            }
-            83.33% {
-                box-shadow: 0 0 10px rgba(139, 0, 255, 0.5), 0 0 20px rgba(139, 0, 255, 0.3);
+                transform: rotate(0deg);
             }
             100% {
-                box-shadow: 0 0 10px rgba(255, 0, 0, 0.5), 0 0 20px rgba(255, 0, 0, 0.3);
+                transform: rotate(360deg);
             }
         }
 
@@ -3597,7 +3600,6 @@
             width: 20px;
             height: 20px;
             color: rgba(255, 255, 255, 0.9);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .shortcuts-toggle:hover {
@@ -3613,12 +3615,7 @@
             background: rgba(255, 255, 255, 0.15);
         }
 
-        .shortcuts-toggle.active svg {
-            color: white;
-            transform: rotate(45deg);
-        }
-
-        /* Shortcuts List (Vertical Menu) */
+        /* Shortcuts List (No container, just positioning) */
         .shortcuts-list {
             position: absolute;
             bottom: 100%;
@@ -3626,47 +3623,45 @@
             margin-bottom: 10px;
             display: flex;
             flex-direction: column;
-            gap: 4px;
-            width: 220px;
-            background: rgba(80, 80, 90, 0.95);
-            backdrop-filter: blur(20px);
-            border-radius: 12px;
-            padding: 8px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            opacity: 1;
-            transform: translateY(0) scale(1);
-            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-            transition-delay: 0.1s;
+            gap: 6px;
+            width: 240px;
             z-index: 100;
         }
 
         .shortcuts-list.hidden {
-            opacity: 0;
-            transform: translateY(20px) scale(0.95);
             pointer-events: none;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            transition-delay: 0s;
         }
 
-        /* Shortcut Chip (Vertical Button) with staggered animation */
+        /* Shortcut Chip (Individual transparent box) with staggered animation */
         .shortcut-chip {
-            padding: 12px 16px;
-            background: rgba(255, 255, 255, 0.08);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 8px;
+            padding: 14px 18px;
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
             color: white;
-            font-size: 15px;
+            font-size: 16px;
+            font-weight: 500;
             cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 10px;
+            justify-content: center;
+            text-align: center;
             white-space: nowrap;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            text-align: left;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             opacity: 1;
             transform: translateX(0);
             filter: blur(0px);
+        }
+
+        /* Hide emoji icons */
+        .chip-icon {
+            display: none;
+        }
+
+        .chip-text {
+            font-weight: 500;
         }
 
         /* Staggered entrance animation */
@@ -3693,24 +3688,14 @@
         }
 
         .shortcut-chip:hover {
-            background: rgba(255, 255, 255, 0.15);
-            border-color: rgba(255, 255, 255, 0.25);
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.2);
             transform: translateX(4px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
         }
 
         .shortcut-chip:active {
             transform: translateX(0);
-        }
-
-        .chip-icon {
-            font-size: 18px;
-            line-height: 1;
-            flex-shrink: 0;
-        }
-
-        .chip-text {
-            font-weight: 400;
-            flex: 1;
         }
 
         .chat-input-area {
@@ -3836,19 +3821,17 @@
             background: rgba(0, 0, 0, 0.1);
         }
 
-        body[data-theme="light"] .shortcuts-list {
-            background: rgba(255, 255, 255, 0.95);
-        }
-
         body[data-theme="light"] .shortcut-chip {
-            background: rgba(0, 0, 0, 0.05);
-            border-color: rgba(0, 0, 0, 0.12);
+            background: rgba(0, 0, 0, 0.04);
+            border-color: rgba(0, 0, 0, 0.08);
             color: #333;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
         }
 
         body[data-theme="light"] .shortcut-chip:hover {
-            background: rgba(0, 0, 0, 0.1);
-            border-color: rgba(0, 0, 0, 0.2);
+            background: rgba(0, 0, 0, 0.08);
+            border-color: rgba(0, 0, 0, 0.12);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
         }
 
         /* Mobile responsive */
