@@ -3544,161 +3544,139 @@
             30% { transform: translateY(-10px); opacity: 1; }
         }
 
-        /* FAB Button */
-        .shortcuts-fab {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            width: 64px;
-            height: 64px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+        /* Dropdown Container */
+        .dropdown-container {
+            position: relative;
+            padding: 12px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Dropdown Trigger Button */
+        .dropdown-trigger {
+            width: 100%;
+            padding: 10px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 14px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 1000;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            animation: fabPulse 3s ease-in-out infinite;
+            gap: 8px;
+            transition: all 0.2s ease;
         }
 
-        .shortcuts-fab svg {
-            width: 28px;
-            height: 28px;
-            color: white;
+        .dropdown-trigger:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .dropdown-trigger.active {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .dropdown-icon {
+            width: 16px;
+            height: 16px;
             transition: transform 0.3s ease;
         }
 
-        .shortcuts-fab:hover {
-            transform: scale(1.1) rotate(15deg);
-            box-shadow: 0 12px 32px rgba(102, 126, 234, 0.6);
+        .dropdown-trigger.active .dropdown-icon {
+            transform: rotate(180deg);
         }
 
-        .shortcuts-fab:active {
-            transform: scale(0.95);
+        .dropdown-label {
+            font-weight: 500;
         }
 
-        @keyframes fabPulse {
-            0%, 100% {
-                box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
-            }
-            50% {
-                box-shadow: 0 8px 32px rgba(102, 126, 234, 0.6), 0 0 0 8px rgba(102, 126, 234, 0.2);
-            }
-        }
-
-        /* Shortcuts Menu */
-        .shortcuts-menu {
-            position: fixed;
-            bottom: 110px;
-            right: 30px;
-            width: 320px;
-            background: rgba(20, 20, 30, 0.98);
+        /* Shortcuts Dropdown Menu */
+        .shortcuts-dropdown {
+            position: absolute;
+            bottom: 100%;
+            left: 20px;
+            right: 20px;
+            margin-bottom: 8px;
+            background: rgba(30, 30, 40, 0.98);
             backdrop-filter: blur(20px);
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-            z-index: 999;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
             opacity: 0;
-            transform: translateY(20px) scale(0.95);
+            transform: translateY(10px) scale(0.95);
             visibility: hidden;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            max-height: 500px;
-            display: flex;
-            flex-direction: column;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+            max-height: 320px;
+            overflow: hidden;
         }
 
-        .shortcuts-menu.active {
+        .shortcuts-dropdown.active {
             opacity: 1;
             transform: translateY(0) scale(1);
             visibility: visible;
         }
 
-        .shortcuts-menu-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .shortcuts-menu-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: white;
-        }
-
-        .shortcuts-menu-close {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
-        }
-
-        .shortcuts-menu-close:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        .shortcuts-menu-close svg {
-            width: 18px;
-            height: 18px;
-            color: white;
-        }
-
-        .shortcuts-menu-content {
-            padding: 16px;
+        .shortcuts-dropdown-content {
+            padding: 8px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 4px;
+            max-height: 320px;
             overflow-y: auto;
-            max-height: 400px;
         }
 
-        .shortcuts-menu-content::-webkit-scrollbar {
-            width: 6px;
+        .shortcuts-dropdown-content::-webkit-scrollbar {
+            width: 4px;
         }
 
-        .shortcuts-menu-content::-webkit-scrollbar-thumb {
+        .shortcuts-dropdown-content::-webkit-scrollbar-thumb {
             background: rgba(255, 255, 255, 0.2);
-            border-radius: 3px;
+            border-radius: 2px;
         }
 
         .template-btn {
-            padding: 14px 18px;
-            background: rgba(255, 255, 255, 0.05);
+            padding: 12px 14px;
+            background: rgba(255, 255, 255, 0.06);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
             color: white;
-            font-size: 14px;
+            font-size: 15px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
             text-align: left;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
             width: 100%;
-            animation: buttonGlow 6s ease-in-out infinite;
         }
 
         .template-btn:hover {
             background: rgba(255, 255, 255, 0.12);
-            border-color: rgba(255, 255, 255, 0.3);
-            transform: translateX(4px);
-            animation: buttonGlowHover 6s ease-in-out infinite;
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: scale(1.02);
         }
 
         .template-btn:active {
             transform: scale(0.98);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .template-icon {
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .template-text {
+            flex: 1;
+            font-weight: 400;
         }
 
         .chat-input-area {
@@ -3806,30 +3784,30 @@
             color: rgba(0, 0, 0, 0.4);
         }
 
-        body[data-theme="light"] .shortcuts-menu {
-            background: rgba(255, 255, 255, 0.98);
-            border-color: rgba(0, 0, 0, 0.1);
-        }
-
-        body[data-theme="light"] .shortcuts-menu-title {
-            color: #333;
-        }
-
-        body[data-theme="light"] .shortcuts-menu-close {
+        body[data-theme="light"] .dropdown-trigger {
             background: rgba(0, 0, 0, 0.05);
-            border-color: rgba(0, 0, 0, 0.1);
+            border-color: rgba(0, 0, 0, 0.15);
+            color: rgba(0, 0, 0, 0.8);
         }
 
-        body[data-theme="light"] .shortcuts-menu-close:hover {
+        body[data-theme="light"] .dropdown-trigger:hover {
+            background: rgba(0, 0, 0, 0.08);
+            border-color: rgba(0, 0, 0, 0.25);
+        }
+
+        body[data-theme="light"] .dropdown-trigger.active {
             background: rgba(0, 0, 0, 0.1);
+            border-color: rgba(0, 0, 0, 0.3);
         }
 
-        body[data-theme="light"] .shortcuts-menu-close svg {
-            color: #333;
+        body[data-theme="light"] .shortcuts-dropdown {
+            background: rgba(245, 245, 250, 0.98);
+            border-color: rgba(0, 0, 0, 0.12);
+            box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.1);
         }
 
-        body[data-theme="light"] .shortcuts-menu-header {
-            border-bottom-color: rgba(0, 0, 0, 0.1);
+        body[data-theme="light"] .dropdown-container {
+            border-top-color: rgba(0, 0, 0, 0.08);
         }
 
         /* Mobile responsive */
@@ -3860,24 +3838,27 @@
                 width: 100%;
             }
 
-            .shortcuts-fab {
-                bottom: 20px;
-                right: 20px;
-                width: 56px;
-                height: 56px;
+            .dropdown-container {
+                padding: 10px 15px;
             }
 
-            .shortcuts-fab svg {
-                width: 24px;
-                height: 24px;
+            .dropdown-trigger {
+                padding: 10px 14px;
+                font-size: 13px;
             }
 
-            .shortcuts-menu {
-                bottom: 90px;
-                right: 20px;
-                left: 20px;
-                width: auto;
-                max-width: calc(100vw - 40px);
+            .shortcuts-dropdown {
+                left: 15px;
+                right: 15px;
+            }
+
+            .template-btn {
+                padding: 11px 12px;
+                font-size: 14px;
+            }
+
+            .template-icon {
+                font-size: 18px;
             }
         }
 
@@ -4087,37 +4068,37 @@
                         </div>
                     </div>
 
-                    <!-- FAB Button -->
-                    <button class="shortcuts-fab" id="shortcutsFab" aria-label="Быстрые действия">
-                        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
-                        </svg>
-                    </button>
+                    <!-- Dropdown Container -->
+                    <div class="dropdown-container">
+                        <!-- Dropdown Menu (hidden by default, opens upward) -->
+                        <div class="shortcuts-dropdown" id="shortcutsDropdown">
+                            <div class="shortcuts-dropdown-content" id="demoTemplates">
+                                <button class="template-btn" data-message="Записаться на стрижку">
+                                    <span class="template-icon">✂️</span>
+                                    <span class="template-text">Записаться на стрижку</span>
+                                </button>
+                                <button class="template-btn" data-message="Узнать цены на услуги">
+                                    <span class="template-icon">💰</span>
+                                    <span class="template-text">Узнать цены</span>
+                                </button>
+                                <button class="template-btn" data-message="Какое свободное время на завтра?">
+                                    <span class="template-icon">📅</span>
+                                    <span class="template-text">Свободное время на завтра</span>
+                                </button>
+                                <button class="template-btn" data-message="Перенести мою запись">
+                                    <span class="template-icon">🔄</span>
+                                    <span class="template-text">Перенести запись</span>
+                                </button>
+                            </div>
+                        </div>
 
-                    <!-- Shortcuts Menu (hidden by default) -->
-                    <div class="shortcuts-menu" id="shortcutsMenu">
-                        <div class="shortcuts-menu-header">
-                            <span class="shortcuts-menu-title">Быстрые действия</span>
-                            <button class="shortcuts-menu-close" id="shortcutsClose" aria-label="Закрыть">
-                                <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <div class="shortcuts-menu-content" id="demoTemplates">
-                            <button class="template-btn" data-message="Записаться на стрижку">
-                                <span class="template-text">Записаться на стрижку</span>
-                            </button>
-                            <button class="template-btn" data-message="Узнать цены на услуги">
-                                <span class="template-text">Узнать цены</span>
-                            </button>
-                            <button class="template-btn" data-message="Какое свободное время на завтра?">
-                                <span class="template-text">Свободное время на завтра</span>
-                            </button>
-                            <button class="template-btn" data-message="Перенести мою запись">
-                                <span class="template-text">Перенести запись</span>
-                            </button>
-                        </div>
+                        <!-- Dropdown Trigger Button -->
+                        <button class="dropdown-trigger" id="dropdownTrigger">
+                            <svg class="dropdown-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span class="dropdown-label">примеры</span>
+                        </button>
                     </div>
 
                     <!-- Chat Input -->
@@ -5441,33 +5422,31 @@
         const demoSend = document.getElementById('demoSend');
         const demoTyping = document.getElementById('demoTyping');
         const demoTemplates = document.getElementById('demoTemplates');
-        const shortcutsFab = document.getElementById('shortcutsFab');
-        const shortcutsMenu = document.getElementById('shortcutsMenu');
-        const shortcutsClose = document.getElementById('shortcutsClose');
+        const dropdownTrigger = document.getElementById('dropdownTrigger');
+        const shortcutsDropdown = document.getElementById('shortcutsDropdown');
         // const demoLimitNotice = document.getElementById('demoLimitNotice'); // REMOVED
         // const messagesRemainingSpan = document.getElementById('messagesRemaining'); // REMOVED
 
-        // FAB Menu Toggle
-        shortcutsFab.addEventListener('click', () => {
-            shortcutsMenu.classList.toggle('active');
+        // Dropdown Toggle
+        dropdownTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdownTrigger.classList.toggle('active');
+            shortcutsDropdown.classList.toggle('active');
         });
 
-        // Close menu button
-        shortcutsClose.addEventListener('click', () => {
-            shortcutsMenu.classList.remove('active');
-        });
-
-        // Close menu when clicking outside
+        // Close dropdown when clicking outside
         document.addEventListener('click', (e) => {
-            if (!shortcutsMenu.contains(e.target) && !shortcutsFab.contains(e.target)) {
-                shortcutsMenu.classList.remove('active');
+            if (!shortcutsDropdown.contains(e.target) && !dropdownTrigger.contains(e.target)) {
+                dropdownTrigger.classList.remove('active');
+                shortcutsDropdown.classList.remove('active');
             }
         });
 
-        // Close menu after selecting a shortcut
+        // Close dropdown after selecting a shortcut
         demoTemplates.addEventListener('click', (e) => {
             if (e.target.closest('.template-btn')) {
-                shortcutsMenu.classList.remove('active');
+                dropdownTrigger.classList.remove('active');
+                shortcutsDropdown.classList.remove('active');
             }
         });
 
@@ -5626,6 +5605,27 @@
         }
 
         // Update suggestion buttons
+        // Icon mapping for suggestions
+        function getIconForSuggestion(text) {
+            const lowerText = text.toLowerCase();
+
+            if (lowerText.includes('стрижк') || lowerText.includes('волос')) return '✂️';
+            if (lowerText.includes('окраш')) return '🎨';
+            if (lowerText.includes('маникюр') || lowerText.includes('ногт')) return '💅';
+            if (lowerText.includes('педикюр')) return '🦶';
+            if (lowerText.includes('цен') || lowerText.includes('стоимость') || lowerText.includes('сколько')) return '💰';
+            if (lowerText.includes('время') || lowerText.includes('свободн') || lowerText.includes('когда')) return '📅';
+            if (lowerText.includes('перенес') || lowerText.includes('изменить')) return '🔄';
+            if (lowerText.includes('отмен')) return '❌';
+            if (lowerText.includes('запис')) return '📝';
+            if (lowerText.includes('завтра')) return '🌅';
+            if (lowerText.includes('вечер')) return '🌙';
+            if (lowerText.includes('утр')) return '☀️';
+            if (lowerText.includes('подходит') || lowerText.includes('да') || lowerText.includes('согласен')) return '✅';
+
+            return '💬'; // Default icon
+        }
+
         function updateSuggestions(suggestions) {
             // Clear existing buttons
             demoTemplates.innerHTML = '';
@@ -5636,10 +5636,17 @@
                 button.className = 'template-btn';
                 button.setAttribute('data-message', suggestionText);
 
+                // Add icon
+                const iconSpan = document.createElement('span');
+                iconSpan.className = 'template-icon';
+                iconSpan.textContent = getIconForSuggestion(suggestionText);
+
+                // Add text
                 const textSpan = document.createElement('span');
                 textSpan.className = 'template-text';
                 textSpan.textContent = suggestionText;
 
+                button.appendChild(iconSpan);
                 button.appendChild(textSpan);
 
                 // Add click handler
