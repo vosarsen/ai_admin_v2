@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const logger = require('../../utils/logger').child({ module: 'demo-chat' });
 const { body, validationResult } = require('express-validator');
-const AIAdminV2 = require('../../services/ai-admin-v2');
+const aiAdminV2 = require('../../services/ai-admin-v2');
 const smartCache = require('../../services/cache/smart-cache');
 
 // Demo configuration
@@ -197,16 +197,13 @@ router.post('/demo-chat',
         ip: req.ip
       });
 
-      // Create AI Admin instance
-      const aiAdmin = new AIAdminV2();
-
       // Use sessionId as phone number to maintain conversation context
       // Format: demo_{sessionId} to make it distinguishable
       const demoPhone = `demo_${sessionId}`;
 
       // Process message with AI
       // We pass demo company ID and special phone format
-      const result = await aiAdmin.processMessage(
+      const result = await aiAdminV2.processMessage(
         message,
         demoPhone,
         DEMO_COMPANY_ID,
