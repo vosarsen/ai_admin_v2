@@ -1,8 +1,8 @@
 # Interactive AI Bot Demo Widget - Context
 
-**Status:** ✅ PRODUCTION READY - FAB Interface Implemented
-**Last Updated:** 2025-11-25 (FAB with floating menu)
-**Phase:** Backend + Frontend complete, using FAB (Floating Action Button) for shortcuts
+**Status:** ✅ PRODUCTION READY - iMessage-Style Dropdown Implemented
+**Last Updated:** 2025-11-25 (dropdown above input field)
+**Phase:** Backend + Frontend complete, using iMessage-style dropdown menu for shortcuts
 
 ## Current State
 
@@ -28,7 +28,8 @@ Completed:
   - Overlay shortcuts: commit 88859e3 (reverted)
   - Z-index fix: commit 8cf7784 (reverted)
   - Layout revert: commit 15ec114 (superseded)
-  - FAB implementation: commit d6309e6 (current)
+  - FAB implementation: commit d6309e6 (superseded)
+  - Dropdown implementation: commit bb82889 (current)
 
 ## Bugs Fixed
 
@@ -50,21 +51,36 @@ Completed:
 **Action:** Reverted overlay shortcut layout back to standard flow layout
 **Status:** Reverted in commit 15ec114, **SUPERSEDED by FAB implementation**
 
-### FAB Implementation (Current)
+### FAB Implementation (Superseded)
 **Date:** 2025-11-25
 **Action:** Implemented FAB (Floating Action Button) interface for shortcuts
+**Status:** Implemented in commit d6309e6, **SUPERSEDED by dropdown implementation**
+
+### Dropdown Implementation (Current)
+**Date:** 2025-11-25
+**Action:** Replaced FAB with iMessage-style dropdown menu above input field
 **Features:**
-- ✅ Fixed position FAB button (bottom-right corner, z-index: 1000)
-- ✅ Purple gradient background with pulse animation
-- ✅ Lightning icon (⚡) for instant recognition
-- ✅ Animated floating menu (slide-up + scale transition)
-- ✅ Menu with header ("Быстрые действия") and close button
-- ✅ 4 dynamic shortcut buttons in scrollable menu
+- ✅ Dropdown trigger button with "примеры" label above input field
+- ✅ Chevron icon that rotates 180° when menu opens
+- ✅ Menu opens upward (position: absolute, bottom: 100%)
+- ✅ 4 dynamic shortcut buttons with emoji icons
+- ✅ Auto-icon mapping based on suggestion text (getIconForSuggestion)
+- ✅ Smooth slide-up + scale animation
 - ✅ Auto-close on shortcut selection
 - ✅ Click-outside-to-close functionality
-- ✅ Light theme support (white menu background)
-- ✅ Mobile responsive (smaller FAB, full-width menu)
-- ✅ Smooth animations (cubic-bezier easing)
+- ✅ Light theme support (light gray menu background)
+- ✅ Mobile responsive (smaller padding, compact layout)
+- ✅ Dark theme: rgba(30, 30, 40, 0.98) background
+- ✅ Scrollable content area (max-height: 320px)
+
+**Icon Mapping:**
+- ✂️ - Стрижка, волосы
+- 💰 - Цены, стоимость
+- 📅 - Время, свободное
+- 🔄 - Перенести, изменить
+- ✅ - Подходит, согласен
+- 🌅 - Завтра
+- 💬 - Default
 
 **What Remains:**
 - ✅ Dynamic contextual suggestions (updateSuggestions function)
@@ -72,13 +88,14 @@ Completed:
 - ✅ All other widget functionality
 
 **Technical Details:**
-- FAB: 64x64px (desktop), 56x56px (mobile)
-- Menu: 320px wide (desktop), full-width on mobile
-- Position: Fixed, always visible on top of content
-- Animation: 0.3s cubic-bezier(0.4, 0, 0.2, 1)
-- File: `public/landing/index.html` (lines 3547-3881, 5444-5472)
+- Trigger: Full-width button with 10px padding
+- Menu: Opens upward with 8px margin-bottom
+- Position: Relative to dropdown container
+- Animation: 0.25s cubic-bezier(0.4, 0, 0.2, 1)
+- Buttons: 12px padding with emoji + text layout
+- File: `public/landing/index.html` (lines 3547-3680, 5425-5659)
 
-**Status:** Implemented in commit d6309e6, deployed to production
+**Status:** Implemented in commit bb82889, deployed to production
 
 Next Steps:
 - 🚧 Monitor real user interactions
