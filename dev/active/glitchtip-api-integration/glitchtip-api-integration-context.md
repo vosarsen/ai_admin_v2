@@ -1,32 +1,37 @@
 # GlitchTip API Integration - Context & Key Information
 
-**Last Updated:** 2025-11-24 18:00 (Session 1 Complete - Context Reset)
-**Status:** Phase 0 ✅ Complete | Phase 1 ✅ 95% Complete → Minor bug to fix
-**Phase:** Phase 1 (Investigation Helper) - Almost done
-**Progress:** 5.5/31 hours (18%) - Running 50% faster than planned!
+**Last Updated:** 2025-11-24 19:15 (Session 2 Complete - Bug Fixed!)
+**Status:** Phase 0 ✅ Complete | Phase 1 ✅ 100% COMPLETE!
+**Phase:** Phase 1 (Investigation Helper) - DONE
+**Progress:** 5.75/31 hours (19%) - Running 52% faster than planned!
 
 ---
 
-## 🚨 CURRENT STATE (Session 1 End)
+## 🚨 CURRENT STATE (Session 2 End)
 
 ### What Just Happened
-Completed Phase 0 + Phase 1 (Investigation Helper). Everything works when tested directly, but there's a **socket hang up** bug when running the full `investigate-error.js` script that needs 15 minutes of debugging.
+**PHASE 1 COMPLETE!** 🎉 Fixed the socket hang up bug using auto-error-resolver agent.
+
+**Root Cause Found:**
+- `Connection: close` header was forcing socket closure after first request (getIssue)
+- Second request (addComment) tried to reuse closed socket → socket hang up
+- Direct API test worked because it made only ONE request (no reuse)
+
+**Solution Applied:**
+- Removed `Connection: close` header
+- Added explicit HTTP/HTTPS agents with `keepAlive: false`
+- Tested on Issue #2 and #1 → Both succeed ✅
 
 ### Next Immediate Steps
-1. **Debug socket hang up in investigate-error.js** (15 min)
-   - API client works when called directly ✅
-   - Comments API endpoint works via curl ✅
-   - But investigate-error.js gets "socket hang up" when calling client.addComment()
-   - Likely async/await flow issue in line ~297 of investigate-error.js
-
-2. **Alternative:** Skip debug, move to Phase 2 (Daily Metrics - 4h)
-   - Investigation script is 95% working
-   - Can fix bug later in Phase 6 (polish)
+1. **Move to Phase 2: Daily Metrics** (4 hours estimated)
+   - Stats aggregation from GlitchTip API
+   - Format as Telegram report
+   - Schedule via PM2 cron (9 AM daily)
 
 ### Uncommitted Changes
 - **None** - All work committed to feature/glitchtip-api-integration branch
-- Latest commit: `6b8da75` - "feat: Complete Phase 1 Investigation Helper"
-- Branch pushed to GitHub ✅
+- Latest commit: `72bb225` - "fix: Resolve socket hang up error in GlitchTip API sequential requests"
+- Branch ready to push to GitHub
 
 ### Critical Discovery: GlitchTip Comments API
 **IMPORTANT:** Spent 2 hours debugging comments API. Final working solution:
