@@ -1,16 +1,16 @@
 # GlitchTip API Integration - Context & Key Information
 
-**Last Updated:** 2025-11-24 21:05 (Session 4 Complete - Phase 3 DONE!)
-**Status:** Phase 0 ✅ | Phase 1 ✅ | Phase 2 ✅ | Phase 3 ✅ COMPLETE!
-**Phase:** Phase 3 (Telegram Bot) - Tested and verified working!
-**Progress:** 8/31 hours (26%) - Running 74% faster than planned!
+**Last Updated:** 2025-11-24 22:45 (Session 5 Complete - Phase 4 DONE!)
+**Status:** Phase 0 ✅ | Phase 1 ✅ | Phase 2 ✅ | Phase 3 ✅ | Phase 4 ✅ COMPLETE!
+**Phase:** Phase 4 (Runbook Integration) - Deployed and running hourly!
+**Progress:** 9.5/31 hours (31%) - Running 73% faster than planned!
 
 ---
 
-## 🚨 CURRENT STATE (Session 4 End - Context Update Before Reset)
+## 🚨 CURRENT STATE (Session 5 End - Phase 4 Complete!)
 
-### What Just Happened (Sessions 1-4 Summary)
-**PHASES 0-3 COMPLETE!** 🎉 All core functionality implemented and tested!
+### What Just Happened (Sessions 1-5 Summary)
+**PHASES 0-4 COMPLETE!** 🎉 Runbook integration deployed and running!
 
 **Phase 0 (2.5h):** API Token + Library
 - Created `scripts/lib/glitchtip-api.js` with 11 methods
@@ -41,6 +41,24 @@
   - `/glitchtip_stats` ✅ Shows statistics
   - `/resolve 1` ✅ **ACTUALLY closes issues in GlitchTip** (verified via API!)
   - Statistics updated correctly (4→3 errors after resolve)
+
+**Phase 4 (1.5h):** Runbook Integration
+- Created 5 comprehensive runbooks:
+  - `database-timeout.md` - Connection pool, slow queries (MTTR: 5-10 min)
+  - `whatsapp-session-expired.md` - Session keys, QR code (MTTR: 10-15 min)
+  - `yclients-rate-limit.md` - Rate limits, 429 errors (MTTR: 2-5 min)
+  - `redis-connection-refused.md` - Redis down, ECONNREFUSED (MTTR: 3-5 min)
+  - `npm-module-not-found.md` - Missing modules (MTTR: 2-3 min)
+- Created `scripts/link-runbooks.js` (340 lines)
+  - Pattern matching: 12/12 tests pass
+  - Auto-posts runbook comments to matching issues
+  - Dry-run mode for testing
+- PM2 cron: Hourly 8 AM - 11 PM UTC (11:00-02:00 MSK)
+- **Tested in production:**
+  - Issue #2 matched `whatsapp-session-expired.md` ✅
+  - Runbook comment posted successfully ✅
+  - PM2 cron running (next run in <1 hour) ✅
+- **Files:** 1,548 lines total (6 runbooks + script + config)
 
 **What Was Built:**
 - `scripts/daily-metrics.js` (323 lines)
