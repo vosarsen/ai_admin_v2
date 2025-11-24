@@ -3570,7 +3570,7 @@
         }
 
         .chat-send-btn:hover:not(:disabled) svg {
-            transform: translateX(2px);
+            transform: translateY(-2px);
         }
 
         .chat-send-btn:disabled {
@@ -3891,8 +3891,9 @@
                     maxlength="500"
                 ></textarea>
                 <button class="chat-send-btn" id="demoSend">
-                    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.2"/>
+                        <path d="M12 8L12 16M12 8L9 11M12 8L15 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </button>
             </div>
