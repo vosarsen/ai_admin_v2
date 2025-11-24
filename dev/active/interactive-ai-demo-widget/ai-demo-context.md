@@ -1,8 +1,8 @@
 # Interactive AI Bot Demo Widget - Context
 
-**Status:** ✅ PRODUCTION READY - Reverted to Non-Overlay Layout
-**Last Updated:** 2025-11-25 (reverted overlay changes per user request)
-**Phase:** Backend + Frontend complete, using standard layout (shortcuts below messages)
+**Status:** ✅ PRODUCTION READY - FAB Interface Implemented
+**Last Updated:** 2025-11-25 (FAB with floating menu)
+**Phase:** Backend + Frontend complete, using FAB (Floating Action Button) for shortcuts
 
 ## Current State
 
@@ -25,8 +25,10 @@ Completed:
   - Backend: commit 4831390
   - Frontend: commit c658db7
   - Bug fix: commit 3bf1cc4
-  - Overlay shortcuts: commit 88859e3
-  - Z-index fix: commit 8cf7784
+  - Overlay shortcuts: commit 88859e3 (reverted)
+  - Z-index fix: commit 8cf7784 (reverted)
+  - Layout revert: commit 15ec114 (superseded)
+  - FAB implementation: commit d6309e6 (current)
 
 ## Bugs Fixed
 
@@ -43,20 +45,40 @@ Completed:
 **File:** `public/landing/index.html` (lines 3271-3282)
 **Status:** Fixed in commit 8cf7784, but **REVERTED in commit 15ec114** per user request
 
-### Layout Revert (Current State)
+### Layout Revert (Superseded)
 **Date:** 2025-11-25
 **Action:** Reverted overlay shortcut layout back to standard flow layout
-**Changes Reverted:**
-- Removed `position: absolute` from `.chat-templates` (was overlaying on messages)
-- Removed `z-index: 10` and gradient background from shortcuts
-- Removed `padding-bottom: 200px` from `.chat-messages`
-- Removed light theme gradient for shortcuts
-- Removed mobile responsive positioning for shortcuts
+**Status:** Reverted in commit 15ec114, **SUPERSEDED by FAB implementation**
+
+### FAB Implementation (Current)
+**Date:** 2025-11-25
+**Action:** Implemented FAB (Floating Action Button) interface for shortcuts
+**Features:**
+- ✅ Fixed position FAB button (bottom-right corner, z-index: 1000)
+- ✅ Purple gradient background with pulse animation
+- ✅ Lightning icon (⚡) for instant recognition
+- ✅ Animated floating menu (slide-up + scale transition)
+- ✅ Menu with header ("Быстрые действия") and close button
+- ✅ 4 dynamic shortcut buttons in scrollable menu
+- ✅ Auto-close on shortcut selection
+- ✅ Click-outside-to-close functionality
+- ✅ Light theme support (white menu background)
+- ✅ Mobile responsive (smaller FAB, full-width menu)
+- ✅ Smooth animations (cubic-bezier easing)
+
 **What Remains:**
 - ✅ Dynamic contextual suggestions (updateSuggestions function)
 - ✅ Backend suggestion generation logic
 - ✅ All other widget functionality
-**Status:** Reverted in commit 15ec114, deployed to production
+
+**Technical Details:**
+- FAB: 64x64px (desktop), 56x56px (mobile)
+- Menu: 320px wide (desktop), full-width on mobile
+- Position: Fixed, always visible on top of content
+- Animation: 0.3s cubic-bezier(0.4, 0, 0.2, 1)
+- File: `public/landing/index.html` (lines 3547-3881, 5444-5472)
+
+**Status:** Implemented in commit d6309e6, deployed to production
 
 Next Steps:
 - 🚧 Monitor real user interactions
