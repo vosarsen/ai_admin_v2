@@ -1,8 +1,8 @@
 # Interactive AI Bot Demo Widget - Context
 
-**Status:** ✅ PRODUCTION READY - iMessage-Style Dropdown Implemented
-**Last Updated:** 2025-11-25 (dropdown above input field)
-**Phase:** Backend + Frontend complete, using iMessage-style dropdown menu for shortcuts
+**Status:** ✅ PRODUCTION READY - Horizontal Shortcuts Bar Implemented
+**Last Updated:** 2025-11-25 (horizontal shortcuts bar with lightning toggle)
+**Phase:** Backend + Frontend complete, using compact horizontal shortcuts bar
 
 ## Current State
 
@@ -56,30 +56,36 @@ Completed:
 **Action:** Implemented FAB (Floating Action Button) interface for shortcuts
 **Status:** Implemented in commit d6309e6, **SUPERSEDED by dropdown implementation**
 
-### Dropdown Implementation (Current)
+### Horizontal Shortcuts Bar Implementation (Current)
 **Date:** 2025-11-25
-**Action:** Replaced FAB with iMessage-style dropdown menu above input field
+**Action:** Replaced dropdown with compact horizontal shortcuts bar
 **Features:**
-- ✅ Dropdown trigger button with "примеры" label above input field
-- ✅ Chevron icon that rotates 180° when menu opens
-- ✅ Menu opens upward (position: absolute, bottom: 100%)
-- ✅ 4 dynamic shortcut buttons with emoji icons
+- ✅ Lightning icon toggle button (36x36px circle)
+- ✅ Horizontal scrolling list of auto-width chips
+- ✅ Each chip auto-sizes based on text length (no fixed width)
+- ✅ Hidden scrollbar for clean appearance
+- ✅ Toggle shows/hides shortcuts with smooth transition
+- ✅ 4 dynamic shortcut chips with emoji icons
 - ✅ Auto-icon mapping based on suggestion text (getIconForSuggestion)
-- ✅ Smooth slide-up + scale animation
-- ✅ Auto-close on shortcut selection
-- ✅ Click-outside-to-close functionality
-- ✅ Light theme support (light gray menu background)
-- ✅ Mobile responsive (smaller padding, compact layout)
-- ✅ Dark theme: rgba(30, 30, 40, 0.98) background
-- ✅ Scrollable content area (max-height: 320px)
+- ✅ Glass morphism design matching chat UI
+- ✅ Light theme support
+- ✅ Mobile responsive (compact layout)
+- ✅ Purple accent when toggle is active
 
 **Icon Mapping:**
 - ✂️ - Стрижка, волосы
+- 🎨 - Окрашивание
+- 💅 - Маникюр, ногти
+- 🦶 - Педикюр
 - 💰 - Цены, стоимость
 - 📅 - Время, свободное
 - 🔄 - Перенести, изменить
-- ✅ - Подходит, согласен
+- ❌ - Отменить
+- 📝 - Записаться
 - 🌅 - Завтра
+- 🌙 - Вечер
+- ☀️ - Утро
+- ✅ - Подходит, согласен
 - 💬 - Default
 
 **What Remains:**
@@ -88,14 +94,15 @@ Completed:
 - ✅ All other widget functionality
 
 **Technical Details:**
-- Trigger: Full-width button with 10px padding
-- Menu: Opens upward with 8px margin-bottom
-- Position: Relative to dropdown container
-- Animation: 0.25s cubic-bezier(0.4, 0, 0.2, 1)
-- Buttons: 12px padding with emoji + text layout
-- File: `public/landing/index.html` (lines 3547-3680, 5425-5659)
+- Toggle: 36x36px circle with lightning SVG icon
+- Chips: `inline-flex` with `white-space: nowrap` for auto-width
+- Container: Horizontal scroll with `overflow-x: auto`
+- Transition: 0.3s ease for show/hide animation
+- Toggle active state: rgba(102, 126, 234, 0.2) background
+- Chip hover: `translateY(-2px)` lift effect
+- File: `public/landing/index.html` (lines 3547-3665, 4063-4089, 5406-5638)
 
-**Status:** Implemented in commit bb82889, deployed to production
+**Status:** Implemented in commit 191750e, ready for production testing
 
 Next Steps:
 - 🚧 Monitor real user interactions
