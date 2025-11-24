@@ -141,7 +141,16 @@ Completed:
 
 **Inspired by:** iOS shortcut menus + 21st.dev FAB patterns
 
-**Status:** Implemented in commit e61a842, UI styling refined in commit 21a4c3c, deployed to production
+**Status:** Implemented in commit e61a842, UI styling refined in commits 21a4c3c & 467fe76, deployed to production
+
+### Recent UI Improvements (2025-11-25, commit 467fe76):
+- ✅ **Chat height increased**: 250px → 400px (more spacious, better UX)
+- ✅ **Textarea resize removed**: Added `resize: none` for cleaner appearance
+- ✅ **Bubble styles unified**: Applied styles from "Бот работает как настоящий администратор" section
+  - Bot messages: `rgba(40, 40, 40, 0.5)` background, rounded corners `20px 20px 20px 4px`
+  - User messages: Purple gradient `rgba(167, 139, 250, 0.15)`, rounded corners `20px 20px 4px 20px`
+  - Light theme support with proper contrast
+- ✅ **Toggle button height matched**: Changed from fixed `40px` to `padding: 12px` (matches input field height)
 
 Next Steps:
 - 🚧 Monitor real user interactions
