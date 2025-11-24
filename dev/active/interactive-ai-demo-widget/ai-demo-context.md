@@ -164,6 +164,22 @@ Completed:
   - Auto-width send button: `padding: 12px`
   - Toggle button first (order: -1)
 
+### Realism Improvements (2025-11-25, commit 706c0f4):
+- ✅ **Glow refinement**: Toggle button glow only around edge (radial mask)
+  - Uses `mask: radial-gradient(circle, transparent 60%, black 75%)`
+  - Inner area clean, glow visible only on perimeter
+- ✅ **Light theme fix**: "Онлайн" status text now black (`color: #000000`)
+- ✅ **Smart scrollbar**: Already had `overflow-y: auto` (shows only when needed)
+- ✅ **Message alignment**: Already correct (bot: margin-right auto, user: margin-left auto)
+- ✅ **Timestamps added**: Real-time HH:MM format on all messages
+  - Positioned bottom-right of bubble
+  - 11px font, subtle color (rgba with 0.4-0.5 opacity)
+  - Light/dark theme support
+- ✅ **Read status checkmarks**: WhatsApp-style double checkmarks (✓✓) on user messages
+  - 14x14px SVG icon
+  - Positioned next to timestamp
+- ✅ **Initial message time**: JavaScript initializes timestamp on page load
+
 Next Steps:
 - 🚧 Monitor real user interactions
 - 🚧 Gather analytics and feedback
