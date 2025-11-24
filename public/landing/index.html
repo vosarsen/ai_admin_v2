@@ -3078,6 +3078,35 @@
         }
 
     </style>
+
+    <!-- Prevent theme flash on page load -->
+    <script>
+        (function() {
+            function isMobile() {
+                return window.matchMedia('(max-width: 768px)').matches;
+            }
+
+            // Set theme immediately on <body> to prevent FOUC
+            const setInitialTheme = function() {
+                if (isMobile()) {
+                    // Mobile: use system theme
+                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    document.body.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+                } else {
+                    // Desktop: use localStorage
+                    const theme = localStorage.getItem('theme') || 'dark';
+                    document.body.setAttribute('data-theme', theme);
+                }
+            };
+
+            // Apply immediately if body exists, otherwise wait for DOMContentLoaded
+            if (document.body) {
+                setInitialTheme();
+            } else {
+                document.addEventListener('DOMContentLoaded', setInitialTheme);
+            }
+        })();
+    </script>
 </head>
 <body>
     <!-- Animated background -->
