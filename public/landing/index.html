@@ -3625,7 +3625,6 @@
             display: flex;
             flex-direction: column;
             gap: 6px;
-            width: 240px;
             z-index: 100;
         }
 
@@ -3650,7 +3649,8 @@
             justify-content: flex-start;
             text-align: left;
             white-space: nowrap;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            width: fit-content;
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             opacity: 1;
             transform: translateX(0);
@@ -3670,19 +3670,19 @@
         }
 
         .shortcuts-list:not(.hidden) .shortcut-chip:nth-child(1) {
-            transition-delay: 0.05s;
+            transition-delay: 0.02s;
         }
 
         .shortcuts-list:not(.hidden) .shortcut-chip:nth-child(2) {
-            transition-delay: 0.1s;
+            transition-delay: 0.04s;
         }
 
         .shortcuts-list:not(.hidden) .shortcut-chip:nth-child(3) {
-            transition-delay: 0.15s;
+            transition-delay: 0.06s;
         }
 
         .shortcuts-list:not(.hidden) .shortcut-chip:nth-child(4) {
-            transition-delay: 0.2s;
+            transition-delay: 0.08s;
         }
 
         .shortcut-chip:hover {
@@ -3859,12 +3859,21 @@
             }
 
             .chat-input-area {
-                flex-direction: column;
-                gap: 12px;
+                flex-direction: row;
+                gap: 8px;
             }
 
-            .chat-input, .chat-send-btn {
-                width: 100%;
+            .chat-input {
+                flex: 1;
+            }
+
+            .chat-send-btn {
+                width: auto;
+                padding: 12px;
+            }
+
+            .shortcuts-toggle {
+                order: -1;
             }
 
             .dropdown-container {
@@ -4066,8 +4075,7 @@
                     <!-- Chat Header -->
                     <div class="chat-header">
                         <div class="chat-title-group">
-                            <div class="chat-title">AI Admin Бот</div>
-                            <div class="chat-subtitle">Отвечает как настоящий администратор</div>
+                            <div class="chat-title">Admin AI Бот</div>
                         </div>
                         <div class="chat-status">
                             <span class="status-indicator"></span>
