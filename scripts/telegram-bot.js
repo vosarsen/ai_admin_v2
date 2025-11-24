@@ -17,6 +17,14 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8301218575:AAFRhNPuARDnkiKY
 const ADMIN_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '601999';
 const HEALTH_URL = 'http://localhost:3000/health';
 
+// GlitchTip integration
+const GlitchTipCommands = require('./lib/glitchtip-commands');
+const GLITCHTIP_URL = process.env.GLITCHTIP_URL || 'http://localhost:8080';
+const GLITCHTIP_TOKEN = process.env.GLITCHTIP_TOKEN;
+const glitchTipCommands = GLITCHTIP_TOKEN
+  ? new GlitchTipCommands(GLITCHTIP_URL, GLITCHTIP_TOKEN)
+  : null;
+
 if (!BOT_TOKEN || !ADMIN_CHAT_ID) {
   console.error('Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID');
   console.error('BOT_TOKEN:', BOT_TOKEN ? 'present' : 'missing');
@@ -225,6 +233,43 @@ class TelegramBot {
 
       case '/test':
         await this.handleTest(chatId);
+        break;
+
+      // GlitchTip commands
+      case '/errors':
+        if (glitchTipCommands) {
+          const args = text.split(' ').slice(1);
+          await glitchTipCommands.handleErrorsCommand(args, (msg) => this.sendMessage(chatId, msg, { parse_mode: 'Markdown' }));
+        } else {
+          await this.sendMessage(chatId, '❌ GlitchTip не настроен (отсутствует GLITCHTIP_TOKEN)');
+        }
+        break;
+
+      case '/resolve':
+        if (glitchTipCommands) {
+          const args = text.split(' ').slice(1);
+          await glitchTipCommands.handleResolveCommand(args, (msg) => this.sendMessage(chatId, msg, { parse_mode: 'Markdown' }));
+        } else {
+          await this.sendMessage(chatId, '❌ GlitchTip не настроен (отсутствует GLITCHTIP_TOKEN)');
+        }
+        break;
+
+      case '/investigate':
+        if (glitchTipCommands) {
+          const args = text.split(' ').slice(1);
+          await glitchTipCommands.handleInvestigateCommand(args, (msg) => this.sendMessage(chatId, msg, { parse_mode: 'Markdown' }));
+        } else {
+          await this.sendMessage(chatId, '❌ GlitchTip не настроен (отсутствует GLITCHTIP_TOKEN)');
+        }
+        break;
+
+      case '/glitchtip_stats':
+        if (glitchTipCommands) {
+          const args = text.split(' ').slice(1);
+          await glitchTipCommands.handleStatsCommand(args, (msg) => this.sendMessage(chatId, msg, { parse_mode: 'Markdown' }));
+        } else {
+          await this.sendMessage(chatId, '❌ GlitchTip не настроен (отсутствует GLITCHTIP_TOKEN)');
+        }
         break;
 
       default:

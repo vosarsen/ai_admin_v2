@@ -23,6 +23,7 @@ const { getSyncManager } = require('../sync/sync-manager');
 const whatsappBatchedWebhook = require('./webhooks/whatsapp-batched');
 const whatsappBaileysWebhook = require('./webhooks/whatsapp-baileys');
 const whatsappReactionWebhook = require('./webhooks/whatsapp-reaction');
+const glitchtipWebhook = require('./webhooks/glitchtip');
 const whatsappManagement = require('./routes/whatsapp-management');
 
 // Import Swagger documentation
@@ -96,6 +97,7 @@ setupSwagger(app);
 app.use(whatsappBatchedWebhook);
 app.use(whatsappBaileysWebhook);
 app.use(whatsappReactionWebhook);
+app.use('/api/webhooks/glitchtip', glitchtipWebhook);
 
 // Mount API routes
 app.use('/api/whatsapp', whatsappManagement);
