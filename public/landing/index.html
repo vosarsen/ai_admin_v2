@@ -2906,6 +2906,107 @@
             transform: translateY(0);
         }
 
+        /* Success Modal Styles */
+        .success-modal-content {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 30px;
+            padding: 50px;
+            max-width: 450px;
+            width: 90%;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            animation: slideUp 0.4s ease, successPop 0.6s ease;
+        }
+
+        @keyframes successPop {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 30px;
+        }
+
+        .success-circle {
+            stroke: #10b981;
+            stroke-width: 2;
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+
+        .success-check {
+            transform-origin: 50% 50%;
+            stroke: #10b981;
+            stroke-width: 2;
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+        }
+
+        @keyframes stroke {
+            100% {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        .success-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #000;
+            margin-bottom: 15px;
+        }
+
+        .success-message {
+            font-size: 16px;
+            color: #64748b;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .success-close {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #fff;
+            border: none;
+            border-radius: 15px;
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .success-close:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .success-close:active {
+            transform: translateY(0);
+        }
+
+        /* Dark theme for success modal */
+        body[data-theme="dark"] .success-modal-content {
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        body[data-theme="dark"] .success-title {
+            color: #f5f5f5;
+        }
+
+        body[data-theme="dark"] .success-message {
+            color: #d4d4d4;
+        }
+
         @media (max-width: 768px) {
             .modal-content {
                 padding: 30px 25px;
@@ -2914,6 +3015,31 @@
 
             .modal-header h2 {
                 font-size: 24px;
+            }
+
+            .success-modal-content {
+                padding: 40px 30px;
+                max-width: 90%;
+            }
+
+            .success-icon {
+                width: 60px;
+                height: 60px;
+                margin-bottom: 20px;
+            }
+
+            .success-title {
+                font-size: 24px;
+            }
+
+            .success-message {
+                font-size: 14px;
+                margin-bottom: 25px;
+            }
+
+            .success-close {
+                padding: 12px 30px;
+                font-size: 14px;
             }
 
             /* Contact Section Responsive */
@@ -4112,12 +4238,29 @@
         </div>
     </div>
 
+    <!-- Success Modal -->
+    <div class="modal-overlay success-modal" id="successModal">
+        <div class="success-modal-content">
+            <div class="success-icon">
+                <svg viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+                    <circle class="success-circle" cx="26" cy="26" r="25" fill="none"/>
+                    <path class="success-check" fill="none" d="M14 27l7.5 7.5L38 18"/>
+                </svg>
+            </div>
+            <h2 class="success-title">Спасибо!</h2>
+            <p class="success-message">Ваша заявка отправлена.<br>Мы свяжемся с вами в течение 24 часов.</p>
+            <button class="success-close" id="successModalClose">Закрыть</button>
+        </div>
+    </div>
+
     <!-- Modal JavaScript -->
     <script>
         const modal = document.getElementById('contactModal');
         const modalClose = document.getElementById('modalClose');
         const contactForm = document.getElementById('contactForm');
         const modalTriggers = document.querySelectorAll('.modal-trigger');
+        const successModal = document.getElementById('successModal');
+        const successModalClose = document.getElementById('successModalClose');
 
         // Open modal
         modalTriggers.forEach(trigger => {
@@ -4150,6 +4293,29 @@
                 modal.classList.remove('active');
                 document.body.style.overflow = 'auto';
             }
+            if (e.key === 'Escape' && successModal.classList.contains('active')) {
+                successModal.classList.remove('active');
+                document.body.style.overflow = 'auto';
+            }
+        });
+
+        // Success modal handlers
+        function showSuccessModal() {
+            successModal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function hideSuccessModal() {
+            successModal.classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+
+        successModalClose.addEventListener('click', hideSuccessModal);
+
+        successModal.addEventListener('click', (e) => {
+            if (e.target === successModal) {
+                hideSuccessModal();
+            }
         });
 
         // Form submission handler function
@@ -4173,17 +4339,16 @@
                 const data = await response.json();
 
                 if (response.ok && data.success) {
-                    // Show success message
-                    alert(data.message || 'Спасибо! Ваша заявка отправлена. Мы свяжемся с вами в течение 24 часов.');
-
                     // Reset form
                     formElement.reset();
 
-                    // Close modal if it was modal form
+                    // Close contact modal if it was modal form
                     if (isModal) {
                         modal.classList.remove('active');
-                        document.body.style.overflow = 'auto';
                     }
+
+                    // Show success modal
+                    showSuccessModal();
                 } else {
                     // Show error message
                     const errorMessage = data.message || data.errors?.[0]?.msg || 'Произошла ошибка при отправке. Попробуйте позже.';
