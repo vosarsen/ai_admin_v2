@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glass Surface Demo - Vanilla JS</title>
+    <link rel="stylesheet" href="glass-surface.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            font-size: 48px;
+            margin-bottom: 20px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.9);
+            text-align: center;
+            font-size: 18px;
+            margin-bottom: 60px;
+        }
+
+        .section {
+            margin-bottom: 60px;
+        }
+
+        .section-title {
+            color: white;
+            font-size: 32px;
+            margin-bottom: 30px;
+            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .example {
+            min-height: 200px;
+        }
+
+        .example-content {
+            text-align: center;
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        .example-content h3 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .example-content p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .code-box {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            color: white;
+        }
+
+        .code-box h4 {
+            margin-bottom: 10px;
+            color: #ffd700;
+        }
+
+        .code-box pre {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .code-box code {
+            color: #a8e6cf;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Glass Surface Demo</h1>
+        <p class="subtitle">Vanilla JavaScript implementation from React Bits</p>
+
+        <!-- Auto-initialized examples -->
+        <div class="section">
+            <h2 class="section-title">Автоматическая инициализация (data-glass-surface)</h2>
+            <div class="grid">
+                <div data-glass-surface data-glass-border-radius="24">
+                    <div class="example-content">
+                        <h3>Basic Glass</h3>
+                        <p>Стандартные параметры</p>
+                    </div>
+                </div>
+
+                <div data-glass-surface
+                     data-glass-border-radius="30"
+                     data-glass-brightness="60"
+                     data-glass-opacity="0.8">
+                    <div class="example-content">
+                        <h3>Custom Opacity</h3>
+                        <p>brightness=60, opacity=0.8</p>
+                    </div>
+                </div>
+
+                <div data-glass-surface
+                     data-glass-border-radius="40"
+                     data-glass-displace="15"
+                     data-glass-distortion-scale="-150">
+                    <div class="example-content">
+                        <h3>With Displacement</h3>
+                        <p>displace=15, distortionScale=-150</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="code-box">
+                <h4>HTML:</h4>
+                <pre><code>&lt;div data-glass-surface
+     data-glass-border-radius="24"
+     data-glass-brightness="60"&gt;
+    Ваш контент
+&lt;/div&gt;</code></pre>
+            </div>
+        </div>
+
+        <!-- Manual JavaScript initialization -->
+        <div class="section">
+            <h2 class="section-title">Программная инициализация (JavaScript)</h2>
+            <div class="grid">
+                <div id="manual-1" class="example">
+                    <div class="example-content">
+                        <h3>JavaScript Init</h3>
+                        <p>Создан через JS</p>
+                    </div>
+                </div>
+
+                <div id="manual-2" class="example">
+                    <div class="example-content">
+                        <h3>Custom Offsets</h3>
+                        <p>redOffset=5, greenOffset=15, blueOffset=25</p>
+                    </div>
+                </div>
+
+                <div id="manual-3" class="example">
+                    <div class="example-content">
+                        <h3>High Distortion</h3>
+                        <p>Сильная дисторция</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="code-box">
+                <h4>JavaScript:</h4>
+                <pre><code>const element = document.querySelector('#manual-1');
+const glass = new GlassSurface(element, {
+    borderRadius: 24,
+    brightness: 60,
+    opacity: 0.85,
+    displace: 10
+});
+
+// Обновление параметров
+glass.updateOptions({ brightness: 70 });
+
+// Удаление эффекта
+glass.destroy();</code></pre>
+            </div>
+        </div>
+
+        <!-- Navigation example -->
+        <div class="section">
+            <h2 class="section-title">Пример навигации</h2>
+            <nav id="nav-example" style="padding: 20px 40px; max-width: 800px; margin: 0 auto;">
+                <div class="example-content">
+                    <h3>AI ADMIN<sup style="color: #EC4899; font-size: 14px;">beta</sup></h3>
+                    <p>Навигационное меню с glass эффектом</p>
+                </div>
+            </nav>
+
+            <div class="code-box" style="margin-top: 30px;">
+                <h4>Для вашего index-new.html:</h4>
+                <pre><code>&lt;!-- В &lt;head&gt; --&gt;
+&lt;link rel="stylesheet" href="glass-surface.css"&gt;
+
+&lt;!-- Перед &lt;/body&gt; --&gt;
+&lt;script src="glass-surface.js"&gt;&lt;/script&gt;
+
+&lt;!-- В HTML --&gt;
+&lt;nav data-glass-surface
+     data-glass-border-radius="50"
+     data-glass-brightness="50"
+     data-glass-opacity="0.93"&gt;
+    Ваше меню
+&lt;/nav&gt;</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <script src="glass-surface.js"></script>
+    <script>
+        // Manual initialization examples
+        new GlassSurface(document.getElementById('manual-1'), {
+            borderRadius: 24,
+            brightness: 55,
+            opacity: 0.9
+        });
+
+        new GlassSurface(document.getElementById('manual-2'), {
+            borderRadius: 30,
+            displace: 15,
+            distortionScale: -150,
+            redOffset: 5,
+            greenOffset: 15,
+            blueOffset: 25
+        });
+
+        new GlassSurface(document.getElementById('manual-3'), {
+            borderRadius: 40,
+            displace: 20,
+            distortionScale: -200,
+            brightness: 60,
+            opacity: 0.8
+        });
+
+        // Navigation example
+        new GlassSurface(document.getElementById('nav-example'), {
+            width: '100%',
+            height: 'auto',
+            borderRadius: 50,
+            brightness: 50,
+            opacity: 0.93,
+            blur: 11
+        });
+    </script>
+</body>
+</html>

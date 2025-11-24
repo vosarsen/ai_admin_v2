@@ -1,0 +1,91 @@
+.demo-section-wrapper {
+  padding-top: 20px !important;
+}
+
+.demo-section {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1fr;
+  gap: 60px;
+  align-items: center;
+  margin-top: 80px;
+}
+
+.demo-bubbles {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 20px;
+}
+
+.bubble {
+  padding: 15px 20px;
+  border-radius: 20px;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 300;
+  animation: slideInFromBottom 0.6s ease-out forwards;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+@keyframes slideInFromBottom {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bubble:nth-child(1) { animation-delay: 0.2s; }
+.bubble:nth-child(2) { animation-delay: 0.8s; }
+.bubble:nth-child(3) { animation-delay: 1.4s; }
+
+.bubble.client {
+  background: rgba(40, 40, 40, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-right: auto;
+  border-radius: 20px 20px 20px 4px;
+  color: #d4d4d4;
+}
+
+.bubble.bot {
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.15), rgba(139, 92, 246, 0.15));
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  margin-left: auto;
+  border-radius: 20px 20px 4px 20px;
+}
+
+.demo-content {
+  text-align: left;
+}
+
+.demo-content h3 {
+  font-size: clamp(30px, 4vw, 40px);
+  font-weight: 700;
+  margin-bottom: 25px;
+  color: #f5f5f5;
+  letter-spacing: -1px;
+}
+
+.demo-content p {
+  font-size: 18px;
+  line-height: 1.7;
+  color: #d4d4d4;
+  font-weight: 300;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 968px) {
+  .demo-section {
+    grid-template-columns: 1fr;
+    gap: 50px;
+  }
+
+  .demo-bubbles {
+    order: 2;
+  }
+
+  .demo-content {
+    order: 1;
+    text-align: center;
+  }
+}

@@ -1,0 +1,136 @@
+.integration-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 40px;
+  margin-top: 60px;
+}
+
+.integration-card {
+  background: rgba(20, 20, 20, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 25px;
+  padding: 40px 30px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.integration-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04) 40%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  filter: blur(20px);
+}
+
+.integration-card:hover::before {
+  opacity: 1;
+}
+
+.integration-card:hover {
+  transform: translateY(-10px);
+}
+
+.integration-number {
+  font-size: 72px;
+  font-weight: 700;
+  color: rgba(167, 139, 250, 0.15);
+  line-height: 1;
+  margin-bottom: 20px;
+}
+
+.integration-card h3 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #f5f5f5;
+  margin-bottom: 15px;
+}
+
+.integration-card p {
+  font-size: 15px;
+  color: #d4d4d4;
+  line-height: 1.6;
+  margin-bottom: 30px;
+}
+
+.integration-visual {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 15px;
+  padding: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 150px;
+}
+
+.qr-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qr-line {
+  width: 100px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.api-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(167, 139, 250, 0.1);
+  padding: 15px 20px;
+  border-radius: 10px;
+}
+
+.api-label {
+  color: #A78BFA;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.api-dots {
+  color: #d4d4d4;
+  font-size: 18px;
+}
+
+.chat-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  width: 100%;
+}
+
+.chat-bubble-preview {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #d4d4d4;
+  max-width: 80%;
+}
+
+.chat-button-preview {
+  background: #A78BFA;
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #ffffff;
+  font-weight: 600;
+  max-width: 80%;
+  margin-left: auto;
+}
+
+@media (max-width: 968px) {
+  .integration-steps {
+    grid-template-columns: 1fr;
+  }
+}
