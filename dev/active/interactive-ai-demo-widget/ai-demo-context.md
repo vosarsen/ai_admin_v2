@@ -56,23 +56,24 @@ Completed:
 **Action:** Implemented FAB (Floating Action Button) interface for shortcuts
 **Status:** Implemented in commit d6309e6, **SUPERSEDED by dropdown implementation**
 
-### Horizontal Shortcuts Bar Implementation (Current)
+### Vertical Shortcuts Menu Implementation (Current)
 **Date:** 2025-11-25
-**Action:** Replaced dropdown with compact horizontal shortcuts bar, moved toggle to input area
+**Action:** Redesigned shortcuts as vertical popup menu with rainbow glow toggle
 **Features:**
-- ✅ Lightning icon toggle button (40x40px circle, purple highlighted)
+- ✅ Lightning icon toggle button (40x40px circle, neutral color)
+- ✅ Rainbow glow animation around toggle (3s infinite loop)
 - ✅ Toggle positioned in input area (left of text field)
-- ✅ Horizontal scrolling list of auto-width chips
-- ✅ Each chip auto-sizes based on text length (no fixed width)
-- ✅ Hidden scrollbar for clean appearance
-- ✅ Toggle shows/hides shortcuts with smooth transition
-- ✅ 4 dynamic shortcut chips with emoji icons
+- ✅ Vertical popup menu (220px width, rounded corners)
+- ✅ Menu appears above toggle button (position: absolute, bottom: 100%)
+- ✅ 4 vertical shortcut buttons with emoji icons
+- ✅ Buttons slide right on hover (translateX(4px))
 - ✅ Auto-icon mapping based on suggestion text (getIconForSuggestion)
-- ✅ Glass morphism design matching chat UI
-- ✅ Light theme support (purple toggle highlight on both themes)
+- ✅ Glass morphism design with dark background (rgba(80, 80, 90, 0.95))
+- ✅ Light theme support (white menu background)
 - ✅ Mobile responsive (compact layout)
-- ✅ Removed colorGlow animations from input field
-- ✅ Simplified send button hover (no lift animation)
+- ✅ Input field border-radius increased to 30px
+- ✅ Send button border-radius increased to 30px
+- ✅ No colorGlow animations on input/send button
 
 **Icon Mapping:**
 - ✂️ - Стрижка, волосы
@@ -96,20 +97,21 @@ Completed:
 - ✅ All other widget functionality
 
 **Technical Details:**
-- Toggle: 40x40px circle with lightning SVG icon (purple highlighted)
+- Toggle: 40x40px circle with lightning SVG icon (neutral color)
+- Toggle background: rgba(255, 255, 255, 0.08) matching input field
+- Rainbow glow: 6-color animation (red → orange → yellow → green → blue → purple) 3s loop
 - Toggle position: In chat-input-area, left of text field
-- Toggle default: rgba(102, 126, 234, 0.15) background, #667eea icon color
-- Toggle hover: rgba(102, 126, 234, 0.25) background
-- Toggle active: rgba(102, 126, 234, 0.3) background
-- Chips: `inline-flex` with `white-space: nowrap` for auto-width
-- Container: Horizontal scroll with `overflow-x: auto`
-- Transition: 0.3s ease for show/hide animation
-- Chip hover: `translateY(-2px)` lift effect
-- Input field: No colorGlow animations (clean, static)
-- Send button: Simple hover (no translateY)
-- File: `public/landing/index.html` (lines 3547-3665, 4063-4105, 5406-5638)
+- Menu: position: absolute, bottom: 100%, left: 0
+- Menu size: 220px width, auto height, 12px border-radius
+- Menu background: rgba(80, 80, 90, 0.95) dark theme, rgba(255, 255, 255, 0.95) light theme
+- Buttons: 12px padding, flex layout with icon + text
+- Button hover: rgba(255, 255, 255, 0.15) background, translateX(4px) slide
+- Transition: 0.3s ease for show/hide animation (opacity + translateY)
+- Input field: border-radius 30px, no animations
+- Send button: border-radius 30px, simple hover
+- File: `public/landing/index.html` (lines 3547-3691, 4080-4120, 5396-5638)
 
-**Status:** Implemented in commit 05b175e, deployed to production
+**Status:** Implemented in commit 1bc4044, deployed to production
 
 Next Steps:
 - 🚧 Monitor real user interactions
