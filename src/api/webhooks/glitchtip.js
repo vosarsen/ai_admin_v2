@@ -19,6 +19,9 @@ const router = express.Router();
 const logger = require('../../utils/logger');
 const axios = require('axios');
 const Sentry = require('@sentry/node');
+const crypto = require('crypto');
+const rateLimiter = require('../../middlewares/rate-limiter');
+const { validateWebhookPayload } = require('../../../scripts/lib/validation');
 
 // ============================================================================
 // Configuration
@@ -27,6 +30,7 @@ const Sentry = require('@sentry/node');
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '601999';
 const GLITCHTIP_URL = process.env.GLITCHTIP_URL || 'http://localhost:8080';
+const WEBHOOK_SECRET = process.env.GLITCHTIP_WEBHOOK_SECRET; // Optional HMAC secret
 
 // GlitchTip issue severity emojis
 const SEVERITY_EMOJI = {
@@ -38,6 +42,46 @@ const SEVERITY_EMOJI = {
 };
 
 // ============================================================================
+// Security Helpers
+// ============================================================================
+
+/**
+ * Verify webhook HMAC signature
+ *
+ * @param {object} req - Express request object
+ * @returns {boolean} true if signature is valid or verification is disabled
+ */
+function verifySignature(req) {
+  // If no secret configured, skip verification (development mode)
+  if (!WEBHOOK_SECRET) {
+    logger.debug('Webhook signature verification disabled (no secret configured)');
+    return true;
+  }
+
+  const signature = req.headers['x-glitchtip-signature'] || req.headers['x-hub-signature-256'];
+  if (!signature) {
+    logger.warn('Missing webhook signature header');
+    return false;
+  }
+
+  try {
+    // Create HMAC with sha256
+    const hmac = crypto.createHmac('sha256', WEBHOOK_SECRET);
+    hmac.update(JSON.stringify(req.body));
+    const calculated = 'sha256=' + hmac.digest('hex');
+
+    // Timing-safe comparison
+    return crypto.timingSafeEqual(
+      Buffer.from(signature),
+      Buffer.from(calculated)
+    );
+  } catch (error) {
+    logger.error('Error verifying webhook signature:', error);
+    return false;
+  }
+}
+
+// ============================================================================
 // Webhook Endpoint
 // ============================================================================
 
@@ -45,8 +89,11 @@ const SEVERITY_EMOJI = {
  * POST /api/webhooks/glitchtip
  *
  * Receives webhooks from GlitchTip and sends Telegram alerts.
+ * Rate limited to 100 requests per 15 minutes.
  */
-router.post('/', async (req, res) => {
+router.post('/',
+  rateLimiter({ windowMs: 15 * 60 * 1000, max: 100 }),
+  async (req, res) => {
   const startTime = Date.now();
 
   try {
@@ -58,10 +105,17 @@ router.post('/', async (req, res) => {
       title: payload.data?.issue?.title?.substring(0, 50)
     });
 
-    // Validate payload
-    if (!payload || !payload.data || !payload.data.issue) {
-      logger.warn('⚠️ Invalid GlitchTip webhook payload');
-      return res.status(400).json({ error: 'Invalid payload' });
+    // Verify HMAC signature
+    if (!verifySignature(req)) {
+      logger.warn('⚠️ Invalid webhook signature - possible unauthorized request');
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+
+    // Validate payload structure
+    const validation = validateWebhookPayload(payload);
+    if (!validation.valid) {
+      logger.warn('⚠️ Invalid GlitchTip webhook payload', { error: validation.error });
+      return res.status(400).json({ error: validation.error });
     }
 
     const event = payload.action || 'unknown';

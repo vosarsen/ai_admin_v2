@@ -18,6 +18,7 @@
  */
 
 const GlitchTipAPI = require('./lib/glitchtip-api');
+const { validateIssueId } = require('./lib/validation');
 const { execSync } = require('child_process');
 const path = require('path');
 
@@ -330,7 +331,16 @@ if (require.main === module) {
     process.exit(1);
   }
 
-  investigateError(issueId)
+  // Validate issue ID
+  const validation = validateIssueId(issueId);
+  if (!validation.valid) {
+    console.error(`${colors.red}✗ ${validation.error}${colors.reset}`);
+    console.error('Usage: node scripts/investigate-error.js <issue-id>');
+    console.error('Example: node scripts/investigate-error.js 123');
+    process.exit(1);
+  }
+
+  investigateError(validation.sanitized)
     .then(() => process.exit(0))
     .catch(error => {
       console.error(`${colors.red}Fatal error:${colors.reset}`, error);
