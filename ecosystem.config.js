@@ -190,6 +190,24 @@ module.exports = {
       out_file: './logs/backup-postgresql-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       max_memory_restart: '100M'
+    },
+    {
+      name: 'glitchtip-daily-metrics',
+      script: './scripts/daily-metrics.js',
+      instances: 1,
+      exec_mode: 'fork',
+      cron_restart: '0 9 * * *', // Daily at 9 AM UTC (12:00 MSK)
+      autorestart: false, // Don't restart automatically, only via cron
+      env: {
+        NODE_ENV: 'production',
+        GLITCHTIP_TOKEN: '59f4347216461350eebe7cb10e1220fb5d866c6eaffcee28b309bc5690b1a64a',
+        TELEGRAM_BOT_TOKEN: '8301218575:AAFRhNPuARDnkiKY2aQKbDkUWPbaSiINPpc',
+        TELEGRAM_CHAT_ID: '601999'
+      },
+      error_file: './logs/glitchtip-metrics-error.log',
+      out_file: './logs/glitchtip-metrics-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      max_memory_restart: '50M'
     }
   ]
 };
