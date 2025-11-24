@@ -3123,6 +3123,81 @@
         }
 
         /* ============================================
+           INTERACTIVE DEMO SECTION (Two Columns)
+           ============================================ */
+
+        .demo-interactive-section {
+            max-width: 1400px;
+            margin: 80px auto;
+            padding: 0 40px;
+        }
+
+        .demo-interactive-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+        }
+
+        .demo-text-column {
+            padding-right: 20px;
+        }
+
+        .demo-text-column h2 {
+            font-size: 42px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            line-height: 1.2;
+            color: white;
+        }
+
+        .demo-text-column h3 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            margin-top: 30px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .demo-text-column p {
+            font-size: 18px;
+            line-height: 1.8;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 15px;
+        }
+
+        .demo-chat-column {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 1024px) {
+            .demo-interactive-container {
+                grid-template-columns: 1fr;
+                gap: 40px;
+            }
+
+            .demo-text-column {
+                padding-right: 0;
+                text-align: center;
+            }
+
+            .demo-text-column h2 {
+                font-size: 32px;
+            }
+
+            .demo-text-column h3 {
+                font-size: 24px;
+            }
+
+            .demo-text-column p {
+                font-size: 16px;
+            }
+        }
+
+        /* ============================================
            INTERACTIVE DEMO CHAT WIDGET
            ============================================ */
 
@@ -3815,84 +3890,92 @@
         </div>
     </section>
 
-    <!-- Interactive Demo Chat Widget -->
-    <section class="demo-chat-widget fade-in">
-        <div class="chat-widget-intro">
-            <h2 class="section-title">Попробуйте бота прямо сейчас</h2>
-            <p class="section-subtitle">Напишите боту или выберите один из вариантов ниже, чтобы увидеть, как он работает</p>
-        </div>
-
-        <div class="chat-container">
-            <!-- Chat Header -->
-            <div class="chat-header">
-                <div class="chat-title-group">
-                    <div class="chat-title">AI Admin Бот</div>
-                    <div class="chat-subtitle">Отвечает как настоящий администратор</div>
-                </div>
-                <div class="chat-status">
-                    <span class="status-indicator"></span>
-                    <span class="status-text">Онлайн</span>
-                </div>
+    <!-- Interactive Demo Section (Two Columns) -->
+    <section class="demo-interactive-section fade-in">
+        <div class="demo-interactive-container">
+            <!-- Left Column: Text Content -->
+            <div class="demo-text-column">
+                <h2>Попробуйте бота прямо сейчас</h2>
+                <h3>Бот работает как настоящий администратор</h3>
+                <p>Admin AI beta понимает естественную речь и ведет диалог так же, как живой человек. Бот автоматически записывает клиентов, предлагает удобное время и отвечает на любые вопросы.</p>
+                <p>Клиенты даже не замечают, что общаются с ботом — настолько естественно проходит диалог.</p>
             </div>
 
-            <!-- Chat Messages -->
-            <div class="chat-messages" id="demoMessages">
-                <div class="message bot">
-                    <div class="message-bubble">
-                        <div class="bot-avatar">🤖</div>
-                        <div class="message-content">
-                            Здравствуйте! Я AI бот Demo Beauty Salon. Чем могу помочь?
-                            Выберите один из вариантов ниже или напишите свой вопрос.
+            <!-- Right Column: Chat Widget -->
+            <div class="demo-chat-column">
+                <div class="chat-container">
+                    <!-- Chat Header -->
+                    <div class="chat-header">
+                        <div class="chat-title-group">
+                            <div class="chat-title">AI Admin Бот</div>
+                            <div class="chat-subtitle">Отвечает как настоящий администратор</div>
+                        </div>
+                        <div class="chat-status">
+                            <span class="status-indicator"></span>
+                            <span class="status-text">Онлайн</span>
                         </div>
                     </div>
+
+                    <!-- Chat Messages -->
+                    <div class="chat-messages" id="demoMessages">
+                        <div class="message bot">
+                            <div class="message-bubble">
+                                <div class="bot-avatar">🤖</div>
+                                <div class="message-content">
+                                    Здравствуйте! Я AI бот Demo Beauty Salon. Чем могу помочь?
+                                    Выберите один из вариантов ниже или напишите свой вопрос.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Typing Indicator -->
+                    <div class="typing-indicator" id="demoTyping">
+                        <div class="typing-dots">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                    </div>
+
+                    <!-- Template Buttons -->
+                    <div class="chat-templates" id="demoTemplates">
+                        <button class="template-btn" data-message="Записаться на стрижку">
+                            <span class="template-text">Записаться на стрижку</span>
+                        </button>
+                        <button class="template-btn" data-message="Узнать цены на услуги">
+                            <span class="template-text">Узнать цены</span>
+                        </button>
+                        <button class="template-btn" data-message="Какое свободное время на завтра?">
+                            <span class="template-text">Свободное время на завтра</span>
+                        </button>
+                        <button class="template-btn" data-message="Перенести мою запись">
+                            <span class="template-text">Перенести запись</span>
+                        </button>
+                    </div>
+
+                    <!-- Chat Input -->
+                    <div class="chat-input-area">
+                        <textarea
+                            class="chat-input"
+                            id="demoInput"
+                            placeholder="Напишите ваш вопрос..."
+                            rows="1"
+                            maxlength="500"
+                        ></textarea>
+                        <button class="chat-send-btn" id="demoSend">
+                            <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Demo Limit Notice -->
+                    <div class="demo-limit-notice" id="demoLimitNotice" style="display: none;">
+                        <span class="limit-icon">ℹ️</span>
+                        <span class="limit-text">Осталось сообщений: <span id="messagesRemaining">10</span>/10</span>
+                    </div>
                 </div>
-            </div>
-
-            <!-- Typing Indicator -->
-            <div class="typing-indicator" id="demoTyping">
-                <div class="typing-dots">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </div>
-            </div>
-
-            <!-- Template Buttons -->
-            <div class="chat-templates" id="demoTemplates">
-                <button class="template-btn" data-message="Записаться на стрижку">
-                    <span class="template-text">Записаться на стрижку</span>
-                </button>
-                <button class="template-btn" data-message="Узнать цены на услуги">
-                    <span class="template-text">Узнать цены</span>
-                </button>
-                <button class="template-btn" data-message="Какое свободное время на завтра?">
-                    <span class="template-text">Свободное время на завтра</span>
-                </button>
-                <button class="template-btn" data-message="Перенести мою запись">
-                    <span class="template-text">Перенести запись</span>
-                </button>
-            </div>
-
-            <!-- Chat Input -->
-            <div class="chat-input-area">
-                <textarea
-                    class="chat-input"
-                    id="demoInput"
-                    placeholder="Напишите ваш вопрос..."
-                    rows="1"
-                    maxlength="500"
-                ></textarea>
-                <button class="chat-send-btn" id="demoSend">
-                    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                    </svg>
-                </button>
-            </div>
-
-            <!-- Demo Limit Notice -->
-            <div class="demo-limit-notice" id="demoLimitNotice" style="display: none;">
-                <span class="limit-icon">ℹ️</span>
-                <span class="limit-text">Осталось сообщений: <span id="messagesRemaining">10</span>/10</span>
             </div>
         </div>
     </section>
