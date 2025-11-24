@@ -154,8 +154,15 @@ class GlitchTipAPI {
    */
   async getIssue(orgSlug, issueId) {
     try {
-      const { data } = await this.client.get(`/organizations/${orgSlug}/issues/${issueId}/`);
-      return data;
+      // GlitchTip doesn't have a single issue endpoint, so we search by ID
+      const issues = await this.getIssues(orgSlug, { limit: 100 });
+      const issue = issues.find(i => i.id === String(issueId));
+
+      if (!issue) {
+        throw new Error(`Issue ${issueId} not found`);
+      }
+
+      return issue;
     } catch (error) {
       throw new Error(`Failed to get issue ${issueId}: ${error.message}`);
     }
