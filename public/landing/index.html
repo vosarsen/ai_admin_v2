@@ -3544,37 +3544,161 @@
             30% { transform: translateY(-10px); opacity: 1; }
         }
 
-        .chat-templates {
-            padding: 15px 20px;
+        /* FAB Button */
+        .shortcuts-fab {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fabPulse 3s ease-in-out infinite;
+        }
+
+        .shortcuts-fab svg {
+            width: 28px;
+            height: 28px;
+            color: white;
+            transition: transform 0.3s ease;
+        }
+
+        .shortcuts-fab:hover {
+            transform: scale(1.1) rotate(15deg);
+            box-shadow: 0 12px 32px rgba(102, 126, 234, 0.6);
+        }
+
+        .shortcuts-fab:active {
+            transform: scale(0.95);
+        }
+
+        @keyframes fabPulse {
+            0%, 100% {
+                box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+            }
+            50% {
+                box-shadow: 0 8px 32px rgba(102, 126, 234, 0.6), 0 0 0 8px rgba(102, 126, 234, 0.2);
+            }
+        }
+
+        /* Shortcuts Menu */
+        .shortcuts-menu {
+            position: fixed;
+            bottom: 110px;
+            right: 30px;
+            width: 320px;
+            background: rgba(20, 20, 30, 0.98);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            z-index: 999;
+            opacity: 0;
+            transform: translateY(20px) scale(0.95);
+            visibility: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            max-height: 500px;
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            align-items: flex-start;
+        }
+
+        .shortcuts-menu.active {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            visibility: visible;
+        }
+
+        .shortcuts-menu-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .shortcuts-menu-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .shortcuts-menu-close {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .shortcuts-menu-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .shortcuts-menu-close svg {
+            width: 18px;
+            height: 18px;
+            color: white;
+        }
+
+        .shortcuts-menu-content {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+            max-height: 400px;
+        }
+
+        .shortcuts-menu-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .shortcuts-menu-content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
         }
 
         .template-btn {
-            padding: 10px 14px;
+            padding: 14px 18px;
             background: rgba(255, 255, 255, 0.05);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 20px;
+            border-radius: 16px;
             color: white;
             font-size: 14px;
             cursor: pointer;
-            transition: background 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
+            transition: all 0.3s ease;
             text-align: left;
-            display: inline-flex;
+            display: flex;
             align-items: center;
             gap: 10px;
+            width: 100%;
             animation: buttonGlow 6s ease-in-out infinite;
-            width: fit-content;
         }
 
         .template-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.12);
             border-color: rgba(255, 255, 255, 0.3);
-            transform: translateY(-2px);
+            transform: translateX(4px);
             animation: buttonGlowHover 6s ease-in-out infinite;
+        }
+
+        .template-btn:active {
+            transform: scale(0.98);
         }
 
         .chat-input-area {
@@ -3682,6 +3806,32 @@
             color: rgba(0, 0, 0, 0.4);
         }
 
+        body[data-theme="light"] .shortcuts-menu {
+            background: rgba(255, 255, 255, 0.98);
+            border-color: rgba(0, 0, 0, 0.1);
+        }
+
+        body[data-theme="light"] .shortcuts-menu-title {
+            color: #333;
+        }
+
+        body[data-theme="light"] .shortcuts-menu-close {
+            background: rgba(0, 0, 0, 0.05);
+            border-color: rgba(0, 0, 0, 0.1);
+        }
+
+        body[data-theme="light"] .shortcuts-menu-close:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        body[data-theme="light"] .shortcuts-menu-close svg {
+            color: #333;
+        }
+
+        body[data-theme="light"] .shortcuts-menu-header {
+            border-bottom-color: rgba(0, 0, 0, 0.1);
+        }
+
         /* Mobile responsive */
         @media (max-width: 768px) {
             .demo-chat-widget {
@@ -3708,6 +3858,26 @@
 
             .chat-input, .chat-send-btn {
                 width: 100%;
+            }
+
+            .shortcuts-fab {
+                bottom: 20px;
+                right: 20px;
+                width: 56px;
+                height: 56px;
+            }
+
+            .shortcuts-fab svg {
+                width: 24px;
+                height: 24px;
+            }
+
+            .shortcuts-menu {
+                bottom: 90px;
+                right: 20px;
+                left: 20px;
+                width: auto;
+                max-width: calc(100vw - 40px);
             }
         }
 
@@ -3917,20 +4087,37 @@
                         </div>
                     </div>
 
-                    <!-- Template Buttons -->
-                    <div class="chat-templates" id="demoTemplates">
-                        <button class="template-btn" data-message="Записаться на стрижку">
-                            <span class="template-text">Записаться на стрижку</span>
-                        </button>
-                        <button class="template-btn" data-message="Узнать цены на услуги">
-                            <span class="template-text">Узнать цены</span>
-                        </button>
-                        <button class="template-btn" data-message="Какое свободное время на завтра?">
-                            <span class="template-text">Свободное время на завтра</span>
-                        </button>
-                        <button class="template-btn" data-message="Перенести мою запись">
-                            <span class="template-text">Перенести запись</span>
-                        </button>
+                    <!-- FAB Button -->
+                    <button class="shortcuts-fab" id="shortcutsFab" aria-label="Быстрые действия">
+                        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
+                        </svg>
+                    </button>
+
+                    <!-- Shortcuts Menu (hidden by default) -->
+                    <div class="shortcuts-menu" id="shortcutsMenu">
+                        <div class="shortcuts-menu-header">
+                            <span class="shortcuts-menu-title">Быстрые действия</span>
+                            <button class="shortcuts-menu-close" id="shortcutsClose" aria-label="Закрыть">
+                                <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="shortcuts-menu-content" id="demoTemplates">
+                            <button class="template-btn" data-message="Записаться на стрижку">
+                                <span class="template-text">Записаться на стрижку</span>
+                            </button>
+                            <button class="template-btn" data-message="Узнать цены на услуги">
+                                <span class="template-text">Узнать цены</span>
+                            </button>
+                            <button class="template-btn" data-message="Какое свободное время на завтра?">
+                                <span class="template-text">Свободное время на завтра</span>
+                            </button>
+                            <button class="template-btn" data-message="Перенести мою запись">
+                                <span class="template-text">Перенести запись</span>
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Chat Input -->
@@ -5254,8 +5441,35 @@
         const demoSend = document.getElementById('demoSend');
         const demoTyping = document.getElementById('demoTyping');
         const demoTemplates = document.getElementById('demoTemplates');
+        const shortcutsFab = document.getElementById('shortcutsFab');
+        const shortcutsMenu = document.getElementById('shortcutsMenu');
+        const shortcutsClose = document.getElementById('shortcutsClose');
         // const demoLimitNotice = document.getElementById('demoLimitNotice'); // REMOVED
         // const messagesRemainingSpan = document.getElementById('messagesRemaining'); // REMOVED
+
+        // FAB Menu Toggle
+        shortcutsFab.addEventListener('click', () => {
+            shortcutsMenu.classList.toggle('active');
+        });
+
+        // Close menu button
+        shortcutsClose.addEventListener('click', () => {
+            shortcutsMenu.classList.remove('active');
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!shortcutsMenu.contains(e.target) && !shortcutsFab.contains(e.target)) {
+                shortcutsMenu.classList.remove('active');
+            }
+        });
+
+        // Close menu after selecting a shortcut
+        demoTemplates.addEventListener('click', (e) => {
+            if (e.target.closest('.template-btn')) {
+                shortcutsMenu.classList.remove('active');
+            }
+        });
 
         // Auto-resize textarea
         demoInput.addEventListener('input', function() {
