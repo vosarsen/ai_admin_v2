@@ -14,22 +14,22 @@
 - [ ] **Get placement decision from user** (BLOCKING)
 - [ ] Review and approve plan with user
 
-## Phase 1: Backend Development (1-2 hours)
+## Phase 1: Backend Development (1-2 hours) ✅ COMPLETED
 
 ### API Endpoint Setup
-- [ ] Create `src/api/routes/demo-chat.js` file
-- [ ] Define POST `/api/demo-chat` route
-- [ ] Add request validation (sessionId, message)
-- [ ] Set up error handling middleware
-- [ ] Add endpoint to main routes file
+- [x] Create `src/api/routes/demo-chat.js` file
+- [x] Define POST `/api/demo-chat` route
+- [x] Add request validation (sessionId, message)
+- [x] Set up error handling middleware
+- [x] Add endpoint to main routes file (`src/api/index.js` line 110-111)
 
-### Rate Limiting
-- [ ] Install `express-rate-limit` if needed
-- [ ] Create `src/middleware/rate-limit-demo.js`
-- [ ] Implement per-IP limiting (100 sessions/day)
-- [ ] Implement per-session limiting (10 messages)
-- [ ] Add Redis counters for tracking
-- [ ] Test rate limits trigger correctly
+### Rate Limiting ✅
+- [x] ~~Install `express-rate-limit`~~ (using existing smartCache Redis)
+- [x] ~~Create middleware~~ (inline in demo-chat.js)
+- [x] Implement per-IP limiting (100 sessions/day)
+- [x] Implement per-session limiting (10 messages)
+- [x] Add Redis counters for tracking (via smartCache)
+- [x] Test rate limits trigger correctly
 
 ### Demo Mode Service
 - [ ] Create `src/services/ai-admin-v2/demo-mode.js`
