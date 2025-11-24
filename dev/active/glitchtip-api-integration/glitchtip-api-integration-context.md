@@ -1,0 +1,400 @@
+# GlitchTip API Integration - Context & Key Information
+
+**Last Updated:** 2025-11-24
+**Status:** Planning Complete → Ready for Implementation
+**Phase:** Phase 0 (Setup) - Not Started
+**Progress:** 0/31 hours (0%)
+
+---
+
+## Project Overview
+
+### What We're Building
+Enhanced Manual Workflow for error tracking using GlitchTip API - helper tools that reduce error triage/resolution time by 70% without complex automation.
+
+### Why We're Doing It
+- **Problem:** Manual error triage takes 15 minutes per error
+- **Solution:** Automate investigation, provide quick actions, link to runbooks
+- **Benefit:** 70% time savings (15 min → 4-5 min per error)
+- **Cost:** $1,550 one-time, $0 ongoing
+- **ROI:** 400-600% first year
+
+### Approach
+Build 5 practical tools instead of complex auto-remediation:
+1. Investigation Helper - Auto-search codebase, find related files/commits
+2. Daily Metrics - Proactive monitoring via Telegram reports
+3. Telegram Bot - Quick queries (`/errors database 24h`)
+4. Runbook Integration - Auto-link known errors to solutions
+5. Enhanced Webhooks - Rich Telegram alerts with context
+
+---
+
+## Current State
+
+### GlitchTip Deployment
+**Status:** ✅ Production Active (Phase 3 monitoring since 2025-11-24)
+
+**Access:**
+- Server: 46.149.70.219
+- URL: http://localhost:8080 (localhost-only, secure)
+- SSH Tunnel: `ssh -i ~/.ssh/id_ed25519_ai_admin -L 9090:localhost:8080 -N -f root@46.149.70.219`
+- UI: http://localhost:9090 (via tunnel)
+- Credentials: support@adminai.tech / AdminSecure2025
+
+**Infrastructure:**
+- Containers: 4 (web, worker, postgres, redis)
+- Resources: ~395 MiB (21% of 1.9GB RAM)
+- Health: All Up, Grade A (94/100)
+
+**API Status:**
+- ⚠️ API Token: Not yet created (will do in Phase 0)
+- ✅ API Documentation: Available (GLITCHTIP_API_RESEARCH.md)
+- ✅ Example Script: scripts/glitchtip-api-example.js
+
+### Error Tracking
+**Status:** ✅ Fully Integrated
+
+**Capture Points:** 62 Sentry.captureException() calls
+- Database errors: 4 locations
+- Repository errors: 5 locations
+- WhatsApp errors: 10 locations
+- YClients errors: 20 locations
+- Scripts: 12 locations
+- Other: 11 locations
+
+**Context Captured:**
+- Stack traces, user context, tags
+- Extra data (params, state, metrics)
+- Service names, environment
+
+### Current Workflow (Manual)
+**Time:** ~15 minutes per error
+
+**Steps:**
+1. Alert received → 1 min
+2. Open GlitchTip → 1 min
+3. Read error → 2 min
+4. Search codebase → 5 min
+5. Check commits → 2 min
+6. Identify cause → 3 min
+7. Fix & deploy → 1 min
+
+**Pain Points:**
+- Slow codebase search
+- No history of similar issues
+- No runbook links
+- Limited alert context
+- Reactive only (no proactive monitoring)
+
+---
+
+## Target State
+
+### Enhanced Workflow
+**Time:** ~4-5 minutes per error (70% faster)
+
+**Automated Steps:**
+1. Rich alert with context → 0.5 min
+2. Helper script finds files → 0.5 min
+3. Runbook link if known → 0.5 min
+4. Similar issues from history → 0.5 min
+5. Fix & deploy → 2-3 min
+
+**New Capabilities:**
+- ✅ Automated investigation (codebase + git)
+- ✅ Proactive monitoring (daily reports)
+- ✅ Quick actions (Telegram commands)
+- ✅ Knowledge base (runbooks)
+- ✅ Rich context (enhanced alerts)
+
+---
+
+## Key Decisions
+
+### Decision 1: Enhanced Manual vs Auto-Remediation
+**Options:**
+1. ✅ Enhanced Manual ($1,550, $0/month, 70% savings)
+2. ❌ Auto-Triage ($2,400, $500/month, 75% savings)
+3. ❌ Full Auto ($12,000, $3,000/month, negative ROI)
+
+**Chosen:** Enhanced Manual
+**Rationale:**
+- Higher ROI (400-600% vs negative)
+- Lower risk (human in control)
+- Faster break-even (1-2 months vs never)
+- Better for 1-2 dev team
+
+**Source:** AUTO_REMEDIATION_REVIEW.md (26,000 words by plan-reviewer agent)
+
+### Decision 2: GlitchTip API vs Direct DB Access
+**Options:**
+1. ✅ GlitchTip API (standard, documented)
+2. ❌ Direct PostgreSQL (brittle, unsupported)
+
+**Chosen:** GlitchTip API
+**Rationale:**
+- Sentry-compatible (stable)
+- Well documented
+- Forward compatible
+- No schema coupling
+
+### Decision 3: Telegram vs Email Alerts
+**Options:**
+1. ✅ Telegram (rich formatting, bot commands)
+2. ❌ Email (limited formatting, no commands)
+
+**Chosen:** Telegram
+**Rationale:**
+- Already have bot
+- Supports rich markdown
+- Interactive (buttons, commands)
+- Real-time notifications
+
+### Decision 4: PM2 Cron vs System Cron
+**Options:**
+1. ✅ PM2 Cron (integrated, monitored)
+2. ❌ System Cron (separate, harder to monitor)
+
+**Chosen:** PM2 Cron
+**Rationale:**
+- Already using PM2
+- Better monitoring
+- Easier management
+- Consistent with other jobs
+
+---
+
+## Critical Files
+
+### Existing Files
+**Documentation:**
+- `GLITCHTIP_API_RESEARCH.md` (10,500+ lines) - Complete API reference
+- `GLITCHTIP_API_QUICK_START.md` (350 lines) - Quick setup guide
+- `AUTO_REMEDIATION_REVIEW.md` (14,000 words) - What NOT to build
+- `ERROR_TRACKING_WORKFLOW.md` (580 lines) - Operational guide
+
+**Code:**
+- `scripts/glitchtip-api-example.js` (219 lines) - Working API example
+- `src/instrument.js` (44 lines) - Sentry initialization
+- `src/integrations/whatsapp/auth-state-timeweb.js` - Error capture example
+
+### Files to Create (Phase 0-5)
+**Phase 0:**
+- `scripts/lib/glitchtip-api.js` - Reusable API client
+
+**Phase 1:**
+- `scripts/investigate-error.js` - Investigation helper
+
+**Phase 2:**
+- `scripts/daily-metrics.js` - Daily metrics report
+
+**Phase 3:**
+- `src/services/telegram-bot/glitchtip-commands.js` - Bot commands
+
+**Phase 4:**
+- `runbooks/*.md` - 5 common error runbooks
+- `scripts/link-runbooks.js` - Runbook linker
+
+**Phase 5:**
+- `src/webhooks/glitchtip.js` - Enhanced webhook handler
+
+---
+
+## Dependencies
+
+### Technical
+**Software:**
+- ✅ Node.js v20+
+- ✅ axios (API client)
+- ⚠️ ripgrep (fast search) - to install
+- ✅ git (commit history)
+- ✅ Telegram Bot (existing)
+
+**Infrastructure:**
+- ✅ GlitchTip production (running)
+- ✅ SSH access (configured)
+- ✅ PM2 (for cron jobs)
+- ⚠️ API Token (to create)
+
+### Human Resources
+**Time:** 31 hours over 3 weeks
+- Week 1: 12 hours (Setup + Investigation)
+- Week 2: 8 hours (Metrics + Bot)
+- Week 3: 11 hours (Runbooks + Webhooks)
+
+**Skills:** Node.js, REST APIs, Bash, Telegram Bot API
+
+### Access
+- ✅ SSH to server (have)
+- ⚠️ GlitchTip admin (need API token)
+- ✅ Telegram bot admin (have)
+- ✅ PM2 management (have)
+
+---
+
+## Metrics & Success Criteria
+
+### Primary Metrics
+**1. Time Savings** (Target: 70%)
+- Baseline: 15 min per error
+- Target: 4-5 min per error
+- Measurement: Manual tracking
+
+**2. Investigation Quality** (Target: 80% helpful)
+- Metric: % with useful findings
+- Measurement: Human review
+
+**3. Runbook Effectiveness** (Target: 80% faster)
+- Baseline: 15 min for known issue
+- Target: 3 min with runbook
+
+### Success Criteria
+- [ ] Time per error reduced by 70%
+- [ ] Investigation helper 80%+ helpful
+- [ ] Runbooks reduce time by 80%
+- [ ] Daily metrics sent 95%+ reliability
+- [ ] Telegram bot used consistently
+- [ ] Positive developer feedback
+
+---
+
+## Risks & Mitigation
+
+### Technical Risks
+1. **API Rate Limiting** (Low)
+   - Mitigation: Backoff, caching, monitoring
+
+2. **Incomplete Investigations** (Medium)
+   - Mitigation: Mark as automated, human validates
+
+3. **False Positive Runbook Links** (Medium)
+   - Mitigation: Conservative matching, allow unlink
+
+### Operational Risks
+1. **Maintenance Burden** (Low)
+   - Expected: 30 min/month
+   - Mitigation: Clean code, documentation
+
+2. **Tool Abandonment** (Low)
+   - Mitigation: Ensure useful, iterate on feedback
+
+---
+
+## Timeline
+
+### Week 1 (Setup + Investigation)
+- **Phase 0:** Setup & Baseline (6h)
+  - Measure baseline metrics
+  - Create API token
+  - Build API client library
+
+- **Phase 1:** Investigation Helper (6h)
+  - Core investigation logic
+  - Similar issues search
+  - Comment integration
+
+### Week 2 (Metrics + Bot)
+- **Phase 2:** Daily Metrics (4h)
+  - Stats aggregation
+  - Telegram integration
+  - Cron scheduling
+
+- **Phase 3:** Telegram Bot (4h)
+  - Command router
+  - Query implementation
+  - Action commands
+
+### Week 3 (Runbooks + Webhooks)
+- **Phase 4:** Runbook Integration (5h)
+  - Runbook repository (5 docs)
+  - Pattern matching
+  - Automation
+
+- **Phase 5:** Enhanced Webhooks (6h)
+  - Webhook endpoint
+  - Event handling
+  - Rich formatting
+
+### Week 4 (Review)
+- Measure results
+- Calculate ROI
+- Decision: sufficient or add more?
+
+---
+
+## Lessons Learned (To Be Updated)
+
+### What Worked Well
+- TBD after implementation
+
+### What Could Be Improved
+- TBD after implementation
+
+### Unexpected Challenges
+- TBD after implementation
+
+### Best Practices Discovered
+- TBD after implementation
+
+---
+
+## Related Documentation
+
+### Planning Docs
+- `glitchtip-api-integration-plan.md` - This project's full plan (1,150 lines)
+- `glitchtip-api-integration-tasks.md` - Task checklist (to be created)
+
+### Research & Reviews
+- `GLITCHTIP_API_RESEARCH.md` - API capabilities research
+- `AUTO_REMEDIATION_REVIEW.md` - What NOT to build
+- `AUTO_REMEDIATION_REVIEW_SUMMARY.md` - Quick reference
+
+### Operational Docs
+- `ERROR_TRACKING_WORKFLOW.md` - Error handling workflow
+- `docs/TROUBLESHOOTING.md` - Common issues
+- `CLAUDE.md` - Project quick reference
+
+### Migration Docs
+- `sentry-to-glitchtip-migration/` - Migration project
+- `PHASE_3_START.md` - Current migration phase
+
+---
+
+## Next Steps
+
+### Immediate (This Week)
+1. **Review plan** with team (30 min)
+2. **Get approval** to proceed
+3. **Start Phase 0** (6 hours)
+   - Measure baseline metrics
+   - Create GlitchTip API token
+   - Build API client library
+   - Test API access
+
+### Week 1
+4. **Complete Phase 1** (6 hours)
+   - Investigation helper script
+   - Test with real errors
+   - Measure improvement
+
+### Weeks 2-3
+5. **Complete Phases 2-5** (19 hours)
+   - Daily metrics report
+   - Telegram bot commands
+   - Runbook integration
+   - Enhanced webhooks
+
+### Week 4 (Review)
+6. **Measure & Report** (2 hours)
+   - Compare metrics before/after
+   - Calculate actual ROI
+   - Document lessons learned
+   - Decision: sufficient or add more?
+
+---
+
+**Context Version:** 1.0
+**Status:** Ready for Implementation
+**Approval Required:** Team review
+**Estimated Start:** Week of 2025-11-25
+**Estimated Completion:** Week of 2025-12-16
