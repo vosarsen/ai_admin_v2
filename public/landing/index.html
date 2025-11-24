@@ -3552,10 +3552,6 @@
             align-items: flex-start;
         }
 
-        .chat-templates.hidden {
-            display: none;
-        }
-
         .template-btn {
             padding: 10px 14px;
             background: rgba(255, 255, 255, 0.05);
@@ -5281,10 +5277,10 @@
             demoSend.disabled = true;
             demoInput.disabled = true;
 
-            // Hide templates after first message
-            if (demoTemplates.style.display !== 'none') {
-                demoTemplates.style.display = 'none';
-            }
+            // Hide templates after first message - DISABLED
+            // if (demoTemplates.style.display !== 'none') {
+            //     demoTemplates.style.display = 'none';
+            // }
 
             // Add user message
             addMessage('user', message);
