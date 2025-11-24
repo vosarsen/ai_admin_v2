@@ -562,6 +562,22 @@
             display: inline-block;
         }
 
+        .logo .m-with-head {
+            position: relative;
+            display: inline-block;
+        }
+
+        .logo .m-with-head::before {
+            content: '•';
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #EC4899;
+            font-size: 0.6em;
+            text-shadow: 0 0 6px rgba(236, 72, 153, 0.5);
+        }
+
         .nav-links {
             display: flex;
             gap: 40px;
@@ -3143,7 +3159,7 @@
     <!-- Header -->
     <header>
         <nav>
-            <a href="#home" class="logo" style="text-decoration: none; cursor: pointer;">ADMIN AI<span class="pink-dot">.</span></a>
+            <a href="#home" class="logo" style="text-decoration: none; cursor: pointer;">AD<span class="m-with-head">M</span>IN AI<span class="pink-dot">.</span></a>
 
             <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Toggle menu">
                 <span></span>
@@ -3792,7 +3808,7 @@
             <!-- О компании -->
             <div class="footer-about">
                 <div class="footer-logo">
-                    ADMIN AI<span class="pink-dot">.</span>
+                    AD<span class="m-with-head">M</span>IN AI<span class="pink-dot">.</span>
                 </div>
                 <p class="footer-description">
                     Умный WhatsApp бот для салонов красоты. Автоматизируйте общение с клиентами,
