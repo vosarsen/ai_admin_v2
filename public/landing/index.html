@@ -3561,10 +3561,11 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             flex-shrink: 0;
             position: relative;
             animation: rainbowGlow 3s linear infinite;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
         }
 
         /* Rainbow glow animation */
@@ -3596,6 +3597,7 @@
             width: 20px;
             height: 20px;
             color: rgba(255, 255, 255, 0.9);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .shortcuts-toggle:hover {
@@ -3613,6 +3615,7 @@
 
         .shortcuts-toggle.active svg {
             color: white;
+            transform: rotate(45deg);
         }
 
         /* Shortcuts List (Vertical Menu) */
@@ -3631,18 +3634,21 @@
             padding: 8px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
             opacity: 1;
-            transform: translateY(0);
-            transition: all 0.3s ease;
+            transform: translateY(0) scale(1);
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transition-delay: 0.1s;
             z-index: 100;
         }
 
         .shortcuts-list.hidden {
             opacity: 0;
-            transform: translateY(10px);
+            transform: translateY(20px) scale(0.95);
             pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition-delay: 0s;
         }
 
-        /* Shortcut Chip (Vertical Button) */
+        /* Shortcut Chip (Vertical Button) with staggered animation */
         .shortcut-chip {
             padding: 12px 16px;
             background: rgba(255, 255, 255, 0.08);
@@ -3656,8 +3662,34 @@
             align-items: center;
             gap: 10px;
             white-space: nowrap;
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             text-align: left;
+            opacity: 1;
+            transform: translateX(0);
+            filter: blur(0px);
+        }
+
+        /* Staggered entrance animation */
+        .shortcuts-list.hidden .shortcut-chip {
+            opacity: 0;
+            transform: translateX(-20px);
+            filter: blur(10px);
+        }
+
+        .shortcuts-list:not(.hidden) .shortcut-chip:nth-child(1) {
+            transition-delay: 0.05s;
+        }
+
+        .shortcuts-list:not(.hidden) .shortcut-chip:nth-child(2) {
+            transition-delay: 0.1s;
+        }
+
+        .shortcuts-list:not(.hidden) .shortcut-chip:nth-child(3) {
+            transition-delay: 0.15s;
+        }
+
+        .shortcuts-list:not(.hidden) .shortcut-chip:nth-child(4) {
+            transition-delay: 0.2s;
         }
 
         .shortcut-chip:hover {
