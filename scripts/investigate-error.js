@@ -81,9 +81,27 @@ function parseStackTrace(stackTrace) {
  */
 function findRelatedFiles(keyword, maxResults = MAX_FILES) {
   try {
+    // Find ripgrep binary (different paths on macOS and Linux)
+    let rgPath = 'rg'; // Default: use from PATH
+    try {
+      rgPath = execSync('which rg', { encoding: 'utf-8' }).trim();
+    } catch (e) {
+      // Try common paths
+      const paths = ['/usr/bin/rg', '/usr/local/bin/rg', '/opt/homebrew/bin/rg'];
+      for (const p of paths) {
+        try {
+          execSync(`test -x ${p}`, { encoding: 'utf-8' });
+          rgPath = p;
+          break;
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+
     // Use ripgrep to find files containing the keyword
     const result = execSync(
-      `/opt/homebrew/bin/rg -l "${keyword}" --max-count 1`,
+      `${rgPath} -l "${keyword}" --max-count 1`,
       {
         encoding: 'utf-8',
         cwd: process.cwd(),
