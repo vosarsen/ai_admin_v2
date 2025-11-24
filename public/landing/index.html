@@ -1200,17 +1200,21 @@
             width: 50px;
             height: 50px;
             min-width: 50px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
         }
 
         .contact-icon svg {
-            width: 24px;
-            height: 24px;
+            width: 28px;
+            height: 28px;
+            stroke: #667eea;
+            transition: all 0.3s ease;
+        }
+
+        .contact-info-item:hover .contact-icon svg {
+            stroke: #764ba2;
+            transform: scale(1.1);
         }
 
         .contact-info-item h3 {
@@ -1310,6 +1314,14 @@
 
         body[data-theme="light"] .contact-info-item p {
             color: #64748b;
+        }
+
+        body[data-theme="light"] .contact-icon svg {
+            stroke: #667eea;
+        }
+
+        body[data-theme="light"] .contact-info-item:hover .contact-icon svg {
+            stroke: #764ba2;
         }
 
         body[data-theme="light"] .contact-form-container {
