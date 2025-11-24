@@ -105,6 +105,92 @@ const ipLimiter = async (req, res, next) => {
   }
 };
 
+// Generate contextual suggestions based on conversation
+function generateSuggestions(userMessage, botResponse) {
+  const lowerMessage = userMessage.toLowerCase();
+  const lowerResponse = botResponse.toLowerCase();
+
+  // Default suggestions
+  const defaultSuggestions = [
+    "Записаться на стрижку",
+    "Узнать цены",
+    "Свободное время на завтра",
+    "Перенести запись"
+  ];
+
+  // If user asked about booking/appointment
+  if (lowerMessage.includes('запис') || lowerMessage.includes('хочу')) {
+    return [
+      "Стрижка",
+      "Окрашивание",
+      "Маникюр",
+      "Узнать цены на все услуги"
+    ];
+  }
+
+  // If user asked about prices
+  if (lowerMessage.includes('цен') || lowerMessage.includes('стоимость') || lowerMessage.includes('сколько')) {
+    return [
+      "Записаться на стрижку",
+      "Записаться на окрашивание",
+      "Записаться на маникюр",
+      "Свободное время на завтра"
+    ];
+  }
+
+  // If bot is asking about time/date
+  if (lowerResponse.includes('какое время') || lowerResponse.includes('когда') || lowerResponse.includes('на какое число')) {
+    return [
+      "Завтра утром",
+      "Завтра вечером",
+      "Послезавтра",
+      "Свободное время на неделю"
+    ];
+  }
+
+  // If bot mentioned available time slots
+  if (lowerResponse.includes('14:00') || lowerResponse.includes('16:30') || lowerResponse.includes('свободн')) {
+    return [
+      "14:00 подходит",
+      "16:30 подходит",
+      "18:00 подходит",
+      "Показать другие варианты"
+    ];
+  }
+
+  // If user asked about rescheduling
+  if (lowerMessage.includes('перенес') || lowerMessage.includes('изменить')) {
+    return [
+      "Перенести на завтра",
+      "Перенести на следующую неделю",
+      "Отменить запись",
+      "Узнать свободное время"
+    ];
+  }
+
+  // If user selected a service
+  if (lowerMessage.includes('стрижк') || lowerMessage.includes('окрашив') || lowerMessage.includes('маникюр')) {
+    return [
+      "Завтра",
+      "Послезавтра",
+      "На следующей неделе",
+      "Узнать цену"
+    ];
+  }
+
+  // If conversation seems complete (booking confirmed)
+  if (lowerResponse.includes('записал') || lowerResponse.includes('подтверждаю') || lowerResponse.includes('напомню')) {
+    return [
+      "Узнать цены на другие услуги",
+      "Записаться еще на одну услугу",
+      "Перенести эту запись",
+      "Начать новый диалог"
+    ];
+  }
+
+  return defaultSuggestions;
+}
+
 /**
  * @swagger
  * /api/demo-chat:
@@ -227,13 +313,17 @@ router.post('/demo-chat',
         messagesRemaining
       });
 
+      // Generate contextual suggestions based on the conversation
+      const suggestions = generateSuggestions(message, result.message || result.response || result);
+
       res.json({
         success: true,
         response: result.message || result.response || result,
         sessionId,
         isDemoMode: true,
         messagesRemaining,
-        processingTime: duration
+        processingTime: duration,
+        suggestions // Add contextual suggestions
       });
 
     } catch (error) {

@@ -5315,6 +5315,11 @@
                     // Add bot response
                     addMessage('bot', data.response);
 
+                    // Update suggestions if provided
+                    if (data.suggestions && Array.isArray(data.suggestions)) {
+                        updateSuggestions(data.suggestions);
+                    }
+
                     // Update messages remaining
                     if (data.messagesRemaining !== undefined) {
                         demoMessagesRemaining = data.messagesRemaining;
@@ -5404,6 +5409,32 @@
             setTimeout(() => {
                 demoMessages.scrollTop = demoMessages.scrollHeight;
             }, 100);
+        }
+
+        // Update suggestion buttons
+        function updateSuggestions(suggestions) {
+            // Clear existing buttons
+            demoTemplates.innerHTML = '';
+
+            // Create new buttons from suggestions
+            suggestions.forEach(suggestionText => {
+                const button = document.createElement('button');
+                button.className = 'template-btn';
+                button.setAttribute('data-message', suggestionText);
+
+                const textSpan = document.createElement('span');
+                textSpan.className = 'template-text';
+                textSpan.textContent = suggestionText;
+
+                button.appendChild(textSpan);
+
+                // Add click handler
+                button.addEventListener('click', () => {
+                    sendDemoMessage(suggestionText);
+                });
+
+                demoTemplates.appendChild(button);
+            });
         }
 
         // Template button click handlers
