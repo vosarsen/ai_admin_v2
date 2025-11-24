@@ -121,14 +121,14 @@
 
         body[data-theme="light"] .form-group input,
         body[data-theme="light"] .form-group textarea {
-            background: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.8) !important;
             border: 1px solid rgba(203, 213, 225, 0.3);
             color: #000000;
         }
 
         body[data-theme="light"] .form-group input:focus,
         body[data-theme="light"] .form-group textarea:focus {
-            background: rgba(255, 255, 255, 1);
+            background: rgba(255, 255, 255, 1) !important;
             border-color: rgba(236, 72, 153, 0.5);
         }
 
@@ -1268,9 +1268,20 @@
             border-radius: 16px;
             font-size: 15px;
             font-family: 'Exo 2', sans-serif;
-            transition: border-color 0.3s ease, box-shadow 0.3s ease;
-            background: rgba(255, 255, 255, 0.05);
+            transition: none;
             color: #f5f5f5;
+        }
+
+        /* Dark theme inputs (default) */
+        body[data-theme="dark"] .inline-contact-form input,
+        body[data-theme="dark"] .inline-contact-form textarea {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        body[data-theme="dark"] .inline-contact-form input:focus,
+        body[data-theme="dark"] .inline-contact-form textarea:focus {
+            background: rgba(255, 255, 255, 0.08);
         }
 
         .inline-contact-form input:focus,
@@ -1278,7 +1289,6 @@
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
-            background: rgba(255, 255, 255, 0.08);
         }
 
         .inline-contact-form textarea {
@@ -1338,13 +1348,14 @@
         body[data-theme="light"] .inline-contact-form input,
         body[data-theme="light"] .inline-contact-form textarea {
             border-color: rgba(203, 213, 225, 0.5);
-            background: white;
+            background: white !important;
             color: #000000;
         }
 
         body[data-theme="light"] .inline-contact-form input:focus,
         body[data-theme="light"] .inline-contact-form textarea:focus {
-            background: white;
+            background: white !important;
+            border-color: #667eea;
         }
 
         /* Footer */
@@ -2870,20 +2881,30 @@
         .form-group textarea {
             font-family: 'Exo 2', sans-serif;
             padding: 15px 20px;
-            background: rgba(255, 255, 255, 0.03);
             backdrop-filter: blur(15px);
             -webkit-backdrop-filter: blur(15px);
             border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 15px;
             color: #f5f5f5;
             font-size: 16px;
-            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            transition: none;
+        }
+
+        /* Dark theme modal inputs (default) */
+        body[data-theme="dark"] .form-group input,
+        body[data-theme="dark"] .form-group textarea {
+            background: rgba(255, 255, 255, 0.03);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        body[data-theme="dark"] .form-group input:focus,
+        body[data-theme="dark"] .form-group textarea:focus {
+            background: rgba(255, 255, 255, 0.08);
         }
 
         .form-group input:focus,
         .form-group textarea:focus {
             outline: none;
-            background: rgba(255, 255, 255, 0.08);
             border-color: rgba(167, 139, 250, 0.7);
             box-shadow: 0 0 30px rgba(167, 139, 250, 0.4),
                         inset 0 1px 0 rgba(255, 255, 255, 0.15);
