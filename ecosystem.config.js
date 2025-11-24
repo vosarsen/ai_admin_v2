@@ -105,7 +105,9 @@ module.exports = {
       instances: 1,
       exec_mode: 'fork',
       env: {
-        NODE_ENV: 'production'
+        NODE_ENV: 'production',
+        GLITCHTIP_TOKEN: '59f4347216461350eebe7cb10e1220fb5d866c6eaffcee28b309bc5690b1a64a',
+        GLITCHTIP_URL: 'http://localhost:8080'
       },
       error_file: './logs/telegram-bot-error.log',
       out_file: './logs/telegram-bot-out.log',
