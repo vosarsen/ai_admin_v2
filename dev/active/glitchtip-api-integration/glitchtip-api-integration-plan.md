@@ -1,8 +1,8 @@
 # GlitchTip API Integration & Enhanced Manual Workflow - Implementation Plan
 
-**Last Updated:** 2025-11-24
+**Last Updated:** 2025-11-24 (Updated after plan-reviewer agent feedback)
 **Status:** Planning → Ready for Implementation
-**Duration:** 3 weeks (25-31 hours)
+**Duration:** 3-4 weeks (35-45 hours with critical fixes)
 **Approach:** Enhanced Manual Workflow (70% time savings, $0 ongoing)
 
 ---
@@ -191,7 +191,9 @@ GlitchTip
 
 ## Implementation Phases
 
-### Phase 0: Setup & Baseline (Week 1, Day 1-2: 6 hours)
+### Phase 0: Setup & Baseline (Week 1, Days 1-3: 10 hours)
+
+**UPDATED:** Added Phase 0.4 based on plan-reviewer feedback
 
 **Objective:** Establish baseline metrics and configure API access
 
@@ -208,22 +210,73 @@ GlitchTip
 - SSH to server, create tunnel
 - Login to GlitchTip UI
 - Settings → Auth Tokens → Create
+- Store token in `.env.production` (gitignored)
+- Document in password manager with rotation schedule (quarterly)
+- Create separate tokens for dev/prod environments
+- Add token validation check to all scripts
 - Test API access with example script
-- Document token in secure location
-- **Output:** Working API token, test successful
+- **Output:** Working API token, secure storage, test successful
+
+**Token Storage Strategy:**
+```bash
+# .env.production (gitignored)
+GLITCHTIP_API_TOKEN=your_production_token_here
+GLITCHTIP_BASE_URL=http://localhost:8080
+
+# .env.development (gitignored)
+GLITCHTIP_API_TOKEN=your_dev_token_here
+GLITCHTIP_BASE_URL=http://localhost:8080
+```
+
+**Token Rotation:**
+- Schedule: Every 3 months (quarterly)
+- Document in password manager (1Password/Bitwarden)
+- Alert 1 week before expiration
+- Process: Create new → Test → Replace → Revoke old
 
 **0.3 API Client Library** (3 hours, M)
 - Create `scripts/lib/glitchtip-api.js`
 - Implement: getOrganizations, getIssues, searchIssues
 - Implement: addComment, resolveIssue, getStats
-- Add error handling & retries
+- Add error handling & retries with circuit breaker pattern
+- Add rate limiting (max 10 req/sec)
 - Write tests (basic smoke tests)
 - **Output:** Reusable API client, tested
 
+**0.4 Environment Preparation** (4 hours, M)
+- **Standardize Error Context:**
+  - Audit all 62 `Sentry.captureException()` calls
+  - Document current context schema (tags, extra data)
+  - Create standardized context template
+  - Add missing context to key capture points
+  - **Target:** Consistent error metadata for investigation
+
+- **Infrastructure Setup:**
+  - Install ripgrep on server: `ssh root@46.149.70.219 "apt-get update && apt-get install -y ripgrep"`
+  - Verify git access for commit history
+  - Test Redis connection for caching
+  - Create test GlitchTip project (optional)
+
+- **Cache Strategy:**
+  - Define Redis key patterns: `glitchtip:investigation:{issueId}`
+  - Set TTL for cached investigations (24 hours)
+  - Define cache invalidation rules
+  - Document caching approach
+
+- **Testing Preparation:**
+  - Create test error samples (3-5 representative errors)
+  - Document expected investigation results
+  - Set up dry-run environment flags
+
+- **Output:** Standardized error capture, infrastructure ready, cache strategy defined
+
 **Acceptance Criteria:**
 - [ ] Baseline metrics documented
-- [ ] API token created and tested
-- [ ] API client library works (5+ methods)
+- [ ] API token created and tested with secure storage
+- [ ] API client library works (5+ methods) with circuit breaker
+- [ ] Environment prepared (ripgrep, Redis, test data)
+- [ ] Error context standardized across codebase
+- [ ] Cache strategy documented
 - [ ] Example queries return data
 - [ ] Ready to build helper tools
 
@@ -303,11 +356,30 @@ View: http://localhost:9090/organizations/ai-admin/issues/12345/
 - **Output:** Formatted daily report
 
 **2.3 Cron Scheduling** (1 hour, S)
-- Add to PM2 ecosystem config
-- Schedule: Every day at 9 AM
-- Test manual execution
-- Verify PM2 cron logs
-- **Output:** Automated daily reports
+- Add to PM2 ecosystem config (`ecosystem.config.js`)
+- **PM2 Cron Pattern (use existing pattern):**
+  ```javascript
+  {
+    name: 'glitchtip-daily-metrics',
+    script: './scripts/daily-metrics.js',
+    instances: 1,
+    exec_mode: 'fork',
+    cron_restart: '0 9 * * *',      // Daily at 9 AM UTC (12:00 MSK)
+    autorestart: false,              // Don't restart automatically, only via cron
+    env: {
+      NODE_ENV: 'production'
+    },
+    error_file: './logs/glitchtip-metrics-error.log',
+    out_file: './logs/glitchtip-metrics-out.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    max_memory_restart: '50M'
+  }
+  ```
+- **Note:** Follow existing PM2 pattern with `cron_restart` + `autorestart: false`
+  (NOT `cron: "0 9 * * *"` as in original plan)
+- Test manual execution: `pm2 start ecosystem.config.js --only glitchtip-daily-metrics`
+- Verify PM2 cron logs: `pm2 logs glitchtip-daily-metrics`
+- **Output:** Automated daily reports via PM2 cron
 
 **Sample Report:**
 ```
@@ -346,12 +418,37 @@ Action: 1 P1 issue unresolved
 **Tasks:**
 
 **3.1 Bot Command Router** (2 hours, M)
-- Extend existing Telegram bot
-- Add command: `/errors [component] [hours]`
-- Add command: `/resolve <issue_id>`
-- Add command: `/investigate <issue_id>`
-- Add command: `/stats [period]`
-- **Output:** Bot command handlers
+- **Integration Approach:**
+  - Current bot location: `scripts/telegram-bot.js` (main bot) and `src/services/telegram-notifier.js` (notifications)
+  - Strategy: Extend `scripts/telegram-bot.js` with new command handlers
+  - Alternative: Create new module `scripts/glitchtip-bot-commands.js` and require from main bot
+  - Preserve existing notification flow (don't break telegram-notifier.js)
+
+- **Command Registration:**
+  - Add command: `/errors [component] [hours]` - Query errors by filters
+  - Add command: `/resolve <issue_id>` - Mark issue as resolved
+  - Add command: `/investigate <issue_id>` - Trigger investigation script
+  - Add command: `/stats [period]` - Get error statistics
+  - Add command: `/help_glitchtip` - Show GlitchTip commands help
+
+- **Implementation:**
+  ```javascript
+  // In scripts/telegram-bot.js or scripts/glitchtip-bot-commands.js
+  const GlitchTipAPI = require('./lib/glitchtip-api');
+
+  // Add command handlers
+  bot.onText(/\/errors(?:\s+(.+))?/, async (msg, match) => {
+    // Parse filters, query API, format response
+  });
+
+  bot.onText(/\/resolve\s+(\d+)/, async (msg, match) => {
+    // Resolve issue via API
+  });
+
+  // ... more commands
+  ```
+
+- **Output:** Bot command handlers integrated with existing bot
 
 **3.2 Query Implementation** (1 hour, S)
 - `/errors`: Query GlitchTip API with filters
@@ -421,9 +518,27 @@ Quick actions:
 
 **4.3 Automation** (1 hour, S)
 - Schedule via PM2 cron (hourly 8-23:00)
+- **PM2 Cron Pattern:**
+  ```javascript
+  {
+    name: 'glitchtip-runbook-linker',
+    script: './scripts/link-runbooks.js',
+    instances: 1,
+    exec_mode: 'fork',
+    cron_restart: '0 8-23 * * *',   // Every hour 8am-11pm UTC (11:00-02:00 MSK)
+    autorestart: false,              // Don't restart automatically, only via cron
+    env: {
+      NODE_ENV: 'production'
+    },
+    error_file: './logs/glitchtip-runbooks-error.log',
+    out_file: './logs/glitchtip-runbooks-out.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    max_memory_restart: '50M'
+  }
+  ```
 - Test with known error
 - Verify comment appears
-- **Output:** Automated runbook linking
+- **Output:** Automated runbook linking via PM2 cron
 
 **Sample Runbook:**
 ```markdown
@@ -537,6 +652,207 @@ Quick Actions:
 - [ ] Includes quick action buttons
 - [ ] Works for real production errors
 - [ ] Configure in GlitchTip: Settings → Webhooks
+
+---
+
+## Security & Privacy Considerations
+
+**ADDED:** Based on plan-reviewer feedback - critical security requirements
+
+### 1. API Token Security
+
+**Storage:**
+- ✅ Store in `.env.production` (gitignored, never commit)
+- ✅ Use separate tokens for dev/staging/prod
+- ✅ Document in password manager with rotation schedule
+- ❌ NEVER hardcode in scripts or config files
+
+**Access Control:**
+- Restrict token permissions to minimum required (read issues, write comments)
+- Create separate user for automation (not admin account)
+- Rotate tokens quarterly (schedule in calendar)
+
+**Validation:**
+```javascript
+// In scripts/lib/glitchtip-api.js
+class GlitchTipAPI {
+  constructor() {
+    const token = process.env.GLITCHTIP_API_TOKEN;
+    if (!token || token.length < 32) {
+      throw new Error('Invalid or missing GLITCHTIP_API_TOKEN');
+    }
+    this.token = token;
+  }
+}
+```
+
+### 2. PII Scrubbing
+
+**Problem:** Stack traces may contain sensitive data (emails, tokens, passwords)
+
+**Solution:** Scrub before posting comments or sending to Telegram
+
+**Implementation:**
+```javascript
+// In scripts/lib/pii-scrubber.js
+const PII_PATTERNS = {
+  email: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+  phone: /\+?\d{10,15}/g,
+  token: /(?:token|key|password)[:=]\s*['"]?[a-zA-Z0-9_-]{20,}['"]?/gi,
+  ip: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g
+};
+
+function scrubPII(text) {
+  let scrubbed = text;
+  scrubbed = scrubbed.replace(PII_PATTERNS.email, '[EMAIL_REDACTED]');
+  scrubbed = scrubbed.replace(PII_PATTERNS.phone, '[PHONE_REDACTED]');
+  scrubbed = scrubbed.replace(PII_PATTERNS.token, '$1: [TOKEN_REDACTED]');
+  scrubbed = scrubbed.replace(PII_PATTERNS.ip, '[IP_REDACTED]');
+  return scrubbed;
+}
+
+module.exports = { scrubPII };
+```
+
+**Apply Everywhere:**
+- Before posting GlitchTip comments
+- Before sending Telegram messages
+- Before caching investigation results
+- Before storing in PostgreSQL
+
+### 3. Data Minimization
+
+**Principles:**
+- Only capture necessary error context
+- Don't store full request/response bodies
+- Trim stack traces to first 1000 chars for comments
+- Use private comments for sensitive investigations
+
+**Example:**
+```javascript
+// Trim before posting
+const trimmedStack = error.stackTrace.slice(0, 1000) +
+  (error.stackTrace.length > 1000 ? '\n...[truncated]' : '');
+
+await api.addComment(issueId, scrubPII(trimmedStack));
+```
+
+### 4. Access Logging
+
+**Audit Trail:** Log all API modifications
+
+**Implementation:**
+```javascript
+// In scripts/lib/audit-log.js
+async function logAction(action, issueId, userId = 'automation') {
+  await postgres.query(
+    `INSERT INTO audit_log (action, resource_type, resource_id, user_id, timestamp)
+     VALUES ($1, $2, $3, $4, NOW())`,
+    [action, 'glitchtip_issue', issueId, userId]
+  );
+}
+
+// Usage
+await api.resolveIssue(issueId);
+await logAction('resolve_issue', issueId);
+```
+
+### 5. Rate Limiting & Abuse Prevention
+
+**Protection:** Prevent runaway scripts from spamming API
+
+**Implementation:**
+```javascript
+// In scripts/lib/glitchtip-api.js
+const Bottleneck = require('bottleneck');
+
+class GlitchTipAPI {
+  constructor() {
+    this.limiter = new Bottleneck({
+      minTime: 100,         // Max 10 req/sec
+      maxConcurrent: 2,     // Max 2 concurrent requests
+      reservoir: 100,       // Max 100 requests
+      reservoirRefreshAmount: 100,
+      reservoirRefreshInterval: 60 * 1000  // per minute
+    });
+  }
+
+  async request(method, path, data) {
+    return this.limiter.schedule(() => this._doRequest(method, path, data));
+  }
+}
+```
+
+### 6. Telegram Message Security
+
+**Risks:**
+- Messages not encrypted (Telegram API limitation)
+- May contain sensitive error details
+- Accessible to bot admin
+
+**Mitigations:**
+- Use private group (not public channel)
+- Limit bot access to trusted users only
+- Scrub PII before sending (see above)
+- Consider self-hosted Telegram bot API for encryption
+
+### 7. Environment Separation
+
+**Never Mix:**
+```bash
+# .env.production
+GLITCHTIP_API_TOKEN=prod_token_xxxxx
+GLITCHTIP_BASE_URL=http://localhost:8080
+NODE_ENV=production
+
+# .env.development
+GLITCHTIP_API_TOKEN=dev_token_xxxxx
+GLITCHTIP_BASE_URL=http://localhost:8080
+NODE_ENV=development
+```
+
+**Validation:**
+```javascript
+if (process.env.NODE_ENV === 'production' &&
+    process.env.GLITCHTIP_API_TOKEN.startsWith('dev_')) {
+  throw new Error('Cannot use dev token in production!');
+}
+```
+
+### 8. Backup Before Bulk Operations
+
+**Risk:** Bulk resolve/ignore could accidentally hide important errors
+
+**Mitigation:**
+```javascript
+async function bulkResolve(issueIds) {
+  // 1. Backup first
+  const backup = await Promise.all(
+    issueIds.map(id => api.getIssue(id))
+  );
+  await fs.writeFileSync(
+    `./backups/bulk-resolve-${Date.now()}.json`,
+    JSON.stringify(backup, null, 2)
+  );
+
+  // 2. Then modify
+  for (const id of issueIds) {
+    await api.resolveIssue(id);
+    await logAction('bulk_resolve', id);
+  }
+}
+```
+
+### Security Checklist
+
+- [ ] API tokens stored in `.env` (gitignored)
+- [ ] PII scrubbing implemented and tested
+- [ ] Rate limiting configured
+- [ ] Audit logging in place
+- [ ] Telegram access restricted
+- [ ] Environment separation validated
+- [ ] Backup procedures documented
+- [ ] Security review completed
 
 ---
 
@@ -680,6 +996,518 @@ Quick Actions:
 
 ---
 
+## Testing Strategy
+
+**ADDED:** Comprehensive testing approach (missing in original plan)
+
+### 1. Dry-Run Mode
+
+**Purpose:** Test scripts without modifying real data
+
+**Implementation:**
+```javascript
+// scripts/lib/glitchtip-api.js
+class GlitchTipAPI {
+  constructor(options = {}) {
+    this.dryRun = options.dryRun || process.env.DRY_RUN === 'true';
+  }
+
+  async addComment(orgSlug, issueId, text) {
+    if (this.dryRun) {
+      console.log(`[DRY RUN] Would add comment to issue ${issueId}:`);
+      console.log(text);
+      return { id: 'dry-run-comment-id' };
+    }
+    // Real implementation
+    return this.client.post(`/organizations/${orgSlug}/issues/${issueId}/comments/`, {
+      data: { text }
+    });
+  }
+}
+```
+
+**Usage:**
+```bash
+# Test investigation without posting comments
+DRY_RUN=true node scripts/investigate-error.js 12345
+
+# Test daily metrics without sending Telegram
+DRY_RUN=true node scripts/daily-metrics.js
+
+# Test runbook linking without modifying issues
+DRY_RUN=true node scripts/link-runbooks.js
+```
+
+### 2. Integration Tests
+
+**Purpose:** Verify API client works correctly
+
+**Location:** `tests/integration/glitchtip-api.test.js`
+
+**Implementation:**
+```javascript
+const GlitchTipAPI = require('../../scripts/lib/glitchtip-api');
+
+describe('GlitchTip API Integration', () => {
+  let api;
+
+  beforeAll(() => {
+    api = new GlitchTipAPI(
+      process.env.GLITCHTIP_BASE_URL,
+      process.env.GLITCHTIP_API_TOKEN
+    );
+  });
+
+  test('should fetch organizations', async () => {
+    const orgs = await api.getOrganizations();
+    expect(orgs).toBeInstanceOf(Array);
+    expect(orgs.length).toBeGreaterThan(0);
+  });
+
+  test('should search issues', async () => {
+    const issues = await api.searchIssues('ai-admin', 'is:unresolved', 5);
+    expect(issues).toBeInstanceOf(Array);
+  });
+
+  test('should handle API errors gracefully', async () => {
+    await expect(
+      api.searchIssues('non-existent-org', 'query')
+    ).rejects.toThrow();
+  });
+
+  test('should respect rate limits', async () => {
+    const start = Date.now();
+    await Promise.all([
+      api.getOrganizations(),
+      api.getOrganizations(),
+      api.getOrganizations()
+    ]);
+    const duration = Date.now() - start;
+    expect(duration).toBeGreaterThanOrEqual(200); // 100ms * 2 requests (with limiter)
+  });
+});
+```
+
+### 3. Unit Tests
+
+**Purpose:** Test helper functions in isolation
+
+**Coverage:**
+- PII scrubbing (`tests/unit/pii-scrubber.test.js`)
+- Cache operations (`tests/unit/cache.test.js`)
+- Pattern matching (`tests/unit/runbook-matcher.test.js`)
+
+**Example:**
+```javascript
+const { scrubPII } = require('../../scripts/lib/pii-scrubber');
+
+describe('PII Scrubber', () => {
+  test('should redact emails', () => {
+    const input = 'Error for user test@example.com';
+    const output = scrubPII(input);
+    expect(output).toBe('Error for user [EMAIL_REDACTED]');
+  });
+
+  test('should redact API tokens', () => {
+    const input = 'token: abc123def456ghi789';
+    const output = scrubPII(input);
+    expect(output).toContain('[TOKEN_REDACTED]');
+  });
+
+  test('should handle multiple PII types', () => {
+    const input = 'User test@example.com called from +79001234567';
+    const output = scrubPII(input);
+    expect(output).not.toContain('test@example.com');
+    expect(output).not.toContain('+79001234567');
+  });
+});
+```
+
+### 4. End-to-End Tests
+
+**Purpose:** Test complete workflows
+
+**Scenarios:**
+1. **Investigation Flow:**
+   - Create test error in GlitchTip
+   - Run investigation script
+   - Verify comment appears
+   - Check cache is populated
+
+2. **Daily Metrics Flow:**
+   - Trigger metrics script
+   - Verify Telegram message sent
+   - Check metrics cache
+
+3. **Runbook Linking Flow:**
+   - Create error matching runbook pattern
+   - Run linker script
+   - Verify runbook comment added
+
+**Test Data:**
+```javascript
+// tests/fixtures/test-errors.js
+module.exports = {
+  databaseTimeout: {
+    title: 'Connection timeout to PostgreSQL',
+    level: 'error',
+    tags: { component: 'database', operation: 'connect' },
+    stackTrace: 'Error: ETIMEDOUT...'
+  },
+  whatsappSession: {
+    title: 'WhatsApp session expired',
+    level: 'warning',
+    tags: { component: 'whatsapp', operation: 'send' },
+    stackTrace: 'Error: Session not found...'
+  }
+};
+```
+
+### 5. Test Environment
+
+**Setup:**
+```bash
+# .env.test
+NODE_ENV=test
+GLITCHTIP_BASE_URL=http://localhost:8080
+GLITCHTIP_API_TOKEN=test_token_12345
+DRY_RUN=false  # Use real test environment
+REDIS_PORT=6380
+```
+
+**Test GlitchTip Project:**
+- Create separate "test" project in GlitchTip
+- Use for integration/E2E tests
+- Clean up after tests (delete test issues)
+
+### 6. Performance Tests
+
+**Purpose:** Ensure scripts meet performance targets
+
+**Benchmarks:**
+```javascript
+// tests/performance/investigation-benchmark.test.js
+test('investigation should complete in <30s', async () => {
+  const start = Date.now();
+  await investigate(TEST_ISSUE_ID);
+  const duration = Date.now() - start;
+  expect(duration).toBeLessThan(30000); // 30 seconds
+});
+
+test('cached investigation should complete in <10s', async () => {
+  await investigate(TEST_ISSUE_ID); // Prime cache
+  const start = Date.now();
+  await investigate(TEST_ISSUE_ID); // Should hit cache
+  const duration = Date.now() - start;
+  expect(duration).toBeLessThan(10000); // 10 seconds
+});
+```
+
+### 7. Test Commands
+
+**Package.json scripts:**
+```json
+{
+  "scripts": {
+    "test": "jest",
+    "test:unit": "jest tests/unit",
+    "test:integration": "jest tests/integration",
+    "test:e2e": "jest tests/e2e",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch"
+  }
+}
+```
+
+### Testing Checklist
+
+- [ ] Dry-run mode implemented for all scripts
+- [ ] Integration tests written (API client)
+- [ ] Unit tests written (helpers)
+- [ ] E2E tests written (workflows)
+- [ ] Test environment configured
+- [ ] Performance benchmarks created
+- [ ] All tests passing (95%+ coverage)
+
+---
+
+## Monitoring & Observability
+
+**ADDED:** Based on plan-reviewer feedback - track health and success
+
+### 1. Script Health Monitoring
+
+**Problem:** Scripts may fail silently
+
+**Solution:** Success/failure tracking with alerts
+
+**Implementation:**
+```javascript
+// scripts/lib/health-monitor.js
+const TelegramNotifier = require('../../src/services/telegram-notifier');
+
+class HealthMonitor {
+  async trackExecution(scriptName, fn) {
+    const start = Date.now();
+    try {
+      const result = await fn();
+      const duration = Date.now() - start;
+
+      // Log success
+      await this.logSuccess(scriptName, duration, result);
+
+      return result;
+    } catch (error) {
+      const duration = Date.now() - start;
+
+      // Log failure + alert
+      await this.logFailure(scriptName, duration, error);
+      await this.sendAlert(scriptName, error);
+
+      throw error;
+    }
+  }
+
+  async logSuccess(scriptName, duration, result) {
+    await redis.zadd('health:success', Date.now(), JSON.stringify({
+      script: scriptName,
+      duration,
+      result: typeof result === 'object' ? result.summary : result,
+      timestamp: Date.now()
+    }));
+  }
+
+  async logFailure(scriptName, duration, error) {
+    await redis.zadd('health:failure', Date.now(), JSON.stringify({
+      script: scriptName,
+      duration,
+      error: error.message,
+      stack: error.stack.slice(0, 500),
+      timestamp: Date.now()
+    }));
+  }
+
+  async sendAlert(scriptName, error) {
+    const notifier = new TelegramNotifier();
+    await notifier.send(
+      `🔴 <b>Script Failure: ${scriptName}</b>\n\n` +
+      `Error: ${error.message}\n\n` +
+      `Time: ${new Date().toLocaleString()}`,
+      { parseMode: 'HTML' }
+    );
+  }
+}
+
+module.exports = HealthMonitor;
+```
+
+**Usage:**
+```javascript
+// In scripts/investigate-error.js
+const HealthMonitor = require('./lib/health-monitor');
+const monitor = new HealthMonitor();
+
+async function main() {
+  await monitor.trackExecution('investigate-error', async () => {
+    const issueId = process.argv[2];
+    // ... investigation logic
+    return { issueId, filesFound: 5, commitsFound: 3 };
+  });
+}
+```
+
+### 2. PM2 Monitoring
+
+**Built-in PM2 features:**
+```bash
+# Check script status
+pm2 status glitchtip-daily-metrics
+
+# View logs
+pm2 logs glitchtip-daily-metrics --lines 50
+
+# Monitor resource usage
+pm2 monit
+
+# Set up alerts for restart/error
+pm2 install pm2-logrotate
+```
+
+**PM2 Ecosystem monitoring:**
+```javascript
+// In ecosystem.config.js
+{
+  name: 'glitchtip-daily-metrics',
+  script: './scripts/daily-metrics.js',
+  // ... other config
+  max_restarts: 5,                    // Alert if restarts > 5
+  min_uptime: '10s',                  // Consider failed if < 10s
+  error_file: './logs/glitchtip-metrics-error.log',
+  out_file: './logs/glitchtip-metrics-out.log',
+  merge_logs: true
+}
+```
+
+### 3. Metrics Dashboard (Optional)
+
+**Simple CLI dashboard:**
+```javascript
+// scripts/glitchtip-health.js
+async function showHealthDashboard() {
+  const successes = await redis.zrange('health:success', -10, -1);
+  const failures = await redis.zrange('health:failure', -10, -1);
+
+  console.log('📊 GlitchTip Integration Health Dashboard\n');
+
+  console.log('✅ Recent Successes (last 10):');
+  successes.forEach(s => {
+    const data = JSON.parse(s);
+    console.log(`  - ${data.script}: ${data.duration}ms at ${new Date(data.timestamp).toLocaleString()}`);
+  });
+
+  console.log('\n❌ Recent Failures (last 10):');
+  failures.forEach(f => {
+    const data = JSON.parse(f);
+    console.log(`  - ${data.script}: ${data.error} at ${new Date(data.timestamp).toLocaleString()}`);
+  });
+
+  // Success rate
+  const successRate = (successes.length / (successes.length + failures.length)) * 100;
+  console.log(`\n📈 Success Rate: ${successRate.toFixed(1)}%`);
+}
+```
+
+### 4. Alerting Strategy
+
+**Alert Levels:**
+- ✅ **Success:** Log only (no alert)
+- ⚠️ **Warning:** Script slow (>60s), log + cache miss rate high
+- 🔴 **Error:** Script failed, send Telegram alert
+- 🚨 **Critical:** Multiple failures (>3 in 1h), send urgent Telegram alert
+
+**Alert Throttling:**
+```javascript
+// Don't spam - max 1 alert per script per hour
+async function shouldAlert(scriptName) {
+  const key = `alert:throttle:${scriptName}`;
+  const lastAlert = await redis.get(key);
+
+  if (lastAlert && Date.now() - parseInt(lastAlert) < 3600000) {
+    return false; // Already alerted in last hour
+  }
+
+  await redis.setex(key, 3600, Date.now().toString());
+  return true;
+}
+```
+
+### 5. Log Aggregation
+
+**Centralized logging:**
+```javascript
+// scripts/lib/logger.js
+const winston = require('winston');
+
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  defaultMeta: { service: 'glitchtip-integration' },
+  transports: [
+    new winston.transports.File({
+      filename: './logs/glitchtip-error.log',
+      level: 'error'
+    }),
+    new winston.transports.File({
+      filename: './logs/glitchtip-combined.log'
+    })
+  ]
+});
+
+// Add console in development
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.simple()
+  }));
+}
+
+module.exports = logger;
+```
+
+### 6. Key Metrics to Track
+
+**Operational Metrics:**
+- Script execution success rate (target: >95%)
+- Average execution time (investigation: <30s, metrics: <10s)
+- Cache hit ratio (target: >60%)
+- API error rate (target: <5%)
+
+**Business Metrics:**
+- Investigation quality (% helpful, target: >80%)
+- Time saved per error (target: 70% reduction)
+- Runbook link accuracy (% correct, target: >80%)
+- Mean time to resolution (target: 50% reduction)
+
+**Track in Redis:**
+```javascript
+// Daily aggregates
+glitchtip:metrics:executions:{date}:{script}
+glitchtip:metrics:errors:{date}:{script}
+glitchtip:metrics:duration:{date}:{script}
+```
+
+### 7. Weekly Review Report
+
+**Automated weekly summary:**
+```javascript
+// scripts/weekly-health-report.js
+async function generateWeeklyReport() {
+  const report = {
+    period: 'Last 7 days',
+    scripts: {
+      investigation: {
+        executions: 42,
+        successes: 40,
+        failures: 2,
+        avgDuration: '12.5s',
+        cacheHitRatio: '65%'
+      },
+      dailyMetrics: {
+        executions: 7,
+        successes: 7,
+        failures: 0,
+        avgDuration: '3.2s'
+      },
+      runbookLinker: {
+        executions: 168,
+        successes: 165,
+        failures: 3,
+        linksAdded: 15
+      }
+    },
+    businessMetrics: {
+      avgTimePerError: '5.2 min',
+      timeSaved: '65%',
+      investigationsHelpful: '82%'
+    }
+  };
+
+  // Send to Telegram
+  await sendWeeklyReport(report);
+}
+```
+
+### Monitoring Checklist
+
+- [ ] Health monitoring implemented for all scripts
+- [ ] PM2 monitoring configured
+- [ ] Telegram alerts set up (with throttling)
+- [ ] Log aggregation in place
+- [ ] Key metrics tracked in Redis
+- [ ] Weekly report scheduled
+- [ ] Dashboard created (CLI or web)
+
+---
+
 ## Resources & Dependencies
 
 ### Technical Dependencies
@@ -798,6 +1626,158 @@ Phase 2              Phase 3            Phase 4
 **Parallel Work:**
 - Phases 2, 3, 4 can be done in any order after Phase 1
 - Phase 5 benefits from all previous phases but not blocked by them
+
+---
+
+## Database & Cache Strategy
+
+**CRITICAL FIX #4:** Added database/cache strategy (missing in original plan)
+
+### Cache Layer (Redis)
+
+**Purpose:** Speed up investigation and reduce API calls
+
+**Key Patterns:**
+```javascript
+// Investigation results cache
+glitchtip:investigation:{issueId}       TTL: 24 hours
+glitchtip:similar:{titleHash}           TTL: 7 days
+glitchtip:runbook:{patternId}           TTL: permanent
+
+// Metrics cache
+glitchtip:stats:daily:{date}            TTL: 30 days
+glitchtip:stats:component:{component}   TTL: 24 hours
+```
+
+**Implementation:**
+```javascript
+// In scripts/lib/cache.js
+const Redis = require('ioredis');
+const redis = new Redis({
+  host: 'localhost',
+  port: 6380, // SSH tunnel to server
+  db: 2       // Separate DB for GlitchTip
+});
+
+async function cacheInvestigation(issueId, results) {
+  const key = `glitchtip:investigation:${issueId}`;
+  await redis.setex(key, 86400, JSON.stringify(results)); // 24h TTL
+}
+
+async function getCachedInvestigation(issueId) {
+  const key = `glitchtip:investigation:${issueId}`;
+  const cached = await redis.get(key);
+  return cached ? JSON.parse(cached) : null;
+}
+```
+
+**Cache Invalidation:**
+- Manual: When issue is updated/resolved
+- Automatic: TTL expiration
+- Flush pattern: `redis.del('glitchtip:investigation:*')` for all investigations
+
+### Storage Layer (PostgreSQL)
+
+**Purpose:** Persistent storage for runbook patterns and metrics history
+
+**Tables Needed:**
+```sql
+-- Runbook pattern mappings
+CREATE TABLE IF NOT EXISTS glitchtip_runbook_patterns (
+  id SERIAL PRIMARY KEY,
+  pattern VARCHAR(500) NOT NULL,           -- Regex or keyword pattern
+  runbook_path VARCHAR(255) NOT NULL,      -- Path to runbook file
+  priority INTEGER DEFAULT 0,               -- Match priority (higher = first)
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Metrics history (for trending)
+CREATE TABLE IF NOT EXISTS glitchtip_metrics_history (
+  id SERIAL PRIMARY KEY,
+  date DATE NOT NULL,
+  component VARCHAR(100),
+  error_count INTEGER DEFAULT 0,
+  issue_count INTEGER DEFAULT 0,
+  resolved_count INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(date, component)
+);
+
+-- Investigation history (optional, for ML training)
+CREATE TABLE IF NOT EXISTS glitchtip_investigation_log (
+  id SERIAL PRIMARY KEY,
+  issue_id INTEGER NOT NULL,
+  issue_title VARCHAR(500),
+  investigation_result JSONB,              -- Structured results
+  helpful BOOLEAN DEFAULT NULL,            -- Human feedback
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+**Location:** Use existing Timeweb PostgreSQL database
+
+**Migration:** Create tables via script `scripts/migrations/glitchtip-schema.sql`
+
+### File Storage (Runbooks)
+
+**Location:** `runbooks/` directory in project root
+
+**Structure:**
+```
+runbooks/
+├── README.md                           # Index of all runbooks
+├── database-timeout.md
+├── whatsapp-session-expired.md
+├── yclients-rate-limit.md
+├── redis-connection-refused.md
+└── npm-module-not-found.md
+```
+
+**Format:** Markdown with YAML frontmatter:
+```markdown
+---
+patterns:
+  - "ConnectionTimeout"
+  - "ETIMEDOUT.*postgres"
+priority: 1
+auto_link: true
+---
+
+# Database Connection Timeout
+
+## Quick Fix
+...
+```
+
+### Data Flow
+
+```
+Error Occurs
+    ↓
+GlitchTip API
+    ↓
+┌──────────────────────┐
+│ Investigation Script │
+└──────────────────────┘
+    ↓
+Check Cache (Redis)
+    ├─ HIT → Return cached results
+    └─ MISS → Search codebase + git
+               ↓
+               Store in cache (24h TTL)
+               ↓
+               Store log in PostgreSQL (optional)
+               ↓
+               Post comment to GlitchTip
+```
+
+### Performance Targets
+
+- Cache hit ratio: >60% after 1 week
+- Investigation time: <10s (cached), <30s (uncached)
+- Redis memory: <50 MB for 1000 investigations
+- PostgreSQL: <10 MB for metrics history
 
 ---
 
