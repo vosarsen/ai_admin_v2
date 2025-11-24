@@ -3493,6 +3493,33 @@
             border-radius: 16px;
             font-size: 15px;
             line-height: 1.5;
+            position: relative;
+            padding-bottom: 24px;
+        }
+
+        .message-time {
+            position: absolute;
+            bottom: 6px;
+            right: 10px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .message.bot .message-time {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .message-read-status {
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .message-read-status svg {
+            width: 14px;
+            height: 14px;
         }
 
         .message.bot .message-bubble {
@@ -3565,27 +3592,30 @@
             transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             flex-shrink: 0;
             position: relative;
+            z-index: 1;
         }
 
-        /* Radial rotating glow - pseudo element */
+        /* Radial rotating glow - only around edge */
         .shortcuts-toggle::before {
             content: '';
             position: absolute;
-            inset: -3px;
+            inset: -4px;
             border-radius: 50%;
             background: conic-gradient(
                 from 0deg,
-                rgba(255, 0, 0, 0.6),
-                rgba(255, 127, 0, 0.6),
-                rgba(255, 255, 0, 0.6),
-                rgba(0, 255, 0, 0.6),
-                rgba(0, 0, 255, 0.6),
-                rgba(139, 0, 255, 0.6),
-                rgba(255, 0, 0, 0.6)
+                rgba(255, 0, 0, 0.8),
+                rgba(255, 127, 0, 0.8),
+                rgba(255, 255, 0, 0.8),
+                rgba(0, 255, 0, 0.8),
+                rgba(0, 0, 255, 0.8),
+                rgba(139, 0, 255, 0.8),
+                rgba(255, 0, 0, 0.8)
             );
+            mask: radial-gradient(circle, transparent 60%, black 75%);
+            -webkit-mask: radial-gradient(circle, transparent 60%, black 75%);
             animation: rotateGlow 3s linear infinite;
             z-index: -1;
-            filter: blur(8px);
+            filter: blur(6px);
         }
 
         @keyframes rotateGlow {
@@ -3778,6 +3808,10 @@
             background: rgba(255, 255, 255, 0.8);
         }
 
+        body[data-theme="light"] .status-text {
+            color: #000000;
+        }
+
         body[data-theme="light"] .message.bot .message-bubble {
             background: rgba(255, 255, 255, 0.8);
             border: 1px solid rgba(203, 213, 225, 0.3);
@@ -3788,6 +3822,14 @@
             background: rgba(236, 72, 153, 0.1);
             border: 1px solid rgba(236, 72, 153, 0.2);
             color: #000000;
+        }
+
+        body[data-theme="light"] .message-time {
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        body[data-theme="light"] .message.bot .message-time {
+            color: rgba(0, 0, 0, 0.4);
         }
 
         body[data-theme="light"] .chat-input,
@@ -4092,6 +4134,7 @@
                                     Здравствуйте! Я AI бот Demo Beauty Salon. Чем могу помочь?
                                     Выберите один из вариантов ниже или напишите свой вопрос.
                                 </div>
+                                <div class="message-time" id="initialMessageTime"></div>
                             </div>
                         </div>
                     </div>
@@ -5456,6 +5499,15 @@
         // const demoLimitNotice = document.getElementById('demoLimitNotice'); // REMOVED
         // const messagesRemainingSpan = document.getElementById('messagesRemaining'); // REMOVED
 
+        // Initialize timestamp for first message
+        const initialMessageTime = document.getElementById('initialMessageTime');
+        if (initialMessageTime) {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            initialMessageTime.textContent = `${hours}:${minutes}`;
+        }
+
         // Shortcuts Toggle
         shortcutsToggle.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -5571,6 +5623,28 @@
             contentDiv.textContent = text;
             bubbleDiv.appendChild(contentDiv);
 
+            // Add timestamp
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'message-time';
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            timeDiv.textContent = `${hours}:${minutes}`;
+
+            // Add read status checkmarks for user messages
+            if (sender === 'user') {
+                const readStatus = document.createElement('span');
+                readStatus.className = 'message-read-status';
+                readStatus.innerHTML = `
+                    <svg viewBox="0 0 16 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M11.796 0.5L5.796 6.5L3.204 3.908L1.796 5.316L5.796 9.316L13.204 1.908L11.796 0.5Z" fill="currentColor"/>
+                        <path d="M15.796 0.5L9.796 6.5L8.596 5.3L7.188 6.708L9.796 9.316L17.204 1.908L15.796 0.5Z" fill="currentColor"/>
+                    </svg>
+                `;
+                timeDiv.appendChild(readStatus);
+            }
+
+            bubbleDiv.appendChild(timeDiv);
             messageDiv.appendChild(bubbleDiv);
             demoMessages.appendChild(messageDiv);
 
