@@ -3123,6 +3123,35 @@
         }
 
         /* ============================================
+           SECTION DIVIDER
+           ============================================ */
+
+        .section-divider {
+            max-width: 1200px;
+            margin: 80px auto;
+            height: 1px;
+            background: linear-gradient(
+                90deg,
+                rgba(255, 255, 255, 0) 0%,
+                rgba(167, 139, 250, 0.3) 20%,
+                rgba(167, 139, 250, 0.5) 50%,
+                rgba(167, 139, 250, 0.3) 80%,
+                rgba(255, 255, 255, 0) 100%
+            );
+        }
+
+        body[data-theme="light"] .section-divider {
+            background: linear-gradient(
+                90deg,
+                rgba(0, 0, 0, 0) 0%,
+                rgba(167, 139, 250, 0.2) 20%,
+                rgba(167, 139, 250, 0.4) 50%,
+                rgba(167, 139, 250, 0.2) 80%,
+                rgba(0, 0, 0, 0) 100%
+            );
+        }
+
+        /* ============================================
            INTERACTIVE DEMO SECTION (Two Columns)
            ============================================ */
 
@@ -4076,6 +4105,9 @@
             </div>
         </div>
     </section>
+
+    <!-- Section Divider -->
+    <div class="section-divider"></div>
 
     <!-- Interactive Demo Section (Two Columns) -->
     <section class="demo-interactive-section fade-in">
