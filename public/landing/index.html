@@ -3472,9 +3472,10 @@
         .chat-templates {
             padding: 20px 25px;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            display: flex;
+            flex-direction: column;
             gap: 10px;
+            align-items: flex-start;
         }
 
         .chat-templates.hidden {
@@ -3482,7 +3483,7 @@
         }
 
         .template-btn {
-            padding: 14px 18px;
+            padding: 12px 16px;
             background: rgba(255, 255, 255, 0.05);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -3492,10 +3493,11 @@
             cursor: pointer;
             transition: background 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
             text-align: left;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 10px;
             animation: buttonGlow 6s ease-in-out infinite;
+            width: fit-content;
         }
 
         .template-btn:hover {
@@ -3644,9 +3646,6 @@
                 font-size: 16px;
             }
 
-            .chat-templates {
-                grid-template-columns: 1fr;
-            }
 
             .message-bubble {
                 max-width: 85%;
