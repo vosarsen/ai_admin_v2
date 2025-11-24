@@ -210,6 +210,24 @@ module.exports = {
       out_file: './logs/glitchtip-metrics-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       max_memory_restart: '50M'
+    },
+    {
+      name: 'glitchtip-link-runbooks',
+      script: './scripts/link-runbooks.js',
+      instances: 1,
+      exec_mode: 'fork',
+      cron_restart: '0 8-23 * * *', // Hourly from 8 AM to 11 PM UTC (11:00-02:00 MSK)
+      autorestart: false, // Don't restart automatically, only via cron
+      env: {
+        NODE_ENV: 'production',
+        GLITCHTIP_URL: 'http://localhost:8080',
+        GLITCHTIP_TOKEN: '59f4347216461350eebe7cb10e1220fb5d866c6eaffcee28b309bc5690b1a64a',
+        GLITCHTIP_ORG_SLUG: 'admin-ai'
+      },
+      error_file: './logs/glitchtip-link-runbooks-error.log',
+      out_file: './logs/glitchtip-link-runbooks-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      max_memory_restart: '50M'
     }
   ]
 };
