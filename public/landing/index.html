@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#ffffff">
+    <meta name="theme-color" content="#0a0a0a">
     <title>Admin AI beta - Умный WhatsApp бот для салонов красоты</title>
     <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="glass-surface.css">
@@ -25,172 +25,242 @@
         body {
             font-family: 'Exo 2', sans-serif;
             overflow-x: hidden;
-            background: #f8fafc;
-            color: #000000;
+            background: #0a0a0a;
+            color: #f5f5f5;
             font-weight: 400;
             transition: background 0.3s ease, color 0.3s ease;
         }
 
-        /* Dark theme */
-        body[data-theme="dark"] {
-            background: #0a0a0a;
-            color: #f5f5f5;
+        /* Light theme */
+        body[data-theme="light"] {
+            background: #f8fafc;
+            color: #000000;
         }
 
-        body[data-theme="dark"] .logo {
-            color: #f5f5f5;
+        body[data-theme="light"] .logo {
+            color: #000000;
         }
 
-        body[data-theme="dark"] .nav-links a {
-            color: #f5f5f5;
+        body[data-theme="light"] .nav-links a {
+            color: #000000;
         }
 
-        body[data-theme="dark"] nav {
-            background: rgba(20, 20, 20, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        body[data-theme="dark"] .card,
-        body[data-theme="dark"] .problem-card,
-        body[data-theme="dark"] .pricing-card,
-        body[data-theme="dark"] .integration-card,
-        body[data-theme="dark"] .roi-calculator {
-            background: rgba(20, 20, 20, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        body[data-theme="dark"] .section-title,
-        body[data-theme="dark"] .demo-content h3,
-        body[data-theme="dark"] .card h3,
-        body[data-theme="dark"] .problem-card h3,
-        body[data-theme="dark"] h1,
-        body[data-theme="dark"] h2,
-        body[data-theme="dark"] h3 {
-            color: #f5f5f5;
-        }
-
-        body[data-theme="dark"] .section-subtitle,
-        body[data-theme="dark"] .demo-content p,
-        body[data-theme="dark"] .card p,
-        body[data-theme="dark"] .problem-card p,
-        body[data-theme="dark"] .spots-deadline,
-        body[data-theme="dark"] p {
-            color: #d4d4d4;
-        }
-
-        body[data-theme="dark"] .card-icon,
-        body[data-theme="dark"] .problem-icon {
-            color: #ffffff;
-        }
-
-        body[data-theme="dark"] .card-icon svg,
-        body[data-theme="dark"] .problem-icon svg {
-            stroke: #ffffff;
-        }
-
-        body[data-theme="dark"] .bubble.client {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: #d4d4d4;
-        }
-
-        body[data-theme="dark"] .bubble.bot {
-            background: linear-gradient(135deg, rgba(167, 139, 250, 0.1), rgba(236, 72, 153, 0.1));
-            border: 1px solid rgba(167, 139, 250, 0.2);
-            color: #f5f5f5;
-        }
-
-        body[data-theme="dark"] .modal-content {
-            background: rgba(20, 20, 20, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        body[data-theme="dark"] .modal-header h2,
-        body[data-theme="dark"] .modal-header p {
-            color: #f5f5f5;
-        }
-
-        body[data-theme="dark"] .form-group input,
-        body[data-theme="dark"] .form-group textarea {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: #f5f5f5;
-        }
-
-        body[data-theme="dark"] .form-group input:focus,
-        body[data-theme="dark"] .form-group textarea:focus {
-            background: rgba(255, 255, 255, 0.05);
-            border-color: rgba(167, 139, 250, 0.7);
-        }
-
-        body[data-theme="dark"] .mobile-menu-toggle span {
-            background: #f5f5f5;
-        }
-
-        body[data-theme="dark"] .qr-line {
-            background: rgba(255, 255, 255, 0.15);
-        }
-
-        /* Theme Toggle */
-        .theme-toggle {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            cursor: pointer;
-            padding: 8px 16px;
-            border-radius: 20px;
-            background: rgba(255, 255, 255, 0.3);
-            border: 1px solid rgba(203, 213, 225, 0.3);
-            transition: all 0.3s ease;
-        }
-
-        body[data-theme="dark"] .theme-toggle {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .theme-toggle:hover {
+        body[data-theme="light"] nav {
             background: rgba(255, 255, 255, 0.5);
-            transform: scale(1.05);
+            border: 1px solid rgba(203, 213, 225, 0.3);
         }
 
-        body[data-theme="dark"] .theme-toggle:hover {
-            background: rgba(255, 255, 255, 0.15);
+        body[data-theme="light"] nav::before {
+            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(203, 213, 225, 0.2), rgba(203, 213, 225, 0.1) 40%, transparent 70%);
         }
 
-        .theme-toggle-icon {
-            width: 20px;
-            height: 20px;
-            transition: transform 0.3s ease;
+        body[data-theme="light"] .card,
+        body[data-theme="light"] .problem-card,
+        body[data-theme="light"] .pricing-card,
+        body[data-theme="light"] .integration-card,
+        body[data-theme="light"] .roi-calculator {
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(203, 213, 225, 0.3);
         }
 
-        .theme-toggle-icon svg {
-            width: 100%;
-            height: 100%;
+        body[data-theme="light"] .card::before,
+        body[data-theme="light"] .problem-card::before {
+            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(203, 213, 225, 0.2), rgba(203, 213, 225, 0.1) 40%, transparent 70%);
+        }
+
+        body[data-theme="light"] .section-title,
+        body[data-theme="light"] .demo-content h3,
+        body[data-theme="light"] .card h3,
+        body[data-theme="light"] .problem-card h3,
+        body[data-theme="light"] h1,
+        body[data-theme="light"] h2,
+        body[data-theme="light"] h3 {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .section-subtitle,
+        body[data-theme="light"] .demo-content p,
+        body[data-theme="light"] .card p,
+        body[data-theme="light"] .problem-card p,
+        body[data-theme="light"] .spots-deadline,
+        body[data-theme="light"] p {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .card-icon,
+        body[data-theme="light"] .problem-icon {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .card-icon svg,
+        body[data-theme="light"] .problem-icon svg {
             stroke: #000000;
         }
 
-        body[data-theme="dark"] .theme-toggle-icon svg {
-            stroke: #f5f5f5;
+        body[data-theme="light"] .bubble.client {
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(203, 213, 225, 0.3);
+            color: #000000;
         }
 
-        .sun-icon {
-            display: none;
+        body[data-theme="light"] .bubble.bot {
+            background: rgba(236, 72, 153, 0.1);
+            border: 1px solid rgba(236, 72, 153, 0.2);
+            color: #000000;
         }
 
-        body[data-theme="dark"] .sun-icon {
-            display: block;
+        body[data-theme="light"] .modal-content {
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(203, 213, 225, 0.3);
         }
 
-        body[data-theme="dark"] .moon-icon {
-            display: none;
+        body[data-theme="light"] .modal-header h2,
+        body[data-theme="light"] .modal-header p {
+            color: #000000;
         }
 
-        .moon-icon {
-            display: block;
+        body[data-theme="light"] .form-group input,
+        body[data-theme="light"] .form-group textarea {
+            background: rgba(255, 255, 255, 0.8) !important;
+            border: 1px solid rgba(203, 213, 225, 0.3);
+            color: #000000;
         }
 
-        /* Theme Switcher Link */
+        body[data-theme="light"] .form-group input:focus,
+        body[data-theme="light"] .form-group textarea:focus {
+            background: rgba(255, 255, 255, 1) !important;
+            border-color: rgba(236, 72, 153, 0.5);
+        }
+
+        body[data-theme="light"] .mobile-menu-toggle span {
+            background: #000000;
+        }
+
+        body[data-theme="light"] .qr-line {
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        body[data-theme="light"] .roi-header h2,
+        body[data-theme="light"] .roi-value,
+        body[data-theme="light"] .roi-total-label,
+        body[data-theme="light"] .roi-bottom-value {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .roi-label,
+        body[data-theme="light"] .roi-bottom-label {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .problem-title {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .problem-text {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .stat-number,
+        body[data-theme="light"] .stat-label {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .card ul li {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .price-label,
+        body[data-theme="light"] .price-period {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .pricing-card.featured *,
+        body[data-theme="light"] .pricing-card.featured h3,
+        body[data-theme="light"] .pricing-card.featured p {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .integration-number {
+            color: rgba(0, 0, 0, 0.15);
+        }
+
+        body[data-theme="light"] .integration-card h3,
+        body[data-theme="light"] .integration-card p {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .grand-slam-title,
+        body[data-theme="light"] .grand-slam-subtitle,
+        body[data-theme="light"] .grand-slam-discount,
+        body[data-theme="light"] .grand-slam-timer,
+        body[data-theme="light"] .spots-text,
+        body[data-theme="light"] .spots-deadline {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .badge {
+            color: #ffffff;
+        }
+
+        body[data-theme="light"] .pricing-card.featured .btn {
+            color: #ffffff !important;
+        }
+
+        body[data-theme="light"] .modal-close span {
+            background: #000000;
+        }
+
+        body[data-theme="light"] .modal-close:hover {
+            opacity: 0.7;
+        }
+
+        body[data-theme="light"] footer {
+            background: rgba(255, 255, 255, 0.5);
+            border-top: 1px solid rgba(203, 213, 225, 0.3);
+        }
+
+        body[data-theme="light"] .footer-logo,
+        body[data-theme="light"] .footer-column h4 {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .footer-description,
+        body[data-theme="light"] .footer-contact-item,
+        body[data-theme="light"] .footer-links a,
+        body[data-theme="light"] .footer-copyright {
+            color: #64748b;
+        }
+
+        body[data-theme="light"] .footer-contact-item:hover,
+        body[data-theme="light"] .footer-links a:hover {
+            color: #EC4899;
+        }
+
+        body[data-theme="light"] .footer-form-link {
+            color: #fff !important;
+        }
+
+        body[data-theme="light"] .footer-form-link:hover {
+            color: #fff !important;
+        }
+
+        body[data-theme="light"] .footer-social-link {
+            background: rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            color: #000000;
+        }
+
+        body[data-theme="light"] .footer-social-link:hover {
+            background: #EC4899;
+            border-color: #EC4899;
+            color: #ffffff;
+        }
+
+        body[data-theme="light"] .footer-bottom {
+            border-top: 1px solid rgba(203, 213, 225, 0.3);
+        }
+
+        /* Theme Switcher */
         .theme-switcher {
             position: fixed;
             bottom: 30px;
@@ -207,7 +277,11 @@
             transition: all 0.3s ease;
             z-index: 1000;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            text-decoration: none;
+        }
+
+        body[data-theme="light"] .theme-switcher {
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(203, 213, 225, 0.3);
         }
 
         .theme-switcher:hover {
@@ -216,10 +290,29 @@
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
         }
 
+        body[data-theme="light"] .theme-switcher:hover {
+            background: rgba(255, 255, 255, 0.7);
+        }
+
         .theme-switcher svg {
             width: 28px;
             height: 28px;
-            stroke: #EC4899;
+        }
+
+        .sun-icon {
+            display: none;
+        }
+
+        body[data-theme="dark"] .sun-icon {
+            display: block;
+        }
+
+        body[data-theme="dark"] .moon-icon {
+            display: none;
+        }
+
+        .moon-icon {
+            display: block;
         }
 
         /* Animated background circles */
@@ -424,11 +517,11 @@
             max-width: 1400px;
             margin: 0 auto;
             padding: 20px 40px;
-            background: rgba(255, 255, 255, 0.5);
-            backdrop-filter: blur(30px) saturate(180%);
+            background: rgba(20, 20, 20, 0.8);
+            backdrop-filter: blur(20px) saturate(180%);
             border-radius: 50px;
-            border: 1px solid rgba(203, 213, 225, 0.3);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            border: none;
+            box-shadow: none;
             transition: all 0.8s cubic-bezier(0.25, 0.1, 0.25, 1);
             position: relative;
             overflow: hidden;
@@ -441,7 +534,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(203, 213, 225, 0.2), rgba(203, 213, 225, 0.1) 40%, transparent 70%);
+            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04) 40%, transparent 70%);
             opacity: 0;
             transition: opacity 0.3s ease;
             pointer-events: none;
@@ -454,17 +547,21 @@
         .logo {
             font-size: 20px;
             font-weight: 700;
-            color: #000000;
+            color: #f5f5f5;
             letter-spacing: -0.5px;
             transition: all 0.8s cubic-bezier(0.25, 0.1, 0.25, 1);
         }
 
-        .logo sup {
-            font-size: 12px;
-            font-weight: 700;
+        .logo .pink-dot {
             color: #EC4899;
-            margin-left: 2px;
+            font-weight: 700;
+            font-size: 1.3em;
+            text-shadow: 0 0 8px rgba(236, 72, 153, 0.5);
+            position: relative;
+            top: 1px;
+            display: inline-block;
         }
+
 
         .nav-links {
             display: flex;
@@ -473,7 +570,7 @@
         }
 
         .nav-links a {
-            color: #000000;
+            color: #f5f5f5;
             text-decoration: none;
             font-size: 14px;
             transition: all 0.3s ease;
@@ -555,14 +652,14 @@
             font-weight: 900;
             margin-bottom: 30px;
             font-family: 'Exo 2', sans-serif;
-            color: #000000;
+            color: #f5f5f5;
             line-height: 1.1;
             letter-spacing: -2px;
         }
 
         .hero p {
             font-size: clamp(16px, 2vw, 20px);
-            color: #000000;
+            color: #d4d4d4;
             margin-bottom: 50px;
             line-height: 1.6;
             font-weight: 300;
@@ -574,7 +671,7 @@
             padding: 18px 45px;
             font-size: 16px;
             font-weight: 700;
-            color: #ffffff;
+            color: #f5f5f5;
             text-decoration: none;
             border-radius: 30px;
             background: linear-gradient(135deg, #EC4899, #BE185D);
@@ -593,7 +690,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: radial-gradient(circle 150px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(203, 213, 225, 0.4), rgba(203, 213, 225, 0.3) 40%, transparent 70%);
+            background: radial-gradient(circle 150px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1) 40%, transparent 70%);
             opacity: 0;
             transition: opacity 0.3s ease;
             pointer-events: none;
@@ -616,7 +713,7 @@
 
         .btn-outline {
             background: transparent;
-            color: #000000;
+            color: #f5f5f5;
             border: 2px solid #f5f5f5;
         }
 
@@ -630,7 +727,7 @@
             padding: 100px 5%;
             max-width: 1400px;
             margin: 0 auto;
-            border-top: 1px solid rgba(203, 213, 225, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .section-title {
@@ -638,13 +735,13 @@
             font-weight: 900;
             margin-bottom: 60px;
             font-family: 'Exo 2', sans-serif;
-            color: #000000;
+            color: #f5f5f5;
             letter-spacing: -1.5px;
         }
 
         .section-subtitle {
             font-size: clamp(18px, 2vw, 22px);
-            color: #000000;
+            color: #d4d4d4;
             margin-bottom: 60px;
             font-weight: 300;
         }
@@ -670,7 +767,7 @@
         .stat-number {
             font-size: clamp(50px, 7vw, 80px);
             font-weight: 900;
-            color: #000000;
+            color: #f5f5f5;
             margin-bottom: 10px;
             letter-spacing: -2px;
             font-family: 'Exo 2', sans-serif;
@@ -678,7 +775,7 @@
 
         .stat-label {
             font-size: 16px;
-            color: #64748b;
+            color: #d4d4d4;
             font-weight: 300;
         }
 
@@ -707,11 +804,9 @@
         /* Card */
         .card {
             padding: 50px 40px;
-            background: rgba(255, 255, 255, 0.5);
-            backdrop-filter: blur(30px);
+            background: rgba(20, 20, 20, 0.6);
             border-radius: 30px;
-            border: 1px solid rgba(236, 72, 153, 0.2);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             transition: transform 0.4s ease;
             opacity: 0;
             animation: slideUp 0.8s ease forwards;
@@ -726,7 +821,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(203, 213, 225, 0.2), rgba(203, 213, 225, 0.1) 40%, transparent 70%);
+            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04) 40%, transparent 70%);
             opacity: 0;
             transition: opacity 0.3s ease;
             pointer-events: none;
@@ -764,7 +859,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #000000;
+            color: #ffffff;
             font-size: 35px;
             font-weight: 700;
             transition: all 0.3s ease;
@@ -777,14 +872,14 @@
         .card-icon svg {
             width: 40px;
             height: 40px;
-            stroke: #000000;
+            stroke: white;
             fill: none;
         }
 
         .card h3 {
             font-size: 24px;
             margin-bottom: 20px;
-            color: #000000;
+            color: #f5f5f5;
             font-family: 'Exo 2', sans-serif;
             font-weight: 700;
             letter-spacing: -0.5px;
@@ -793,7 +888,7 @@
         .card p {
             font-size: 16px;
             line-height: 1.7;
-            color: #64748b;
+            color: #d4d4d4;
             font-weight: 300;
         }
 
@@ -805,7 +900,7 @@
         .card ul li {
             font-size: 15px;
             line-height: 2;
-            color: #64748b;
+            color: #d4d4d4;
             padding-left: 25px;
             position: relative;
             font-weight: 300;
@@ -823,11 +918,9 @@
         .problem-card {
             text-align: center;
             padding: 40px 20px;
-            border: 1px solid rgba(236, 72, 153, 0.2);
-            background: rgba(255, 255, 255, 0.5);
-            backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(20, 20, 20, 0.4);
             border-radius: 25px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
@@ -840,16 +933,16 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(203, 213, 225, 0.2), rgba(203, 213, 225, 0.1) 40%, transparent 70%);
+            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04) 40%, transparent 70%);
             opacity: 0;
             transition: opacity 0.3s ease;
             pointer-events: none;
         }
 
         .problem-card:hover {
-            background: rgba(255, 255, 255, 1);
+            background: rgba(30, 30, 30, 0.6);
             transform: scale(1.05);
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
         }
 
         .problem-card:hover::before {
@@ -868,19 +961,18 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #000000;
+            color: #ffffff;
         }
 
         .problem-icon svg {
             width: 40px;
             height: 40px;
-            stroke: #000000;
         }
 
         .problem-title {
             font-size: 18px;
             font-weight: 700;
-            color: #000000;
+            color: #f5f5f5;
             margin-bottom: 10px;
             letter-spacing: -0.5px;
             font-family: 'Exo 2', sans-serif;
@@ -888,7 +980,7 @@
 
         .problem-text {
             font-size: 14px;
-            color: #64748b;
+            color: #d4d4d4;
             font-weight: 300;
         }
 
@@ -896,11 +988,9 @@
         .pricing-card {
             padding: 60px 40px;
             text-align: center;
-            border: 1px solid rgba(236, 72, 153, 0.2);
-            background: rgba(255, 255, 255, 0.5);
-            backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(20, 20, 20, 0.6);
             border-radius: 30px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
             transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             position: relative;
             overflow: hidden;
@@ -913,7 +1003,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(203, 213, 225, 0.2), rgba(203, 213, 225, 0.1) 40%, transparent 70%);
+            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04) 40%, transparent 70%);
             opacity: 0;
             transition: opacity 0.3s ease;
             pointer-events: none;
@@ -921,7 +1011,7 @@
 
         .pricing-card:hover {
             transform: translateY(-10px) scale(1.03);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
         }
 
         .pricing-card:hover::before {
@@ -929,24 +1019,24 @@
         }
 
         .pricing-card.featured {
-            background: rgba(255, 255, 255, 1);
-            color: #000000;
-            border: 1px solid rgba(203, 213, 225, 0.4);
+            background: rgba(245, 245, 245, 0.1);
+            color: #f5f5f5;
+            border: 1px solid rgba(255, 255, 255, 0.2);
             transform: scale(1.05);
             backdrop-filter: blur(10px);
         }
 
         .pricing-card.featured:hover {
             transform: scale(1.08);
-            box-shadow: 0 0 40px rgba(236, 72, 153, 0.6), 0 0 80px rgba(167, 139, 250, 0.3);
+            box-shadow: 0 0 40px rgba(236, 72, 153, 0.6), 0 0 80px rgba(167, 139, 250, 0.4);
         }
 
         .pricing-card.featured * {
-            color: #000000;
+            color: #f5f5f5;
         }
 
         .pricing-card.featured .btn {
-            color: #000000;
+            color: #f5f5f5;
             background: linear-gradient(135deg, #EC4899, #BE185D);
             border: none;
         }
@@ -968,7 +1058,7 @@
         }
 
         .pricing-card.featured .price {
-            color: #A78BFA;
+            color: #EC4899;
         }
 
         .price-period {
@@ -980,7 +1070,7 @@
         .badge {
             display: inline-block;
             padding: 8px 20px;
-            background: #A78BFA;
+            background: #EC4899;
             color: #ffffff;
             border-radius: 20px;
             font-size: 14px;
@@ -1027,14 +1117,14 @@
             font-size: 20px;
             margin-bottom: 15px;
             font-family: 'Exo 2', sans-serif;
-            color: #000000;
+            color: #f5f5f5;
             font-weight: 700;
             letter-spacing: -0.5px;
         }
 
         .step p {
             font-size: 15px;
-            color: #64748b;
+            color: #d4d4d4;
             font-weight: 300;
             line-height: 1.6;
         }
@@ -1052,26 +1142,544 @@
             font-weight: 900;
             margin-bottom: 30px;
             font-family: 'Exo 2', sans-serif;
-            color: #000000;
+            color: #f5f5f5;
             letter-spacing: -1.5px;
         }
 
         .cta-section p {
             font-size: 18px;
-            color: #64748b;
+            color: #d4d4d4;
             margin-bottom: 50px;
             font-weight: 300;
             line-height: 1.6;
         }
 
+        /* Contact Section */
+        .contact-section {
+            background: rgba(20, 20, 20, 0.4);
+            border-radius: 30px;
+            padding: 60px 5% !important;
+            margin-bottom: 80px;
+        }
+
+        .section-subtitle {
+            text-align: center;
+            font-size: 18px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: -30px;
+            margin-bottom: 40px;
+            font-weight: 300;
+        }
+
+        .contact-container {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr;
+            gap: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .contact-info {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .contact-info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            padding: 25px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .contact-info-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .contact-icon {
+            width: 50px;
+            height: 50px;
+            min-width: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .contact-icon svg {
+            width: 28px;
+            height: 28px;
+            stroke: #667eea;
+            transition: all 0.3s ease;
+        }
+
+        .contact-info-item:hover .contact-icon svg {
+            stroke: #764ba2;
+            transform: scale(1.1);
+        }
+
+        .contact-info-item h3 {
+            font-size: 18px;
+            color: #f5f5f5;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .contact-info-item a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .contact-info-item a:hover {
+            color: #764ba2;
+        }
+
+        .contact-info-item p {
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 400;
+        }
+
+        .contact-form-container {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 40px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .inline-contact-form .form-group {
+            margin-bottom: 24px;
+        }
+
+        .inline-contact-form label {
+            display: block;
+            margin-bottom: 8px;
+            color: #f5f5f5;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .inline-contact-form input,
+        .inline-contact-form textarea {
+            width: 100%;
+            padding: 14px 18px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            font-size: 15px;
+            font-family: 'Exo 2', sans-serif;
+            transition: none;
+            color: #f5f5f5;
+        }
+
+        /* Dark theme inputs (default) */
+        body[data-theme="dark"] .inline-contact-form input,
+        body[data-theme="dark"] .inline-contact-form textarea {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        body[data-theme="dark"] .inline-contact-form input:focus,
+        body[data-theme="dark"] .inline-contact-form textarea:focus {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .inline-contact-form input:focus,
+        .inline-contact-form textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+
+        .inline-contact-form textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .inline-contact-form .btn {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        /* Light theme contact section */
+        body[data-theme="light"] .contact-section {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 30px;
+            padding: 60px 5% !important;
+        }
+
+        body[data-theme="light"] .section-subtitle {
+            color: #64748b;
+        }
+
+        body[data-theme="light"] .contact-info-item {
+            background: rgba(255, 255, 255, 0.9);
+            border-color: rgba(203, 213, 225, 0.3);
+        }
+
+        body[data-theme="light"] .contact-info-item:hover {
+            background: rgba(255, 255, 255, 1);
+        }
+
+        body[data-theme="light"] .contact-info-item h3 {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .contact-info-item p {
+            color: #64748b;
+        }
+
+        body[data-theme="light"] .contact-icon svg {
+            stroke: #667eea;
+        }
+
+        body[data-theme="light"] .contact-info-item:hover .contact-icon svg {
+            stroke: #764ba2;
+        }
+
+        body[data-theme="light"] .contact-form-container {
+            background: rgba(255, 255, 255, 0.9);
+            border-color: rgba(203, 213, 225, 0.3);
+        }
+
+        body[data-theme="light"] .inline-contact-form label {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .inline-contact-form input,
+        body[data-theme="light"] .inline-contact-form textarea {
+            border-color: rgba(203, 213, 225, 0.5);
+            background: white !important;
+            color: #000000;
+        }
+
+        body[data-theme="light"] .inline-contact-form input:focus,
+        body[data-theme="light"] .inline-contact-form textarea:focus {
+            background: white !important;
+            border-color: #667eea;
+        }
+
         /* Footer */
         footer {
-            padding: 50px 5%;
-            text-align: center;
-            color: #64748b;
-            border-top: 1px solid rgba(203, 213, 225, 0.3);
-            font-weight: 300;
+            padding: 80px 5% 40px;
+            background: rgba(20, 20, 20, 0.6);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+        }
+
+        .footer-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 60px;
+            margin-bottom: 60px;
+        }
+
+        .footer-about {
+            padding-right: 40px;
+        }
+
+        .footer-logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: #f5f5f5;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .footer-logo sup {
+            font-size: 12px;
+            color: #EC4899;
+        }
+
+        .footer-description {
+            color: #d4d4d4;
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .footer-contact-info {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .footer-contact-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #d4d4d4;
             font-size: 14px;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .footer-contact-item:hover {
+            color: #EC4899;
+        }
+
+        .footer-contact-item svg {
+            width: 18px;
+            height: 18px;
+            stroke: #EC4899;
+        }
+
+        .footer-form-link {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 10px 16px;
+            border-radius: 8px;
+            margin-top: 8px;
+            font-weight: 500;
+            color: #fff !important;
+            transition: all 0.3s ease;
+        }
+
+        .footer-form-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            color: #fff !important;
+        }
+
+        .footer-form-link svg {
+            stroke: #fff !important;
+        }
+
+        .footer-column h4 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #f5f5f5;
+            margin-bottom: 25px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .footer-links {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .footer-links a {
+            color: #d4d4d4;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+
+        .footer-links a:hover {
+            color: #EC4899;
+            transform: translateX(5px);
+        }
+
+        .footer-bottom {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding-top: 40px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .footer-copyright {
+            color: #d4d4d4;
+            font-size: 14px;
+            font-weight: 300;
+        }
+
+        .footer-social {
+            display: flex;
+            gap: 20px;
+        }
+
+        .footer-social-link {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            color: #f5f5f5;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .footer-social-link:hover {
+            background: #EC4899;
+            border-color: #EC4899;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(236, 72, 153, 0.4);
+        }
+
+        .footer-social-link svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        /* Footer responsive */
+        @media (max-width: 1024px) {
+            .footer-content {
+                grid-template-columns: 1fr 1fr;
+                gap: 40px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .footer-content {
+                grid-template-columns: 1fr;
+                gap: 40px;
+            }
+
+            .footer-about {
+                padding-right: 0;
+            }
+
+            .footer-bottom {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+
+        /* FAQ Section */
+        .faq-section {
+            padding: 120px 5% 100px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .faq-section .section-title {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .faq-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .faq-item {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .faq-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(236, 72, 153, 0.3);
+        }
+
+        .faq-question {
+            padding: 30px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            user-select: none;
+        }
+
+        .faq-question h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #f5f5f5;
+            margin: 0;
+            flex: 1;
+        }
+
+        .faq-icon {
+            width: 24px;
+            height: 24px;
+            flex-shrink: 0;
+            transition: transform 0.3s ease;
+        }
+
+        .faq-icon svg {
+            width: 100%;
+            height: 100%;
+            stroke: #EC4899;
+        }
+
+        .faq-item.active .faq-icon {
+            transform: rotate(180deg);
+        }
+
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+        }
+
+        .faq-item.active .faq-answer {
+            max-height: 500px;
+            padding: 0 30px 30px;
+        }
+
+        .faq-answer p {
+            color: #d4d4d4;
+            line-height: 1.8;
+            margin: 0;
+            font-size: 16px;
+        }
+
+        /* FAQ Light Theme */
+        body[data-theme="light"] .faq-item {
+            background: rgba(255, 255, 255, 0.7);
+            border-color: rgba(203, 213, 225, 0.5);
+        }
+
+        body[data-theme="light"] .faq-item:hover {
+            background: rgba(255, 255, 255, 0.9);
+            border-color: rgba(236, 72, 153, 0.5);
+        }
+
+        body[data-theme="light"] .faq-question h3 {
+            color: #000000;
+        }
+
+        body[data-theme="light"] .faq-answer p {
+            color: #334155;
+        }
+
+        @media (max-width: 768px) {
+            .faq-section {
+                padding: 80px 5% 60px;
+            }
+
+            .faq-question {
+                padding: 20px;
+            }
+
+            .faq-question h3 {
+                font-size: 16px;
+            }
+
+            .faq-item.active .faq-answer {
+                padding: 0 20px 20px;
+            }
+
+            .faq-answer p {
+                font-size: 14px;
+            }
         }
 
         /* Responsive */
@@ -1083,9 +1691,9 @@
                 padding: 15px 30px;
                 position: relative;
                 flex-wrap: wrap;
-                border: 1px solid rgba(203, 213, 225, 0.3) !important;
-                background: rgba(255, 255, 255, 0.5);
-                backdrop-filter: blur(30px) saturate(180%);
+                border: none !important;
+                background: rgba(20, 20, 20, 0.8);
+                backdrop-filter: blur(20px) saturate(180%);
                 margin: 0 1px;
             }
 
@@ -1141,29 +1749,10 @@
                 width: 100%;
                 text-align: center;
                 opacity: 0;
-                transform: translateY(-40px) scale(0.5);
-                transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
             }
 
             .nav-links.active li {
                 opacity: 1;
-                transform: translateY(0) scale(1);
-            }
-
-            .nav-links.active li:nth-child(1) {
-                transition-delay: 0.08s;
-            }
-
-            .nav-links.active li:nth-child(2) {
-                transition-delay: 0.14s;
-            }
-
-            .nav-links.active li:nth-child(3) {
-                transition-delay: 0.2s;
-            }
-
-            .nav-links.active li:nth-child(4) {
-                transition-delay: 0.26s;
             }
 
             .nav-links li {
@@ -1177,19 +1766,17 @@
                 display: block;
                 width: 100%;
                 text-align: center;
-                background: rgba(236, 72, 153, 0.1);
-                border: 1px solid rgba(236, 72, 153, 0.2);
+                background: transparent;
+                border: 1px solid rgba(255, 255, 255, 0.02);
                 border-radius: 22px;
-                transition: all 0.3s ease;
                 backdrop-filter: blur(10px);
                 font-weight: 400;
             }
 
             .nav-links a:hover,
             .nav-links a:active {
-                background: rgba(236, 72, 153, 0.2);
-                border-color: rgba(236, 72, 153, 0.4);
-                transform: scale(1.02);
+                background: rgba(255, 255, 255, 0.1);
+                border-color: rgba(255, 255, 255, 0.2);
             }
 
             .nav-cta {
@@ -1208,7 +1795,6 @@
             .nav-cta:hover,
             .nav-cta:active {
                 background: linear-gradient(135deg, #BE185D, #9F1239) !important;
-                transform: scale(1.02) !important;
             }
 
             .grid-2, .grid-3, .grid-4 {
@@ -1286,7 +1872,7 @@
         .mobile-menu-toggle span {
             width: 28px;
             height: 3px;
-            background: #000000;
+            background: #f5f5f5;
             border-radius: 3px;
             transition: all 0.3s ease;
         }
@@ -1305,12 +1891,10 @@
 
         /* ROI Calculator */
         .roi-calculator {
-            background: rgba(255, 255, 255, 0.5);
-            backdrop-filter: blur(30px);
-            border: 1px solid rgba(236, 72, 153, 0.2);
+            background: rgba(20, 20, 20, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 30px;
             padding: 60px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
             position: relative;
             overflow: hidden;
         }
@@ -1322,7 +1906,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(203, 213, 225, 0.2), rgba(203, 213, 225, 0.1) 40%, transparent 70%);
+            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04) 40%, transparent 70%);
             opacity: 0;
             transition: opacity 0.3s ease;
             pointer-events: none;
@@ -1369,18 +1953,18 @@
         @keyframes roiIconPulse {
             0%, 100% {
                 transform: scale(1);
-                box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.7);
+                box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.7);
             }
             50% {
                 transform: scale(1.05);
-                box-shadow: 0 0 0 10px rgba(236, 72, 153, 0);
+                box-shadow: 0 0 0 10px rgba(167, 139, 250, 0);
             }
         }
 
         .roi-header h2 {
             font-size: clamp(30px, 4vw, 40px);
             font-weight: 900;
-            color: #000000;
+            color: #f5f5f5;
             font-family: 'Exo 2', sans-serif;
             margin: 0;
         }
@@ -1403,7 +1987,7 @@
             display: flex;
             justify-content: space-between;
             padding: 15px 0;
-            border-bottom: 1px solid rgba(203, 213, 225, 0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             opacity: 0;
             transform: translateX(-30px);
             animation: roiSlideIn 0.6s ease forwards;
@@ -1427,19 +2011,18 @@
         }
 
         .roi-label {
-            color: #64748b;
+            color: #d4d4d4;
             font-size: 16px;
         }
 
         .roi-value {
-            color: #000000;
+            color: #f5f5f5;
             font-weight: 700;
             font-size: 18px;
         }
 
         .roi-total {
-            background: rgba(236, 72, 153, 0.1);
-            border: 1px solid rgba(236, 72, 153, 0.2);
+            background: rgba(167, 139, 250, 0.1);
             border-radius: 15px;
             padding: 20px;
             margin-top: 20px;
@@ -1469,7 +2052,7 @@
         .roi-total-label {
             font-size: 18px;
             font-weight: 700;
-            color: #000000;
+            color: #f5f5f5;
         }
 
         .roi-total-value {
@@ -1483,7 +2066,7 @@
             grid-template-columns: repeat(3, 1fr);
             gap: 30px;
             padding-top: 40px;
-            border-top: 1px solid rgba(203, 213, 225, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .roi-bottom-item {
@@ -1511,7 +2094,7 @@
         .roi-bottom-label {
             display: block;
             font-size: 14px;
-            color: #64748b;
+            color: #d4d4d4;
             margin-bottom: 10px;
         }
 
@@ -1519,7 +2102,7 @@
             display: block;
             font-size: 32px;
             font-weight: 700;
-            color: #000000;
+            color: #f5f5f5;
         }
 
         .roi-highlight {
@@ -1536,12 +2119,10 @@
         }
 
         .integration-card {
-            background: rgba(255, 255, 255, 0.5);
-            backdrop-filter: blur(30px);
-            border: 1px solid rgba(236, 72, 153, 0.2);
+            background: rgba(20, 20, 20, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 25px;
             padding: 40px 30px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
@@ -1554,7 +2135,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(203, 213, 225, 0.2), rgba(203, 213, 225, 0.1) 40%, transparent 70%);
+            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04) 40%, transparent 70%);
             opacity: 0;
             transition: opacity 0.3s ease;
             pointer-events: none;
@@ -1567,13 +2148,12 @@
 
         .integration-card:hover {
             transform: translateY(-10px);
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
         }
 
         .integration-number {
             font-size: 72px;
             font-weight: 700;
-            color: rgba(0, 0, 0, 0.1);
+            color: rgba(167, 139, 250, 0.15);
             line-height: 1;
             margin-bottom: 20px;
         }
@@ -1581,19 +2161,19 @@
         .integration-card h3 {
             font-size: 22px;
             font-weight: 700;
-            color: #000000;
+            color: #f5f5f5;
             margin-bottom: 15px;
         }
 
         .integration-card p {
             font-size: 15px;
-            color: #64748b;
+            color: #d4d4d4;
             line-height: 1.6;
             margin-bottom: 30px;
         }
 
         .integration-visual {
-            background: rgba(0, 0, 0, 0.02);
+            background: rgba(255, 255, 255, 0.03);
             border-radius: 15px;
             padding: 30px;
             display: flex;
@@ -1611,7 +2191,7 @@
         .qr-line {
             width: 100px;
             height: 8px;
-            background: rgba(0, 0, 0, 0.15);
+            background: rgba(255, 255, 255, 0.15);
             border-radius: 4px;
         }
 
@@ -1631,7 +2211,7 @@
         }
 
         .api-dots {
-            color: #64748b;
+            color: #d4d4d4;
             font-size: 18px;
         }
 
@@ -1643,12 +2223,11 @@
         }
 
         .chat-bubble-preview {
-            background: rgba(255, 255, 255, 0.5);
-            border: 1px solid rgba(203, 213, 225, 0.5);
+            background: rgba(255, 255, 255, 0.1);
             padding: 12px 18px;
             border-radius: 12px;
             font-size: 14px;
-            color: #000000;
+            color: #d4d4d4;
             max-width: 80%;
             opacity: 0;
             transform: translateX(-20px) scale(0.9);
@@ -1719,13 +2298,30 @@
             .roi-calculator {
                 padding: 40px 30px;
             }
+
+            /* Disable ROI animations on mobile to prevent jerky loading */
+            .roi-header {
+                opacity: 1 !important;
+                transform: none !important;
+                animation: none !important;
+            }
+
+            .roi-icon {
+                animation: none !important;
+            }
+
+            .roi-item {
+                opacity: 1 !important;
+                transform: none !important;
+                animation: none !important;
+            }
         }
 
         /* Grand Slam Offer */
         .grand-slam-offer {
-            background: rgba(236, 72, 153, 0.1);
+            background: rgba(236, 72, 153, 0.15);
             border: 1px solid rgba(236, 72, 153, 0.3);
-            backdrop-filter: blur(30px);
+            backdrop-filter: blur(20px);
             border-radius: 30px;
             padding: 0;
             text-align: center;
@@ -1740,7 +2336,7 @@
             left: -50%;
             width: 200%;
             height: 200%;
-            background: radial-gradient(circle, rgba(236, 72, 153, 0.15) 0%, transparent 70%);
+            background: radial-gradient(circle, rgba(236, 72, 153, 0.2) 0%, transparent 70%);
             animation: pulse 8s ease-in-out infinite;
         }
 
@@ -1751,7 +2347,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(203, 213, 225, 0.2), rgba(203, 213, 225, 0.1) 40%, transparent 70%);
+            background: radial-gradient(circle 200px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04) 40%, transparent 70%);
             opacity: 0;
             transition: opacity 0.3s ease;
             pointer-events: none;
@@ -1780,7 +2376,7 @@
         .trophy-icon svg {
             width: 50px;
             height: 50px;
-            stroke: #A78BFA;
+            stroke: #EC4899;
             filter: drop-shadow(0 0 10px rgba(236, 72, 153, 0.6));
         }
 
@@ -1853,7 +2449,7 @@
 
         .spots-text {
             font-size: clamp(16px, 1.8vw, 20px);
-            color: #64748b;
+            color: #d4d4d4;
             font-weight: 300;
         }
 
@@ -1861,7 +2457,7 @@
             width: 100%;
             max-width: 400px;
             height: 10px;
-            background: rgba(203, 213, 225, 0.3);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
             margin: 0 auto 30px;
             overflow: hidden;
@@ -1896,7 +2492,7 @@
 
         .spots-deadline {
             font-size: 13px;
-            color: #000000;
+            color: #d4d4d4;
             font-weight: 300;
         }
 
@@ -1985,19 +2581,18 @@
         .bubble:nth-child(6) { animation-delay: 3.2s; }
 
         .bubble.client {
-            background: rgba(255, 255, 255, 0.5);
-            border: 1px solid rgba(203, 213, 225, 0.5);
+            background: rgba(40, 40, 40, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             margin-right: auto;
             border-radius: 20px 20px 20px 4px;
-            color: #000000;
+            color: #d4d4d4;
         }
 
         .bubble.bot {
-            background: linear-gradient(135deg, rgba(167, 139, 250, 0.1), rgba(236, 72, 153, 0.1));
-            border: 1px solid rgba(167, 139, 250, 0.3);
+            background: linear-gradient(135deg, rgba(167, 139, 250, 0.15), rgba(139, 92, 246, 0.15));
+            border: 1px solid rgba(167, 139, 250, 0.2);
             margin-left: auto;
             border-radius: 20px 20px 4px 20px;
-            color: #000000;
         }
 
         .demo-content {
@@ -2008,14 +2603,14 @@
             font-size: clamp(30px, 4vw, 40px);
             font-weight: 700;
             margin-bottom: 25px;
-            color: #000000;
+            color: #f5f5f5;
             letter-spacing: -1px;
         }
 
         .demo-content p {
             font-size: 18px;
             line-height: 1.7;
-            color: #000000;
+            color: #d4d4d4;
             font-weight: 300;
             margin-bottom: 20px;
         }
@@ -2202,10 +2797,10 @@
         }
 
         .modal-content {
-            background: rgba(255, 255, 255, 0.5);
+            background: rgba(20, 20, 20, 0.3);
             backdrop-filter: blur(40px);
             -webkit-backdrop-filter: blur(40px);
-            border: 1px solid rgba(236, 72, 153, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 30px;
             padding: 50px;
             max-width: 500px;
@@ -2213,8 +2808,8 @@
             max-height: 90vh;
             overflow-y: auto;
             position: relative;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.15);
             animation: slideUp 0.4s ease;
         }
 
@@ -2235,23 +2830,35 @@
             right: 20px;
             background: transparent;
             border: none;
-            color: #000000;
-            font-size: 32px;
-            font-weight: 300;
-            line-height: 1;
             cursor: pointer;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
             padding: 0;
-            margin: 0;
-            transition: all 0.3s ease;
+        }
+
+        .modal-close span {
+            width: 28px;
+            height: 3px;
+            background: #f5f5f5;
+            border-radius: 3px;
+            position: absolute;
+        }
+
+        .modal-close span:nth-child(1) {
+            transform: rotate(45deg);
+        }
+
+        .modal-close span:nth-child(2) {
+            transform: rotate(-45deg);
         }
 
         .modal-close:hover {
-            color: #A78BFA;
-            transform: scale(1.2);
-        }
-
-        .modal-close:active {
-            transform: scale(0.95);
+            opacity: 0.7;
         }
 
         .modal-header {
@@ -2262,13 +2869,13 @@
             font-family: 'Exo 2', sans-serif;
             font-size: clamp(28px, 4vw, 35px);
             font-weight: 900;
-            color: #000000;
+            color: #f5f5f5;
             margin-bottom: 15px;
             letter-spacing: -1px;
         }
 
         .modal-header p {
-            color: #000000;
+            color: rgba(255, 255, 255, 0.7);
             font-size: 16px;
             line-height: 1.6;
         }
@@ -2289,7 +2896,7 @@
             font-family: 'Exo 2', sans-serif;
             font-size: 14px;
             font-weight: 700;
-            color: #000000;
+            color: #f5f5f5;
             letter-spacing: 0.5px;
             text-transform: uppercase;
         }
@@ -2298,23 +2905,33 @@
         .form-group textarea {
             font-family: 'Exo 2', sans-serif;
             padding: 15px 20px;
-            background: rgba(255, 255, 255, 0.5);
             backdrop-filter: blur(15px);
             -webkit-backdrop-filter: blur(15px);
-            border: 1px solid rgba(236, 72, 153, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 15px;
-            color: #000000;
+            color: #f5f5f5;
             font-size: 16px;
-            transition: all 0.3s ease;
+            transition: none;
+        }
+
+        /* Dark theme modal inputs (default) */
+        body[data-theme="dark"] .form-group input,
+        body[data-theme="dark"] .form-group textarea {
+            background: rgba(255, 255, 255, 0.03);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        body[data-theme="dark"] .form-group input:focus,
+        body[data-theme="dark"] .form-group textarea:focus {
+            background: rgba(255, 255, 255, 0.08);
         }
 
         .form-group input:focus,
         .form-group textarea:focus {
             outline: none;
-            background: rgba(255, 255, 255, 0.5);
-            border-color: rgba(236, 72, 153, 0.7);
-            box-shadow: 0 0 30px rgba(236, 72, 153, 0.3),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+            border-color: rgba(167, 139, 250, 0.7);
+            box-shadow: 0 0 30px rgba(167, 139, 250, 0.4),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.15);
         }
 
         .form-group textarea {
@@ -2325,7 +2942,7 @@
         .form-submit {
             margin-top: 10px;
             padding: 18px 40px;
-            background: linear-gradient(135deg, #A78BFA 0%, #BE185D 100%);
+            background: linear-gradient(135deg, #A78BFA 0%, #EC4899 100%);
             border: none;
             border-radius: 30px;
             color: #fff;
@@ -2336,16 +2953,117 @@
             letter-spacing: 1px;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 10px 30px rgba(236, 72, 153, 0.4);
+            box-shadow: 0 10px 30px rgba(167, 139, 250, 0.3);
         }
 
         .form-submit:hover {
             transform: translateY(-2px);
-            box-shadow: 0 15px 40px rgba(236, 72, 153, 0.6);
+            box-shadow: 0 15px 40px rgba(167, 139, 250, 0.5);
         }
 
         .form-submit:active {
             transform: translateY(0);
+        }
+
+        /* Success Modal Styles */
+        .success-modal-content {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 30px;
+            padding: 50px;
+            max-width: 450px;
+            width: 90%;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            animation: slideUp 0.4s ease, successPop 0.6s ease;
+        }
+
+        @keyframes successPop {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 30px;
+        }
+
+        .success-circle {
+            stroke: #10b981;
+            stroke-width: 2;
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+
+        .success-check {
+            transform-origin: 50% 50%;
+            stroke: #10b981;
+            stroke-width: 2;
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+        }
+
+        @keyframes stroke {
+            100% {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        .success-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #000;
+            margin-bottom: 15px;
+        }
+
+        .success-message {
+            font-size: 16px;
+            color: #64748b;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .success-close {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #fff;
+            border: none;
+            border-radius: 15px;
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .success-close:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .success-close:active {
+            transform: translateY(0);
+        }
+
+        /* Dark theme for success modal */
+        body[data-theme="dark"] .success-modal-content {
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        body[data-theme="dark"] .success-title {
+            color: #f5f5f5;
+        }
+
+        body[data-theme="dark"] .success-message {
+            color: #d4d4d4;
         }
 
         @media (max-width: 768px) {
@@ -2357,8 +3075,83 @@
             .modal-header h2 {
                 font-size: 24px;
             }
+
+            .success-modal-content {
+                padding: 40px 30px;
+                max-width: 90%;
+            }
+
+            .success-icon {
+                width: 60px;
+                height: 60px;
+                margin-bottom: 20px;
+            }
+
+            .success-title {
+                font-size: 24px;
+            }
+
+            .success-message {
+                font-size: 14px;
+                margin-bottom: 25px;
+            }
+
+            .success-close {
+                padding: 12px 30px;
+                font-size: 14px;
+            }
+
+            /* Contact Section Responsive */
+            .contact-container {
+                grid-template-columns: 1fr;
+                gap: 40px;
+            }
+
+            .contact-form-container {
+                padding: 30px 25px;
+            }
+
+            .contact-info-item {
+                padding: 20px;
+            }
+
+            .section-subtitle {
+                font-size: 16px;
+                margin-top: -20px;
+                margin-bottom: 40px;
+            }
         }
+
     </style>
+
+    <!-- Prevent theme flash on page load -->
+    <script>
+        (function() {
+            function isMobile() {
+                return window.matchMedia('(max-width: 768px)').matches;
+            }
+
+            // Set theme immediately on <body> to prevent FOUC
+            const setInitialTheme = function() {
+                if (isMobile()) {
+                    // Mobile: use system theme
+                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    document.body.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+                } else {
+                    // Desktop: use localStorage
+                    const theme = localStorage.getItem('theme') || 'dark';
+                    document.body.setAttribute('data-theme', theme);
+                }
+            };
+
+            // Apply immediately if body exists, otherwise wait for DOMContentLoaded
+            if (document.body) {
+                setInitialTheme();
+            } else {
+                document.addEventListener('DOMContentLoaded', setInitialTheme);
+            }
+        })();
+    </script>
 </head>
 <body>
     <!-- Animated background -->
@@ -2371,7 +3164,7 @@
     <!-- Header -->
     <header>
         <nav>
-            <a href="#home" class="logo" style="text-decoration: none; cursor: pointer;">ADMIN AI<sup>beta</sup></a>
+            <a href="#home" class="logo" style="text-decoration: none; cursor: pointer;">ADMIN AI<span class="pink-dot">.</span></a>
 
             <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Toggle menu">
                 <span></span>
@@ -2382,7 +3175,8 @@
             <ul class="nav-links" id="navLinks">
                 <li><a href="#features">ВОЗМОЖНОСТИ</a></li>
                 <li><a href="#pricing">ЦЕНЫ</a></li>
-                <li><a href="#" class="modal-trigger">КОНТАКТЫ</a></li>
+                <li><a href="#faq">FAQ</a></li>
+                <li><a href="#contact-section">КОНТАКТЫ</a></li>
                 <li><a href="#" class="nav-cta modal-trigger">ПОПРОБОВАТЬ БЕСПЛАТНО</a></li>
             </ul>
         </nav>
@@ -2611,7 +3405,7 @@
     </section>
 
     <!-- ROI Calculator -->
-    <section class="section fade-in">
+    <section id="benefits" class="section fade-in">
         <div class="roi-calculator">
             <div class="roi-header">
                 <div class="roi-icon">
@@ -2682,7 +3476,7 @@
     </section>
 
     <!-- Integration Steps -->
-    <section class="section fade-in">
+    <section id="demo" class="section fade-in">
         <h2 class="section-title">Простая интеграция за 3 шага</h2>
         <div class="integration-steps">
             <div class="integration-card">
@@ -2750,7 +3544,7 @@
     </section>
 
     <!-- Grand Slam Offer Section -->
-    <section class="section fade-in">
+    <section id="pilot" class="section fade-in">
         <div class="grand-slam-offer">
             <div class="grand-slam-header">
                 <div class="trophy-icon">
@@ -2818,24 +3612,307 @@
         </div>
     </section>
 
-    <!-- CTA Section -->
-    <section class="cta-section fade-in" id="contact">
-        <h2>Готовы автоматизировать ваш салон?</h2>
-        <p>Присоединяйтесь к 1,500+ салонам, которые уже работают с Admin AI beta</p>
-        <a href="#" class="btn modal-trigger">ПОПРОБОВАТЬ БЕСПЛАТНО</a>
+    <!-- FAQ Section -->
+    <section class="faq-section fade-in" id="faq">
+        <h2 class="section-title">Часто задаваемые вопросы</h2>
+        <div class="faq-container">
+            <div class="faq-item">
+                <div class="faq-question">
+                    <h3>Что такое Admin AI beta и как это работает?</h3>
+                    <div class="faq-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="faq-answer">
+                    <p>Admin AI beta — это умный WhatsApp бот, который интегрируется с вашей CRM YClients и автоматизирует общение с клиентами. Бот понимает естественную речь, отвечает на вопросы, показывает цены, помогает выбрать услугу и записывает клиентов на свободное время. Работает 24/7 без выходных.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <h3>Как происходит интеграция с YClients?</h3>
+                    <div class="faq-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="faq-answer">
+                    <p>Интеграция происходит автоматически через API YClients. Мы подключаемся к вашей системе, получаем доступ к расписанию, услугам и мастерам. Весь процесс занимает не более 24 часов и не требует технических знаний с вашей стороны — мы все настроим за вас.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <h3>Сколько стоит использование сервиса?</h3>
+                    <div class="faq-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="faq-answer">
+                    <p>Стандартная цена — 19,900₽/месяц. Для участников пилотной программы действует специальная цена 2,999₽/месяц (скидка 85%). Первые 30 дней — бесплатно, вы ничем не рискуете. Можете протестировать все возможности и отказаться в любой момент без объяснения причин.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <h3>Как быстро можно запустить бота?</h3>
+                    <div class="faq-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="faq-answer">
+                    <p>Мы гарантируем запуск в течение 24 часов после оформления заявки. Обычно процесс занимает 2-4 часа: подключаем ваш WhatsApp номер, интегрируем с YClients, настраиваем бота под специфику вашего салона и проводим тестирование. Уже на следующий день ваши клиенты могут начать общаться с ботом.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <h3>Какие гарантии вы предоставляете?</h3>
+                    <div class="faq-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="faq-answer">
+                    <p>Мы гарантируем минимум 20 новых записей в первый месяц или вернем деньги. Также гарантируем техподдержку 24/7, запуск за 24 часа и стабильную работу бота без сбоев. Если в первые 30 дней вас что-то не устроит — просто откажитесь и не платите ни копейки.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <h3>Нужны ли мне технические знания для работы с ботом?</h3>
+                    <div class="faq-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="faq-answer">
+                    <p>Абсолютно нет! Мы настраиваем все за вас. Вам не нужно разбираться в API, кодах или технических деталях. Единственное, что от вас требуется — предоставить доступ к YClients и номер WhatsApp. Все остальное — наша забота. Бот начнет работать сразу после настройки.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <h3>Можно ли попробовать бесплатно перед покупкой?</h3>
+                    <div class="faq-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="faq-answer">
+                    <p>Да! Мы предоставляем 30 дней бесплатного пробного периода. В течение месяца вы сможете протестировать все функции бота, оценить количество новых записей и понять, насколько это удобно для вашего бизнеса. Если результат вас не устроит — просто откажитесь, без вопросов и объяснений.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <h3>Что если мне не подойдет сервис после начала работы?</h3>
+                    <div class="faq-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="faq-answer">
+                    <p>Вы можете отказаться в любой момент. В первые 30 дней — это полностью бесплатно. После окончания пробного периода можете отменить подписку в любое время без штрафов и объяснений. Мы работаем без долгосрочных контрактов — платите только за тот месяц, когда пользуетесь сервисом.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section class="section contact-section fade-in" id="contact-section">
+        <h2 class="section-title">Свяжитесь с нами</h2>
+        <p class="section-subtitle">Ответим на все вопросы в течение 24 часов</p>
+
+        <div class="contact-container">
+            <div class="contact-info">
+                <div class="contact-info-item">
+                    <div class="contact-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M22 6l-10 7L2 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3>Email</h3>
+                        <a href="mailto:support@adminai.tech">support@adminai.tech</a>
+                    </div>
+                </div>
+
+                <div class="contact-info-item">
+                    <div class="contact-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3>Телефон</h3>
+                        <a href="tel:+79936363848">+7 (993) 636-38-48</a>
+                    </div>
+                </div>
+
+                <div class="contact-info-item">
+                    <div class="contact-icon">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                            <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3>Режим работы</h3>
+                        <p>Пн-Пт: 9:00 - 18:00 (МСК)</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="contact-form-container">
+                <form class="inline-contact-form" id="inlineContactForm">
+                    <div class="form-group">
+                        <label for="inlineFormName">Ваше имя *</label>
+                        <input type="text" id="inlineFormName" name="name" required placeholder="Иван Иванов">
+                    </div>
+                    <div class="form-group">
+                        <label for="inlineFormEmail">Email *</label>
+                        <input type="email" id="inlineFormEmail" name="email" required placeholder="your@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="inlineFormPhone">Телефон *</label>
+                        <input type="tel" id="inlineFormPhone" name="phone" required placeholder="+7 (999) 123-45-67">
+                    </div>
+                    <div class="form-group">
+                        <label for="inlineFormMessage">Сообщение (необязательно)</label>
+                        <textarea id="inlineFormMessage" name="message" rows="4" placeholder="Расскажите о вашем салоне..."></textarea>
+                    </div>
+                    <button type="submit" class="btn">Отправить</button>
+                </form>
+            </div>
+        </div>
     </section>
 
     <!-- Footer -->
     <footer>
-        <p>© 2024 ADMIN AI. ВСЕ ПРАВА ЗАЩИЩЕНЫ.</p>
+        <div class="footer-content">
+            <!-- О компании -->
+            <div class="footer-about">
+                <div class="footer-logo">
+                    ADMIN AI<span class="pink-dot">.</span>
+                </div>
+                <p class="footer-description">
+                    Умный WhatsApp бот для салонов красоты. Автоматизируйте общение с клиентами,
+                    принимайте записи 24/7 и увеличивайте загруженность салона.
+                </p>
+                <div class="footer-contact-info">
+                    <a href="https://wa.me/79936363848" class="footer-contact-item" target="_blank">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        +7 (993) 636-38-48
+                    </a>
+                    <a href="mailto:support@adminai.tech" class="footer-contact-item">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M22 6l-10 7L2 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        support@adminai.tech
+                    </a>
+                    <a href="#contact-section" class="footer-contact-item footer-form-link">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Написать через форму
+                    </a>
+                </div>
+            </div>
+
+            <!-- Навигация -->
+            <div class="footer-column">
+                <h4>Навигация</h4>
+                <ul class="footer-links">
+                    <li><a href="#features">Возможности</a></li>
+                    <li><a href="#demo">Как работает</a></li>
+                    <li><a href="#benefits">Преимущества</a></li>
+                    <li><a href="#pricing">Цены</a></li>
+                    <li><a href="#contact-section">Контакты</a></li>
+                </ul>
+            </div>
+
+            <!-- Для клиентов -->
+            <div class="footer-column">
+                <h4>Для клиентов</h4>
+                <ul class="footer-links">
+                    <li><a href="#pilot">Пилотная программа</a></li>
+                    <li><a href="#" class="modal-trigger">Оставить заявку</a></li>
+                    <li><a href="https://t.me/ai_admin_support" target="_blank">Поддержка</a></li>
+                    <li><a href="#faq">FAQ</a></li>
+                    <li><a href="/marketplace/connect">Подключить YClients</a></li>
+                </ul>
+            </div>
+
+            <!-- Юридическое -->
+            <div class="footer-column">
+                <h4>Юридическое</h4>
+                <ul class="footer-links">
+                    <li><a href="privacy-policy.html">Политика конфиденциальности</a></li>
+                    <li><a href="/terms.html">Условия использования</a></li>
+                    <li><a href="/offer.html">Публичная оферта</a></li>
+                    <li><a href="/refund.html">Возврат средств</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Низ футера -->
+        <div class="footer-bottom">
+            <div class="footer-copyright">
+                © 2024 ADMIN AI. Все права защищены.
+            </div>
+            <div class="footer-social">
+                <a href="https://t.me/ai_admin_news" class="footer-social-link" target="_blank" aria-label="Telegram">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+                    </svg>
+                </a>
+                <a href="https://wa.me/79936363848" class="footer-social-link" target="_blank" aria-label="WhatsApp">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                    </svg>
+                </a>
+                <a href="https://instagram.com/ai_admin_app" class="footer-social-link" target="_blank" aria-label="Instagram">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                    </svg>
+                </a>
+            </div>
+        </div>
     </footer>
 
     <!-- Theme Switcher -->
-    <a href="index-new.html" class="theme-switcher" aria-label="Переключить на темную тему">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <div class="theme-switcher" id="themeToggle" aria-label="Переключить тему">
+        <svg class="moon-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="#EC4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-    </a>
+        <svg class="sun-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="5" stroke="#EC4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="12" y1="1" x2="12" y2="3" stroke="#EC4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="12" y1="21" x2="12" y2="23" stroke="#EC4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="#EC4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="#EC4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="1" y1="12" x2="3" y2="12" stroke="#EC4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="21" y1="12" x2="23" y2="12" stroke="#EC4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke="#EC4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke="#EC4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </div>
 
     <script>
         // Scroll animations
@@ -3189,6 +4266,7 @@
             }
         });
 
+
     </script>
     <script src="glass-surface.js"></script>
     <script>
@@ -3211,7 +4289,10 @@
     <!-- Contact Modal -->
     <div class="modal-overlay" id="contactModal">
         <div class="modal-content">
-            <button class="modal-close" id="modalClose">&times;</button>
+            <button class="modal-close" id="modalClose">
+                <span></span>
+                <span></span>
+            </button>
             <div class="modal-header">
                 <h2>Оставьте заявку</h2>
                 <p>Заполните форму и мы свяжемся с вами в течение 24 часов</p>
@@ -3238,12 +4319,29 @@
         </div>
     </div>
 
+    <!-- Success Modal -->
+    <div class="modal-overlay success-modal" id="successModal">
+        <div class="success-modal-content">
+            <div class="success-icon">
+                <svg viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+                    <circle class="success-circle" cx="26" cy="26" r="25" fill="none"/>
+                    <path class="success-check" fill="none" d="M14 27l7.5 7.5L38 18"/>
+                </svg>
+            </div>
+            <h2 class="success-title">Спасибо!</h2>
+            <p class="success-message">Ваша заявка отправлена.<br>Мы свяжемся с вами в течение 24 часов.</p>
+            <button class="success-close" id="successModalClose">Закрыть</button>
+        </div>
+    </div>
+
     <!-- Modal JavaScript -->
     <script>
         const modal = document.getElementById('contactModal');
         const modalClose = document.getElementById('modalClose');
         const contactForm = document.getElementById('contactForm');
         const modalTriggers = document.querySelectorAll('.modal-trigger');
+        const successModal = document.getElementById('successModal');
+        const successModalClose = document.getElementById('successModalClose');
 
         // Open modal
         modalTriggers.forEach(trigger => {
@@ -3276,10 +4374,79 @@
                 modal.classList.remove('active');
                 document.body.style.overflow = 'auto';
             }
+            if (e.key === 'Escape' && successModal.classList.contains('active')) {
+                successModal.classList.remove('active');
+                document.body.style.overflow = 'auto';
+            }
         });
 
-        // Form submission
-        contactForm.addEventListener('submit', (e) => {
+        // Success modal handlers
+        function showSuccessModal() {
+            successModal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function hideSuccessModal() {
+            successModal.classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+
+        successModalClose.addEventListener('click', hideSuccessModal);
+
+        successModal.addEventListener('click', (e) => {
+            if (e.target === successModal) {
+                hideSuccessModal();
+            }
+        });
+
+        // Form submission handler function
+        async function submitContactForm(formData, formElement, isModal = false) {
+            const submitButton = formElement.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton.textContent;
+
+            try {
+                // Disable button and show loading state
+                submitButton.disabled = true;
+                submitButton.textContent = 'Отправка...';
+
+                const response = await fetch('/api/contact', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    // Reset form
+                    formElement.reset();
+
+                    // Close contact modal if it was modal form
+                    if (isModal) {
+                        modal.classList.remove('active');
+                    }
+
+                    // Show success modal
+                    showSuccessModal();
+                } else {
+                    // Show error message
+                    const errorMessage = data.message || data.errors?.[0]?.msg || 'Произошла ошибка при отправке. Попробуйте позже.';
+                    alert(errorMessage);
+                }
+            } catch (error) {
+                console.error('Error submitting form:', error);
+                alert('Произошла ошибка при отправке. Пожалуйста, попробуйте позже или свяжитесь с нами напрямую: support@adminai.tech');
+            } finally {
+                // Re-enable button
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
+        }
+
+        // Modal form submission
+        contactForm.addEventListener('submit', async (e) => {
             e.preventDefault();
 
             const formData = {
@@ -3289,16 +4456,105 @@
                 message: document.getElementById('formMessage').value
             };
 
-            // TODO: Replace with actual form submission logic
-            console.log('Form submitted:', formData);
+            await submitContactForm(formData, contactForm, true);
+        });
 
-            // Show success message
-            alert('Спасибо! Ваша заявка отправлена. Мы свяжемся с вами в течение 24 часов.');
+        // Inline contact form submission
+        const inlineContactForm = document.getElementById('inlineContactForm');
+        if (inlineContactForm) {
+            inlineContactForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
 
-            // Close modal and reset form
-            modal.classList.remove('active');
-            document.body.style.overflow = 'auto';
-            contactForm.reset();
+                const formData = {
+                    name: document.getElementById('inlineFormName').value,
+                    phone: document.getElementById('inlineFormPhone').value,
+                    email: document.getElementById('inlineFormEmail').value,
+                    message: document.getElementById('inlineFormMessage').value
+                };
+
+                await submitContactForm(formData, inlineContactForm, false);
+            });
+        }
+
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const body = document.body;
+
+        function isMobileDevice() {
+            return window.matchMedia('(max-width: 768px)').matches;
+        }
+
+        function applyTheme() {
+            if (isMobileDevice()) {
+                // Mobile: use system theme
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                body.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+
+                // Hide theme toggle button on mobile
+                themeToggle.style.display = 'none';
+            } else {
+                // Desktop: use localStorage and button
+                const currentTheme = localStorage.getItem('theme') || 'dark';
+                body.setAttribute('data-theme', currentTheme);
+
+                // Show theme toggle button on desktop
+                themeToggle.style.display = 'flex';
+            }
+        }
+
+        // Apply theme on load
+        applyTheme();
+
+        // Listen to system theme changes (mobile only)
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (isMobileDevice()) {
+                body.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+            }
+        });
+
+        // Listen to window resize to switch between mobile/desktop logic
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                applyTheme();
+            }, 250);
+        });
+
+        // Theme toggle click (desktop only)
+        themeToggle.addEventListener('click', () => {
+            if (!isMobileDevice()) {
+                const theme = body.getAttribute('data-theme');
+                const newTheme = theme === 'light' ? 'dark' : 'light';
+
+                body.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+            }
+        });
+
+        // FAQ Accordion
+        const faqItems = document.querySelectorAll('.faq-item');
+
+        faqItems.forEach(item => {
+            const question = item.querySelector('.faq-question');
+
+            question.addEventListener('click', () => {
+                const isActive = item.classList.contains('active');
+
+                // Close all other items
+                faqItems.forEach(otherItem => {
+                    if (otherItem !== item) {
+                        otherItem.classList.remove('active');
+                    }
+                });
+
+                // Toggle current item
+                if (isActive) {
+                    item.classList.remove('active');
+                } else {
+                    item.classList.add('active');
+                }
+            });
         });
     </script>
 </body>
