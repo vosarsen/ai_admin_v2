@@ -474,8 +474,8 @@
                 white-space: nowrap;
             }
 
-            header.compact .logo sup {
-                font-size: 11px;
+            header.compact .logo .pink-dot {
+                font-size: inherit;
             }
 
             header.compact .mobile-menu-toggle {
@@ -551,11 +551,9 @@
             transition: all 0.8s cubic-bezier(0.25, 0.1, 0.25, 1);
         }
 
-        .logo sup {
-            font-size: 12px;
-            font-weight: 700;
+        .logo .pink-dot {
             color: #EC4899;
-            margin-left: 2px;
+            font-weight: 700;
         }
 
         .nav-links {
@@ -3284,7 +3282,7 @@
     <!-- Header -->
     <header>
         <nav>
-            <a href="./" class="logo" style="text-decoration: none; cursor: pointer;">ADMIN<sup>AI</sup></a>
+            <a href="./" class="logo" style="text-decoration: none; cursor: pointer;">ADMIN AI<span class="pink-dot">.</span></a>
 
             <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Toggle menu">
                 <span></span>
@@ -4074,7 +4072,7 @@
             <!-- О компании -->
             <div class="footer-about">
                 <div class="footer-logo">
-                    ADMIN<sup>AI</sup>
+                    ADMIN AI<span class="pink-dot">.</span>
                 </div>
                 <p class="footer-description">
                     Умный WhatsApp бот для салонов красоты. Автоматизируйте общение с клиентами,
