@@ -180,6 +180,14 @@ Completed:
   - Positioned next to timestamp
 - ✅ **Initial message time**: JavaScript initializes timestamp on page load
 
+### Final Polish (2025-11-25, commit b8a3d38):
+- ✅ **Shortcuts position adjusted**: Moved 10px to the right for better spacing
+  - Changed `left: 0` → `left: 10px` in `.shortcuts-list`
+  - Prevents overlap with chat edge
+- ✅ **Glow diffusion enhanced**: Increased blur for softer, more diffused effect
+  - Changed `filter: blur(6px)` → `filter: blur(12px)` in `.shortcuts-toggle::before`
+  - Creates more atmospheric, subtle glow
+
 Next Steps:
 - 🚧 Monitor real user interactions
 - 🚧 Gather analytics and feedback
