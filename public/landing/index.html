@@ -3269,7 +3269,7 @@
 
         .chat-messages {
             padding: 20px;
-            max-height: 250px;
+            height: 250px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
@@ -3649,21 +3649,6 @@
             cursor: not-allowed;
         }
 
-        .demo-limit-notice {
-            text-align: center;
-            padding: 15px;
-            margin-top: 20px;
-            background: rgba(236, 72, 153, 0.1);
-            border: 1px solid rgba(236, 72, 153, 0.3);
-            border-radius: 12px;
-            color: #ec4899;
-            font-size: 14px;
-        }
-
-        .demo-limit-notice a {
-            color: #ec4899;
-            text-decoration: underline;
-        }
 
         /* Light theme adjustments */
         body[data-theme="light"] .demo-chat-title h3 {
@@ -3965,12 +3950,6 @@
                                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
                             </svg>
                         </button>
-                    </div>
-
-                    <!-- Demo Limit Notice -->
-                    <div class="demo-limit-notice" id="demoLimitNotice" style="display: none;">
-                        <span class="limit-icon">ℹ️</span>
-                        <span class="limit-text">Осталось сообщений: <span id="messagesRemaining">10</span>/10</span>
                     </div>
                 </div>
             </div>
@@ -5278,8 +5257,8 @@
         const demoSend = document.getElementById('demoSend');
         const demoTyping = document.getElementById('demoTyping');
         const demoTemplates = document.getElementById('demoTemplates');
-        const demoLimitNotice = document.getElementById('demoLimitNotice');
-        const messagesRemainingSpan = document.getElementById('messagesRemaining');
+        // const demoLimitNotice = document.getElementById('demoLimitNotice'); // REMOVED
+        // const messagesRemainingSpan = document.getElementById('messagesRemaining'); // REMOVED
 
         // Auto-resize textarea
         demoInput.addEventListener('input', function() {
@@ -5342,7 +5321,7 @@
                     // Update messages remaining
                     if (data.messagesRemaining !== undefined) {
                         demoMessagesRemaining = data.messagesRemaining;
-                        updateLimitNotice();
+                        // updateLimitNotice(); // DISABLED
                     }
                 } else {
                     // Handle errors
@@ -5406,22 +5385,22 @@
             demoSend.disabled = true;
             demoInput.placeholder = 'Лимит демо-режима достигнут';
 
-            // Update limit notice
-            demoLimitNotice.style.display = 'flex';
-            messagesRemainingSpan.textContent = '0';
+            // Update limit notice - DISABLED
+            // demoLimitNotice.style.display = 'flex';
+            // messagesRemainingSpan.textContent = '0';
         }
 
-        // Update limit notice
-        function updateLimitNotice() {
-            if (demoMessagesRemaining <= 7) {
-                demoLimitNotice.style.display = 'flex';
-                messagesRemainingSpan.textContent = demoMessagesRemaining;
-            }
-
-            if (demoMessagesRemaining === 0) {
-                showLimitReachedMessage();
-            }
-        }
+        // Update limit notice - DISABLED
+        // function updateLimitNotice() {
+        //     if (demoMessagesRemaining <= 7) {
+        //         demoLimitNotice.style.display = 'flex';
+        //         messagesRemainingSpan.textContent = demoMessagesRemaining;
+        //     }
+        //
+        //     if (demoMessagesRemaining === 0) {
+        //         showLimitReachedMessage();
+        //     }
+        // }
 
         // Scroll to bottom
         function scrollToBottom() {
