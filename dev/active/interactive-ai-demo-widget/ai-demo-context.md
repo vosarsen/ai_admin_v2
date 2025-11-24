@@ -56,29 +56,33 @@ Completed:
 **Action:** Implemented FAB (Floating Action Button) interface for shortcuts
 **Status:** Implemented in commit d6309e6, **SUPERSEDED by dropdown implementation**
 
-### Vertical Shortcuts Menu Implementation (Current)
+### iOS-Style FAB with Radial Glow Implementation (Current)
 **Date:** 2025-11-25
-**Action:** Redesigned shortcuts as vertical popup menu with rainbow glow toggle + advanced FAB animations
+**Action:** Redesigned as iOS-style FAB with radial rotating glow + clean individual shortcut boxes
 **Features:**
 - ✅ Lightning icon toggle button (40x40px circle, neutral color)
-- ✅ Rainbow glow animation around toggle (3s infinite loop)
-- ✅ **Icon rotation**: Lightning rotates 45° when menu opens (like Plus → X)
+- ✅ **Radial rotating glow**: conic-gradient rotates 360° (3s loop)
+- ✅ Glow uses ::before pseudo-element with blur(8px)
+- ✅ **Icon remains static**: No rotation (cleaner interaction)
 - ✅ Toggle positioned in input area (left of text field)
-- ✅ Vertical popup menu (220px width, rounded corners)
-- ✅ Menu appears above toggle button (position: absolute, bottom: 100%)
-- ✅ **Menu scale animation**: Scales from 0.95 to 1.0 on open
+- ✅ **No menu container**: Removed background box
+- ✅ **Individual shortcut boxes**: Each button is separate element
+  - Background: rgba(255, 255, 255, 0.06)
+  - backdrop-filter: blur(20px)
+  - border-radius: 12px
+  - box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15)
+  - 240px width, 6px gap
+- ✅ **No emoji icons**: Text-only centered buttons
 - ✅ **Staggered entrance**: Each button appears with 0.05s incremental delay
 - ✅ **Blur entrance effect**: Buttons animate from blur(10px) to clear
 - ✅ **X-offset animation**: Buttons slide from left (-20px) to position
-- ✅ 4 vertical shortcut buttons with emoji icons
 - ✅ Buttons slide right on hover (translateX(4px))
-- ✅ Auto-icon mapping based on suggestion text (getIconForSuggestion)
-- ✅ Glass morphism design with dark background (rgba(80, 80, 90, 0.95))
-- ✅ Light theme support (white menu background)
+- ✅ Auto-icon mapping backend (still generates contextual text)
+- ✅ Glass morphism design (individual transparent boxes)
+- ✅ Light theme support (subtle shadows and borders)
 - ✅ Mobile responsive (compact layout)
 - ✅ Input field border-radius increased to 30px
 - ✅ Send button border-radius increased to 30px
-- ✅ No colorGlow animations on input/send button
 - ✅ Smooth cubic-bezier easing (0.4, 0, 0.2, 1) for natural motion
 
 **Icon Mapping:**
@@ -105,26 +109,35 @@ Completed:
 **Technical Details:**
 - Toggle: 40x40px circle with lightning SVG icon (neutral color)
 - Toggle background: rgba(255, 255, 255, 0.08) matching input field
-- Rainbow glow: 6-color animation (red → orange → yellow → green → blue → purple) 3s loop
+- **Radial glow**: conic-gradient with 6 colors (red → orange → yellow → green → blue → purple)
+- Glow animation: rotateGlow 3s linear infinite (360° rotation)
+- Glow position: ::before pseudo-element, inset: -3px, z-index: -1
+- Glow blur: filter: blur(8px) for soft effect
+- **Icon static**: No rotation (removed 45° rotation)
 - Toggle position: In chat-input-area, left of text field
-- **Icon rotation**: Rotates 45° on menu open (0.3s cubic-bezier)
-- Menu: position: absolute, bottom: 100%, left: 0
-- Menu size: 220px width, auto height, 12px border-radius
-- Menu background: rgba(80, 80, 90, 0.95) dark theme, rgba(255, 255, 255, 0.95) light theme
-- **Menu animation**: Scale 0.95→1.0 + translateY 20px→0 + opacity (0.6s, delay 0.1s)
-- Buttons: 12px padding, flex layout with icon + text
+- **No menu container**: Removed background/padding/border-radius
+- List: position: absolute, bottom: 100%, left: 0, width: 240px, gap: 6px
+- **Individual buttons**: Separate transparent boxes
+  - Background: rgba(255, 255, 255, 0.06)
+  - backdrop-filter: blur(20px)
+  - border: 1px solid rgba(255, 255, 255, 0.12)
+  - border-radius: 12px
+  - padding: 14px 18px
+  - font-size: 16px, font-weight: 500
+  - box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15)
+- **Emoji hidden**: .chip-icon { display: none }
 - **Staggered entrance**: Each button delayed by 0.05s increments (0.05s, 0.1s, 0.15s, 0.2s)
 - **Blur entrance**: Buttons animate from blur(10px) to clear
 - **X-offset animation**: Buttons slide from translateX(-20px) to 0
-- Button hover: rgba(255, 255, 255, 0.15) background, translateX(4px) slide
+- Button hover: rgba(255, 255, 255, 0.12) background, translateX(4px) slide, enhanced shadow
 - Easing: cubic-bezier(0.4, 0, 0.2, 1) for smooth motion
 - Input field: border-radius 30px, no animations
 - Send button: border-radius 30px, simple hover
-- File: `public/landing/index.html` (lines 3547-3714, 4080-4120, 5396-5638)
+- File: `public/landing/index.html` (lines 3552-3699, 4080-4120, 5396-5638)
 
-**Inspired by:** 21st.dev Floating Action Menu component patterns
+**Inspired by:** iOS shortcut menus + 21st.dev FAB patterns
 
-**Status:** Implemented in commit 699fd9f, deployed to production
+**Status:** Implemented in commit e61a842, deployed to production
 
 Next Steps:
 - 🚧 Monitor real user interactions
