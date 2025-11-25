@@ -866,8 +866,8 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
       // Добавляем напоминание в контекст диалога для AI Admin
       try {
         const phoneForContext = phone.replace('@c.us', '');
-        const context = await contextService.getContext(phoneForContext);
-        
+        const companyId = record.company_id || config.yclients.companyId;
+
         // Добавляем информацию о напоминании в историю
         const reminderInfo = {
           type: 'system_reminder',
@@ -882,26 +882,26 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
             recordId: record.id
           }
         };
-        
-        // Обновляем последнее системное действие
-        context.lastSystemAction = reminderInfo;
-        
-        // Добавляем в историю диалога
-        if (!context.dialogHistory) {
-          context.dialogHistory = [];
-        }
-        context.dialogHistory.push({
-          role: 'system',
-          content: `[Отправлено напоминание о записи]\n${message}`,
-          timestamp: new Date().toISOString()
+
+        // Обновляем контекст с информацией о напоминании
+        const updateResult = await contextService.updateDialogContext(phoneForContext, companyId, {
+          lastSystemAction: JSON.stringify(reminderInfo)
         });
-        
-        // Сохраняем обновленный контекст
-        await contextService.updateContext(phoneForContext, context);
-        
-        logger.info(`📝 Reminder added to dialog context for ${phoneForContext}`);
+
+        if (updateResult.success) {
+          // Добавляем сообщение в историю диалога
+          await contextService.addMessage(phoneForContext, companyId, {
+            sender: 'system',
+            text: `[Отправлено напоминание о записи]\n${message}`,
+            timestamp: new Date().toISOString()
+          });
+
+          logger.info(`📝 Reminder added to dialog context for ${phoneForContext}`);
+        } else {
+          logger.warn(`Failed to update dialog context: ${updateResult.error}`);
+        }
       } catch (error) {
-        logger.warn('Failed to add reminder to context:', error);
+        logger.warn('Failed to add reminder to context:', { error: error.message, stack: error.stack });
         // Не прерываем процесс, если не удалось обновить контекст
       }
       
