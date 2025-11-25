@@ -1,3 +1,6 @@
+// CRITICAL: Import instrument.js FIRST for Sentry initialization
+require('../instrument');
+
 const logger = require('../utils/logger');
 const bookingMonitor = require('../services/booking-monitor');
 
