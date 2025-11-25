@@ -11,7 +11,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 SERVER="root@46.149.70.219"
 SSH_KEY="~/.ssh/id_ed25519_ai_admin"
-GEMINI_API_KEY="AIzaSyD1Pnxdz8wZ6CsaDddUxxIG3fMg69kQkkU"
+GEMINI_API_KEY="***REMOVED***"
 
 echo ""
 echo "📦 Step 1/6: Pulling latest code on server..."

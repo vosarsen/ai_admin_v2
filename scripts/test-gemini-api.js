@@ -9,7 +9,7 @@
 
 const axios = require('axios');
 
-const GEMINI_API_KEY = 'AIzaSyD1Pnxdz8wZ6CsaDddUxxIG3fMg69kQkkU';
+const GEMINI_API_KEY = '***REMOVED***';
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 

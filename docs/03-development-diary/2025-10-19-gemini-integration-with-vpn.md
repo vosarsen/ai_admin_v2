@@ -64,7 +64,7 @@ if (process.env.HTTPS_PROXY || process.env.https_proxy) {
 AI_PROVIDER=gemini-flash
 
 # Gemini API Key
-GEMINI_API_KEY=AIzaSyD1Pnxdz8wZ6CsaDddUxxIG3fMg69kQkkU
+GEMINI_API_KEY=***REMOVED***
 
 # Proxy Configuration
 SOCKS_PROXY=socks5://127.0.0.1:1080
@@ -140,7 +140,7 @@ systemctl start xray
 
 # 5. Update .env
 echo "AI_PROVIDER=gemini-flash" >> .env
-echo "GEMINI_API_KEY=AIzaSyD1Pnxdz8wZ6CsaDddUxxIG3fMg69kQkkU" >> .env
+echo "GEMINI_API_KEY=***REMOVED***" >> .env
 echo "SOCKS_PROXY=socks5://127.0.0.1:1080" >> .env
 
 # 6. Restart workers with updated environment
