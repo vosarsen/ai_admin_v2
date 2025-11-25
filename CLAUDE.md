@@ -677,3 +677,41 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 info backup-postgresql
 **AI Provider:** Gemini 2.5 Flash (via USA VPN) - 2.6x faster, $77/month savings 🚀
 **Latest change:** 🛡️ Baileys Resilience - Task 4.1 PostgreSQL Backups COMPLETE! Phase 3: 25% ✅
 **Infrastructure Status:** 100% Complete - Skills System ✅ | Dev Docs ✅ | 10 Agents ✅ | Hook Pipeline ✅ | Error Handling ✅
+---
+
+## 📊 Monitoring & Error Tracking
+
+### GlitchTip Access
+
+**URL:** https://glitchtip.adminai.tech
+**Credentials:**
+- Email: `support@adminai.tech`
+- Password: `SecureAdmin2025GT!`
+
+**Features:**
+- ✅ HTTPS with Let's Encrypt SSL (A+ rating)
+- ✅ HTTP/2 enabled (~80ms response time)
+- ✅ Security headers configured
+- ✅ Automatic SSL renewal
+- ✅ **No SSH tunnel required!**
+
+**Technical Details:**
+- Reverse proxy: Nginx 1.24.0
+- Backend: Docker Compose (localhost:8080)
+- Config: `/etc/nginx/sites-available/glitchtip.adminai.tech`
+- Logs: `/var/log/nginx/glitchtip-*.log`
+
+**Quick Access:**
+```bash
+# Open in browser
+open https://glitchtip.adminai.tech
+
+# Health check
+curl https://glitchtip.adminai.tech/health-nginx
+
+# Check logs
+ssh root@46.149.70.219 "tail -f /var/log/nginx/glitchtip-access.log"
+```
+
+**Documentation:** `docs/GLITCHTIP_ACCESS.md`
+
