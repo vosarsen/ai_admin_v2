@@ -317,7 +317,7 @@ BAILEYS_STANDALONE=true  # Prevents session conflicts
 
 # AI Provider (Gemini with VPN)
 AI_PROVIDER=gemini-flash
-GEMINI_API_KEY=***REMOVED***
+GEMINI_API_KEY=AIzaSyD1Pnxdz8wZ6CsaDddUxxIG3fMg69kQkkU
 SOCKS_PROXY=socks5://127.0.0.1:1080
 
 # Redis ports

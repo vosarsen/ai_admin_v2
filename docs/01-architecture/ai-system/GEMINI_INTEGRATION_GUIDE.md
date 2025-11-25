@@ -8,7 +8,7 @@
 2. ✅ Обновлена конфигурация в `src/config/index.js`
 3. ✅ Обновлен `.env.example` с настройками Gemini
 4. ✅ Создан тестовый скрипт `scripts/test-gemini-api.js`
-5. ✅ Получен API ключ: `***REMOVED***`
+5. ✅ Получен API ключ: `AIzaSyD1Pnxdz8wZ6CsaDddUxxIG3fMg69kQkkU`
 
 ## 🎯 Следующие шаги
 
@@ -19,7 +19,7 @@
 ```bash
 # 1. Добавь API ключ в .env
 cd /Users/vosarsen/Documents/GitHub/ai_admin_v2
-echo "GEMINI_API_KEY=***REMOVED***" >> .env
+echo "GEMINI_API_KEY=AIzaSyD1Pnxdz8wZ6CsaDddUxxIG3fMg69kQkkU" >> .env
 
 # 2. Запусти тестовый скрипт
 node scripts/test-gemini-api.js
@@ -74,7 +74,7 @@ cd /opt/ai-admin
 git pull
 
 # 4. Добавь API ключ в .env
-echo "GEMINI_API_KEY=***REMOVED***" >> .env
+echo "GEMINI_API_KEY=AIzaSyD1Pnxdz8wZ6CsaDddUxxIG3fMg69kQkkU" >> .env
 
 # 5. Запусти тест НА СЕРВЕРЕ
 node scripts/test-gemini-api.js
@@ -241,7 +241,7 @@ const provider = await abTestProvider.getProvider();
 cat .env | grep GEMINI_API_KEY
 
 # Должно быть:
-# GEMINI_API_KEY=***REMOVED***
+# GEMINI_API_KEY=AIzaSyD1Pnxdz8wZ6CsaDddUxxIG3fMg69kQkkU
 ```
 
 ---
@@ -333,5 +333,5 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 status"
 ---
 
 *Создано: 19 октября 2025*
-*API ключ: ***REMOVED****
+*API ключ: AIzaSyD1Pnxdz8wZ6CsaDddUxxIG3fMg69kQkkU*
 *Версия: 1.0*

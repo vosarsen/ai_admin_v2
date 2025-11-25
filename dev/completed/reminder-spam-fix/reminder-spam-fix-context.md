@@ -169,6 +169,9 @@ Valid values for `notification_type`:
   - Commit `d5ef56f` pushed to main
   - Service restarted successfully
   - Logs show no errors
+- ✅ Post-deploy fixes:
+  - `8e11f87` - Added Sentry initialization to booking-monitor-worker (errors weren't being captured to GlitchTip)
+  - `64840c4` - Fixed contextService API calls (getContext → getDialogContext, updateContext → updateDialogContext)
 
 ### Post-Deploy Monitoring
 - Monitor for first reminder cycle (evening 18:00-21:00 or 2-hour before booking)
@@ -185,7 +188,7 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "cd /opt/ai-admin && psql '
 ## PROJECT COMPLETE ✅
 
 **Status:** Deployed to production on 2025-11-25
-**Commit:** `d5ef56f`
+**Commits:** `d5ef56f`, `8e11f87`, `64840c4`
 
 ### Summary
 - Root cause: Hardcoded `const sentReminders = []` on line 654

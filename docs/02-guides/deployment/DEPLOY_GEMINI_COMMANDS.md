@@ -11,7 +11,7 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "cd /opt/ai-admin && git pu
 ## ✅ Шаг 2: Добавить GEMINI_API_KEY в .env
 
 ```bash
-ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "cd /opt/ai-admin && echo 'GEMINI_API_KEY=***REMOVED***' >> .env"
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "cd /opt/ai-admin && echo 'GEMINI_API_KEY=AIzaSyD1Pnxdz8wZ6CsaDddUxxIG3fMg69kQkkU' >> .env"
 ```
 
 ## ✅ Шаг 3: Проверить что ключ добавлен
@@ -22,7 +22,7 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "cd /opt/ai-admin && cat .e
 
 Должно вывести:
 ```
-GEMINI_API_KEY=***REMOVED***
+GEMINI_API_KEY=AIzaSyD1Pnxdz8wZ6CsaDddUxxIG3fMg69kQkkU
 ```
 
 ## ✅ Шаг 4: Запустить тесты Gemini на сервере

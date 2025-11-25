@@ -1511,7 +1511,7 @@ WEBHOOK_URL=http://<NEW_VPS_IP>:3000/webhook/whatsapp/batched  # UPDATE IP!
 # AI PROVIDER - NO CHANGES
 # ============================================
 AI_PROVIDER=gemini-flash
-GEMINI_API_KEY=***REMOVED***
+GEMINI_API_KEY=AIzaSyD1Pnxdz8wZ6CsaDddUxxIG3fMg69kQkkU
 USE_TWO_STAGE=true
 AI_PROMPT_VERSION=two-stage
 
