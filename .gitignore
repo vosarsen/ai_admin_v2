@@ -186,6 +186,7 @@ scripts/deployment/start-local.sh
 
 # macOS
 .DS_Store
+**/.DS_Store
 
 # Redis tunnel logs
 .redis-tunnel.log
@@ -204,8 +205,21 @@ sessions/
 *.session
 *.auth
 
+# Baileys session data
+baileys_sessions/
+baileys_stores/
+baileys_test_auth/
+
+# Backup files
+backups/
+
 # Sync and log files
 sync-log.txt
 *.sync.log
 *-sync.log
 .notion-sync.lock
+
+# Google Service Account credentials (NEVER commit!)
+config/google-service-account.json
+**/google-service-account.json
+gen-lang-client-*.json
