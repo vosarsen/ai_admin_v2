@@ -58,7 +58,7 @@ class AIAdminV2 {
     }
 
     // Поддерживаем формат с @c.us и без, а также demo_ префикс для демо-режима
-    const phoneRegex = /^(demo_|(\+?\d{10,15}|[\d\-\(\)\s]{10,20})(@c\.us)?)$/;
+    const phoneRegex = /^(demo_.+|(\+?\d{10,15}|[\d\-\(\)\s]{10,20})(@c\.us)?)$/;
     if (!phoneRegex.test(phone)) {
       throw new ValidationError('Invalid phone format', 'phone', phone);
     }
