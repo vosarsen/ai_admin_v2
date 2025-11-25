@@ -110,7 +110,7 @@ NOTION_TOKEN=secret_...
 
 **Location:** User provided key validation
 
-**Current:** User provided key: `ntn_b2770352006CIBrGVNy4WpJGYw0vHELMxKfauu3Tm51bkH`
+**Current:** User provided key: `ntn_YOUR_TOKEN_HERE`
 
 **Analysis:**
 - ✅ Correct prefix: `ntn_` (modern format)
@@ -297,7 +297,7 @@ completed    → Notion: "Done"
 
 ### Additional Recommendations:
 
-1. **Rotate the exposed key:** The user shared the API key `ntn_b2770352006CIBrGVNy4WpJGYw0vHELMxKfauu3Tm51bkH` in the conversation. This key should be rotated immediately:
+1. **Rotate the exposed key:** The user shared the API key `ntn_YOUR_TOKEN_HERE` in the conversation. This key should be rotated immediately:
    - Go to https://www.notion.so/my-integrations
    - Select "AI Admin v2 - Claude Code" integration
    - Click "Regenerate token"
@@ -355,7 +355,7 @@ Before marking this integration as complete:
 Then add the actual token:
 ```json
 "env": {
-  "NOTION_TOKEN": "ntn_b2770352006CIBrGVNy4WpJGYw0vHELMxKfauu3Tm51bkH"
+  "NOTION_TOKEN": "ntn_YOUR_TOKEN_HERE"
 }
 ```
 

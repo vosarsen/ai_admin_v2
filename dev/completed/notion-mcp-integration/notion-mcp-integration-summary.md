@@ -81,7 +81,7 @@
 
 ### Security Note
 
-⚠️ **API Key Exposed:** The Notion API key `ntn_b2770352006CIBrGVNy4WpJGYw0vHELMxKfauu3Tm51bkH` was shown in this conversation. Recommend rotating it after setup at https://www.notion.so/my-integrations
+⚠️ **API Key Exposed:** The Notion API key `ntn_YOUR_TOKEN_HERE` was shown in this conversation. Recommend rotating it after setup at https://www.notion.so/my-integrations
 
 ### Lessons Learned
 

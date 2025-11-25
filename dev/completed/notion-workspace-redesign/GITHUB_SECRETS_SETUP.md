@@ -6,7 +6,7 @@ Add the following secret to your GitHub repository:
 
 ### NOTION_TOKEN
 
-**Value:** `ntn_u277035200626fQchaKwNREsPvVaV02f8Qz0yPTrdZTgJl`
+**Value:** `ntn_YOUR_TOKEN_HERE`
 
 ## How to Add
 
