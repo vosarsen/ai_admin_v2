@@ -1,8 +1,8 @@
 # Interactive AI Bot Demo Widget - Context
 
-**Status:** ✅ PRODUCTION READY - Horizontal Shortcuts Bar Implemented
-**Last Updated:** 2025-11-25 (horizontal shortcuts bar with lightning toggle)
-**Phase:** Backend + Frontend complete, using compact horizontal shortcuts bar
+**Status:** ✅ PRODUCTION READY - Polished & Deployed
+**Last Updated:** 2025-11-25 23:30 (final polish complete)
+**Phase:** Backend + Frontend complete, all improvements deployed to production
 
 ## Current State
 
@@ -180,13 +180,56 @@ Completed:
   - Positioned next to timestamp
 - ✅ **Initial message time**: JavaScript initializes timestamp on page load
 
-### Final Polish (2025-11-25, commit b8a3d38):
+### Final Polish Round 1 (2025-11-25, commit b8a3d38):
 - ✅ **Shortcuts position adjusted**: Moved 10px to the right for better spacing
   - Changed `left: 0` → `left: 10px` in `.shortcuts-list`
   - Prevents overlap with chat edge
 - ✅ **Glow diffusion enhanced**: Increased blur for softer, more diffused effect
   - Changed `filter: blur(6px)` → `filter: blur(12px)` in `.shortcuts-toggle::before`
   - Creates more atmospheric, subtle glow
+
+### Final Polish Round 2 (2025-11-25, commits c6dd3fb, 4a5c297, ff7db71):
+- ✅ **Fine-tuned shortcuts position**: Iterative adjustments for perfect alignment
+  - First: 10px → 50px (5x increase)
+  - Then: 50px → 45px (5px back)
+  - Final: 45px → 40px (5px back again)
+  - Result: Perfect visual balance
+
+### Send Button Experiment (2025-11-25, commit 185b92b, reverted 2ce2276):
+- 🔄 **Telegram-style inline button**: Attempted, then reverted
+  - Moved send button inside input field (circular, absolute positioned)
+  - Purple accent color, hover effects
+  - User feedback: preferred original external button layout
+  - **Reverted to original design**
+
+### Content Simplification (2025-11-25, commit 2ce2276):
+- ✅ **Demo section text condensed**: Made more concise and impactful
+  - Removed subtitle "Бот работает как настоящий администратор"
+  - Combined 2 paragraphs into 1 focused message
+  - Kept core value proposition clear
+
+### Layout Cleanup (2025-11-25, commit 373af02):
+- ✅ **Removed duplicate demo section**: Eliminated redundant content
+  - Deleted old "Бот работает как настоящий администратор" section
+  - Removed demo conversation bubbles (6 messages example)
+  - Kept only interactive widget section
+  - Cleaner, more focused page flow
+
+### Visual Hierarchy (2025-11-25, commits 040efd8, daa662b):
+- ✅ **Section divider added**: Visual separation between sections
+  - Initially: Purple gradient line with fade effect
+  - Final: Simple border matching other dividers
+  - Dark theme: `1px solid rgba(255, 255, 255, 0.1)`
+  - Light theme: `1px solid rgba(203, 213, 225, 0.3)`
+  - Consistent with site-wide design language
+
+### Animation Direction (2025-11-25, commit 17e673e):
+- ✅ **Shortcuts animation changed**: Vertical instead of horizontal
+  - Hidden state: `translateY(20px)` (bottom) → `translateY(0)` (position)
+  - More natural upward motion matching menu pattern
+  - Hover: `translateY(-2px)` slight lift effect
+  - Staggered delays preserved (0.02s, 0.04s, 0.06s, 0.08s)
+  - Blur effect maintained for smooth appearance
 
 Next Steps:
 - 🚧 Monitor real user interactions
