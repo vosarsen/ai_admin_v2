@@ -52,13 +52,13 @@ class AIAdminV2 {
       throw new ValidationError('Message is too long (max 5000 characters)', 'message', message.length);
     }
     
-    // Валидация телефона
+    // Валидация телефона (пропускаем для demo режима)
     if (!phone || typeof phone !== 'string') {
       throw new ValidationError('Phone is required and must be a string', 'phone', phone);
     }
-    
-    // Поддерживаем формат с @c.us и без
-    const phoneRegex = /^(\+?\d{10,15}|[\d\-\(\)\s]{10,20}(@c\.us)?)$/;
+
+    // Поддерживаем формат с @c.us и без, а также demo_ префикс для демо-режима
+    const phoneRegex = /^(demo_|(\+?\d{10,15}|[\d\-\(\)\s]{10,20})(@c\.us)?)$/;
     if (!phoneRegex.test(phone)) {
       throw new ValidationError('Invalid phone format', 'phone', phone);
     }
