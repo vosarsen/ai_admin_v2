@@ -1,6 +1,13 @@
 const logger = require('../../utils/logger');
 const postgres = require('../../database/postgres');
-const { BookingRepository } = require('../../repositories');
+const Sentry = require('@sentry/node');
+const {
+  BookingRepository,
+  BookingNotificationRepository,
+  CompanyRepository,
+  ServiceRepository,
+  StaffRepository
+} = require('../../repositories');
 const { YclientsClient } = require('../../integrations/yclients/client');
 const whatsappClient = require('../../integrations/whatsapp/client');
 const config = require('../../config');
@@ -33,9 +40,14 @@ class BookingMonitorService {
     this.yclientsClient = new YclientsClient();
     this.whatsappClient = whatsappClient;
     this.bookingRepo = new BookingRepository(postgres.pool);
+    this.notificationRepo = new BookingNotificationRepository(postgres.pool);
+    this.companyRepo = new CompanyRepository(postgres.pool);
+    this.serviceRepo = new ServiceRepository(postgres.pool);
+    this.staffRepo = new StaffRepository(postgres.pool);
     this.checkInterval = config.bookingMonitor?.checkInterval || 60000; // 1 минута по умолчанию
     this.duplicateCheckWindow = config.bookingMonitor?.duplicateCheckWindow || 60 * 60 * 1000; // 1 час по умолчанию
     this.isRunning = false;
+    this.isChecking = false; // Mutex to prevent overlapping checks
     this.intervalId = null;
   }
 
@@ -82,6 +94,13 @@ class BookingMonitorService {
    * Проверить записи и их изменения
    */
   async checkBookings() {
+    // Mutex to prevent overlapping checks
+    if (this.isChecking) {
+      logger.debug('⏭️ Skipping - previous check running');
+      return;
+    }
+    this.isChecking = true;
+
     try {
       logger.debug('🔍 Checking bookings for changes...');
 
@@ -130,6 +149,11 @@ class BookingMonitorService {
 
     } catch (error) {
       logger.error('❌ Error checking bookings:', error);
+      Sentry.captureException(error, {
+        tags: { component: 'booking-monitor', operation: 'checkBookings' }
+      });
+    } finally {
+      this.isChecking = false;
     }
   }
 
@@ -342,12 +366,18 @@ class BookingMonitorService {
     }
 
     // Проверяем, не отправляли ли мы уже уведомление об этих изменениях недавно
-    const { data: recentNotifications } = await supabase
-      .from('booking_notifications')
-      .select('*')
-      .eq('yclients_record_id', parseInt(record.id))
-      .gte('sent_at', new Date(Date.now() - this.duplicateCheckWindow).toISOString())
-      .order('sent_at', { ascending: false });
+    let recentNotifications = [];
+    try {
+      recentNotifications = await this.notificationRepo.findRecent(
+        parseInt(record.id),
+        this.duplicateCheckWindow
+      );
+    } catch (error) {
+      logger.error(`Failed to check recent notifications:`, error);
+      Sentry.captureException(error, {
+        tags: { component: 'booking-monitor', operation: 'sendChangeNotifications' }
+      });
+    }
 
     // Группируем изменения для одного сообщения
     let message = '';
@@ -375,7 +405,7 @@ class BookingMonitorService {
     }
 
     // Проверяем, не отправляли ли мы такое же уведомление недавно
-    const isDuplicate = recentNotifications?.some(n => 
+    const isDuplicate = recentNotifications.some(n =>
       n.notification_type === notificationType
     );
 
@@ -389,20 +419,20 @@ class BookingMonitorService {
       await this.whatsappClient.sendMessage(phone, message);
 
       // Сохраняем информацию об отправке
-      await supabase
-        .from('booking_notifications')
-        .insert({
-          yclients_record_id: record.id.toString(),
-          phone: phone,
-          notification_type: notificationType,
-          message: message,
-          sent_at: new Date().toISOString(),
-          company_id: record.company_id || config.yclients.companyId
-        });
+      await this.notificationRepo.create({
+        yclients_record_id: parseInt(record.id),
+        phone: phone,
+        notification_type: notificationType,
+        message: message,
+        company_id: record.company_id || config.yclients.companyId
+      });
 
       logger.info(`✅ ${notificationType} notification sent for booking ${record.id} to ${phone}`);
     } catch (error) {
       logger.error(`❌ Failed to send notification for booking ${record.id}:`, error);
+      Sentry.captureException(error, {
+        tags: { component: 'booking-monitor', operation: 'sendChangeNotifications' }
+      });
     }
   }
 
@@ -480,13 +510,15 @@ class BookingMonitorService {
       const price = record.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0;
       
       // Получаем адрес компании
-      const { data: company } = await supabase
-        .from('companies')
-        .select('address')
-        .eq('id', record.company_id || config.yclients.companyId)
-        .single();
-        
-      const address = company?.address || 'Малаховка, Южная улица, 38';
+      let address = 'Малаховка, Южная улица, 38';
+      try {
+        const company = await this.companyRepo.findById(record.company_id || config.yclients.companyId);
+        if (company?.address) {
+          address = company.address;
+        }
+      } catch (error) {
+        logger.warn('Failed to get company address:', error);
+      }
 
       const message = `✅ Ваша запись успешно создана!
 
@@ -502,21 +534,21 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
       await this.whatsappClient.sendMessage(phone, message);
 
       // Сохраняем информацию об отправке
-      await supabase
-        .from('booking_notifications')
-        .insert({
-          yclients_record_id: parseInt(record.id),
-          phone: phone,
-          notification_type: 'booking_created',
-          message: message,
-          sent_at: new Date().toISOString(),
-          company_id: record.company_id || config.yclients.companyId
-        });
+      await this.notificationRepo.create({
+        yclients_record_id: parseInt(record.id),
+        phone: phone,
+        notification_type: 'booking_created',
+        message: message,
+        company_id: record.company_id || config.yclients.companyId
+      });
 
       logger.info(`✅ booking_created notification sent for booking ${record.id} to ${phone}`);
-      
+
     } catch (error) {
       logger.error(`❌ Error sending booking confirmation for ${record.id}:`, error);
+      Sentry.captureException(error, {
+        tags: { component: 'booking-monitor', operation: 'sendBookingConfirmation' }
+      });
     }
   }
 
@@ -526,30 +558,22 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
   async getBusinessConfig(companyId) {
     try {
       // Получаем информацию о компании
-      const { data: company } = await supabase
-        .from('companies')
-        .select('name, business_type')
-        .eq('yclients_id', companyId)
-        .single();
-      
+      const company = await this.companyRepo.findById(companyId);
+
       // Определяем тип бизнеса
       let businessType = company?.business_type;
       if (!businessType && company?.name) {
         // Пытаемся определить по названию компании
-        const { data: services } = await supabase
-          .from('services')
-          .select('title')
-          .eq('company_id', companyId)
-          .limit(10);
-        
+        const services = await this.serviceRepo.findAll(companyId);
+
         businessType = detectBusinessType(company.name, services || []);
       }
-      
+
       // Получаем конфигурацию для типа бизнеса
-      const config = businessTypes[businessType] || businessTypes.beauty;
+      const businessConfig = businessTypes[businessType] || businessTypes.beauty;
       return {
-        emojis: config.emojis || defaultEmojis,
-        terminology: config.terminology || businessTypes.beauty.terminology,
+        emojis: businessConfig.emojis || defaultEmojis,
+        terminology: businessConfig.terminology || businessTypes.beauty.terminology,
         businessType: businessType || 'beauty'
       };
     } catch (error) {
@@ -627,22 +651,32 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
         return;
       }
 
-      // TODO: Migrate to use booking_notifications repository
-      // Получаем информацию о ранее отправленных напоминаниях
-      // Temporarily disabled - will be migrated to PostgreSQL repository
-      const sentReminders = [];
+      // Получаем информацию о ранее отправленных напоминаниях (FIXED: was hardcoded empty array!)
+      let sentReminders = [];
+      try {
+        sentReminders = await this.notificationRepo.findSentToday(
+          parseInt(record.id),
+          ['reminder_day_before', 'reminder_2hours']
+        );
+        logger.debug(`📋 Found ${sentReminders.length} sent reminders for record ${record.id}`);
+      } catch (error) {
+        logger.error(`Failed to check sent reminders for ${record.id}:`, error);
+        Sentry.captureException(error, {
+          tags: { component: 'booking-monitor', operation: 'checkAndSendReminders' }
+        });
+      }
 
       // Проверяем, не отправляли ли мы уже напоминание сегодня
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
-      
-      const sentDayBeforeToday = sentReminders?.some(r => 
-        r.notification_type === 'reminder_day_before' && 
+
+      const sentDayBeforeToday = sentReminders.some(r =>
+        r.notification_type === 'reminder_day_before' &&
         new Date(r.sent_at) > todayStart
       );
-      
-      const sent2HoursToday = sentReminders?.some(r => 
-        r.notification_type === 'reminder_2hours' && 
+
+      const sent2HoursToday = sentReminders.some(r =>
+        r.notification_type === 'reminder_2hours' &&
         new Date(r.sent_at) > todayStart
       );
       
@@ -697,12 +731,7 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
    */
   async getCompanyInfo(companyId) {
     try {
-      const { data: company } = await supabase
-        .from('companies')
-        .select('address')
-        .eq('yclients_id', companyId)
-        .single();
-      
+      const company = await this.companyRepo.findById(companyId);
       return company;
     } catch (error) {
       logger.warn('Failed to get company info', error);
@@ -743,12 +772,10 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
           // Пытаемся получить склонения из БД
           if (service.id) {
             try {
-              const { data: serviceData } = await supabase
-                .from('services')
-                .select('declensions')
-                .eq('yclients_id', service.id)
-                .eq('company_id', record.company_id || config.yclients.companyId)
-                .single();
+              const serviceData = await this.serviceRepo.findById(
+                service.id,
+                record.company_id || config.yclients.companyId
+              );
 
               if (serviceData?.declensions) {
                 serviceInfo.declensions = serviceData.declensions;
@@ -774,13 +801,11 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
       let staffDeclensions = null;
       if (record.staff?.id) {
         try {
-          const { data: staffData } = await supabase
-            .from('staff')
-            .select('declensions')
-            .eq('yclients_id', record.staff.id)
-            .eq('company_id', record.company_id || config.yclients.companyId)
-            .single();
-          
+          const staffData = await this.staffRepo.findById(
+            record.staff.id,
+            record.company_id || config.yclients.companyId
+          );
+
           if (staffData?.declensions) {
             staffDeclensions = staffData.declensions;
           }
@@ -830,16 +855,13 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
       }, reminderType);
       
       // Сохраняем информацию об отправке в БД
-      await supabase
-        .from('booking_notifications')
-        .insert({
-          yclients_record_id: record.id.toString(),
-          phone: phone,
-          notification_type: notificationType,
-          message: message,
-          sent_at: new Date().toISOString(),
-          company_id: record.company_id || config.yclients.companyId
-        });
+      await this.notificationRepo.create({
+        yclients_record_id: parseInt(record.id),
+        phone: phone,
+        notification_type: notificationType,
+        message: message,
+        company_id: record.company_id || config.yclients.companyId
+      });
       
       // Добавляем напоминание в контекст диалога для AI Admin
       try {
