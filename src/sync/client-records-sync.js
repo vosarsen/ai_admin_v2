@@ -1,24 +1,26 @@
-const axios = require('axios');
-const { supabase } = require('../database/supabase');
-const logger = require('../utils/logger').child({ module: 'client-records-sync' });
-const { 
-  normalizePhone, 
-  calculateLoyaltyLevel, 
-  YCLIENTS_CONFIG, 
-  createYclientsHeaders 
-} = require('./sync-utils');
-
 /**
  * Альтернативный подход к синхронизации записей клиентов
+ * Migrated from Supabase to PostgreSQL (2025-11-26)
  * Использует endpoint /records/{company_id} с фильтрацией
  */
+
+const axios = require('axios');
+const postgres = require('../database/postgres');
+const logger = require('../utils/logger').child({ module: 'client-records-sync' });
+const {
+  normalizePhone,
+  calculateLoyaltyLevel,
+  YCLIENTS_CONFIG,
+  createYclientsHeaders
+} = require('./sync-utils');
+
 class ClientRecordsSync {
   constructor(config) {
     this.config = {
       ...YCLIENTS_CONFIG,
       ...config
     };
-    
+
     this.headers = createYclientsHeaders(true);
   }
 
@@ -186,49 +188,50 @@ class ClientRecordsSync {
    */
   async syncClientRecordsByPhone(phone) {
     logger.info(`Syncing records for client with phone: ${phone}`);
-    
+
     try {
       // Находим клиента в базе
       const normalizedPhone = normalizePhone(phone);
-      
-      const { data: client, error } = await supabase
-        .from('clients')
-        .select('id, yclients_id, name')
-        .or(`phone.eq.${phone},phone.eq.+${normalizedPhone},phone.eq.${normalizedPhone}`)
-        .eq('company_id', this.config.COMPANY_ID)
-        .single();
-      
-      if (error || !client) {
+
+      const result = await postgres.query(
+        `SELECT id, yclients_id, name FROM clients
+         WHERE company_id = $1 AND (phone = $2 OR phone = $3 OR phone = $4)
+         LIMIT 1`,
+        [this.config.COMPANY_ID, phone, '+' + normalizedPhone, normalizedPhone]
+      );
+
+      const client = result.rows[0];
+      if (!client) {
         throw new Error(`Client not found with phone: ${phone}`);
       }
-      
+
       logger.info(`Found client: ${client.name} (ID: ${client.yclients_id})`);
-      
+
       // Пробуем разные методы получения записей
       let records = [];
-      
+
       // Метод 1: через общий список с фильтрацией
       try {
         records = await this.getClientRecords(client.yclients_id, phone);
-      } catch (error) {
-        logger.warn('Method 1 failed:', error.message);
+      } catch (err) {
+        logger.warn('Method 1 failed:', err.message);
       }
-      
+
       // Метод 2: через поиск записей
       if (records.length === 0) {
         try {
           records = await this.searchClientRecords(client.yclients_id);
-        } catch (error) {
-          logger.warn('Method 2 failed:', error.message);
+        } catch (err) {
+          logger.warn('Method 2 failed:', err.message);
         }
       }
-      
+
       if (records && records.length > 0) {
         // Сохраняем историю визитов
         await this.saveClientVisits(client.id, client.yclients_id, records);
-        
+
         logger.info(`✅ Synced ${records.length} records for ${client.name}`);
-        
+
         return {
           success: true,
           client: client.name,
@@ -236,7 +239,7 @@ class ClientRecordsSync {
           records
         };
       }
-      
+
       logger.info(`No records found for ${client.name}`);
       return {
         success: true,
@@ -244,7 +247,7 @@ class ClientRecordsSync {
         recordsCount: 0,
         records: []
       };
-      
+
     } catch (error) {
       logger.error('Failed to sync client records:', error);
       throw error;
@@ -256,16 +259,16 @@ class ClientRecordsSync {
    */
   async saveClientVisits(clientId, yclientsClientId, visits) {
     if (!visits || visits.length === 0) return;
-    
+
     try {
       // Обновляем статистику клиента
       const lastVisit = visits[visits.length - 1];
       const firstVisit = visits[0];
-      
+
       // Собираем уникальные услуги
       const allServices = new Set();
       let totalSpent = 0;
-      
+
       for (const visit of visits) {
         if (visit.services) {
           visit.services.forEach(service => {
@@ -276,9 +279,9 @@ class ClientRecordsSync {
         }
         totalSpent += visit.cost || 0;
       }
-      
+
       const lastServices = Array.from(allServices).slice(-5);
-      
+
       // Формируем историю визитов
       const visitHistory = visits.map(visit => ({
         date: visit.date || visit.datetime,
@@ -288,46 +291,50 @@ class ClientRecordsSync {
         status: visit.status,
         attendance: visit.attendance
       }));
-      
+
       // Получаем текущий total_spent для расчета loyalty_level
-      const { data: currentClient } = await supabase
-        .from('clients')
-        .select('total_spent')
-        .eq('id', clientId)
-        .single();
-      
-      const originalTotalSpent = currentClient?.total_spent || 0;
-      
+      const currentResult = await postgres.query(
+        `SELECT total_spent FROM clients WHERE id = $1`,
+        [clientId]
+      );
+
+      const originalTotalSpent = currentResult.rows[0]?.total_spent || 0;
+
       // Вычисляем предполагаемую сумму товаров
       // total_spent (из YClients sold_amount) - сумма услуг из визитов = товары
       const estimatedGoodsAmount = originalTotalSpent - totalSpent;
-      
+
       // Обновляем клиента (НЕ трогаем total_spent - он приходит из YClients API!)
-      const updateData = {
-        visit_count: visits.length,
-        first_visit_date: firstVisit.date,
-        last_visit_date: lastVisit.date,
-        last_services: lastServices,
-        visit_history: visitHistory,
-        // НЕ обновляем total_spent! Он должен оставаться из YClients sold_amount
-        services_amount: totalSpent, // Сумма только услуг
-        goods_amount: estimatedGoodsAmount > 0 ? estimatedGoodsAmount : 0, // Предполагаемая сумма товаров
-        average_bill: visits.length > 0 ? Math.round(totalSpent / visits.length) : 0,
-        loyalty_level: calculateLoyaltyLevel(visits.length, originalTotalSpent),
-        last_sync_at: new Date().toISOString()
-      };
-      
-      const { error } = await supabase
-        .from('clients')
-        .update(updateData)
-        .eq('id', clientId);
-      
-      if (error) {
-        throw error;
-      }
-      
+      const updateSql = `
+        UPDATE clients SET
+          visit_count = $1,
+          first_visit_date = $2,
+          last_visit_date = $3,
+          last_services = $4,
+          visit_history = $5,
+          services_amount = $6,
+          goods_amount = $7,
+          average_bill = $8,
+          loyalty_level = $9,
+          last_sync_at = NOW()
+        WHERE id = $10
+      `;
+
+      await postgres.query(updateSql, [
+        visits.length,
+        firstVisit.date,
+        lastVisit.date,
+        JSON.stringify(lastServices),
+        JSON.stringify(visitHistory),
+        totalSpent,
+        estimatedGoodsAmount > 0 ? estimatedGoodsAmount : 0,
+        visits.length > 0 ? Math.round(totalSpent / visits.length) : 0,
+        calculateLoyaltyLevel(visits.length, originalTotalSpent),
+        clientId
+      ]);
+
       logger.info(`Updated client statistics: ${visits.length} visits, ${totalSpent} руб total`);
-      
+
     } catch (error) {
       logger.error('Failed to save client visits:', error);
       throw error;
