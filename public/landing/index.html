@@ -3600,6 +3600,46 @@
             background: rgba(255, 255, 255, 0.15);
         }
 
+        /* Shortcuts Toggle Wrapper */
+        .shortcuts-toggle-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Tooltip */
+        .shortcuts-tooltip {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+            white-space: nowrap;
+            font-weight: 500;
+            animation: pulseTooltip 2s ease-in-out infinite;
+            user-select: none;
+            pointer-events: none;
+        }
+
+        @keyframes pulseTooltip {
+            0%, 100% {
+                opacity: 0.7;
+            }
+            50% {
+                opacity: 1;
+            }
+        }
+
+        /* Hide tooltip when shortcuts are open */
+        .shortcuts-list:not(.hidden) ~ .chat-input ~ .shortcuts-toggle-wrapper .shortcuts-tooltip,
+        .shortcuts-toggle.active ~ .shortcuts-tooltip {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Hide tooltip after first interaction (via JS) */
+        .shortcuts-tooltip.hidden {
+            display: none;
+        }
+
         /* Shortcuts List (No container, just positioning) */
         .shortcuts-list {
             position: absolute;
@@ -4063,22 +4103,7 @@
 
                     <!-- Chat Messages -->
                     <div class="chat-messages" id="demoMessages">
-                        <div class="message bot">
-                            <div class="message-bubble">
-                                <div class="message-content">
-                                    👋 Привет! Я Admin AI — ваш виртуальный администратор.
-
-Попробуйте меня в деле! Я могу:
-• Записать клиента на услугу
-• Узнать свободное время
-• Перенести или отменить запись
-• Ответить на вопросы о ценах
-
-Напишите что-нибудь или выберите быстрое действие ниже 👇
-                                </div>
-                                <div class="message-time" id="initialMessageTime"></div>
-                            </div>
-                        </div>
+                        <!-- Messages will appear here -->
                     </div>
 
                     <!-- Typing Indicator -->
@@ -4094,11 +4119,14 @@
 
                     <!-- Chat Input -->
                     <div class="chat-input-area">
-                        <button class="shortcuts-toggle" id="shortcutsToggle" aria-label="Быстрые действия">
-                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M13 10V3L4 14h7v7l9-11h-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </button>
+                        <div class="shortcuts-toggle-wrapper">
+                            <button class="shortcuts-toggle" id="shortcutsToggle" aria-label="Быстрые действия">
+                                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M13 10V3L4 14h7v7l9-11h-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </button>
+                            <span class="shortcuts-tooltip">💡 Попробуйте примеры</span>
+                        </div>
 
                         <!-- Shortcuts List (Vertical Menu) -->
                         <div class="shortcuts-list hidden" id="shortcutsList">
@@ -5453,10 +5481,16 @@
         }
 
         // Shortcuts Toggle
+        const shortcutsTooltip = document.querySelector('.shortcuts-tooltip');
         shortcutsToggle.addEventListener('click', (e) => {
             e.stopPropagation();
             shortcutsToggle.classList.toggle('active');
             shortcutsList.classList.toggle('hidden');
+
+            // Hide tooltip after first click
+            if (shortcutsTooltip && !shortcutsTooltip.classList.contains('hidden')) {
+                shortcutsTooltip.classList.add('hidden');
+            }
         });
 
         // Auto-resize textarea
