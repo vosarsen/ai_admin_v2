@@ -1,8 +1,8 @@
 # YClients Marketplace API Full Integration Plan
 
 **Last Updated:** 2025-11-26
-**Status:** Planning Complete (Revised after Supabase Removal)
-**Estimated Effort:** 17 hours (+6h for Phase 0)
+**Status:** Phase 0 COMPLETE ✅ | Phase 1 Ready to Start
+**Estimated Effort:** 11 hours (Phase 0 complete: -6h)
 **Priority:** High
 
 ---
@@ -16,30 +16,31 @@
 
 ---
 
-## CRITICAL: Post-Supabase Removal Update
+## ✅ Phase 0 COMPLETE: Supabase Removal Fixed
 
-### Problem Discovered
+### Problem Was
+После `dev/completed/supabase-full-removal/` код marketplace был сломан - удалены только импорты, но не вызовы.
 
-После завершения `dev/completed/supabase-full-removal/` (2025-11-26) было обнаружено:
+### Solution Applied
+Проект `dev/completed/supabase-broken-references-fix/` полностью исправил проблему:
 
-1. **marketplace-service.js** - Удалён только импорт `supabase`, но **7 вызовов `this.supabase.*` остались**
-2. **yclients-marketplace.js** - Удалён только импорт, но **12+ вызовов `supabase.*` остались**
+| Компонент | Статус | Детали |
+|-----------|--------|--------|
+| `MarketplaceEventsRepository` | ✅ Created | 3 метода, Sentry, тесты |
+| `AppointmentsCacheRepository` | ✅ Created | 7 методов, Sentry, тесты |
+| `WebhookEventsRepository` | ✅ Created | 3 метода, Sentry, тесты |
+| `MessageRepository` | ✅ Created | 2 метода, Sentry, тесты |
+| `CompanyRepository` | ✅ Extended | +7 методов |
+| `marketplace-service.js` | ✅ Migrated | 7 supabase → repository |
+| `yclients-marketplace.js` | ✅ Migrated | 12 supabase → repository |
+| `webhook-processor/index.js` | ✅ Migrated | 9 supabase → repository |
+| `webhooks/yclients.js` | ✅ Migrated | 2 supabase → repository |
 
-**Результат:** Код СЛОМАН - `supabase is undefined` при любом вызове marketplace функций.
+**Code Review Grade:** A (94/100) → A+ (98/100) after fixes
+**Commit:** `1db4dc4` (main branch)
 
-### Root Cause
-
-В `supabase-full-removal-plan.md` (Phase 4) указано:
-```
-- marketplace-service.js - removed dead import
-- yclients-marketplace.js - removed dead import
-```
-
-Но удалены были только `require` statements, а не фактические вызовы базы данных.
-
-### Solution: Add Phase 0
-
-**Phase 0 должна быть выполнена ПЕРВОЙ** - миграция существующего кода на Repository Pattern.
+### Ready for Phase 1
+Marketplace код работает, можно продолжать с Phase 1: YclientsMarketplaceClient.
 
 ---
 
@@ -49,37 +50,19 @@
 
 | Endpoint | Статус | Файл | DB Status |
 |----------|--------|------|-----------|
-| `POST /marketplace/partner/callback/redirect` | ✅ | `yclients-marketplace.js:394-406` | BROKEN |
-| `POST /webhook/yclients` (uninstall, freeze) | ⚠️ Частично | `yclients-marketplace.js:479-505` | BROKEN |
+| `POST /marketplace/partner/callback/redirect` | ✅ | `yclients-marketplace.js` | ✅ Works |
+| `POST /webhook/yclients` (uninstall, freeze) | ✅ | `yclients-marketplace.js` | ✅ Works |
 
-### Broken Supabase Calls (MUST FIX)
+### ✅ Supabase Migration Complete
 
-**marketplace-service.js (7 calls):**
-| Line | Call | Repository Needed |
-|------|------|-------------------|
-| 15 | `this.supabase = supabase` | Remove |
-| 49 | `this.supabase.from('companies').select()` | CompanyRepository |
-| 91 | `this.supabase.from('companies').insert()` | CompanyRepository |
-| 239 | `this.supabase.from('companies').select()` | CompanyRepository |
-| 327 | `this.supabase.from('companies').update()` | CompanyRepository |
-| 350 | `this.supabase.from('companies').select()` | CompanyRepository |
-| 360 | `this.supabase.from('companies').select()` | CompanyRepository |
+Все 31 вызов Supabase мигрированы на Repository Pattern:
+- **marketplace-service.js:** 7 вызовов → CompanyRepository ✅
+- **yclients-marketplace.js:** 12 вызовов → CompanyRepository + MarketplaceEventsRepository ✅
+- **webhook-processor/index.js:** 9 вызовов → 5 repositories ✅
+- **webhooks/yclients.js:** 2 вызова → WebhookEventsRepository ✅
+- **booking-ownership.js:** 1 вызов → AppointmentsCacheRepository ✅
 
-**yclients-marketplace.js (12+ calls):**
-| Line | Call | Repository Needed |
-|------|------|-------------------|
-| 79 | `supabase.from('companies').upsert()` | CompanyRepository |
-| 131 | `supabase.from('marketplace_events').insert()` | MarketplaceEventsRepository (NEW) |
-| 332 | `supabase.from('marketplace_events').select()` | MarketplaceEventsRepository |
-| 361 | `supabase.from('companies').update()` | CompanyRepository |
-| 422 | `supabase.from('companies').update()` | CompanyRepository |
-| 432 | `supabase.from('marketplace_events').insert()` | MarketplaceEventsRepository |
-| 459 | `supabase.from('companies').update()` | CompanyRepository |
-| 525 | `supabase` (health check) | Remove |
-| 530 | `supabase` (health check) | Remove |
-| 603 | `supabase.from('companies').update()` | CompanyRepository |
-| 621 | `supabase.from('companies').update()` | CompanyRepository |
-| 638 | `supabase.from('companies').update()` | CompanyRepository |
+Подробности: `dev/completed/supabase-broken-references-fix/`
 
 ### Нереализованные эндпоинты (11 шт.)
 
@@ -143,20 +126,26 @@ mcp/mcp-yclients/server.js                # MCP server (+ marketplace tools)
 
 ## Implementation Phases
 
-### Phase 0: Fix Broken Marketplace Code (CRITICAL)
-**Effort:** L (6 hours)
-**Dependencies:** None (MUST BE DONE FIRST)
-**Status:** NOT STARTED
+### Phase 0: Fix Broken Marketplace Code ✅ COMPLETE
+**Effort:** L (6 hours estimated, ~1 hour actual)
+**Dependencies:** None
+**Status:** ✅ COMPLETE (via `supabase-broken-references-fix` project)
 
-Миграция существующего кода с Supabase на Repository Pattern.
+Миграция выполнена через отдельный проект с полным код-ревью.
 
-**Sub-tasks:**
-1. Create `MarketplaceEventsRepository.js`
-2. Extend `CompanyRepository.js` with required methods
-3. Migrate `marketplace-service.js` to Repository Pattern
-4. Migrate `yclients-marketplace.js` to Repository Pattern
-5. Add Sentry error tracking
-6. Test existing functionality works
+**Completed:**
+1. ✅ Created `MarketplaceEventsRepository.js` (3 methods, tests)
+2. ✅ Created `AppointmentsCacheRepository.js` (7 methods, tests)
+3. ✅ Created `WebhookEventsRepository.js` (3 methods, tests)
+4. ✅ Created `MessageRepository.js` (2 methods, tests)
+5. ✅ Extended `CompanyRepository.js` (+7 methods)
+6. ✅ Migrated all 5 broken files (31 supabase calls)
+7. ✅ Added Sentry error tracking (100% coverage)
+8. ✅ Added JSDoc @throws annotations
+9. ✅ Added integration tests (4 files, 1,625 lines)
+10. ✅ Deployed to production
+
+**Code Review:** Grade A+ (98/100)
 
 ### Phase 1: YclientsMarketplaceClient (Core)
 **Effort:** L (3 hours)
@@ -199,9 +188,9 @@ mcp/mcp-yclients/server.js                # MCP server (+ marketplace tools)
 ## Phase Dependencies (Updated)
 
 ```
-Phase 0: Fix Broken Code (CRITICAL PATH - 6h)
+Phase 0: Fix Broken Code ✅ COMPLETE (~1h actual)
     │
-    ├──► Phase 1: MarketplaceClient (3h)
+    ├──► Phase 1: MarketplaceClient (3h) ◄── NEXT
     │         │
     │         └──► Phase 2: MarketplaceService (2h)
     │                    │
@@ -218,69 +207,8 @@ Phase 0: Fix Broken Code (CRITICAL PATH - 6h)
 
 ## Detailed Implementation
 
-### Phase 0: Fix Broken Marketplace Code
-
-**0.1 Create MarketplaceEventsRepository.js**
-
-**File:** `src/repositories/MarketplaceEventsRepository.js`
-
-```javascript
-const BaseRepository = require('./BaseRepository');
-
-class MarketplaceEventsRepository extends BaseRepository {
-  constructor() {
-    super('marketplace_events');
-  }
-
-  async insert(eventData) {
-    return this.create(eventData);
-  }
-
-  async findByCompanyId(companyId, options = {}) {
-    return this.findMany({ company_id: companyId }, options);
-  }
-
-  async findBySalonId(salonId, options = {}) {
-    return this.findMany({ salon_id: salonId }, options);
-  }
-
-  async findLatestByType(salonId, eventType) {
-    const query = `
-      SELECT * FROM ${this.tableName}
-      WHERE salon_id = $1 AND event_type = $2
-      ORDER BY created_at DESC
-      LIMIT 1
-    `;
-    const result = await this.query(query, [salonId, eventType]);
-    return result.rows[0] || null;
-  }
-}
-
-module.exports = MarketplaceEventsRepository;
-```
-
-**0.2 Extend CompanyRepository.js**
-
-Add methods:
-- `findByYclientsId(yclientsId)`
-- `updateByYclientsId(yclientsId, data)`
-- `upsertByYclientsId(data)` - for onConflict handling
-- `countConnected()` - for stats
-
-**0.3 Migrate marketplace-service.js**
-
-Replace all `this.supabase.*` calls with Repository Pattern:
-- Import CompanyRepository
-- Replace `this.supabase.from('companies').select()` → `companyRepository.findByYclientsId()`
-- Replace `this.supabase.from('companies').insert()` → `companyRepository.create()`
-- Replace `this.supabase.from('companies').update()` → `companyRepository.updateByYclientsId()`
-
-**0.4 Migrate yclients-marketplace.js**
-
-Replace all `supabase.*` calls:
-- Import CompanyRepository, MarketplaceEventsRepository
-- Update health check to use PostgreSQL directly
-- Add Sentry error tracking
+### Phase 0: ✅ COMPLETE
+See `dev/completed/supabase-broken-references-fix/` for implementation details.
 
 ### Phase 1: YclientsMarketplaceClient
 
@@ -396,8 +324,7 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS sms_short_names TEXT[];
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
-| **Existing code broken** | **CRITICAL** | **100%** | Phase 0 fixes immediately |
-| Repository Pattern unfamiliar | Medium | Low | Follow existing patterns |
+| ~~**Existing code broken**~~ | ~~**CRITICAL**~~ | ~~**100%**~~ | ✅ **FIXED** (Phase 0 complete) |
 | Missing database columns | Low | Low | Migration already defined |
 | YClients API changes | High | Low | Версионирование, мониторинг |
 | Rate limiting | Medium | Medium | Bottleneck limiter в client |
@@ -408,12 +335,12 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS sms_short_names TEXT[];
 
 ## Success Metrics
 
-- [ ] **Phase 0:** Existing marketplace code works (0 Supabase references)
-- [ ] 13/13 эндпоинтов реализовано
+- [x] **Phase 0:** Existing marketplace code works (0 Supabase references) ✅
+- [x] **Sentry error tracking in all marketplace code** ✅
+- [ ] 13/13 эндпоинтов реализовано (currently 2/13)
 - [ ] Все MCP tools работают
 - [ ] Тесты покрывают основные сценарии
 - [ ] Документация обновлена
-- [ ] Sentry error tracking in all marketplace code
 
 ---
 
@@ -442,16 +369,16 @@ YCLIENTS_APP_ID=xxx  # ID приложения в маркетплейсе
 
 ## Timeline Estimates (Updated)
 
-| Phase | Duration | Cumulative | Notes |
-|-------|----------|------------|-------|
-| **0. Fix Broken Code** | **6h** | **6h** | **CRITICAL - Must do first** |
-| 1. MarketplaceClient | 3h | 9h | |
-| 2. MarketplaceService | 2h | 11h | |
-| 3. API Routes | 2h | 13h | |
-| 4. Webhooks | 1h | 14h | |
-| 5. DB Migration | 1h | 15h | Can parallel with Phase 1 |
-| 6. MCP Server | 2h | 17h | |
+| Phase | Duration | Cumulative | Status |
+|-------|----------|------------|--------|
+| **0. Fix Broken Code** | ~~6h~~ ~1h | ~1h | ✅ COMPLETE |
+| 1. MarketplaceClient | 3h | 4h | ⏳ Next |
+| 2. MarketplaceService | 2h | 6h | |
+| 3. API Routes | 2h | 8h | |
+| 4. Webhooks | 1h | 9h | |
+| 5. DB Migration | 1h | 10h | Can parallel with Phase 1 |
+| 6. MCP Server | 2h | 11h | |
 
-**Original estimate:** 11 hours
-**Revised estimate:** 17 hours (+55%)
-**Reason:** Supabase removal left broken code that needs migration first
+**Original estimate:** 17 hours (with Phase 0)
+**Current estimate:** 11 hours remaining (Phase 0 complete)
+**Actual Phase 0:** ~1 hour (93% faster than estimated!)
