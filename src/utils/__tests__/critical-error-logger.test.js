@@ -4,15 +4,8 @@ const logger = require('../logger');
 
 // Мокаем зависимости
 jest.mock('../logger');
-jest.mock('../../database/supabase', () => ({
-  supabase: {
-    from: jest.fn(() => ({
-      insert: jest.fn(() => ({ error: null })),
-      select: jest.fn(() => ({
-        limit: jest.fn(() => ({ data: [], error: null }))
-      }))
-    }))
-  }
+jest.mock('../../database/postgres', () => ({
+  query: jest.fn(() => Promise.resolve({ rows: [] }))
 }));
 
 jest.mock('fs', () => ({

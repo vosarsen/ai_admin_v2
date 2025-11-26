@@ -1,9 +1,18 @@
 // src/utils/critical-error-logger.js
-// Supabase import removed (2025-11-26) - not used in this file
+// Migration: Supabase → PostgreSQL (2025-11-26)
 const logger = require('./logger');
 const config = require('../config');
 const { format } = require('date-fns');
 const os = require('os');
+
+// PostgreSQL for database operations (lazy loaded to avoid circular deps)
+let postgres = null;
+function getPostgres() {
+  if (!postgres) {
+    postgres = require('../database/postgres');
+  }
+  return postgres;
+}
 
 /**
  * Система подробного логирования критичных ошибок
@@ -330,26 +339,32 @@ class CriticalErrorLogger {
   }
   
   /**
-   * Логировать в базу данных
+   * Логировать в базу данных (PostgreSQL)
    */
   async logToDatabase(errorData) {
     try {
-      const { error } = await supabase
-        .from('critical_errors')
-        .insert({
-          error_id: errorData.id,
-          timestamp: errorData.timestamp,
-          type: errorData.type,
-          severity: errorData.severity,
-          error_data: errorData,
-          company_id: errorData.context.companyId,
-          user_id: errorData.context.userId
-        });
-        
-      if (error) throw error;
+      const db = getPostgres();
+      // Note: critical_errors table may not exist yet - skip silently if not available
+      await db.query(
+        `INSERT INTO critical_errors (error_id, timestamp, type, severity, error_data, company_id, user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (error_id) DO NOTHING`,
+        [
+          errorData.id,
+          errorData.timestamp,
+          errorData.type,
+          errorData.severity,
+          JSON.stringify(errorData),
+          errorData.context.companyId || null,
+          errorData.context.userId || null
+        ]
+      );
     } catch (dbError) {
-      // Используем fallback если БД недоступна
-      logger.error('Database logging failed:', dbError);
+      // Используем fallback если БД недоступна или таблица не существует
+      // Это не критично - ошибка уже логируется в файл и консоль
+      if (!dbError.message?.includes('does not exist')) {
+        logger.error('Database logging failed:', dbError.message);
+      }
     }
   }
   
@@ -432,11 +447,9 @@ class CriticalErrorLogger {
   
   async checkDatabaseConnection() {
     try {
-      const { data, error } = await supabase
-        .from('companies')
-        .select('id')
-        .limit(1);
-      return error ? 'error' : 'connected';
+      const db = getPostgres();
+      const result = await db.query('SELECT 1');
+      return result ? 'connected' : 'error';
     } catch (e) {
       return 'disconnected';
     }
