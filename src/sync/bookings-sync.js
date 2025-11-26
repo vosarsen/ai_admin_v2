@@ -1,36 +1,29 @@
+/**
+ * Синхронизация активных записей (bookings) из YClients в PostgreSQL
+ * Migrated from Supabase to Repository Pattern (2025-11-26)
+ * Синхронизирует только будущие записи для быстрого доступа AI Admin
+ */
+
 const axios = require('axios');
-const { supabase } = require('../database/supabase');
+const postgres = require('../database/postgres');
+const BookingRepository = require('../repositories/BookingRepository');
 const logger = require('../utils/logger').child({ module: 'bookings-sync' });
 const { format, addDays } = require('date-fns');
-const { 
-  normalizePhone, 
-  YCLIENTS_CONFIG, 
+const {
+  normalizePhone,
+  YCLIENTS_CONFIG,
   createYclientsHeaders
 } = require('./sync-utils');
 
-// Константы для пакетной обработки
-const BOOKINGS_BATCH_SIZE = 50;
-
-// Функция для пакетной обработки
-async function processBatch(items, processor, batchSize = 50) {
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize);
-    await processor(batch);
-  }
-}
-
-/**
- * Синхронизация активных записей (bookings) из YClients в Supabase
- * Синхронизирует только будущие записи для быстрого доступа AI Admin
- */
 class BookingsSync {
   constructor(config) {
     this.config = {
       ...YCLIENTS_CONFIG,
       ...config
     };
-    
+
     this.headers = createYclientsHeaders(true);
+    this.bookingRepo = new BookingRepository(postgres.pool);
     this.stats = {
       created: 0,
       updated: 0,
@@ -129,20 +122,22 @@ class BookingsSync {
   }
 
   /**
-   * Синхронизировать записи пакетами
+   * Синхронизировать записи пакетами (через Repository)
    */
   async syncBookingsBatch(bookings) {
     // Преобразуем записи в формат для БД
     const transformedBookings = bookings.map(booking => this.transformBooking(booking));
-    
-    // Обрабатываем пакетами
-    await processBatch(
-      transformedBookings,
-      async (batch) => {
-        await this.upsertBookings(batch);
-      },
-      BOOKINGS_BATCH_SIZE
-    );
+
+    try {
+      // Используем батчевый upsert через репозиторий
+      const result = await this.bookingRepo.syncBulkUpsert(transformedBookings);
+      this.stats.created = result.count;
+
+      logger.info(`✅ Batch upsert completed: ${result.count} bookings in ${result.duration}ms`);
+    } catch (error) {
+      logger.error('❌ Batch upsert failed', { error: error.message });
+      this.stats.errors += transformedBookings.length;
+    }
   }
 
   /**
@@ -222,117 +217,21 @@ class BookingsSync {
   }
 
   /**
-   * Сохранить или обновить записи в БД
-   */
-  async upsertBookings(bookings) {
-    try {
-      // Получаем существующие записи
-      const recordIds = bookings.map(b => b.yclients_record_id);
-      
-      const { data: existingBookings } = await supabase
-        .from('bookings')
-        .select('id, yclients_record_id, status')
-        .in('yclients_record_id', recordIds);
-      
-      const existingMap = new Map(
-        (existingBookings || []).map(b => [b.yclients_record_id, b])
-      );
-      
-      // Разделяем на новые и обновляемые
-      const toInsert = [];
-      const toUpdate = [];
-      
-      for (const booking of bookings) {
-        const existing = existingMap.get(booking.yclients_record_id);
-        
-        if (existing) {
-          // Обновляем только если изменился статус или другие важные поля
-          if (existing.status !== booking.status) {
-            toUpdate.push({
-              ...booking,
-              id: existing.id,
-              updated_at: new Date().toISOString()
-            });
-          }
-        } else {
-          toInsert.push({
-            ...booking,
-            created_at: new Date().toISOString()
-          });
-        }
-      }
-      
-      // Вставляем новые записи
-      if (toInsert.length > 0) {
-        const { error: insertError } = await supabase
-          .from('bookings')
-          .insert(toInsert);
-        
-        if (insertError) {
-          logger.error('Error inserting bookings:', insertError);
-          this.stats.errors += toInsert.length;
-        } else {
-          this.stats.created += toInsert.length;
-        }
-      }
-      
-      // Обновляем существующие записи
-      if (toUpdate.length > 0) {
-        // Обновляем по одной записи из-за ограничений Supabase
-        for (const booking of toUpdate) {
-          const { error: updateError } = await supabase
-            .from('bookings')
-            .update(booking)
-            .eq('id', booking.id);
-          
-          if (updateError) {
-            logger.error('Error updating booking:', updateError);
-            this.stats.errors++;
-          } else {
-            this.stats.updated++;
-            if (booking.status === 'cancelled') {
-              this.stats.cancelled++;
-            }
-          }
-        }
-      }
-      
-    } catch (error) {
-      logger.error('Error upserting bookings:', error);
-      this.stats.errors += bookings.length;
-    }
-  }
-
-  /**
    * Удалить старые записи (прошедшие более 7 дней назад)
    */
   async cleanupOldBookings() {
     try {
       const cutoffDate = format(addDays(new Date(), -7), 'yyyy-MM-dd');
-      
-      const { data: oldBookings, error: selectError } = await supabase
-        .from('bookings')
-        .select('id')
-        .lt('date', cutoffDate);
-      
-      if (selectError) {
-        logger.error('Error selecting old bookings:', selectError);
-        return;
+
+      const result = await postgres.query(
+        `DELETE FROM bookings WHERE date < $1 RETURNING id`,
+        [cutoffDate]
+      );
+
+      if (result.rowCount > 0) {
+        logger.info(`Cleaned up ${result.rowCount} old bookings`);
       }
-      
-      if (oldBookings && oldBookings.length > 0) {
-        const { error: deleteError } = await supabase
-          .from('bookings')
-          .delete()
-          .lt('date', cutoffDate);
-        
-        if (deleteError) {
-          logger.error('Error deleting old bookings:', deleteError);
-        } else {
-          logger.info(`Cleaned up ${oldBookings.length} old bookings`);
-        }
-      }
-      
+
     } catch (error) {
       logger.error('Error cleaning up old bookings:', error);
     }
