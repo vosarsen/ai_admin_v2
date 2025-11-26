@@ -7,7 +7,6 @@
 
 const { getSessionPool } = require('../src/integrations/whatsapp/session-pool');
 const logger = require('../src/utils/logger');
-const supabase = require('../src/database/supabase');
 const qrcodeTerminal = require('qrcode-terminal');
 const fs = require('fs').promises;
 const path = require('path');
