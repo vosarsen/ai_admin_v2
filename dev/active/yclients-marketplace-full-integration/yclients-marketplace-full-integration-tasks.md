@@ -60,88 +60,106 @@
 ---
 
 ## Phase 1: YclientsMarketplaceClient (Core) ⏳ NEXT
-**Effort:** L (3 hours) | **Status:** Ready to Start | **Dependencies:** Phase 0 ✅
+**Effort:** L (3-4 hours) | **Status:** Ready to Start | **Dependencies:** Phase 0 ✅
+
+> **ВАЖНО:** `application_id` (18289) передаётся в constructor.
+> Все методы автоматически добавляют `application_id` в request body.
 
 ### 1.1 Create marketplace-client.js file
 - [ ] Create `src/integrations/yclients/marketplace-client.js`
-- [ ] Setup class structure with constructor
-- [ ] Configure MARKETPLACE_BASE URL
-- [ ] Implement authorization header builder
-- [ ] Add error handling wrapper
-- [ ] Add logging integration
-- [ ] Add rate limiting with Bottleneck
+- [ ] Setup class with constructor(partnerToken, applicationId)
+- [ ] Configure MARKETPLACE_BASE = 'https://api.yclients.com/marketplace'
+- [ ] Implement `_buildAuthHeader()` → `Bearer {PARTNER_TOKEN}`
+- [ ] Add `_makeRequest(method, endpoint, data)` wrapper
+- [ ] Add error handling with Sentry
+- [ ] Add rate limiting with Bottleneck (200 req/min)
+- [ ] Add retry logic for 429/502/503
 
 **Acceptance Criteria:**
-- File created with proper class structure
-- Authorization works with PARTNER_TOKEN
+- Constructor accepts `partnerToken` and `applicationId`
+- All requests include `application_id` automatically
+- Rate limiting prevents 429 errors
 
-### 1.2 Implement Callback Methods
+### 1.2 Implement Callback Methods (МЫ → YClients)
 - [ ] `callbackWithRedirect(salonId, apiKey, webhookUrls)` - POST /partner/callback/redirect
 - [ ] `callbackInstall(salonId, apiKey, webhookUrls, channels)` - POST /partner/callback
+  - channels: ['sms', 'whatsapp']
 
-**Acceptance Criteria:**
-- Both methods follow API spec
-- Proper error handling
+**Request body:**
+```javascript
+{ salon_id, application_id, api_key, webhook_urls, channels? }
+```
 
-### 1.3 Implement Payment Methods
+### 1.3 Implement Payment Methods (ИСХОДЯЩИЕ: МЫ → YClients)
 - [ ] `notifyPayment(salonId, paymentData)` - POST /partner/payment
-- [ ] `notifyRefund(paymentId)` - POST /partner/payment/refund/{id}
-- [ ] `generatePaymentLink(salonId, discount)` - GET /application/payment_link
+  - paymentData: { payment_sum, currency_iso, payment_date, period_from, period_to }
+  - **⚠️ Response: { id: 123 } — СОХРАНИТЬ payment_id для refund!**
+- [ ] `notifyRefund(paymentId)` - POST /partner/payment/refund/{payment_id}
+- [ ] `generatePaymentLink(salonId, discount = null)` - GET /application/payment_link
 
 **Acceptance Criteria:**
-- Payment notification includes all required fields
-- Payment link generation supports optional discount
+- notifyPayment returns payment_id from response
+- generatePaymentLink includes discount in query params
 
 ### 1.4 Implement Management Methods
-- [ ] `getIntegrationStatus(salonId)` - GET /salon/{id}/application/{id}
-- [ ] `getConnectedSalons(page, count)` - GET /application/{id}/salons
-- [ ] `uninstallFromSalon(salonId)` - POST /salon/{id}/application/{id}/uninstall
+- [ ] `getIntegrationStatus(salonId)` - GET /salon/{salonId}/application/{appId}
+  - Returns: { logs, payments, connection_status }
+- [ ] `getConnectedSalons(page = 1, count = 100)` - GET /application/{appId}/salons
+  - **count <= 1000** (API limit)
+- [ ] `uninstallFromSalon(salonId)` - POST /salon/{salonId}/application/{appId}/uninstall
 
 **Acceptance Criteria:**
-- Pagination works correctly
-- Status includes logs and payments history
+- Pagination respects max 1000 limit
+- Status includes full logs and payments history
 
 ### 1.5 Implement Tariffs & Discounts Methods
-- [ ] `getTariffs()` - GET /application/{id}/tariffs
+- [ ] `getTariffs()` - GET /application/{appId}/tariffs
 - [ ] `addDiscount(salonIds, discountPercent)` - POST /application/add_discount
+  - **salonIds is ARRAY** of salon IDs
 
-**Acceptance Criteria:**
-- Tariffs return full structure with options
-- Discount can be applied to multiple salons
+**Request body for addDiscount:**
+```javascript
+{ salon_ids: [123, 456], application_id, discount: 15.5 }
+```
 
 ### 1.6 Implement Channel Methods
 - [ ] `updateChannel(salonId, channelSlug, isAvailable)` - POST /application/update_channel
+  - channelSlug: 'sms' | 'whatsapp'
 - [ ] `setShortNames(salonId, shortNames)` - POST /partner/short_names
+  - shortNames: ['NAME1', 'NAME2']
 
 **Acceptance Criteria:**
-- Channels: 'sms' | 'whatsapp'
+- Channel slug validated to 'sms' or 'whatsapp'
 - Short names accepts array of strings
 
 ---
 
 ## Phase 2: MarketplaceService Extension
-**Effort:** M (2 hours) | **Status:** Not Started | **Dependencies:** Phase 0, Phase 1
+**Effort:** M (2-2.5 hours) | **Status:** Not Started | **Dependencies:** Phase 0 ✅, Phase 1
 
 ### 2.1 Add MarketplaceClient integration
 - [ ] Import YclientsMarketplaceClient
-- [ ] Initialize in constructor
-- [ ] Add APP_ID configuration
+- [ ] Initialize in constructor with `YCLIENTS_PARTNER_TOKEN` and `YCLIENTS_APP_ID`
+- [ ] Inject MarketplaceEventsRepository for logging
 
-### 2.2 Implement Payment Methods
-- [ ] `processPayment(salonId, paymentData)` - with logging to marketplace_events
-- [ ] `processRefund(salonId, paymentId, reason)` - with status update
+### 2.2 Implement Payment Methods (ИСХОДЯЩИЕ)
+- [ ] `notifyYclientsAboutPayment(salonId, paymentData)` - уведомить YClients о платеже
+  - **⚠️ Сохранить payment_id в marketplace_events** (event_type: 'payment_notified')
+  - Обновить `last_payment_date` в companies
+- [ ] `notifyYclientsAboutRefund(paymentId, reason)` - уведомить о возврате
 
 ### 2.3 Implement Connection Management
-- [ ] `checkIntegrationHealth(salonId)` - status check + alert if issues
-- [ ] `getActiveConnections(page, limit)` - paginated list with DB join
+- [ ] `checkIntegrationHealth(salonId)` - status check + Telegram alert if issues
+- [ ] `getActiveConnections(page = 1, limit = 100)` - paginated list (max 1000)
 - [ ] `disconnectSalon(salonId, reason)` - cleanup WhatsApp session + update status
 
 ### 2.4 Implement Channel Management
-- [ ] `enableWhatsAppChannel(salonId)`
-- [ ] `disableWhatsAppChannel(salonId)`
+- [ ] `updateNotificationChannel(salonId, channel, enabled)` - toggle WhatsApp/SMS
+  - channel: 'whatsapp' | 'sms'
 
 **Acceptance Criteria:**
-- All methods log to marketplace_events
+- Payment notification saves `payment_id` for future refunds
+- All methods log to `marketplace_events` table
 - Disconnect properly cleans up WhatsApp session
 
 ---
@@ -173,62 +191,95 @@
 
 ---
 
-## Phase 4: Webhook Extensions
-**Effort:** S (1 hour) | **Status:** Not Started | **Dependencies:** Phase 3
+## Phase 4: Webhook Extensions (ВХОДЯЩИЕ от YClients)
+**Effort:** S (1-1.5 hours) | **Status:** Not Started | **Dependencies:** Phase 3
 
-### 4.1 Extend handleWebhookEvent
-- [ ] Add 'payment' event handling
-- [ ] Log unknown events for monitoring
-- [ ] Validate partner_token from webhook body
+> **NOTE:** Только 2 события поддерживаются YClients: `uninstall` и `freeze`.
+> `payment` как ВХОДЯЩИЙ webhook НЕ существует.
+
+### 4.1 Add Webhook Validation
+- [ ] Validate `partner_token` from webhook body matches `YCLIENTS_PARTNER_TOKEN`
+- [ ] Return 401 if token invalid
+- [ ] Log validation failures to Sentry
+
+**Webhook payload:**
+```javascript
+{ salon_id, application_id, event: 'uninstall'|'freeze', partner_token }
+```
+
+### 4.2 Extend handleWebhookEvent
+- [ ] `uninstall` - ✅ Already exists, verify it works
+- [ ] `freeze` - ✅ Already exists, verify it works
+- [ ] Log unknown events for monitoring (don't throw)
 
 **Acceptance Criteria:**
-- Payment events update subscription_expires_at
-- Unknown events logged but don't throw
+- Webhook validates `partner_token` before processing
+- Unknown events logged but return 200 OK
+- No `payment` event handling (doesn't exist)
 
 ---
 
 ## Phase 5: Database Migration
-**Effort:** S (1 hour) | **Status:** Not Started | **Dependencies:** Phase 0
+**Effort:** S (1-1.5 hours) | **Status:** Not Started | **Dependencies:** Phase 0 ✅
+
+> **Verified:** `yclients_id` column exists and is correct.
+> **For payment_id storage:** Use `marketplace_events` table (event_type: 'payment_notified')
 
 ### 5.1 Create migration file
-- [ ] Create migration: `XXX_add_marketplace_columns.sql`
+- [ ] Create migration: `20251127_add_marketplace_columns.sql`
 - [ ] Add `subscription_expires_at TIMESTAMPTZ`
 - [ ] Add `whatsapp_channel_enabled BOOLEAN DEFAULT TRUE`
 - [ ] Add `sms_channel_enabled BOOLEAN DEFAULT FALSE`
 - [ ] Add `sms_short_names TEXT[]`
 
-### 5.2 Run migration
+### 5.2 Extend CompanyRepository (if needed)
+- [ ] Add `updateSubscriptionExpiry(yclientsId, expiresAt)` method
+- [ ] Add `updateChannelStatus(yclientsId, whatsappEnabled, smsEnabled)` method
+
+### 5.3 Run migration
 - [ ] Test migration locally
 - [ ] Apply to production (Timeweb PostgreSQL)
+- [ ] Verify new columns exist
 
 **Acceptance Criteria:**
 - Migration is idempotent (IF NOT EXISTS)
 - No data loss
+- CompanyRepository has methods for new columns
 
 ---
 
 ## Phase 6: MCP Server Extension
 **Effort:** M (2 hours) | **Status:** Not Started | **Dependencies:** Phase 1
 
+> `YCLIENTS_APP_ID=18289` уже подтверждён и должен быть в .mcp.json
+
 ### 6.1 Add Marketplace Helper Function
-- [ ] Create `makeMarketplaceRequest()` with different base URL
-- [ ] Add APP_ID to environment
+- [ ] Create `makeMarketplaceRequest()` with base URL `https://api.yclients.com/marketplace`
+- [ ] Add `YCLIENTS_APP_ID` to environment in `.mcp.json`
+- [ ] All requests auto-include `application_id`
 
 ### 6.2 Implement Tools
-- [ ] `marketplace_get_status` - salon integration status
-- [ ] `marketplace_get_salons` - list connected salons
-- [ ] `marketplace_payment_link` - generate payment link
-- [ ] `marketplace_get_tariffs` - list tariffs
-- [ ] `marketplace_update_channel` - toggle sms/whatsapp
-- [ ] `marketplace_uninstall` - disconnect salon
-- [ ] `marketplace_add_discount` - add discount
+
+| Tool | Params | Returns |
+|------|--------|---------|
+| `marketplace_get_status` | `salon_id` | logs, payments, status |
+| `marketplace_get_salons` | `page?`, `count?` | list of salons (max 1000) |
+| `marketplace_payment_link` | `salon_id`, `discount?` | payment URL |
+| `marketplace_get_tariffs` | - | tariff options |
+| `marketplace_update_channel` | `salon_id`, `channel`, `enabled` | success/error |
+| `marketplace_uninstall` | `salon_id` | ⚠️ Dangerous! |
+| `marketplace_add_discount` | `salon_ids[]`, `discount` | success/error |
+
+- [ ] Implement all 7 tools
+- [ ] Add confirmation warning for `marketplace_uninstall`
 
 ### 6.3 Update Configuration
-- [ ] Add `YCLIENTS_APP_ID` to `.mcp.json`
+- [ ] Add `YCLIENTS_APP_ID=18289` to `.mcp.json`
 
 **Acceptance Criteria:**
 - All tools return formatted human-readable output
-- Error messages are clear
+- `marketplace_uninstall` shows warning message
+- Error messages are clear and actionable
 
 ---
 
@@ -241,12 +292,15 @@
 ### Testing
 - [ ] Test all MCP tools manually
 - [ ] Test API routes with curl/Postman
-- [ ] Test webhook handling
+- [ ] Test webhook handling (uninstall, freeze only)
+- [ ] Test webhook validation (partner_token)
 
 ### Deployment
-- [ ] Add YCLIENTS_APP_ID to production .env
+- [ ] Verify `YCLIENTS_APP_ID=18289` in production .env ✅ Already exists
 - [ ] Deploy to server
 - [ ] Verify MCP tools work in production
+
+> **Note:** No sandbox environment — all tests run against production API
 
 ---
 

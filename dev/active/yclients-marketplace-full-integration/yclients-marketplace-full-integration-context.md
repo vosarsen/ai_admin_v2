@@ -1,6 +1,6 @@
 # YClients Marketplace Integration - Context
 
-**Last Updated:** 2025-11-26 (Phase 0 Complete)
+**Last Updated:** 2025-11-26 (API Analysis Complete)
 
 ---
 
@@ -231,17 +231,35 @@ YCLIENTS_APP_ID=xxx  # ID приложения в маркетплейсе
 
 ## Blockers & Notes
 
-### Blocker: YCLIENTS_APP_ID
-- Нужно получить ID приложения из YClients Developer Portal
-- Без него не будут работать методы с `application_id`
+### ✅ RESOLVED: YCLIENTS_APP_ID
+- **Подтверждено:** `YCLIENTS_APP_ID=18289`
+- Уже есть в production .env
+
+### ✅ RESOLVED: Database Schema
+- **Проверено в production:** колонка `yclients_id` (не `yclients_company_id`)
+- CompanyRepository использует правильное имя
 
 ### Note: Rate Limiting
 - Marketplace API имеет те же лимиты: 200 req/min
 - Использовать Bottleneck как в основном клиенте
 
 ### Note: Webhook Events
-- YClients может добавить новые события в будущем
+- **Только 2 события:** `uninstall` и `freeze`
+- `payment` как входящий webhook НЕ существует
 - Логировать неизвестные события для мониторинга
+
+### Note: Webhook Validation
+- Входящий webhook содержит `partner_token`
+- **ОБЯЗАТЕЛЬНО** проверять: `body.partner_token === YCLIENTS_PARTNER_TOKEN`
+
+### Note: Sandbox
+- **Тестовой среды НЕТ** для Marketplace API
+- Все тесты идут на production
+
+### Note: Payment Endpoint Direction
+- `POST /marketplace/partner/payment` — это **ИСХОДЯЩИЙ** endpoint
+- МЫ отправляем в YClients когда клиент оплатил у НАС
+- Response содержит `{ id: 123 }` — **сохранить для refund!**
 
 ### Note: Sentry Error Tracking
 - After Supabase removal project, all repositories have Sentry
@@ -250,121 +268,10 @@ YCLIENTS_APP_ID=xxx  # ID приложения в маркетплейсе
 
 ---
 
-## Broken Code Details (Phase 0 Reference)
+## ✅ Phase 0 Complete - Broken Code Fixed
 
-### marketplace-service.js
-
-```javascript
-// Line 15 - Constructor assigns undefined supabase
-this.supabase = supabase;  // supabase is not imported!
-
-// Line 49-52 - Select companies
-const { data: companies, error: fetchError } = await this.supabase
-  .from('companies')
-  .select('*')
-  .eq('yclients_id', validSalonId);
-
-// Line 91-95 - Insert company
-const { data: createdCompany, error: createError } = await this.supabase
-  .from('companies')
-  .insert([sanitizedData])
-  .select()
-  .single();
-
-// Line 239-243 - Get company by ID
-const { data, error } = await this.supabase
-  .from('companies')
-  .select('*')
-  .eq('id', companyId)
-  .single();
-
-// Line 327-330 - Update WhatsApp status
-const { error } = await this.supabase
-  .from('companies')
-  .update(updateData)
-  .eq('id', validCompanyId);
-
-// Line 350-353 - Get connected companies
-const { data: connectedCompanies, error: connectedError } = await this.supabase
-  .from('companies')
-  .select('id')
-  .eq('whatsapp_connected', true);
-
-// Line 360-362 - Count total companies
-const { count: totalCount, error: totalError } = await this.supabase
-  .from('companies')
-  .select('*', { count: 'exact', head: true });
-```
-
-### yclients-marketplace.js
-
-```javascript
-// Line 79-100 - Upsert company
-const { data: company, error: dbError } = await supabase
-  .from('companies')
-  .upsert({...}, { onConflict: 'yclients_id', returning: 'representation' })
-  .select()
-  .single();
-
-// Line 131-143 - Insert marketplace event
-await supabase
-  .from('marketplace_events')
-  .insert({...});
-
-// Line 332-338 - Select registration event
-const { data: events, error: eventError } = await supabase
-  .from('marketplace_events')
-  .select('*')
-  .eq('salon_id', salon_id)
-  .eq('event_type', 'registration_started')
-  .order('created_at', { ascending: false })
-  .limit(1);
-
-// Line 361-369 - Update company with API key
-const { error: updateError } = await supabase
-  .from('companies')
-  .update({...})
-  .eq('id', company_id);
-
-// Line 422-429 - Update integration status to active
-await supabase
-  .from('companies')
-  .update({...})
-  .eq('id', company_id);
-
-// Line 432-442 - Insert activation event
-await supabase
-  .from('marketplace_events')
-  .insert({...});
-
-// Line 459-465 - Update status on activation failure
-await supabase
-  .from('companies')
-  .update({...})
-  .eq('id', error.decoded.company_id);
-
-// Line 525, 530 - Health check references
-supabase: !!supabase,  // undefined
-database_connected: !!supabase,  // undefined
-
-// Line 603-610 - Handle uninstall
-await supabase
-  .from('companies')
-  .update({...})
-  .eq('yclients_id', parseInt(salonId));
-
-// Line 621-627 - Handle freeze
-await supabase
-  .from('companies')
-  .update({...})
-  .eq('yclients_id', parseInt(salonId));
-
-// Line 638-645 - Handle payment
-await supabase
-  .from('companies')
-  .update({...})
-  .eq('yclients_id', parseInt(salonId));
-```
+**Детали миграции:** `dev/completed/supabase-broken-references-fix/`
+**Code Review:** Grade A+ (98/100)
 
 ---
 
@@ -400,3 +307,24 @@ await supabase
 - Deployed to production: commit `1db4dc4`
 - **Actual time:** ~1 hour (vs 6h estimated = 93% faster!)
 - **Project status:** Phase 0 complete, ready for Phase 1
+
+### Session 4 (2025-11-26) - API Documentation Analysis & Plan Review
+- **Plan Review** by `plan-reviewer` agent: Score 7.5/10
+- **Full API analysis** of Marketplace section (lines 32354-33577)
+- **Key discoveries:**
+  - `YCLIENTS_APP_ID=18289` confirmed
+  - DB column `yclients_id` verified (not `yclients_company_id`)
+  - Payment endpoint is **OUTBOUND** (we → YClients), not inbound
+  - Only 2 webhook events: `uninstall`, `freeze` (no `payment` webhook)
+  - No sandbox environment for Marketplace API
+  - `partner_token` validation required for webhooks
+  - `application_id` required in ALL request bodies
+  - Payment response returns `id` — must save for refund
+- **Plan corrections applied:**
+  - Updated method signatures with `application_id` in constructor
+  - Clarified payment endpoint direction
+  - Added webhook validation requirement
+  - Updated Phase 4 to remove non-existent `payment` webhook
+  - Added API documentation summary section
+- **Blockers resolved:** YCLIENTS_APP_ID, DB schema verified
+- **Project status:** Ready for Phase 1 implementation

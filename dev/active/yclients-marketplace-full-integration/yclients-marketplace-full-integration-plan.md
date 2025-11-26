@@ -214,36 +214,55 @@ See `dev/completed/supabase-broken-references-fix/` for implementation details.
 
 **Файл:** `src/integrations/yclients/marketplace-client.js`
 
+> **ВАЖНО:** `application_id` передаётся в constructor и добавляется во все запросы автоматически.
+> Все методы используют `this.applicationId` внутри.
+
 ```javascript
 const MARKETPLACE_BASE = 'https://api.yclients.com/marketplace';
 
 class YclientsMarketplaceClient {
   constructor(partnerToken, applicationId) {
-    this.partnerToken = partnerToken;
-    this.applicationId = applicationId;
+    this.partnerToken = partnerToken;      // YCLIENTS_PARTNER_TOKEN
+    this.applicationId = applicationId;    // YCLIENTS_APP_ID (18289)
+    this.rateLimiter = new Bottleneck({...}); // 200 req/min
   }
 
-  // === CALLBACKS (исходящие) ===
+  // === CALLBACKS (МЫ → YClients) ===
+  // Уведомляем YClients о регистрации/установке
   async callbackWithRedirect(salonId, apiKey, webhookUrls)
   async callbackInstall(salonId, apiKey, webhookUrls, channels)
 
-  // === ПЛАТЕЖИ ===
+  // === ПЛАТЕЖИ (МЫ → YClients) ===
+  // ИСХОДЯЩИЕ: уведомляем YClients когда клиент оплатил у НАС
   async notifyPayment(salonId, paymentData)
-  async notifyRefund(paymentId)
+  // paymentData: { payment_sum, currency_iso, payment_date, period_from, period_to }
+  // Возвращает: { id: 123 } - СОХРАНИТЬ payment_id для refund!
+
+  async notifyRefund(paymentId)  // payment_id из notifyPayment response
   async generatePaymentLink(salonId, discount = null)
 
   // === УПРАВЛЕНИЕ ===
-  async getIntegrationStatus(salonId)
-  async getConnectedSalons(page = 1, count = 100)
+  async getIntegrationStatus(salonId)  // logs + payments + connection_status
+  async getConnectedSalons(page = 1, count = 100)  // count <= 1000
   async uninstallFromSalon(salonId)
 
   // === ТАРИФЫ И СКИДКИ ===
-  async getTariffs()
-  async addDiscount(salonIds, discountPercent)
+  async getTariffs()  // tariff options с ценами
+  async addDiscount(salonIds, discountPercent)  // массив salon_ids
 
   // === КАНАЛЫ ===
   async updateChannel(salonId, channelSlug, isAvailable)
-  async setShortNames(salonId, shortNames)
+  // channelSlug: 'sms' | 'whatsapp'
+  async setShortNames(salonId, shortNames)  // массив имён отправителя SMS
+}
+```
+
+**Request body structure (все методы):**
+```javascript
+{
+  salon_id: salonId,
+  application_id: this.applicationId,  // Добавляется автоматически
+  ...otherFields
 }
 ```
 
@@ -252,12 +271,14 @@ class YclientsMarketplaceClient {
 **Файл:** `src/services/marketplace/marketplace-service.js`
 
 Новые методы:
-- `processPayment(salonId, paymentData)` - обработка и логирование платежа
-- `processRefund(salonId, paymentId, reason)` - обработка возврата
+- `notifyYclientsAboutPayment(salonId, paymentData)` - **ИСХОДЯЩИЙ**: сообщить YClients что клиент оплатил
+  - Сохранить `payment_id` из response в `marketplace_events`
+  - Обновить `last_payment_date` в `companies`
+- `notifyYclientsAboutRefund(paymentId, reason)` - уведомить о возврате
 - `checkIntegrationHealth(salonId)` - проверка статуса + уведомление
-- `getActiveConnections(page, limit)` - список с пагинацией
+- `getActiveConnections(page, limit)` - список с пагинацией (max 1000)
 - `disconnectSalon(salonId, reason)` - отключение + cleanup WhatsApp сессии
-- `enableWhatsAppChannel(salonId)` / `disableWhatsAppChannel(salonId)`
+- `updateNotificationChannel(salonId, channel, enabled)` - WhatsApp/SMS toggle
 
 ### Phase 3: API Routes
 
@@ -285,38 +306,68 @@ POST /marketplace/admin/salon/:salonId/sms-names
 
 ### Phase 4: Webhook Extensions
 
-Расширить `handleWebhookEvent()`:
+**ВХОДЯЩИЕ webhooks от YClients** (только 2 события поддерживаются):
 ```javascript
-switch (eventType) {
-  case 'uninstall': // ✅ Есть
-  case 'freeze':    // ✅ Есть
-  case 'payment':   // ❌ Добавить
-  // Возможные будущие события
+// Webhook payload:
+{
+  salon_id: 123,
+  application_id: 123,
+  event: 'uninstall' | 'freeze',
+  partner_token: 'xxx'  // ⚠️ ВАЛИДИРОВАТЬ!
+}
+
+switch (event) {
+  case 'uninstall': // ✅ Есть - отключение приложения
+  case 'freeze':    // ✅ Есть - заморозка при неоплате
+  default:          // Логировать неизвестные события
 }
 ```
 
+**Добавить валидацию webhook:**
+```javascript
+// Проверить что partner_token совпадает с YCLIENTS_PARTNER_TOKEN
+if (body.partner_token !== process.env.YCLIENTS_PARTNER_TOKEN) {
+  throw new Error('Invalid partner_token');
+}
+```
+
+> **NOTE:** `payment` как ВХОДЯЩИЙ webhook НЕ существует.
+> Payment endpoint — это ИСХОДЯЩИЙ (мы отправляем в YClients).
+
 ### Phase 5: Database Migration
 
+**Колонка `yclients_id` уже существует** (проверено в production):
 ```sql
--- Минимальное расширение companies
+yclients_id | integer  -- ✅ Правильное имя колонки
+```
+
+```sql
+-- Минимальное расширение companies (колонки которых ЕЩЁ нет)
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMPTZ;
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS whatsapp_channel_enabled BOOLEAN DEFAULT TRUE;
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS sms_channel_enabled BOOLEAN DEFAULT FALSE;
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS sms_short_names TEXT[];
+
+-- Для хранения payment_id из YClients (для refund)
+-- Используем существующую таблицу marketplace_events
+-- event_type = 'payment_notified', event_data = { payment_id: 123, ... }
 ```
 
 ### Phase 6: MCP Server Extension
 
 **Файл:** `mcp/mcp-yclients/server.js`
 
-7 новых tools:
-1. `marketplace_get_status` - статус интеграции
-2. `marketplace_get_salons` - список подключенных салонов
-3. `marketplace_payment_link` - генерация ссылки на оплату
-4. `marketplace_get_tariffs` - тарифы приложения
-5. `marketplace_update_channel` - управление каналами
-6. `marketplace_uninstall` - отключение от салона
-7. `marketplace_add_discount` - установка скидок
+7 новых tools (application_id берётся из env автоматически):
+
+| Tool | Параметры | Описание |
+|------|-----------|----------|
+| `marketplace_get_status` | `salon_id` | Статус интеграции + logs + payments |
+| `marketplace_get_salons` | `page`, `count` | Список салонов (max 1000) |
+| `marketplace_payment_link` | `salon_id`, `discount?` | Ссылка на оплату |
+| `marketplace_get_tariffs` | - | Тарифы приложения |
+| `marketplace_update_channel` | `salon_id`, `channel`, `enabled` | WhatsApp/SMS toggle |
+| `marketplace_uninstall` | `salon_id` | ⚠️ Отключение (опасно!) |
+| `marketplace_add_discount` | `salon_ids[]`, `discount` | Скидки для салонов |
 
 ---
 
@@ -344,6 +395,42 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS sms_short_names TEXT[];
 
 ---
 
+## API Documentation Summary
+
+### Ключевые уточнения из анализа (2025-11-26):
+
+| Аспект | Факт |
+|--------|------|
+| **Base URL** | `https://api.yclients.com/marketplace` |
+| **Auth header** | `Authorization: Bearer {YCLIENTS_PARTNER_TOKEN}` |
+| **application_id** | Обязателен во ВСЕХ request body |
+| **Sandbox** | ❌ Нет тестовой среды |
+| **Payment endpoint** | **ИСХОДЯЩИЙ** (мы → YClients), не входящий |
+| **Входящие webhooks** | Только `uninstall` и `freeze` |
+| **Webhook validation** | Проверять `partner_token` в body |
+| **Pagination limit** | max 1000 для `/salons` endpoint |
+| **Payment response** | Возвращает `{ id: 123 }` — сохранить для refund! |
+
+### Все 13 эндпоинтов:
+
+| # | Направление | Endpoint | Статус |
+|---|-------------|----------|--------|
+| 1 | МЫ→YC | `POST /partner/callback/redirect` | ✅ Есть |
+| 2 | МЫ→YC | `POST /partner/callback` | Добавить |
+| 3 | МЫ→YC | `POST /partner/payment` | Добавить |
+| 4 | МЫ→YC | `POST /partner/short_names` | Добавить |
+| 5 | МЫ→YC | `POST /partner/payment/refund/{id}` | Добавить |
+| 6 | YC→МЫ | Webhook (uninstall/freeze) | ✅ Есть |
+| 7 | GET | `/salon/{id}/application/{id}` | Добавить |
+| 8 | GET | `/application/{id}/salons` | Добавить |
+| 9 | POST | `/salon/{id}/application/{id}/uninstall` | Добавить |
+| 10 | GET | `/application/payment_link` | Добавить |
+| 11 | GET | `/application/{id}/tariffs` | Добавить |
+| 12 | POST | `/application/add_discount` | Добавить |
+| 13 | POST | `/application/update_channel` | Добавить |
+
+---
+
 ## Required Resources
 
 ### Environment Variables
@@ -353,8 +440,8 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS sms_short_names TEXT[];
 YCLIENTS_PARTNER_TOKEN=xxx
 YCLIENTS_API_KEY=xxx
 
-# Нужно добавить:
-YCLIENTS_APP_ID=xxx  # ID приложения в маркетплейсе
+# ✅ Подтверждено:
+YCLIENTS_APP_ID=18289  # ID приложения в маркетплейсе
 ```
 
 ### Зависимости
