@@ -1,14 +1,15 @@
 /**
- * Синхронизация товарных транзакций из YClients
+ * Синхронизация товарных транзакций из YClients в PostgreSQL
+ * Migrated from Supabase to PostgreSQL (2025-11-26)
  * Загружает финансовые транзакции с expense_id=7 (Продажа товаров)
  */
 
-const { supabase } = require('../database/supabase');
+const postgres = require('../database/postgres');
 const logger = require('../utils/logger').child({ module: 'goods-transactions-sync' });
-const { 
-  YCLIENTS_CONFIG, 
+const {
+  YCLIENTS_CONFIG,
   createYclientsHeaders,
-  delay 
+  delay
 } = require('./sync-utils');
 const axios = require('axios');
 
@@ -180,56 +181,53 @@ class GoodsTransactionsSync {
     let processed = 0;
     let errors = 0;
     let totalAmount = 0;
-    
+
     for (const [yclientsId, data] of Object.entries(clientTransactions)) {
       try {
         // Находим клиента в нашей базе по yclients_id
-        const { data: client, error: findError } = await supabase
-          .from('clients')
-          .select('id, services_amount, total_spent')
-          .eq('yclients_id', yclientsId)
-          .eq('company_id', this.config.COMPANY_ID)
-          .single();
-        
-        if (findError || !client) {
+        const findResult = await postgres.query(
+          `SELECT id, services_amount, total_spent FROM clients
+           WHERE yclients_id = $1 AND company_id = $2`,
+          [yclientsId, this.config.COMPANY_ID]
+        );
+
+        const client = findResult.rows[0];
+        if (!client) {
           logger.debug(`Client not found in database: ${yclientsId}`);
           errors++;
           continue;
         }
-        
-        // Подготавливаем данные для обновления
-        const updateData = {
-          goods_amount: data.total_amount,
-          goods_count: data.transactions_count,
-          goods_purchases: data.purchases,
-          // Пересчитываем services_amount если нужно
-          services_amount: client.total_spent - data.total_amount
-        };
-        
+
         // Обновляем клиента
-        const { error: updateError } = await supabase
-          .from('clients')
-          .update(updateData)
-          .eq('id', client.id);
-        
-        if (updateError) {
-          logger.error(`Failed to update client ${client.id}:`, updateError);
-          errors++;
-        } else {
-          processed++;
-          totalAmount += data.total_amount;
-          
-          if (processed % 50 === 0) {
-            logger.info(`Progress: ${processed} clients updated`);
-          }
+        await postgres.query(
+          `UPDATE clients SET
+             goods_amount = $1,
+             goods_count = $2,
+             goods_purchases = $3,
+             services_amount = $4
+           WHERE id = $5`,
+          [
+            data.total_amount,
+            data.transactions_count,
+            JSON.stringify(data.purchases),
+            client.total_spent - data.total_amount,
+            client.id
+          ]
+        );
+
+        processed++;
+        totalAmount += data.total_amount;
+
+        if (processed % 50 === 0) {
+          logger.info(`Progress: ${processed} clients updated`);
         }
-        
+
       } catch (error) {
         logger.error(`Error processing client ${yclientsId}:`, error);
         errors++;
       }
     }
-    
+
     return {
       processed,
       errors,
