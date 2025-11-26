@@ -3499,26 +3499,12 @@
 
         /* User messages - RIGHT side */
         .message.user {
-            flex-direction: row-reverse;
-            justify-content: flex-start;
+            justify-content: flex-end;
         }
 
         /* Bot messages - LEFT side */
         .message.bot {
             justify-content: flex-start;
-        }
-
-        /* Bot avatar */
-        .bot-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: rgba(40, 40, 40, 0.8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            flex-shrink: 0;
         }
 
         .message-bubble {
@@ -3576,26 +3562,12 @@
 
         .typing-indicator {
             display: none;
-            gap: 12px;
-            align-items: flex-start;
             margin-bottom: 12px;
         }
 
         .typing-indicator.active {
             display: flex;
             animation: slideIn 0.3s ease-out;
-        }
-
-        .typing-indicator .bot-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: rgba(40, 40, 40, 0.8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            flex-shrink: 0;
         }
 
         .typing-indicator .typing-bubble {
@@ -4175,7 +4147,6 @@
                     <!-- Chat Messages -->
                     <div class="chat-messages" id="demoMessages">
                         <div class="message bot">
-                            <div class="bot-avatar">🤖</div>
                             <div class="message-bubble">
                                 <div class="message-content">
                                     Здравствуйте! Я AI бот Demo Beauty Salon. Чем могу помочь?
@@ -4188,7 +4159,6 @@
 
                     <!-- Typing Indicator -->
                     <div class="typing-indicator" id="demoTyping">
-                        <div class="bot-avatar">🤖</div>
                         <div class="typing-bubble">
                             <div class="typing-dots">
                                 <div class="typing-dot"></div>
@@ -5658,14 +5628,6 @@
         function addMessage(sender, text) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${sender}`;
-
-            // Add bot avatar BEFORE bubble (outside)
-            if (sender === 'bot') {
-                const avatar = document.createElement('div');
-                avatar.className = 'bot-avatar';
-                avatar.textContent = '🤖';
-                messageDiv.appendChild(avatar);
-            }
 
             const bubbleDiv = document.createElement('div');
             bubbleDiv.className = 'message-bubble';
