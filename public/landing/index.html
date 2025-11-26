@@ -3497,8 +3497,15 @@
             }
         }
 
+        /* User messages - RIGHT side */
         .message.user {
             flex-direction: row-reverse;
+            justify-content: flex-start;
+        }
+
+        /* Bot messages - LEFT side */
+        .message.bot {
+            justify-content: flex-start;
         }
 
         .message-bubble {
@@ -3536,6 +3543,7 @@
             height: 14px;
         }
 
+        /* Bot messages (AI) - left side with avatar */
         .message.bot .message-bubble {
             background: rgba(40, 40, 40, 0.5);
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -3544,6 +3552,7 @@
             color: #d4d4d4;
         }
 
+        /* User messages (client) - right side */
         .message.user .message-bubble {
             background: linear-gradient(135deg, rgba(167, 139, 250, 0.15), rgba(139, 92, 246, 0.15));
             border: 1px solid rgba(167, 139, 250, 0.2);
@@ -3555,26 +3564,36 @@
         .typing-indicator {
             display: none;
             padding: 12px 16px;
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(40, 40, 40, 0.5);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            border-bottom-left-radius: 4px;
+            border-radius: 20px 20px 20px 4px;
             width: fit-content;
+            margin-bottom: 12px;
         }
 
         .typing-indicator.active {
-            display: block;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .typing-indicator::before {
+            content: '🤖';
+            font-size: 16px;
+            flex-shrink: 0;
         }
 
         .typing-dots {
             display: flex;
             gap: 4px;
+            align-items: center;
         }
 
         .typing-dot {
             width: 8px;
             height: 8px;
-            background: rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.6);
             border-radius: 50%;
             animation: typing 1.4s ease-in-out infinite;
         }
@@ -3584,8 +3603,14 @@
         .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
         @keyframes typing {
-            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-            30% { transform: translateY(-10px); opacity: 1; }
+            0%, 60%, 100% {
+                transform: translateY(0);
+                opacity: 0.4;
+            }
+            30% {
+                transform: translateY(-8px);
+                opacity: 1;
+            }
         }
 
         /* Shortcuts Bar */
@@ -3854,8 +3879,12 @@
         }
 
         body[data-theme="light"] .typing-indicator {
-            background: rgba(0, 0, 0, 0.05);
-            border-color: rgba(0, 0, 0, 0.1);
+            background: rgba(255, 255, 255, 0.8);
+            border-color: rgba(203, 213, 225, 0.3);
+        }
+
+        body[data-theme="light"] .typing-dot {
+            background: rgba(0, 0, 0, 0.4);
         }
 
         body[data-theme="light"] .chat-input::placeholder {
@@ -4134,9 +4163,9 @@
                     <!-- Typing Indicator -->
                     <div class="typing-indicator" id="demoTyping">
                         <div class="typing-dots">
-                            <span></span>
-                            <span></span>
-                            <span></span>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
                         </div>
                     </div>
 
@@ -5540,7 +5569,8 @@
             demoInput.style.height = 'auto';
 
             // Show typing indicator
-            demoTyping.style.display = 'block';
+            demoTyping.classList.add('active');
+            demoMessages.appendChild(demoTyping);
             scrollToBottom();
 
             try {
@@ -5559,7 +5589,7 @@
                 const data = await response.json();
 
                 // Hide typing indicator
-                demoTyping.style.display = 'none';
+                demoTyping.classList.remove('active');
 
                 if (data.success) {
                     // Add bot response
@@ -5585,7 +5615,7 @@
                 }
             } catch (error) {
                 console.error('Demo chat error:', error);
-                demoTyping.style.display = 'none';
+                demoTyping.classList.remove('active');
                 addMessage('bot', 'Не удалось отправить сообщение. Проверьте подключение к интернету.');
             } finally {
                 isProcessing = false;
