@@ -1,10 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const logger = require('../../utils/logger');
-// Supabase import removed (2025-11-26) - not used in this file
+// Migrated from Supabase to PostgreSQL repositories (2025-11-26)
 const YClientsWebhookProcessor = require('../../services/webhook-processor');
 const config = require('../../config');
 const crypto = require('crypto');
+const postgres = require('../../database/postgres');
+const { WebhookEventsRepository } = require('../../repositories');
+
+// Initialize repository
+const webhookEventsRepository = new WebhookEventsRepository(postgres);
 
 // Инициализация процессора
 const webhookProcessor = new YClientsWebhookProcessor();
@@ -80,31 +85,24 @@ router.post('/events', async (req, res) => {
     }
 
     // 4. Проверка дубликатов
-    const { data: existingEvent } = await supabase
-      .from('webhook_events')
-      .select('id')
-      .eq('event_id', eventId)
-      .single();
+    const isDuplicate = await webhookEventsRepository.exists(eventId);
 
-    if (existingEvent) {
+    if (isDuplicate) {
       logger.warn('⚠️ Duplicate webhook event', { eventId });
       return;
     }
 
     // 5. Сохранение события для аудита
-    const { error: saveError } = await supabase
-      .from('webhook_events')
-      .insert({
+    try {
+      await webhookEventsRepository.insert({
         event_id: eventId,
         event_type: eventType,
         company_id: req.body.company_id,
         record_id: eventData?.id || req.body.resource_id,
-        payload: req.body,
-        created_at: new Date().toISOString()
+        payload: req.body
       });
-
-    if (saveError) {
-      logger.error('❌ Failed to save webhook event', { eventId, error: saveError });
+    } catch (saveError) {
+      logger.error('❌ Failed to save webhook event', { eventId, error: saveError.message });
     }
 
     // 6. Асинхронная обработка события

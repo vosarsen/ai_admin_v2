@@ -1,6 +1,6 @@
 // src/services/marketplace/marketplace-service.js
 // Сервис для работы с маркетплейсом YClients и управления подключениями
-// Supabase import removed (2025-11-26) - not used in this file
+// Migrated from Supabase to PostgreSQL repositories (2025-11-26)
 
 const { createRedisClient } = require('../../utils/redis-factory');
 const logger = require('../../utils/logger');
@@ -9,10 +9,12 @@ const { getSessionPool } = require('../../integrations/whatsapp/session-pool');
 const crypto = require('crypto');
 const axios = require('axios');
 const { validateId, sanitizeCompanyData, normalizePhone, validateEmail } = require('../../utils/validators');
+const postgres = require('../../database/postgres');
+const { CompanyRepository } = require('../../repositories');
 
 class MarketplaceService {
   constructor() {
-    this.supabase = supabase;
+    this.companyRepository = new CompanyRepository(postgres);
     this.redis = null; // Will be initialized in init()
     this.yclients = new YclientsClient();
     this.sessionPool = getSessionPool();
@@ -46,19 +48,10 @@ class MarketplaceService {
       }
 
       // Сначала проверяем, есть ли уже такая компания
-      const { data: companies, error: fetchError } = await this.supabase
-        .from('companies')
-        .select('*')
-        .eq('yclients_id', validSalonId);
-
-      if (fetchError) {
-        logger.error('Ошибка проверки существующей компании:', fetchError);
-        throw fetchError;
-      }
+      const existingCompany = await this.companyRepository.findByYclientsId(validSalonId);
 
       // Если компания существует, возвращаем ее
-      if (companies && companies.length > 0) {
-        const existingCompany = companies[0];
+      if (existingCompany) {
         logger.info(`Компания уже существует`, {
           company_id: existingCompany.id,
           salon_id: validSalonId
@@ -88,16 +81,7 @@ class MarketplaceService {
       // Санитизируем данные перед вставкой
       const sanitizedData = sanitizeCompanyData(companyData);
 
-      const { data: createdCompany, error: createError } = await this.supabase
-        .from('companies')
-        .insert([sanitizedData])
-        .select()
-        .single();
-
-      if (createError) {
-        logger.error('Ошибка создания компании:', createError);
-        throw createError;
-      }
+      const createdCompany = await this.companyRepository.create(sanitizedData);
 
       logger.info(`✅ Новая компания создана`, {
         company_id: createdCompany.id,
@@ -236,18 +220,13 @@ class MarketplaceService {
    * Получает компанию по ID
    */
   async getCompany(companyId) {
-    const { data, error } = await this.supabase
-      .from('companies')
-      .select('*')
-      .eq('id', companyId)
-      .single();
-
-    if (error) {
+    try {
+      const company = await this.companyRepository.findOne('companies', { id: companyId });
+      return company;
+    } catch (error) {
       logger.error('Ошибка получения компании:', error);
       return null;
     }
-
-    return data;
   }
 
   /**
@@ -324,15 +303,7 @@ class MarketplaceService {
       updateData.whatsapp_phone = normalizePhone(phoneNumber);
     }
 
-    const { error } = await this.supabase
-      .from('companies')
-      .update(updateData)
-      .eq('id', validCompanyId);
-
-    if (error) {
-      logger.error('Ошибка обновления статуса WhatsApp:', error);
-      throw error;
-    }
+    await this.companyRepository.update(validCompanyId, updateData);
 
     logger.info(`✅ Статус WhatsApp обновлен`, {
       company_id: validCompanyId,
@@ -346,28 +317,14 @@ class MarketplaceService {
    */
   async getConnectionStats() {
     try {
-      // Получаем подключенные компании
-      const { data: connectedCompanies, error: connectedError } = await this.supabase
-        .from('companies')
-        .select('id')
-        .eq('whatsapp_connected', true);
-
-      if (connectedError) {
-        logger.error('Ошибка получения подключенных компаний:', connectedError);
-      }
-
-      // Получаем общее количество компаний
-      const { count: totalCount, error: totalError } = await this.supabase
-        .from('companies')
-        .select('*', { count: 'exact', head: true });
-
-      if (totalError) {
-        logger.error('Ошибка получения общего количества:', totalError);
-      }
+      const [connected, total] = await Promise.all([
+        this.companyRepository.countConnected(),
+        this.companyRepository.countTotal()
+      ]);
 
       return {
-        total: totalCount || 0,
-        connected: connectedCompanies?.length || 0
+        total: total || 0,
+        connected: connected || 0
       };
     } catch (error) {
       logger.error('Ошибка получения статистики:', error);

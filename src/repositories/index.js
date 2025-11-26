@@ -21,6 +21,12 @@ const CompanyRepository = require('./CompanyRepository');
 const BookingRepository = require('./BookingRepository');
 const BookingNotificationRepository = require('./BookingNotificationRepository');
 
+// New repositories for supabase-broken-references-fix (2025-11-26)
+const WebhookEventsRepository = require('./WebhookEventsRepository');
+const MarketplaceEventsRepository = require('./MarketplaceEventsRepository');
+const AppointmentsCacheRepository = require('./AppointmentsCacheRepository');
+const MessageRepository = require('./MessageRepository');
+
 module.exports = {
   BaseRepository,
   ClientRepository,
@@ -30,5 +36,10 @@ module.exports = {
   DialogContextRepository,
   CompanyRepository,
   BookingRepository,
-  BookingNotificationRepository
+  BookingNotificationRepository,
+  // New repositories
+  WebhookEventsRepository,
+  MarketplaceEventsRepository,
+  AppointmentsCacheRepository,
+  MessageRepository
 };

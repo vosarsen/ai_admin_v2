@@ -1,7 +1,7 @@
 // src/api/routes/yclients-marketplace.js
 // YClients Marketplace Integration - ПРАВИЛЬНАЯ РЕАЛИЗАЦИЯ согласно документации
 // https://docs.yclients.com/marketplace
-// Supabase import removed (2025-11-26) - not used in this file
+// Migrated from Supabase to PostgreSQL repositories (2025-11-26)
 
 const express = require('express');
 const router = express.Router();
@@ -11,6 +11,12 @@ const { YclientsClient } = require('../../integrations/yclients/client');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const postgres = require('../../database/postgres');
+const { CompanyRepository, MarketplaceEventsRepository } = require('../../repositories');
+
+// Initialize repositories
+const companyRepository = new CompanyRepository(postgres);
+const marketplaceEventsRepository = new MarketplaceEventsRepository(postgres);
 
 // Инициализация
 const sessionPool = getSessionPool();

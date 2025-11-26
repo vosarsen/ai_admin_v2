@@ -1,6 +1,26 @@
 # YClients Marketplace Integration - Context
 
-**Last Updated:** 2025-11-26
+**Last Updated:** 2025-11-26 (Revised after Supabase Removal)
+
+---
+
+## CRITICAL STATUS
+
+### Broken Code After Supabase Removal
+
+After completing `dev/completed/supabase-full-removal/` (2025-11-26), the marketplace files were found to have **only imports removed, not actual database calls**.
+
+**Impact:** All marketplace functionality is BROKEN in production.
+
+**Files affected:**
+| File | Supabase Calls | Status |
+|------|----------------|--------|
+| `marketplace-service.js` | 7 calls | BROKEN |
+| `yclients-marketplace.js` | 12+ calls | BROKEN |
+
+**Root cause:** During Supabase removal, these files were marked as "removed dead import" but the actual `supabase.*` calls remained.
+
+**Solution:** Phase 0 added to plan - migrate to Repository Pattern.
 
 ---
 
@@ -8,19 +28,26 @@
 
 ### Существующие (для модификации)
 
-| File | Purpose | Lines |
-|------|---------|-------|
-| `src/api/routes/yclients-marketplace.js` | REST routes для marketplace | ~720 |
-| `src/services/marketplace/marketplace-service.js` | Бизнес-логика marketplace | ~380 |
-| `src/integrations/yclients/client.js` | Общий YClients API client | ~1115 |
-| `mcp/mcp-yclients/server.js` | MCP server для Claude | ~697 |
-| `.mcp.json` | MCP конфигурация | ~54 |
+| File | Purpose | Lines | Status |
+|------|---------|-------|--------|
+| `src/api/routes/yclients-marketplace.js` | REST routes для marketplace | ~720 | BROKEN |
+| `src/services/marketplace/marketplace-service.js` | Бизнес-логика marketplace | ~380 | BROKEN |
+| `src/integrations/yclients/client.js` | Общий YClients API client | ~1115 | OK |
+| `mcp/mcp-yclients/server.js` | MCP server для Claude | ~697 | OK |
+| `.mcp.json` | MCP конфигурация | ~54 | OK |
 
 ### Новые (для создания)
 
-| File | Purpose |
-|------|---------|
-| `src/integrations/yclients/marketplace-client.js` | Выделенный Marketplace API client |
+| File | Purpose | Phase |
+|------|---------|-------|
+| `src/repositories/MarketplaceEventsRepository.js` | Repository for marketplace_events | Phase 0 |
+| `src/integrations/yclients/marketplace-client.js` | Выделенный Marketplace API client | Phase 1 |
+
+### Существующие репозитории (для расширения)
+
+| File | Current Methods | Needs Addition |
+|------|-----------------|----------------|
+| `src/repositories/CompanyRepository.js` | `findById()`, `upsert()` | `findByYclientsId()`, `updateByYclientsId()`, `upsertByYclientsId()`, `countConnected()` |
 
 ### Документация (референс)
 
@@ -65,7 +92,28 @@ Authorization: Bearer {PARTNER_TOKEN}
 
 ## Key Decisions
 
-### 1. Архитектура клиента
+### 1. Phase 0: Fix Broken Code FIRST
+**Decision:** Add Phase 0 before any new development
+**Rationale:**
+- Existing code is broken after Supabase removal
+- Must migrate to Repository Pattern
+- Production functionality at risk
+
+### 2. Create MarketplaceEventsRepository
+**Decision:** Create new repository for `marketplace_events` table
+**Rationale:**
+- Table exists in database
+- Multiple files need to insert/query events
+- Follows established Repository Pattern
+
+### 3. Extend CompanyRepository
+**Decision:** Add 4 new methods to CompanyRepository
+**Rationale:**
+- Existing repository is minimal (2 methods)
+- Marketplace needs `findByYclientsId`, `updateByYclientsId`, `upsertByYclientsId`, `countConnected`
+- Better than creating separate repository
+
+### 4. Архитектура клиента
 **Decision:** Создать отдельный `marketplace-client.js` вместо расширения `client.js`
 **Rationale:**
 - Разные base URL (`/api/v1` vs `/marketplace`)
@@ -73,14 +121,14 @@ Authorization: Bearer {PARTNER_TOKEN}
 - Чёткое разделение ответственности
 - Легче тестировать изолированно
 
-### 2. База данных
+### 5. База данных
 **Decision:** Минимальные миграции - только расширение `companies`
 **Rationale:**
 - Платежи логируются в `marketplace_events` (уже есть)
 - Не нужна отдельная таблица платежей
 - Простота миграции
 
-### 3. MCP Server
+### 6. MCP Server
 **Decision:** Расширить существующий `mcp-yclients/server.js`
 **Rationale:**
 - Один MCP server для всего YClients
@@ -91,16 +139,38 @@ Authorization: Bearer {PARTNER_TOKEN}
 
 ## Dependencies
 
+### Phase Dependencies
+
+```
+Phase 0: Fix Broken Code (CRITICAL PATH)
+    │
+    ├──► Phase 1: MarketplaceClient
+    │         │
+    │         └──► Phase 2: MarketplaceService
+    │                    │
+    │                    └──► Phase 3: API Routes
+    │                              │
+    │                              └──► Phase 4: Webhooks
+    │
+    ├──► Phase 5: DB Migration ───► Phase 2
+    │
+    └──► Phase 6: MCP Server ◄─── Phase 1
+```
+
 ### Внутренние
 
 ```
-YclientsMarketplaceClient (new)
+MarketplaceEventsRepository (new - Phase 0)
     ↓
-MarketplaceService (extended)
+CompanyRepository (extended - Phase 0)
     ↓
-API Routes (extended)
+YclientsMarketplaceClient (new - Phase 1)
     ↓
-MCP Server (extended)
+MarketplaceService (migrated + extended - Phase 0, 2)
+    ↓
+API Routes (migrated + extended - Phase 0, 3)
+    ↓
+MCP Server (extended - Phase 6)
 ```
 
 ### Внешние
@@ -133,9 +203,15 @@ YCLIENTS_APP_ID=xxx  # ID приложения в маркетплейсе
 
 ## Testing Strategy
 
+### Phase 0 Testing
+- Test that existing marketplace pages load without errors
+- Test QR code generation works
+- Test webhook handling works
+- Verify no `supabase is undefined` errors in logs
+
 ### Unit Tests
 - `marketplace-client.js` - mock API responses
-- `marketplace-service.js` - mock client
+- `marketplace-service.js` - mock client and repositories
 
 ### Integration Tests
 - MCP tools с реальным API (test salon)
@@ -164,6 +240,129 @@ YCLIENTS_APP_ID=xxx  # ID приложения в маркетплейсе
 - YClients может добавить новые события в будущем
 - Логировать неизвестные события для мониторинга
 
+### Note: Sentry Error Tracking
+- After Supabase removal project, all repositories have Sentry
+- Marketplace files MUST also have Sentry integration
+- Follow pattern from BaseRepository.js
+
+---
+
+## Broken Code Details (Phase 0 Reference)
+
+### marketplace-service.js
+
+```javascript
+// Line 15 - Constructor assigns undefined supabase
+this.supabase = supabase;  // supabase is not imported!
+
+// Line 49-52 - Select companies
+const { data: companies, error: fetchError } = await this.supabase
+  .from('companies')
+  .select('*')
+  .eq('yclients_id', validSalonId);
+
+// Line 91-95 - Insert company
+const { data: createdCompany, error: createError } = await this.supabase
+  .from('companies')
+  .insert([sanitizedData])
+  .select()
+  .single();
+
+// Line 239-243 - Get company by ID
+const { data, error } = await this.supabase
+  .from('companies')
+  .select('*')
+  .eq('id', companyId)
+  .single();
+
+// Line 327-330 - Update WhatsApp status
+const { error } = await this.supabase
+  .from('companies')
+  .update(updateData)
+  .eq('id', validCompanyId);
+
+// Line 350-353 - Get connected companies
+const { data: connectedCompanies, error: connectedError } = await this.supabase
+  .from('companies')
+  .select('id')
+  .eq('whatsapp_connected', true);
+
+// Line 360-362 - Count total companies
+const { count: totalCount, error: totalError } = await this.supabase
+  .from('companies')
+  .select('*', { count: 'exact', head: true });
+```
+
+### yclients-marketplace.js
+
+```javascript
+// Line 79-100 - Upsert company
+const { data: company, error: dbError } = await supabase
+  .from('companies')
+  .upsert({...}, { onConflict: 'yclients_id', returning: 'representation' })
+  .select()
+  .single();
+
+// Line 131-143 - Insert marketplace event
+await supabase
+  .from('marketplace_events')
+  .insert({...});
+
+// Line 332-338 - Select registration event
+const { data: events, error: eventError } = await supabase
+  .from('marketplace_events')
+  .select('*')
+  .eq('salon_id', salon_id)
+  .eq('event_type', 'registration_started')
+  .order('created_at', { ascending: false })
+  .limit(1);
+
+// Line 361-369 - Update company with API key
+const { error: updateError } = await supabase
+  .from('companies')
+  .update({...})
+  .eq('id', company_id);
+
+// Line 422-429 - Update integration status to active
+await supabase
+  .from('companies')
+  .update({...})
+  .eq('id', company_id);
+
+// Line 432-442 - Insert activation event
+await supabase
+  .from('marketplace_events')
+  .insert({...});
+
+// Line 459-465 - Update status on activation failure
+await supabase
+  .from('companies')
+  .update({...})
+  .eq('id', error.decoded.company_id);
+
+// Line 525, 530 - Health check references
+supabase: !!supabase,  // undefined
+database_connected: !!supabase,  // undefined
+
+// Line 603-610 - Handle uninstall
+await supabase
+  .from('companies')
+  .update({...})
+  .eq('yclients_id', parseInt(salonId));
+
+// Line 621-627 - Handle freeze
+await supabase
+  .from('companies')
+  .update({...})
+  .eq('yclients_id', parseInt(salonId));
+
+// Line 638-645 - Handle payment
+await supabase
+  .from('companies')
+  .update({...})
+  .eq('yclients_id', parseInt(salonId));
+```
+
 ---
 
 ## Session Notes
@@ -173,3 +372,11 @@ YCLIENTS_APP_ID=xxx  # ID приложения в маркетплейсе
 - Проанализированы существующие файлы
 - Создан план интеграции
 - Решения: все 13 эндпоинтов, минимальная БД, MCP server
+
+### Session 2 (2025-11-26) - Plan Review
+- Discovered broken code after Supabase removal
+- Added Phase 0: Fix Broken Marketplace Code
+- Updated timeline: 11h → 17h (+55%)
+- Updated dependencies diagram
+- Added detailed broken code reference
+- Plan reviewed by plan-reviewer agent

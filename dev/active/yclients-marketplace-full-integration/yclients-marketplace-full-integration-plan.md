@@ -1,8 +1,8 @@
 # YClients Marketplace API Full Integration Plan
 
 **Last Updated:** 2025-11-26
-**Status:** Planning Complete
-**Estimated Effort:** 11 hours
+**Status:** Planning Complete (Revised after Supabase Removal)
+**Estimated Effort:** 17 hours (+6h for Phase 0)
 **Priority:** High
 
 ---
@@ -16,14 +16,70 @@
 
 ---
 
+## CRITICAL: Post-Supabase Removal Update
+
+### Problem Discovered
+
+После завершения `dev/completed/supabase-full-removal/` (2025-11-26) было обнаружено:
+
+1. **marketplace-service.js** - Удалён только импорт `supabase`, но **7 вызовов `this.supabase.*` остались**
+2. **yclients-marketplace.js** - Удалён только импорт, но **12+ вызовов `supabase.*` остались**
+
+**Результат:** Код СЛОМАН - `supabase is undefined` при любом вызове marketplace функций.
+
+### Root Cause
+
+В `supabase-full-removal-plan.md` (Phase 4) указано:
+```
+- marketplace-service.js - removed dead import
+- yclients-marketplace.js - removed dead import
+```
+
+Но удалены были только `require` statements, а не фактические вызовы базы данных.
+
+### Solution: Add Phase 0
+
+**Phase 0 должна быть выполнена ПЕРВОЙ** - миграция существующего кода на Repository Pattern.
+
+---
+
 ## Current State Analysis
 
 ### Реализованные эндпоинты
 
-| Endpoint | Статус | Файл |
-|----------|--------|------|
-| `POST /marketplace/partner/callback/redirect` | ✅ | `yclients-marketplace.js:394-406` |
-| `POST /webhook/yclients` (uninstall, freeze) | ⚠️ Частично | `yclients-marketplace.js:479-505` |
+| Endpoint | Статус | Файл | DB Status |
+|----------|--------|------|-----------|
+| `POST /marketplace/partner/callback/redirect` | ✅ | `yclients-marketplace.js:394-406` | BROKEN |
+| `POST /webhook/yclients` (uninstall, freeze) | ⚠️ Частично | `yclients-marketplace.js:479-505` | BROKEN |
+
+### Broken Supabase Calls (MUST FIX)
+
+**marketplace-service.js (7 calls):**
+| Line | Call | Repository Needed |
+|------|------|-------------------|
+| 15 | `this.supabase = supabase` | Remove |
+| 49 | `this.supabase.from('companies').select()` | CompanyRepository |
+| 91 | `this.supabase.from('companies').insert()` | CompanyRepository |
+| 239 | `this.supabase.from('companies').select()` | CompanyRepository |
+| 327 | `this.supabase.from('companies').update()` | CompanyRepository |
+| 350 | `this.supabase.from('companies').select()` | CompanyRepository |
+| 360 | `this.supabase.from('companies').select()` | CompanyRepository |
+
+**yclients-marketplace.js (12+ calls):**
+| Line | Call | Repository Needed |
+|------|------|-------------------|
+| 79 | `supabase.from('companies').upsert()` | CompanyRepository |
+| 131 | `supabase.from('marketplace_events').insert()` | MarketplaceEventsRepository (NEW) |
+| 332 | `supabase.from('marketplace_events').select()` | MarketplaceEventsRepository |
+| 361 | `supabase.from('companies').update()` | CompanyRepository |
+| 422 | `supabase.from('companies').update()` | CompanyRepository |
+| 432 | `supabase.from('marketplace_events').insert()` | MarketplaceEventsRepository |
+| 459 | `supabase.from('companies').update()` | CompanyRepository |
+| 525 | `supabase` (health check) | Remove |
+| 530 | `supabase` (health check) | Remove |
+| 603 | `supabase.from('companies').update()` | CompanyRepository |
+| 621 | `supabase.from('companies').update()` | CompanyRepository |
+| 638 | `supabase.from('companies').update()` | CompanyRepository |
 
 ### Нереализованные эндпоинты (11 шт.)
 
@@ -43,9 +99,9 @@
 
 ```
 src/
-├── api/routes/yclients-marketplace.js    # REST routes (частично)
+├── api/routes/yclients-marketplace.js    # REST routes (BROKEN - needs migration)
 ├── services/marketplace/
-│   └── marketplace-service.js            # Business logic
+│   └── marketplace-service.js            # Business logic (BROKEN - needs migration)
 ├── integrations/yclients/
 │   └── client.js                         # General YClients client
 └── api/webhooks/yclients.js              # Webhook handler
@@ -61,12 +117,15 @@ mcp/mcp-yclients/server.js                # MCP server (без marketplace)
 
 ```
 src/
-├── api/routes/yclients-marketplace.js    # REST routes (полные)
+├── api/routes/yclients-marketplace.js    # REST routes (MIGRATED to Repository)
 ├── services/marketplace/
-│   └── marketplace-service.js            # Business logic (расширенный)
+│   └── marketplace-service.js            # Business logic (MIGRATED to Repository)
 ├── integrations/yclients/
 │   ├── client.js                         # General YClients client
 │   └── marketplace-client.js             # NEW: Marketplace API client
+├── repositories/
+│   ├── CompanyRepository.js              # EXTENDED with new methods
+│   └── MarketplaceEventsRepository.js    # NEW: For marketplace_events table
 └── api/webhooks/yclients.js              # Webhook handler (расширенный)
 
 mcp/mcp-yclients/server.js                # MCP server (+ marketplace tools)
@@ -84,15 +143,30 @@ mcp/mcp-yclients/server.js                # MCP server (+ marketplace tools)
 
 ## Implementation Phases
 
+### Phase 0: Fix Broken Marketplace Code (CRITICAL)
+**Effort:** L (6 hours)
+**Dependencies:** None (MUST BE DONE FIRST)
+**Status:** NOT STARTED
+
+Миграция существующего кода с Supabase на Repository Pattern.
+
+**Sub-tasks:**
+1. Create `MarketplaceEventsRepository.js`
+2. Extend `CompanyRepository.js` with required methods
+3. Migrate `marketplace-service.js` to Repository Pattern
+4. Migrate `yclients-marketplace.js` to Repository Pattern
+5. Add Sentry error tracking
+6. Test existing functionality works
+
 ### Phase 1: YclientsMarketplaceClient (Core)
 **Effort:** L (3 hours)
-**Dependencies:** None
+**Dependencies:** Phase 0
 
 Создание выделенного клиента для Marketplace API с отдельным base URL.
 
 ### Phase 2: MarketplaceService Extension
 **Effort:** M (2 hours)
-**Dependencies:** Phase 1
+**Dependencies:** Phase 0, Phase 1
 
 Расширение бизнес-логики для работы с новыми эндпоинтами.
 
@@ -110,7 +184,7 @@ mcp/mcp-yclients/server.js                # MCP server (+ marketplace tools)
 
 ### Phase 5: Database Migration
 **Effort:** S (1 hour)
-**Dependencies:** None (можно параллельно)
+**Dependencies:** Phase 0 (для репозиториев)
 
 Минимальное расширение схемы БД.
 
@@ -122,7 +196,91 @@ mcp/mcp-yclients/server.js                # MCP server (+ marketplace tools)
 
 ---
 
+## Phase Dependencies (Updated)
+
+```
+Phase 0: Fix Broken Code (CRITICAL PATH - 6h)
+    │
+    ├──► Phase 1: MarketplaceClient (3h)
+    │         │
+    │         └──► Phase 2: MarketplaceService (2h)
+    │                    │
+    │                    └──► Phase 3: API Routes (2h)
+    │                              │
+    │                              └──► Phase 4: Webhooks (1h)
+    │
+    ├──► Phase 5: DB Migration (1h) ───► Phase 2 (columns needed)
+    │
+    └──► Phase 6: MCP Server (2h) ◄─── Phase 1 (client needed)
+```
+
+---
+
 ## Detailed Implementation
+
+### Phase 0: Fix Broken Marketplace Code
+
+**0.1 Create MarketplaceEventsRepository.js**
+
+**File:** `src/repositories/MarketplaceEventsRepository.js`
+
+```javascript
+const BaseRepository = require('./BaseRepository');
+
+class MarketplaceEventsRepository extends BaseRepository {
+  constructor() {
+    super('marketplace_events');
+  }
+
+  async insert(eventData) {
+    return this.create(eventData);
+  }
+
+  async findByCompanyId(companyId, options = {}) {
+    return this.findMany({ company_id: companyId }, options);
+  }
+
+  async findBySalonId(salonId, options = {}) {
+    return this.findMany({ salon_id: salonId }, options);
+  }
+
+  async findLatestByType(salonId, eventType) {
+    const query = `
+      SELECT * FROM ${this.tableName}
+      WHERE salon_id = $1 AND event_type = $2
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    const result = await this.query(query, [salonId, eventType]);
+    return result.rows[0] || null;
+  }
+}
+
+module.exports = MarketplaceEventsRepository;
+```
+
+**0.2 Extend CompanyRepository.js**
+
+Add methods:
+- `findByYclientsId(yclientsId)`
+- `updateByYclientsId(yclientsId, data)`
+- `upsertByYclientsId(data)` - for onConflict handling
+- `countConnected()` - for stats
+
+**0.3 Migrate marketplace-service.js**
+
+Replace all `this.supabase.*` calls with Repository Pattern:
+- Import CompanyRepository
+- Replace `this.supabase.from('companies').select()` → `companyRepository.findByYclientsId()`
+- Replace `this.supabase.from('companies').insert()` → `companyRepository.create()`
+- Replace `this.supabase.from('companies').update()` → `companyRepository.updateByYclientsId()`
+
+**0.4 Migrate yclients-marketplace.js**
+
+Replace all `supabase.*` calls:
+- Import CompanyRepository, MarketplaceEventsRepository
+- Update health check to use PostgreSQL directly
+- Add Sentry error tracking
 
 ### Phase 1: YclientsMarketplaceClient
 
@@ -234,11 +392,14 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS sms_short_names TEXT[];
 
 ---
 
-## Risk Assessment
+## Risk Assessment (Updated)
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
-| YClients API изменения | High | Low | Версионирование, мониторинг |
+| **Existing code broken** | **CRITICAL** | **100%** | Phase 0 fixes immediately |
+| Repository Pattern unfamiliar | Medium | Low | Follow existing patterns |
+| Missing database columns | Low | Low | Migration already defined |
+| YClients API changes | High | Low | Версионирование, мониторинг |
 | Rate limiting | Medium | Medium | Bottleneck limiter в client |
 | Некорректные webhook | Medium | Low | Валидация partner_token |
 | Ошибки в платежах | High | Low | Логирование, транзакции |
@@ -247,10 +408,12 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS sms_short_names TEXT[];
 
 ## Success Metrics
 
+- [ ] **Phase 0:** Existing marketplace code works (0 Supabase references)
 - [ ] 13/13 эндпоинтов реализовано
 - [ ] Все MCP tools работают
 - [ ] Тесты покрывают основные сценарии
 - [ ] Документация обновлена
+- [ ] Sentry error tracking in all marketplace code
 
 ---
 
@@ -277,15 +440,18 @@ YCLIENTS_APP_ID=xxx  # ID приложения в маркетплейсе
 
 ---
 
-## Timeline Estimates
+## Timeline Estimates (Updated)
 
-| Phase | Duration | Cumulative |
-|-------|----------|------------|
-| 1. MarketplaceClient | 3h | 3h |
-| 2. MarketplaceService | 2h | 5h |
-| 3. API Routes | 2h | 7h |
-| 4. Webhooks | 1h | 8h |
-| 5. DB Migration | 1h | 9h |
-| 6. MCP Server | 2h | 11h |
+| Phase | Duration | Cumulative | Notes |
+|-------|----------|------------|-------|
+| **0. Fix Broken Code** | **6h** | **6h** | **CRITICAL - Must do first** |
+| 1. MarketplaceClient | 3h | 9h | |
+| 2. MarketplaceService | 2h | 11h | |
+| 3. API Routes | 2h | 13h | |
+| 4. Webhooks | 1h | 14h | |
+| 5. DB Migration | 1h | 15h | Can parallel with Phase 1 |
+| 6. MCP Server | 2h | 17h | |
 
-**Общая оценка: 11 часов**
+**Original estimate:** 11 hours
+**Revised estimate:** 17 hours (+55%)
+**Reason:** Supabase removal left broken code that needs migration first

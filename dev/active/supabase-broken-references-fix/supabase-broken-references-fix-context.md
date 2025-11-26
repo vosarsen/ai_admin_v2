@@ -350,6 +350,69 @@ pm2 logs --lines 100 | grep -i "supabase\|undefined"  # Нет ошибок
 
 **План готов к выполнению (v3)**
 
+### Сессия 5 (2025-11-26) - ВЫПОЛНЕНИЕ МИГРАЦИИ 🚀
+**Last Updated:** 2025-11-26 17:15 UTC
+
+#### Завершено:
+- ✅ **Фаза -1: Pre-migration Backup** (~2 мин)
+  - Git tag `pre-supabase-fix-backup` создан и запушен
+  - PostgreSQL backup создан: `backup-2025-11-26.sql.gz` (199.35 KB)
+
+- ✅ **Фаза 0: Создание таблиц** (~2 мин)
+  - `webhook_events` создана с 3 индексами
+  - `marketplace_events` создана с 3 индексами (FK на companies)
+  - `appointments_cache` создана с 4 индексами
+  - Всего таблиц: 16 (было 13)
+
+- ✅ **Фаза 1: Создание репозиториев** (~15 мин)
+  - `WebhookEventsRepository.js` создан (exists, insert, markProcessed)
+  - `MarketplaceEventsRepository.js` создан (insert, findLatestByType, findBySalonId)
+  - `AppointmentsCacheRepository.js` создан (insert, updateByRecordId, findByRecordId, markCancelled, findActive, softDelete)
+  - `MessageRepository.js` создан (findRecent, hasRecentActivity)
+  - `CompanyRepository.js` расширен (+7 методов)
+  - `src/repositories/index.js` обновлён - экспортирует 13 репозиториев
+
+- 🔄 **Фаза 2: Миграция файлов** (В ПРОЦЕССЕ)
+  - ✅ `marketplace-service.js` - 7 вызовов мигрированы
+  - ✅ `webhooks/yclients.js` - 2 вызова мигрированы
+  - ✅ `webhook-processor/index.js` - 9 вызовов мигрированы
+  - 🔄 `yclients-marketplace.js` - **ПРЕРВАНО на строке 79** (12 вызовов, начато)
+  - ⏳ `booking-ownership.js` - 1 вызов (не начато)
+
+#### Текущее состояние `yclients-marketplace.js`:
+**ВАЖНО:** Файл частично мигрирован!
+- Импорты добавлены (строки 14-19): `postgres`, `CompanyRepository`, `MarketplaceEventsRepository`
+- Репозитории инициализированы (строки 17-19)
+- **НО вызовы supabase ещё остались!** (строки 79, 131, 332, 361, 422, 432, 459, 525, 530, 603, 621, 638)
+
+#### Следующие действия (продолжить с):
+1. Мигрировать оставшиеся вызовы в `yclients-marketplace.js`:
+   - Строка 79: `supabase.from('companies').upsert()` → `companyRepository.upsertByYclientsId()`
+   - Строка 131: `supabase.from('marketplace_events').insert()` → `marketplaceEventsRepository.insert()`
+   - Строка 332: `supabase.from('marketplace_events').select()` → `marketplaceEventsRepository.findLatestByType()`
+   - Строки 361, 422, 459: `companies.update()` → `companyRepository.updateByYclientsId()`
+   - Строка 432: `marketplace_events.insert()` → `marketplaceEventsRepository.insert()`
+   - Строки 525, 530: health check `supabase` → `postgres: true`
+   - Строки 603, 621, 638: handleUninstall/Freeze/Payment → `companyRepository.updateByYclientsId()`
+
+2. Мигрировать `booking-ownership.js` (1 вызов, строка 252)
+
+3. Выполнить Фазу 3: Очистка deprecated файлов
+
+4. Выполнить Фазу 4: Тестирование и деплой
+
+#### Команда проверки:
+```bash
+# Проверить оставшиеся supabase вызовы:
+grep -rn "await supabase\|this\.supabase" src/ --include="*.js" | grep -v archive | grep -v mcp-server
+```
+
+#### Rollback (если нужно):
+```bash
+git checkout pre-supabase-fix-backup
+# База: /var/backups/postgresql/daily/backup-2025-11-26.sql.gz
+```
+
 ---
 
 ## Команды для работы

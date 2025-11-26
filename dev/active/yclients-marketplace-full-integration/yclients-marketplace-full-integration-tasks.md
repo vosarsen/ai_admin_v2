@@ -1,12 +1,104 @@
 # YClients Marketplace Integration - Tasks
 
-**Last Updated:** 2025-11-26
-**Progress:** 0/31 tasks (0%)
+**Last Updated:** 2025-11-26 (Revised after Supabase Removal)
+**Progress:** 0/43 tasks (0%)
+
+---
+
+## Phase 0: Fix Broken Marketplace Code (CRITICAL)
+**Effort:** L (6 hours) | **Status:** Not Started | **Priority:** CRITICAL
+
+> **WARNING:** This phase MUST be completed before any other work.
+> Existing marketplace code is BROKEN after Supabase removal.
+
+### 0.1 Create MarketplaceEventsRepository
+- [ ] Create `src/repositories/MarketplaceEventsRepository.js`
+- [ ] Extend BaseRepository
+- [ ] Implement `insert(eventData)` method
+- [ ] Implement `findByCompanyId(companyId, options)` method
+- [ ] Implement `findBySalonId(salonId, options)` method
+- [ ] Implement `findLatestByType(salonId, eventType)` method
+- [ ] Add Sentry error tracking
+- [ ] Export from `src/repositories/index.js`
+
+**Acceptance Criteria:**
+- All methods work with Timeweb PostgreSQL
+- Sentry captures errors
+- Follows BaseRepository patterns
+
+### 0.2 Extend CompanyRepository
+- [ ] Add `findByYclientsId(yclientsId)` method
+- [ ] Add `updateByYclientsId(yclientsId, data)` method
+- [ ] Add `upsertByYclientsId(data)` method (handles onConflict)
+- [ ] Add `countConnected()` method (count where whatsapp_connected=true)
+- [ ] Add `countTotal()` method
+
+**Acceptance Criteria:**
+- All new methods follow existing patterns
+- Parameterized queries (no SQL injection)
+- Sentry error tracking
+
+### 0.3 Migrate marketplace-service.js
+- [ ] Remove `this.supabase = supabase` (line 15)
+- [ ] Import CompanyRepository
+- [ ] Initialize companyRepository in constructor
+- [ ] Replace line 49-52: `this.supabase.from('companies').select()` → `companyRepository.findByYclientsId()`
+- [ ] Replace line 91-95: `this.supabase.from('companies').insert()` → `companyRepository.create()`
+- [ ] Replace line 239-243: `this.supabase.from('companies').select().eq('id')` → `companyRepository.findById()`
+- [ ] Replace line 327-330: `this.supabase.from('companies').update()` → `companyRepository.updateByYclientsId()`
+- [ ] Replace line 350-353: `this.supabase.from('companies').select().eq('whatsapp_connected')` → use countConnected()
+- [ ] Replace line 360-362: `this.supabase.from('companies').select(count)` → use countTotal()
+- [ ] Add Sentry error tracking to all methods
+- [ ] Test all methods work
+
+**Acceptance Criteria:**
+- Zero references to `supabase` in file
+- All CRUD operations use Repository Pattern
+- Sentry captures errors
+
+### 0.4 Migrate yclients-marketplace.js
+- [ ] Import CompanyRepository, MarketplaceEventsRepository
+- [ ] Initialize repositories at top of file
+- [ ] Replace line 79-100: `supabase.from('companies').upsert()` → `companyRepository.upsertByYclientsId()`
+- [ ] Replace line 131-143: `supabase.from('marketplace_events').insert()` → `marketplaceEventsRepository.insert()`
+- [ ] Replace line 332-338: `supabase.from('marketplace_events').select()` → `marketplaceEventsRepository.findLatestByType()`
+- [ ] Replace line 361-369: `supabase.from('companies').update()` → `companyRepository.update()`
+- [ ] Replace line 422-429: `supabase.from('companies').update()` → `companyRepository.update()`
+- [ ] Replace line 432-442: `supabase.from('marketplace_events').insert()` → `marketplaceEventsRepository.insert()`
+- [ ] Replace line 459-465: `supabase.from('companies').update()` → `companyRepository.update()`
+- [ ] Fix line 525: health check `supabase: !!supabase` → `postgres: true`
+- [ ] Fix line 530: health check `database_connected: !!supabase` → `database_connected: true`
+- [ ] Replace line 603-610: handleUninstall → `companyRepository.updateByYclientsId()`
+- [ ] Replace line 621-627: handleFreeze → `companyRepository.updateByYclientsId()`
+- [ ] Replace line 638-645: handlePayment → `companyRepository.updateByYclientsId()`
+- [ ] Add Sentry error tracking to all routes and handlers
+- [ ] Test all routes work
+
+**Acceptance Criteria:**
+- Zero references to `supabase` in file
+- All database operations use Repository Pattern
+- Health check shows correct status
+- Sentry captures errors
+
+### 0.5 Testing Phase 0
+- [ ] Test GET /auth/yclients/redirect loads without error
+- [ ] Test GET /marketplace/onboarding loads without error
+- [ ] Test POST /marketplace/api/qr works
+- [ ] Test GET /marketplace/api/status/:sessionId works
+- [ ] Test POST /marketplace/activate works
+- [ ] Test POST /webhook/yclients works
+- [ ] Test GET /marketplace/health returns correct status
+- [ ] Verify no `supabase is undefined` errors in logs
+
+**Acceptance Criteria:**
+- All existing functionality works
+- No runtime errors
+- Health check shows all green
 
 ---
 
 ## Phase 1: YclientsMarketplaceClient (Core)
-**Effort:** L (3 hours) | **Status:** Not Started
+**Effort:** L (3 hours) | **Status:** Not Started | **Dependencies:** Phase 0
 
 ### 1.1 Create marketplace-client.js file
 - [ ] Create `src/integrations/yclients/marketplace-client.js`
@@ -15,6 +107,7 @@
 - [ ] Implement authorization header builder
 - [ ] Add error handling wrapper
 - [ ] Add logging integration
+- [ ] Add rate limiting with Bottleneck
 
 **Acceptance Criteria:**
 - File created with proper class structure
@@ -65,7 +158,7 @@
 ---
 
 ## Phase 2: MarketplaceService Extension
-**Effort:** M (2 hours) | **Status:** Not Started
+**Effort:** M (2 hours) | **Status:** Not Started | **Dependencies:** Phase 0, Phase 1
 
 ### 2.1 Add MarketplaceClient integration
 - [ ] Import YclientsMarketplaceClient
@@ -92,7 +185,7 @@
 ---
 
 ## Phase 3: API Routes
-**Effort:** M (2 hours) | **Status:** Not Started
+**Effort:** M (2 hours) | **Status:** Not Started | **Dependencies:** Phase 2
 
 ### 3.1 Salon Management Routes
 - [ ] `GET /marketplace/admin/salons` - list connected salons
@@ -119,7 +212,7 @@
 ---
 
 ## Phase 4: Webhook Extensions
-**Effort:** S (1 hour) | **Status:** Not Started
+**Effort:** S (1 hour) | **Status:** Not Started | **Dependencies:** Phase 3
 
 ### 4.1 Extend handleWebhookEvent
 - [ ] Add 'payment' event handling
@@ -133,7 +226,7 @@
 ---
 
 ## Phase 5: Database Migration
-**Effort:** S (1 hour) | **Status:** Not Started
+**Effort:** S (1 hour) | **Status:** Not Started | **Dependencies:** Phase 0
 
 ### 5.1 Create migration file
 - [ ] Create migration: `XXX_add_marketplace_columns.sql`
@@ -153,7 +246,7 @@
 ---
 
 ## Phase 6: MCP Server Extension
-**Effort:** M (2 hours) | **Status:** Not Started
+**Effort:** M (2 hours) | **Status:** Not Started | **Dependencies:** Phase 1
 
 ### 6.1 Add Marketplace Helper Function
 - [ ] Create `makeMarketplaceRequest()` with different base URL
@@ -192,6 +285,22 @@
 - [ ] Add YCLIENTS_APP_ID to production .env
 - [ ] Deploy to server
 - [ ] Verify MCP tools work in production
+
+---
+
+## Progress Summary
+
+| Phase | Tasks | Done | Progress |
+|-------|-------|------|----------|
+| **Phase 0 (CRITICAL)** | 12 | 0 | 0% |
+| Phase 1 | 6 | 0 | 0% |
+| Phase 2 | 4 | 0 | 0% |
+| Phase 3 | 4 | 0 | 0% |
+| Phase 4 | 1 | 0 | 0% |
+| Phase 5 | 2 | 0 | 0% |
+| Phase 6 | 3 | 0 | 0% |
+| Completion | 3 | 0 | 0% |
+| **Total** | **35** | **0** | **0%** |
 
 ---
 

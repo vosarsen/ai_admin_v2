@@ -1,10 +1,25 @@
 const logger = require('../../utils/logger');
-// Supabase import removed (2025-11-26) - not used in this file
+// Migrated from Supabase to PostgreSQL repositories (2025-11-26)
 const whatsappClient = require('../../integrations/whatsapp/client');
 const { YclientsClient } = require('../../integrations/yclients/client');
 const config = require('../../config');
 const { getInstance: getDebouncer } = require('./webhook-debouncer');
 const bookingOwnership = require('../booking/booking-ownership');
+const postgres = require('../../database/postgres');
+const {
+  MessageRepository,
+  CompanyRepository,
+  BookingNotificationRepository,
+  WebhookEventsRepository,
+  AppointmentsCacheRepository
+} = require('../../repositories');
+
+// Initialize repositories
+const messageRepository = new MessageRepository(postgres);
+const companyRepository = new CompanyRepository(postgres);
+const bookingNotificationRepository = new BookingNotificationRepository(postgres);
+const webhookEventsRepository = new WebhookEventsRepository(postgres);
+const appointmentsCacheRepository = new AppointmentsCacheRepository(postgres);
 
 class YClientsWebhookProcessor {
   constructor() {
@@ -427,24 +442,15 @@ class YClientsWebhookProcessor {
     // 2. Проверяем недавнюю активность клиента в боте
     const clientPhone = this.formatPhoneForWhatsApp(recordData.client?.phone);
     if (clientPhone) {
-      // Получаем последнее сообщение от клиента
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-      
-      const { data: recentMessages } = await supabase
-        .from('messages')
-        .select('created_at')
-        .eq('phone', clientPhone)
-        .eq('direction', 'incoming')
-        .gte('created_at', fiveMinutesAgo)
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
-      if (recentMessages && recentMessages.length > 0) {
+      // Получаем последнее сообщение от клиента за последние 5 минут
+      const hasRecentActivity = await messageRepository.hasRecentActivity(clientPhone, 5);
+
+      if (hasRecentActivity) {
         logger.info('📱 Client was recently active in bot, skipping notification');
         return true;
       }
     }
-    
+
     return false;
   }
 
@@ -459,13 +465,7 @@ class YClientsWebhookProcessor {
   }
 
   async getCompanyInfo(companyId) {
-    const { data } = await supabase
-      .from('companies')
-      .select('*')
-      .eq('yclients_id', companyId)
-      .single();
-    
-    return data;
+    return companyRepository.findByYclientsId(companyId);
   }
 
   async sendWhatsAppNotification(phone, message, notificationType) {
@@ -480,16 +480,18 @@ class YClientsWebhookProcessor {
       
       if (result.success) {
         logger.info('✅ WhatsApp notification sent successfully');
-        
+
         // Записываем в историю уведомлений
-        await supabase
-          .from('booking_notifications')
-          .insert({
+        try {
+          await bookingNotificationRepository.create({
             phone,
             notification_type: notificationType,
             message,
             sent_at: new Date().toISOString()
           });
+        } catch (notifError) {
+          logger.error('Failed to save notification to history', notifError.message);
+        }
       } else {
         logger.error('❌ Failed to send WhatsApp notification', result.error);
       }
@@ -502,97 +504,61 @@ class YClientsWebhookProcessor {
   }
 
   async markEventProcessed(eventId) {
-    await supabase
-      .from('webhook_events')
-      .update({ processed_at: new Date().toISOString() })
-      .eq('event_id', eventId);
+    try {
+      await webhookEventsRepository.markProcessed(eventId);
+    } catch (error) {
+      logger.error('Failed to mark event as processed', { eventId, error: error.message });
+    }
   }
 
   async saveBookingToCache(recordData, companyId) {
     try {
-      const { error } = await supabase
-        .from('appointments_cache')
-        .insert({
-          yclients_record_id: recordData.id,
-          company_id: companyId,
-          client_id: recordData.client?.id,
-          service_id: recordData.services?.[0]?.id,
-          staff_id: recordData.staff?.id,
-          appointment_datetime: recordData.datetime,
-          cost: recordData.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0,
-          status: 'confirmed',
-          raw_data: recordData,
-          created_at: new Date().toISOString()
-        });
-
-      if (error) {
-        logger.error('Failed to save booking to cache', error);
-      }
+      await appointmentsCacheRepository.insert({
+        yclients_record_id: recordData.id,
+        company_id: companyId,
+        client_id: recordData.client?.id,
+        client_phone: recordData.client?.phone,
+        service_id: recordData.services?.[0]?.id,
+        staff_id: recordData.staff?.id,
+        appointment_datetime: recordData.datetime,
+        cost: recordData.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0,
+        status: 'confirmed',
+        raw_data: recordData
+      });
     } catch (error) {
-      logger.error('Error saving booking to cache', error);
+      logger.error('Error saving booking to cache', error.message);
     }
   }
 
   async updateBookingInCache(recordData, companyId) {
     try {
-      const { error } = await supabase
-        .from('appointments_cache')
-        .update({
-          service_id: recordData.services?.[0]?.id,
-          staff_id: recordData.staff?.id,
-          appointment_datetime: recordData.datetime,
-          cost: recordData.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0,
-          raw_data: recordData,
-          updated_at: new Date().toISOString()
-        })
-        .eq('yclients_record_id', recordData.id);
-
-      if (error) {
-        logger.error('Failed to update booking in cache', error);
-      }
+      await appointmentsCacheRepository.updateByRecordId(recordData.id, {
+        service_id: recordData.services?.[0]?.id,
+        staff_id: recordData.staff?.id,
+        appointment_datetime: recordData.datetime,
+        cost: recordData.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0,
+        raw_data: recordData
+      });
     } catch (error) {
-      logger.error('Error updating booking in cache', error);
+      logger.error('Error updating booking in cache', error.message);
     }
   }
 
   async markBookingAsCancelled(recordId) {
     try {
-      const { error } = await supabase
-        .from('appointments_cache')
-        .update({
-          is_cancelled: true,
-          status: 'cancelled',
-          cancellation_reason: 'Deleted in YClients',
-          updated_at: new Date().toISOString()
-        })
-        .eq('yclients_record_id', recordId);
-
-      if (error) {
-        logger.error('Failed to mark booking as cancelled', error);
-      }
+      await appointmentsCacheRepository.markCancelled(recordId, 'Deleted in YClients');
     } catch (error) {
-      logger.error('Error marking booking as cancelled', error);
+      logger.error('Error marking booking as cancelled', error.message);
     }
   }
 
   async getPreviousRecordData(recordId) {
-    const { data } = await supabase
-      .from('appointments_cache')
-      .select('raw_data')
-      .eq('yclients_record_id', recordId)
-      .single();
-    
-    return data?.raw_data;
+    const cached = await appointmentsCacheRepository.findByRecordId(recordId);
+    return cached?.raw_data;
   }
 
   async getCachedRecord(recordId) {
-    const { data } = await supabase
-      .from('appointments_cache')
-      .select('*')
-      .eq('yclients_record_id', recordId)
-      .single();
-    
-    return data;
+    return appointmentsCacheRepository.findByRecordId(recordId);
   }
 
   detectChanges(oldRecord, newRecord) {
