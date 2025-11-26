@@ -3508,6 +3508,19 @@
             justify-content: flex-start;
         }
 
+        /* Bot avatar */
+        .bot-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(40, 40, 40, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
         .message-bubble {
             max-width: 70%;
             padding: 12px 16px;
@@ -3563,25 +3576,34 @@
 
         .typing-indicator {
             display: none;
-            padding: 12px 16px;
-            background: rgba(40, 40, 40, 0.5);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 20px 20px 20px 4px;
-            width: fit-content;
+            gap: 12px;
+            align-items: flex-start;
             margin-bottom: 12px;
         }
 
         .typing-indicator.active {
             display: flex;
-            align-items: center;
-            gap: 12px;
             animation: slideIn 0.3s ease-out;
         }
 
-        .typing-indicator::before {
-            content: '🤖';
-            font-size: 16px;
+        .typing-indicator .bot-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(40, 40, 40, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
             flex-shrink: 0;
+        }
+
+        .typing-indicator .typing-bubble {
+            padding: 12px 16px;
+            background: rgba(40, 40, 40, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px 20px 20px 4px;
+            width: fit-content;
         }
 
         .typing-dots {
@@ -3878,13 +3900,17 @@
             color: #333;
         }
 
-        body[data-theme="light"] .typing-indicator {
+        body[data-theme="light"] .typing-indicator .typing-bubble {
             background: rgba(255, 255, 255, 0.8);
             border-color: rgba(203, 213, 225, 0.3);
         }
 
         body[data-theme="light"] .typing-dot {
             background: rgba(0, 0, 0, 0.4);
+        }
+
+        body[data-theme="light"] .bot-avatar {
+            background: rgba(255, 255, 255, 0.9);
         }
 
         body[data-theme="light"] .chat-input::placeholder {
@@ -4149,8 +4175,8 @@
                     <!-- Chat Messages -->
                     <div class="chat-messages" id="demoMessages">
                         <div class="message bot">
+                            <div class="bot-avatar">🤖</div>
                             <div class="message-bubble">
-                                <div class="bot-avatar">🤖</div>
                                 <div class="message-content">
                                     Здравствуйте! Я AI бот Demo Beauty Salon. Чем могу помочь?
                                     Выберите один из вариантов ниже или напишите свой вопрос.
@@ -4162,10 +4188,13 @@
 
                     <!-- Typing Indicator -->
                     <div class="typing-indicator" id="demoTyping">
-                        <div class="typing-dots">
-                            <div class="typing-dot"></div>
-                            <div class="typing-dot"></div>
-                            <div class="typing-dot"></div>
+                        <div class="bot-avatar">🤖</div>
+                        <div class="typing-bubble">
+                            <div class="typing-dots">
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -5630,15 +5659,16 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${sender}`;
 
-            const bubbleDiv = document.createElement('div');
-            bubbleDiv.className = 'message-bubble';
-
+            // Add bot avatar BEFORE bubble (outside)
             if (sender === 'bot') {
                 const avatar = document.createElement('div');
                 avatar.className = 'bot-avatar';
                 avatar.textContent = '🤖';
-                bubbleDiv.appendChild(avatar);
+                messageDiv.appendChild(avatar);
             }
+
+            const bubbleDiv = document.createElement('div');
+            bubbleDiv.className = 'message-bubble';
 
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
