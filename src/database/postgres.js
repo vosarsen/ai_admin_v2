@@ -143,7 +143,7 @@ function getPoolMetrics() {
   if (!pool) {
     return {
       enabled: false,
-      message: 'PostgreSQL pool not initialized (USE_LEGACY_SUPABASE=true)'
+      message: 'PostgreSQL pool not initialized'
     };
   }
 
@@ -220,14 +220,10 @@ function getPoolMetrics() {
   };
 }
 
-// Проверка: нужен ли PostgreSQL
-const usePostgres = !config.database.useLegacySupabase;
-
-// Валидация конфигурации (только если используем PostgreSQL)
-if (usePostgres && !config.database.postgresPassword) {
+// Валидация конфигурации PostgreSQL
+if (!config.database.postgresPassword) {
   logger.error('❌ Критическая ошибка: POSTGRES_PASSWORD не установлен');
   logger.error('Убедитесь что установлена переменная окружения POSTGRES_PASSWORD');
-  logger.error('Или используйте USE_LEGACY_SUPABASE=true для работы с Supabase');
   process.exit(1);
 }
 
@@ -239,9 +235,8 @@ let pool = null;
 // - Total connections: 7 × 3 = 21 (safe for most PostgreSQL limits)
 const MAX_CONNECTIONS_PER_SERVICE = parseInt(process.env.POSTGRES_MAX_CONNECTIONS || '3', 10);
 
-// Создание connection pool (только если используем PostgreSQL)
-if (usePostgres) {
-  pool = new Pool({
+// Создание connection pool
+pool = new Pool({
     host: config.database.postgresHost,
     port: config.database.postgresPort,
     database: config.database.postgresDatabase,
@@ -351,22 +346,18 @@ if (usePostgres) {
     }
   });
 
-  // Graceful shutdown (только если pool создан)
-  process.on('SIGINT', async () => {
-    logger.info('Closing PostgreSQL connection pool...');
-    await pool.end();
-    logger.info('PostgreSQL connection pool closed');
-  });
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  logger.info('Closing PostgreSQL connection pool...');
+  await pool.end();
+  logger.info('PostgreSQL connection pool closed');
+});
 
-  process.on('SIGTERM', async () => {
-    logger.info('Closing PostgreSQL connection pool...');
-    await pool.end();
-    logger.info('PostgreSQL connection pool closed');
-  });
-} else {
-  logger.info('ℹ️  PostgreSQL module loaded but not initialized (USE_LEGACY_SUPABASE=true)');
-  logger.info('   Using Supabase instead. Set USE_LEGACY_SUPABASE=false to enable PostgreSQL.');
-}
+process.on('SIGTERM', async () => {
+  logger.info('Closing PostgreSQL connection pool...');
+  await pool.end();
+  logger.info('PostgreSQL connection pool closed');
+});
 
 /**
  * Выполнить SQL запрос
@@ -376,7 +367,7 @@ if (usePostgres) {
  */
 async function query(text, params) {
   if (!pool) {
-    throw new Error('PostgreSQL pool not initialized. Set USE_LEGACY_SUPABASE=false to enable.');
+    throw new Error('PostgreSQL pool not initialized.');
   }
 
   const start = Date.now();
@@ -424,7 +415,7 @@ async function query(text, params) {
  */
 async function getClient() {
   if (!pool) {
-    throw new Error('PostgreSQL pool not initialized. Set USE_LEGACY_SUPABASE=false to enable.');
+    throw new Error('PostgreSQL pool not initialized.');
   }
   return await pool.connect();
 }
@@ -436,7 +427,7 @@ async function getClient() {
  */
 async function transaction(callback) {
   if (!pool) {
-    throw new Error('PostgreSQL pool not initialized. Set USE_LEGACY_SUPABASE=false to enable.');
+    throw new Error('PostgreSQL pool not initialized.');
   }
 
   const client = await pool.connect();
@@ -473,7 +464,7 @@ function getPoolStats() {
   if (!pool) {
     return {
       enabled: false,
-      message: 'PostgreSQL pool not initialized (USE_LEGACY_SUPABASE=true)',
+      message: 'PostgreSQL pool not initialized',
     };
   }
 
@@ -492,5 +483,5 @@ module.exports = {
   transaction,
   getPoolStats, // Legacy function (basic stats)
   getPoolMetrics, // New comprehensive metrics for dashboard
-  isEnabled: usePostgres,
+  isEnabled: true, // Always enabled (Supabase removed)
 };

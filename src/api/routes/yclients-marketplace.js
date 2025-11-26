@@ -82,9 +82,9 @@ router.get('/auth/yclients/redirect', async (req, res) => {
     }
 
     // Создаем или обновляем запись в БД
-    const { data: company, error: dbError } = await supabase
-      .from('companies')
-      .upsert({
+    let company;
+    try {
+      company = await companyRepository.upsertByYclientsId({
         yclients_id: parseInt(salon_id),
         title: salonInfo?.title || `Салон ${salon_id}`,
         phone: salonInfo?.phone || user_phone || '',
@@ -97,16 +97,9 @@ router.get('/auth/yclients/redirect', async (req, res) => {
         marketplace_user_phone: user_phone,
         marketplace_user_email: user_email,
         whatsapp_connected: false,
-        connected_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'yclients_id',
-        returning: 'representation'
-      })
-      .select()
-      .single();
-
-    if (dbError) {
+        connected_at: new Date().toISOString()
+      });
+    } catch (dbError) {
       logger.error('❌ Ошибка сохранения в БД:', dbError);
       return res.status(500).send(renderErrorPage(
         'Ошибка сохранения данных',
@@ -134,20 +127,18 @@ router.get('/auth/yclients/redirect', async (req, res) => {
     );
 
     // Сохраняем событие регистрации
-    await supabase
-      .from('marketplace_events')
-      .insert({
-        company_id: company.id,
-        salon_id: parseInt(salon_id),
-        event_type: 'registration_started',
-        event_data: {
-          user_id,
-          user_name,
-          user_phone,
-          user_email,
-          timestamp: new Date().toISOString()
-        }
-      });
+    await marketplaceEventsRepository.insert({
+      company_id: company.id,
+      salon_id: parseInt(salon_id),
+      event_type: 'registration_started',
+      event_data: {
+        user_id,
+        user_name,
+        user_phone,
+        user_email,
+        timestamp: new Date().toISOString()
+      }
+    });
 
     // Перенаправляем на страницу онбординга с QR-кодом
     const onboardingUrl = `${BASE_URL}/marketplace/onboarding?token=${token}`;
@@ -335,20 +326,14 @@ router.post('/marketplace/activate', async (req, res) => {
     logger.info('🚀 Starting integration activation:', { salon_id, company_id });
 
     // Проверяем, что прошло не больше часа с начала регистрации
-    const { data: events, error: eventError } = await supabase
-      .from('marketplace_events')
-      .select('*')
-      .eq('salon_id', salon_id)
-      .eq('event_type', 'registration_started')
-      .order('created_at', { ascending: false })
-      .limit(1);
+    const latestEvent = await marketplaceEventsRepository.findLatestByType(salon_id, 'registration_started');
 
-    if (eventError || !events || events.length === 0) {
+    if (!latestEvent) {
       logger.error('❌ Registration event not found');
       return res.status(400).json({ error: 'Registration not found' });
     }
 
-    const registrationTime = new Date(events[0].created_at);
+    const registrationTime = new Date(latestEvent.created_at);
     const currentTime = new Date();
     const timeDiff = (currentTime - registrationTime) / 1000 / 60; // в минутах
 
@@ -364,17 +349,13 @@ router.post('/marketplace/activate', async (req, res) => {
     const apiKey = crypto.randomBytes(32).toString('hex');
 
     // Сохраняем API ключ в БД ПЕРЕД отправкой в YClients
-    const { error: updateError } = await supabase
-      .from('companies')
-      .update({
+    try {
+      await companyRepository.update(company_id, {
         api_key: apiKey,
         whatsapp_connected: true,
-        integration_status: 'activating',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', company_id);
-
-    if (updateError) {
+        integration_status: 'activating'
+      });
+    } catch (updateError) {
       logger.error('❌ Failed to update company with API key:', updateError);
       throw new Error('Database update failed');
     }
@@ -425,27 +406,21 @@ router.post('/marketplace/activate', async (req, res) => {
     logger.info('✅ YClients activation response:', yclientsData);
 
     // Обновляем статус интеграции на "active"
-    await supabase
-      .from('companies')
-      .update({
-        integration_status: 'active',
-        whatsapp_connected_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', company_id);
+    await companyRepository.update(company_id, {
+      integration_status: 'active',
+      whatsapp_connected_at: new Date().toISOString()
+    });
 
     // Логируем событие активации
-    await supabase
-      .from('marketplace_events')
-      .insert({
-        company_id: company_id,
-        salon_id: parseInt(salon_id),
-        event_type: 'integration_activated',
-        event_data: {
-          yclients_response: yclientsData,
-          timestamp: new Date().toISOString()
-        }
-      });
+    await marketplaceEventsRepository.insert({
+      company_id: company_id,
+      salon_id: parseInt(salon_id),
+      event_type: 'integration_activated',
+      event_data: {
+        yclients_response: yclientsData,
+        timestamp: new Date().toISOString()
+      }
+    });
 
     logger.info(`🎉 Integration activated successfully for salon ${salon_id}`);
 
@@ -462,13 +437,9 @@ router.post('/marketplace/activate', async (req, res) => {
 
     // Откатываем статус в случае ошибки
     if (error.decoded && error.decoded.company_id) {
-      await supabase
-        .from('companies')
-        .update({
-          integration_status: 'activation_failed',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', error.decoded.company_id);
+      await companyRepository.update(error.decoded.company_id, {
+        integration_status: 'activation_failed'
+      });
     }
 
     res.status(500).json({
@@ -528,12 +499,12 @@ router.get('/marketplace/health', (req, res) => {
     dependencies: {
       express: !!express,
       jsonwebtoken: !!jwt,
-      supabase: !!supabase,
+      postgres: !!postgres,
       session_pool: !!sessionPool
     },
     services: {
       api_running: true,
-      database_connected: !!supabase,
+      database_connected: !!postgres,
       whatsapp_pool_ready: !!sessionPool
     }
   };
@@ -606,14 +577,10 @@ async function handleUninstall(salonId) {
   }
 
   // Обновляем статус в БД
-  await supabase
-    .from('companies')
-    .update({
-      integration_status: 'uninstalled',
-      whatsapp_connected: false,
-      updated_at: new Date().toISOString()
-    })
-    .eq('yclients_id', parseInt(salonId));
+  await companyRepository.updateByYclientsId(parseInt(salonId), {
+    integration_status: 'uninstalled',
+    whatsapp_connected: false
+  });
 
   logger.info('✅ Company marked as uninstalled');
 }
@@ -624,13 +591,9 @@ async function handleUninstall(salonId) {
 async function handleFreeze(salonId) {
   logger.info(`❄️ Handling freeze for salon ${salonId}`);
 
-  await supabase
-    .from('companies')
-    .update({
-      integration_status: 'frozen',
-      updated_at: new Date().toISOString()
-    })
-    .eq('yclients_id', parseInt(salonId));
+  await companyRepository.updateByYclientsId(parseInt(salonId), {
+    integration_status: 'frozen'
+  });
 
   logger.info('✅ Company marked as frozen');
 }
@@ -641,14 +604,10 @@ async function handleFreeze(salonId) {
 async function handlePayment(salonId, data) {
   logger.info(`💰 Payment received for salon ${salonId}:`, data);
 
-  await supabase
-    .from('companies')
-    .update({
-      integration_status: 'active',
-      last_payment_date: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
-    .eq('yclients_id', parseInt(salonId));
+  await companyRepository.updateByYclientsId(parseInt(salonId), {
+    integration_status: 'active',
+    last_payment_date: new Date().toISOString()
+  });
 
   logger.info('✅ Payment processed');
 }

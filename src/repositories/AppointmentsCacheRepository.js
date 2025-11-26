@@ -184,15 +184,15 @@ class AppointmentsCacheRepository extends BaseRepository {
   /**
    * Find active (non-deleted, non-cancelled) appointments for a company
    * Used by booking-ownership.js for sync
-   * @param {number} companyId - Company ID
+   * @param {number} [companyId] - Company ID (optional, if null returns all companies)
    * @returns {Promise<Array>} Array of active appointments
    */
-  async findActive(companyId) {
+  async findActive(companyId = null) {
     try {
       return this.findMany(
         this.tableName,
         {
-          company_id: companyId,
+          ...(companyId && { company_id: companyId }),
           deleted: false,
           is_cancelled: false
         },
@@ -202,6 +202,36 @@ class AppointmentsCacheRepository extends BaseRepository {
       Sentry.captureException(error, {
         tags: { component: 'repository', table: this.tableName, operation: 'findActive' },
         extra: { companyId }
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Find all future active appointments (datetime >= now)
+   * Used by booking-ownership.js for sync from database
+   * @returns {Promise<Array>} Array of future active appointments
+   */
+  async findFutureActive() {
+    const startTime = Date.now();
+    try {
+      const sql = `
+        SELECT * FROM ${this.tableName}
+        WHERE appointment_datetime >= NOW()
+          AND deleted = false
+        ORDER BY appointment_datetime ASC
+      `;
+      const result = await this.db.query(sql);
+
+      if (process.env.LOG_DATABASE_CALLS === 'true') {
+        console.log(`[DB] AppointmentsCacheRepository.findFutureActive - ${Date.now() - startTime}ms`);
+      }
+
+      return result.rows;
+    } catch (error) {
+      Sentry.captureException(error, {
+        tags: { component: 'repository', table: this.tableName, operation: 'findFutureActive' },
+        extra: { duration: `${Date.now() - startTime}ms` }
       });
       throw error;
     }

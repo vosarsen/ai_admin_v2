@@ -52,7 +52,7 @@ class HealthCheck {
     const checks = await Promise.allSettled(checkPromises);
     
     // Собираем результаты
-    const components = ['redis', 'supabase', 'ai', 'yclients', 'whatsapp', 'queue', 'performance'];
+    const components = ['redis', 'postgres', 'ai', 'yclients', 'whatsapp', 'queue', 'performance'];
     components.forEach((component, index) => {
       const check = checks[index];
       if (check.status === 'fulfilled') {

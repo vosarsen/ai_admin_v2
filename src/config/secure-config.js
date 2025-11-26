@@ -27,7 +27,7 @@ class SecureConfig {
       'yclients-bearer-token': 'YCLIENTS_BEARER_TOKEN',
       'yclients-user-token': 'YCLIENTS_USER_TOKEN',
       'deepseek-api-key': 'DEEPSEEK_API_KEY',
-      'supabase-key': 'SUPABASE_KEY',
+      'postgres-password': 'POSTGRES_PASSWORD',
       'master-key': 'MASTER_KEY'
     };
 

@@ -7,6 +7,8 @@
 const logger = require('../../utils/logger').child({ module: 'booking-ownership' });
 const { createRedisClient } = require('../../utils/redis-factory');
 const config = require('../../config');
+const postgres = require('../../database/postgres');
+const { AppointmentsCacheRepository } = require('../../repositories');
 
 class BookingOwnershipService {
   constructor() {
@@ -244,34 +246,32 @@ class BookingOwnershipService {
   /**
    * Синхронизация с базой данных (для восстановления после сбоев)
    */
-  async syncFromDatabase(supabase) {
+  async syncFromDatabase() {
     try {
       logger.info('Starting sync from database...');
-      
-      // Получаем все активные записи из БД
-      const { data: activeBookings, error } = await supabase
-        .from('appointments_cache')
-        .select('*')
-        .gte('datetime', new Date().toISOString())
-        .eq('deleted', false);
 
-      if (error) {
+      // Получаем все активные записи из БД
+      const appointmentsCacheRepository = new AppointmentsCacheRepository(postgres);
+      let activeBookings;
+      try {
+        activeBookings = await appointmentsCacheRepository.findFutureActive();
+      } catch (error) {
         logger.error('Failed to fetch bookings from database:', error);
         return false;
       }
 
       let synced = 0;
       for (const booking of activeBookings) {
-        if (booking.client_phone && booking.yclients_id) {
+        if (booking.client_phone && booking.yclients_record_id) {
           await this.saveBookingOwnership(
-            booking.yclients_id,
+            booking.yclients_record_id,
             booking.client_phone,
             {
               client_id: booking.client_id,
-              client_name: booking.client_name,
-              datetime: booking.datetime,
-              service: booking.service_name,
-              staff: booking.staff_name,
+              client_name: booking.raw_data?.client?.name || null,
+              datetime: booking.appointment_datetime,
+              service: booking.raw_data?.services?.[0]?.title || null,
+              staff: booking.raw_data?.staff?.name || null,
               company_id: booking.company_id
             }
           );

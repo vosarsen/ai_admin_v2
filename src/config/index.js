@@ -83,19 +83,12 @@ module.exports = {
 
   get database() {
     return {
-      // Supabase (legacy - будет удалено после миграции)
-      supabaseUrl: process.env.SUPABASE_URL,
-      supabaseKey: getConfig('SUPABASE_KEY'),
-
-      // Timeweb PostgreSQL (новый)
+      // Timeweb PostgreSQL
       postgresHost: process.env.POSTGRES_HOST || '192.168.0.4',
       postgresPort: parseInt(process.env.POSTGRES_PORT) || 5432,
       postgresDatabase: process.env.POSTGRES_DATABASE || 'default_db',
       postgresUser: process.env.POSTGRES_USER || 'gen_user',
       postgresPassword: getConfig('POSTGRES_PASSWORD'),
-
-      // Режим работы
-      useLegacySupabase: process.env.USE_LEGACY_SUPABASE !== 'false', // По умолчанию true для обратной совместимости
     };
   },
 
