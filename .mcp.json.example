@@ -29,16 +29,6 @@
         "REDIS_URL": "redis://localhost:6380"
       }
     },
-    "supabase": {
-      "command": "node",
-      "args": [
-        "mcp/mcp-supabase/index.js"
-      ],
-      "env": {
-        "SUPABASE_URL": "${SUPABASE_URL}",
-        "SUPABASE_KEY": "${SUPABASE_KEY}"
-      }
-    },
     "yclients": {
       "command": "node",
       "args": [

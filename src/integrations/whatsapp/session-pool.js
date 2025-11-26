@@ -25,7 +25,6 @@ const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../../utils/logger');
 const QRCode = require('qrcode');
-const { useSupabaseAuthState } = require('./auth-state-supabase');
 const { useTimewebAuthState } = require('./auth-state-timeweb');
 const CredentialsCache = require('./credentials-cache'); // Phase 2 - Refactored cache
 
@@ -283,25 +282,10 @@ class WhatsAppSessionPool extends EventEmitter {
                 this.sessions.delete(validatedId);
             }
 
-            // Feature flags: Choose auth state backend
-            // Priority: USE_LEGACY_SUPABASE > USE_DATABASE_AUTH_STATE > file-based (fallback)
-            const useLegacySupabase = process.env.USE_LEGACY_SUPABASE !== 'false';
-            const useDatabaseAuth = process.env.USE_DATABASE_AUTH_STATE === 'true';
-
-            let state, saveCreds;
-
-            if (useLegacySupabase) {
-                // Supabase auth state (legacy)
-                logger.info(`📦 Using Supabase auth state for company ${validatedId}`);
-                ({ state, saveCreds } = await useSupabaseAuthState(validatedId));
-            } else if (useDatabaseAuth) {
-                // Timeweb PostgreSQL auth state (production)
-                logger.info(`🗄️  Using Timeweb PostgreSQL auth state for company ${validatedId}`);
-                // Pass sessionPool instance for credentials cache support (Phase 2 - Task 3.1)
-                ({ state, saveCreds } = await useTimewebAuthState(validatedId, { sessionPool: this }));
-            } else {
-                throw new Error('No auth state provider configured. Set USE_LEGACY_SUPABASE=true or USE_REPOSITORY_PATTERN=true');
-            }
+            // Use Timeweb PostgreSQL auth state (production)
+            logger.info(`🗄️  Using Timeweb PostgreSQL auth state for company ${validatedId}`);
+            // Pass sessionPool instance for credentials cache support (Phase 2 - Task 3.1)
+            const { state, saveCreds } = await useTimewebAuthState(validatedId, { sessionPool: this });
 
             // Get latest Baileys version for better compatibility
             const { version, isLatest } = await fetchLatestBaileysVersion();
