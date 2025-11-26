@@ -30,6 +30,7 @@ class AppointmentsCacheRepository extends BaseRepository {
    * @param {string} [appointmentData.status] - Status (default: confirmed)
    * @param {Object} [appointmentData.raw_data] - Full webhook data
    * @returns {Promise<Object>} Inserted/updated appointment
+   * @throws {Error} Database connection or constraint violation error
    */
   async insert(appointmentData) {
     const startTime = Date.now();
@@ -89,6 +90,7 @@ class AppointmentsCacheRepository extends BaseRepository {
    * @param {number} recordId - YClients record ID
    * @param {Object} data - Fields to update
    * @returns {Promise<Object|null>} Updated appointment or null
+   * @throws {Error} Database connection or query error
    */
   async updateByRecordId(recordId, data) {
     const startTime = Date.now();
@@ -137,6 +139,7 @@ class AppointmentsCacheRepository extends BaseRepository {
    * Find appointment by YClients record ID
    * @param {number} recordId - YClients record ID
    * @returns {Promise<Object|null>} Appointment or null
+   * @throws {Error} Database connection or query error
    */
   async findByRecordId(recordId) {
     try {
@@ -155,6 +158,7 @@ class AppointmentsCacheRepository extends BaseRepository {
    * @param {number} recordId - YClients record ID
    * @param {string} [reason] - Cancellation reason
    * @returns {Promise<Object|null>} Updated appointment or null
+   * @throws {Error} Database connection or query error
    */
   async markCancelled(recordId, reason = null) {
     const startTime = Date.now();
@@ -186,6 +190,7 @@ class AppointmentsCacheRepository extends BaseRepository {
    * Used by booking-ownership.js for sync
    * @param {number} [companyId] - Company ID (optional, if null returns all companies)
    * @returns {Promise<Array>} Array of active appointments
+   * @throws {Error} Database connection or query error
    */
   async findActive(companyId = null) {
     try {
@@ -211,6 +216,7 @@ class AppointmentsCacheRepository extends BaseRepository {
    * Find all future active appointments (datetime >= now)
    * Used by booking-ownership.js for sync from database
    * @returns {Promise<Array>} Array of future active appointments
+   * @throws {Error} Database connection or query error
    */
   async findFutureActive() {
     const startTime = Date.now();
@@ -241,6 +247,7 @@ class AppointmentsCacheRepository extends BaseRepository {
    * Soft delete appointment
    * @param {number} recordId - YClients record ID
    * @returns {Promise<Object|null>} Updated appointment or null
+   * @throws {Error} Database connection or query error
    */
   async softDelete(recordId) {
     const startTime = Date.now();

@@ -23,6 +23,7 @@ class MessageRepository extends BaseRepository {
    * @param {string} phone - Phone number
    * @param {string|Date} since - Timestamp to check from (ISO string or Date)
    * @returns {Promise<Array>} Array of recent messages (usually 0 or 1)
+   * @throws {Error} Database connection or query error
    */
   async findRecent(phone, since) {
     try {
@@ -53,6 +54,7 @@ class MessageRepository extends BaseRepository {
    * @param {string} phone - Phone number
    * @param {number} minutesAgo - How many minutes back to check
    * @returns {Promise<boolean>} True if recent activity exists
+   * @throws {Error} Database connection or query error
    */
   async hasRecentActivity(phone, minutesAgo = 5) {
     try {

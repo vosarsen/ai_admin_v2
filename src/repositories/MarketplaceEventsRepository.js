@@ -24,6 +24,7 @@ class MarketplaceEventsRepository extends BaseRepository {
    * @param {string} eventData.event_type - Event type (install, uninstall, payment, etc.)
    * @param {Object} [eventData.event_data] - Additional event data
    * @returns {Promise<Object>} Inserted event
+   * @throws {Error} Database connection or foreign key constraint error
    */
   async insert(eventData) {
     const startTime = Date.now();
@@ -59,6 +60,7 @@ class MarketplaceEventsRepository extends BaseRepository {
    * @param {number} salonId - YClients salon ID
    * @param {string} eventType - Event type to find
    * @returns {Promise<Object|null>} Latest event or null
+   * @throws {Error} Database connection or query error
    */
   async findLatestByType(salonId, eventType) {
     try {
@@ -82,6 +84,7 @@ class MarketplaceEventsRepository extends BaseRepository {
    * @param {number} salonId - YClients salon ID
    * @param {Object} [options] - Query options
    * @returns {Promise<Array>} Array of events
+   * @throws {Error} Database connection or query error
    */
   async findBySalonId(salonId, options = {}) {
     try {

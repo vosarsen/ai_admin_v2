@@ -20,6 +20,7 @@ class WebhookEventsRepository extends BaseRepository {
    * Check if event already exists (for deduplication)
    * @param {string} eventId - Unique event identifier
    * @returns {Promise<boolean>} True if event exists
+   * @throws {Error} Database connection or query error
    */
   async exists(eventId) {
     try {
@@ -43,6 +44,7 @@ class WebhookEventsRepository extends BaseRepository {
    * @param {number} [eventData.record_id] - Record ID (for booking events)
    * @param {Object} eventData.payload - Full webhook payload
    * @returns {Promise<Object>} Inserted event
+   * @throws {Error} Database connection or constraint violation error
    */
   async insert(eventData) {
     const startTime = Date.now();
@@ -78,6 +80,7 @@ class WebhookEventsRepository extends BaseRepository {
    * Mark event as processed
    * @param {string} eventId - Event ID to mark
    * @returns {Promise<void>}
+   * @throws {Error} Database connection or query error
    */
   async markProcessed(eventId) {
     const startTime = Date.now();
