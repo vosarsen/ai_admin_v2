@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const logger = require('../../utils/logger');
+const Sentry = require('@sentry/node');
 const { getSessionPool } = require('../../integrations/whatsapp/session-pool');
 const { YclientsClient } = require('../../integrations/yclients/client');
 const crypto = require('crypto');
@@ -13,6 +14,60 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const postgres = require('../../database/postgres');
 const { CompanyRepository, MarketplaceEventsRepository } = require('../../repositories');
+
+// ============================
+// ADMIN RATE LIMITER (in-memory, simple)
+// 100 requests per minute per IP
+// ============================
+const adminRateLimitStore = new Map();
+const ADMIN_RATE_LIMIT = 100; // requests per minute
+const ADMIN_RATE_WINDOW = 60 * 1000; // 1 minute in ms
+
+function adminRateLimiter(req, res, next) {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  const now = Date.now();
+  const key = `admin:${ip}`;
+
+  // Get or create rate limit entry
+  let entry = adminRateLimitStore.get(key);
+  if (!entry || now - entry.windowStart > ADMIN_RATE_WINDOW) {
+    // New window
+    entry = { count: 0, windowStart: now };
+  }
+
+  entry.count++;
+  adminRateLimitStore.set(key, entry);
+
+  // Clean up old entries periodically (every 100 requests)
+  if (adminRateLimitStore.size > 100) {
+    for (const [k, v] of adminRateLimitStore.entries()) {
+      if (now - v.windowStart > ADMIN_RATE_WINDOW * 2) {
+        adminRateLimitStore.delete(k);
+      }
+    }
+  }
+
+  // Check limit
+  if (entry.count > ADMIN_RATE_LIMIT) {
+    const retryAfter = Math.ceil((entry.windowStart + ADMIN_RATE_WINDOW - now) / 1000);
+    logger.warn('Admin rate limit exceeded', { ip, count: entry.count, limit: ADMIN_RATE_LIMIT });
+
+    return res.status(429).json({
+      error: 'Too many requests',
+      message: `Rate limit exceeded. Try again in ${retryAfter} seconds.`,
+      retryAfter
+    });
+  }
+
+  // Add rate limit headers
+  res.set({
+    'X-RateLimit-Limit': ADMIN_RATE_LIMIT,
+    'X-RateLimit-Remaining': Math.max(0, ADMIN_RATE_LIMIT - entry.count),
+    'X-RateLimit-Reset': Math.ceil((entry.windowStart + ADMIN_RATE_WINDOW) / 1000)
+  });
+
+  next();
+}
 
 // Initialize repositories
 const companyRepository = new CompanyRepository(postgres);
@@ -452,16 +507,44 @@ router.post('/marketplace/activate', async (req, res) => {
 // ============================
 // 6. WEBHOOK CALLBACK - Прием webhook событий от YClients
 // URL: POST /webhook/yclients
+// Phase 4: Added partner_token validation
 // ============================
 router.post('/webhook/yclients', async (req, res) => {
   try {
-    const { event_type, salon_id, data } = req.body;
+    const { event_type, event, salon_id, application_id, partner_token, data } = req.body;
+
+    // Use event_type or event (API may send either)
+    const eventType = event_type || event;
 
     logger.info('📨 YClients webhook received:', {
-      event_type,
+      event_type: eventType,
       salon_id,
+      application_id,
+      has_partner_token: !!partner_token,
       data_keys: data ? Object.keys(data) : []
     });
+
+    // Phase 4: Validate partner_token for security
+    // YClients sends partner_token in webhook body for verification
+    if (partner_token && partner_token !== PARTNER_TOKEN) {
+      logger.error('❌ Webhook validation failed: Invalid partner_token', {
+        salon_id,
+        event_type: eventType,
+        received_token_prefix: partner_token?.substring(0, 8) + '...'
+      });
+      // Still return 200 OK to prevent retry flooding, but don't process
+      return res.status(200).json({ success: false, error: 'Invalid partner_token' });
+    }
+
+    // Validate application_id if provided
+    if (application_id && parseInt(application_id) !== parseInt(APP_ID)) {
+      logger.warn('⚠️ Webhook for different application:', {
+        received_app_id: application_id,
+        our_app_id: APP_ID
+      });
+      // Still return 200 OK but skip processing
+      return res.status(200).json({ success: true, skipped: 'different_application' });
+    }
 
     // Быстро отвечаем YClients (они ожидают 200 OK)
     res.status(200).json({ success: true, received: true });
@@ -469,7 +552,7 @@ router.post('/webhook/yclients', async (req, res) => {
     // Обрабатываем событие асинхронно
     setImmediate(async () => {
       try {
-        await handleWebhookEvent(event_type, salon_id, data);
+        await handleWebhookEvent(eventType, salon_id, data);
       } catch (error) {
         logger.error('❌ Webhook processing error:', error);
       }
@@ -532,6 +615,8 @@ router.get('/marketplace/health', (req, res) => {
 
 /**
  * Обработка webhook событий от YClients
+ * Phase 4: Updated - only 'uninstall' and 'freeze' events exist for marketplace
+ * NOTE: 'payment' webhook does NOT exist - payment is OUTBOUND (we notify YClients)
  */
 async function handleWebhookEvent(eventType, salonId, data) {
   logger.info(`🔄 Processing webhook event: ${eventType} for salon ${salonId}`);
@@ -545,10 +630,6 @@ async function handleWebhookEvent(eventType, salonId, data) {
       await handleFreeze(salonId);
       break;
 
-    case 'payment':
-      await handlePayment(salonId, data);
-      break;
-
     case 'record_created':
     case 'record_updated':
     case 'record_deleted':
@@ -557,7 +638,24 @@ async function handleWebhookEvent(eventType, salonId, data) {
       break;
 
     default:
-      logger.warn(`⚠️ Unknown webhook event type: ${eventType}`);
+      // Log unknown events for monitoring but don't throw
+      // This helps us discover if YClients adds new event types
+      logger.info(`📌 Unknown/new webhook event type: ${eventType}`, {
+        salonId,
+        eventType,
+        dataKeys: data ? Object.keys(data) : []
+      });
+
+      // Log to marketplace_events for tracking
+      try {
+        await marketplaceEventsRepository.insert({
+          salon_id: parseInt(salonId) || null,
+          event_type: `webhook_unknown_${eventType}`,
+          event_data: { original_event: eventType, data }
+        });
+      } catch (logError) {
+        logger.warn('Failed to log unknown webhook event:', logError.message);
+      }
   }
 }
 
@@ -598,19 +696,416 @@ async function handleFreeze(salonId) {
   logger.info('✅ Company marked as frozen');
 }
 
+// NOTE: handlePayment() removed in Phase 4
+// Payment is OUTBOUND (we notify YClients via notifyYclientsAboutPayment)
+// There is NO incoming payment webhook from YClients
+
+// ============================
+// ADMIN API ROUTES - Phase 3: Marketplace Administration
+// These routes require admin authentication
+// ============================
+
+// Import MarketplaceService for admin operations
+const MarketplaceService = require('../../services/marketplace/marketplace-service');
+let marketplaceServiceInstance = null;
+
 /**
- * Обработка платежа
+ * Get or create MarketplaceService singleton
  */
-async function handlePayment(salonId, data) {
-  logger.info(`💰 Payment received for salon ${salonId}:`, data);
-
-  await companyRepository.updateByYclientsId(parseInt(salonId), {
-    integration_status: 'active',
-    last_payment_date: new Date().toISOString()
-  });
-
-  logger.info('✅ Payment processed');
+async function getMarketplaceService() {
+  if (!marketplaceServiceInstance) {
+    marketplaceServiceInstance = new MarketplaceService();
+    await marketplaceServiceInstance.init();
+  }
+  return marketplaceServiceInstance;
 }
+
+/**
+ * Admin authentication middleware with RBAC
+ * Supports JWT tokens and API keys with role-based access control
+ */
+function adminAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  const apiKey = req.headers['x-api-key'];
+
+  // No credentials provided
+  if (!authHeader && !apiKey) {
+    logger.warn('Admin auth: No credentials provided', { ip: req.ip, path: req.path });
+    return res.status(401).json({ error: 'Authorization required' });
+  }
+
+  // Method 1: JWT token authentication
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.split(' ')[1];
+      const decoded = jwt.verify(token, JWT_SECRET);
+
+      // RBAC: Check for admin role in JWT payload
+      const allowedRoles = ['admin', 'superadmin', 'marketplace_admin'];
+      if (decoded.role && !allowedRoles.includes(decoded.role)) {
+        logger.warn('Admin auth: Insufficient role', {
+          ip: req.ip,
+          path: req.path,
+          userId: decoded.id || decoded.sub,
+          role: decoded.role
+        });
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: 'Insufficient permissions. Admin role required.'
+        });
+      }
+
+      req.adminUser = {
+        type: 'jwt',
+        id: decoded.id || decoded.sub,
+        role: decoded.role || 'admin',
+        email: decoded.email
+      };
+
+      // Audit log for admin actions
+      logger.info('Admin auth: JWT authenticated', {
+        ip: req.ip,
+        path: req.path,
+        method: req.method,
+        userId: req.adminUser.id,
+        role: req.adminUser.role
+      });
+
+      return next();
+    } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        return res.status(401).json({ error: 'Token expired', message: 'Please refresh your token' });
+      }
+      if (error.name === 'JsonWebTokenError') {
+        return res.status(401).json({ error: 'Invalid token', message: 'Token signature is invalid' });
+      }
+      logger.error('Admin auth: JWT verification failed', { error: error.message });
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+  }
+
+  // Method 2: API key authentication (timing-safe comparison)
+  if (apiKey) {
+    const expectedKey = process.env.ADMIN_API_KEY;
+    if (!expectedKey) {
+      logger.error('Admin auth: ADMIN_API_KEY not configured');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+
+    // Timing-safe comparison to prevent timing attacks
+    const apiKeyBuffer = Buffer.from(apiKey);
+    const expectedKeyBuffer = Buffer.from(expectedKey);
+
+    // Length check first (constant time for same-length comparison)
+    if (apiKeyBuffer.length !== expectedKeyBuffer.length) {
+      logger.warn('Admin auth: Invalid API key (length mismatch)', { ip: req.ip, path: req.path });
+      return res.status(401).json({ error: 'Invalid API key' });
+    }
+
+    if (!crypto.timingSafeEqual(apiKeyBuffer, expectedKeyBuffer)) {
+      logger.warn('Admin auth: Invalid API key', { ip: req.ip, path: req.path });
+      return res.status(401).json({ error: 'Invalid API key' });
+    }
+
+    req.adminUser = {
+      type: 'api_key',
+      role: 'admin'
+    };
+
+    // Audit log for API key access
+    logger.info('Admin auth: API key authenticated', {
+      ip: req.ip,
+      path: req.path,
+      method: req.method
+    });
+
+    return next();
+  }
+
+  return res.status(401).json({ error: 'Invalid authorization' });
+}
+
+// ============================
+// 8. ADMIN: GET CONNECTED SALONS
+// GET /marketplace/admin/salons
+// ============================
+router.get('/marketplace/admin/salons', adminRateLimiter, adminAuth, async (req, res) => {
+  try {
+    const { page = 1, count = 100 } = req.query;
+
+    logger.info('Admin: Getting connected salons', { page, count });
+
+    const service = await getMarketplaceService();
+    const result = await service.getActiveConnections(parseInt(page), parseInt(count));
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    logger.error('Admin: Failed to get salons:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================
+// 9. ADMIN: GET SALON STATUS
+// GET /marketplace/admin/salon/:salonId/status
+// ============================
+router.get('/marketplace/admin/salon/:salonId/status', adminRateLimiter, adminAuth, async (req, res) => {
+  try {
+    const { salonId } = req.params;
+
+    logger.info('Admin: Getting salon status', { salonId });
+
+    const service = await getMarketplaceService();
+    const result = await service.checkIntegrationHealth(parseInt(salonId));
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    logger.error('Admin: Failed to get salon status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================
+// 10. ADMIN: DISCONNECT SALON
+// POST /marketplace/admin/salon/:salonId/disconnect
+// ============================
+router.post('/marketplace/admin/salon/:salonId/disconnect', adminRateLimiter, adminAuth, async (req, res) => {
+  try {
+    const { salonId } = req.params;
+    const { reason } = req.body;
+
+    logger.warn('Admin: Disconnecting salon', { salonId, reason, admin: req.adminUser });
+
+    const service = await getMarketplaceService();
+    const result = await service.disconnectSalon(parseInt(salonId), reason || 'Admin requested');
+
+    if (result.success) {
+      res.json({ success: true, message: 'Salon disconnected successfully' });
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    logger.error('Admin: Failed to disconnect salon:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================
+// 11. ADMIN: GET PAYMENT LINK
+// GET /marketplace/admin/salon/:salonId/payment-link
+// ============================
+router.get('/marketplace/admin/salon/:salonId/payment-link', adminRateLimiter, adminAuth, async (req, res) => {
+  try {
+    const { salonId } = req.params;
+    const { discount } = req.query;
+
+    logger.info('Admin: Generating payment link', { salonId, discount });
+
+    const service = await getMarketplaceService();
+    const result = await service.generatePaymentLink(
+      parseInt(salonId),
+      discount ? parseFloat(discount) : null
+    );
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    logger.error('Admin: Failed to generate payment link:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================
+// 12. ADMIN: NOTIFY PAYMENT
+// POST /marketplace/admin/payment/notify
+// ============================
+router.post('/marketplace/admin/payment/notify', adminRateLimiter, adminAuth, async (req, res) => {
+  try {
+    const { salon_id, payment_sum, currency_iso, payment_date, period_from, period_to } = req.body;
+
+    if (!salon_id || !payment_sum || !payment_date || !period_from || !period_to) {
+      return res.status(400).json({
+        error: 'Missing required fields: salon_id, payment_sum, payment_date, period_from, period_to'
+      });
+    }
+
+    logger.info('Admin: Notifying payment', { salon_id, payment_sum });
+
+    const service = await getMarketplaceService();
+    const result = await service.notifyYclientsAboutPayment(parseInt(salon_id), {
+      payment_sum,
+      currency_iso: currency_iso || 'RUB',
+      payment_date,
+      period_from,
+      period_to
+    });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        payment_id: result.data?.id,
+        message: 'Payment notification sent successfully'
+      });
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    logger.error('Admin: Failed to notify payment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================
+// 13. ADMIN: NOTIFY REFUND
+// POST /marketplace/admin/payment/:id/refund
+// ============================
+router.post('/marketplace/admin/payment/:id/refund', adminRateLimiter, adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    logger.info('Admin: Notifying refund', { paymentId: id, reason });
+
+    const service = await getMarketplaceService();
+    const result = await service.notifyYclientsAboutRefund(parseInt(id), reason || '');
+
+    if (result.success) {
+      res.json({ success: true, message: 'Refund notification sent successfully' });
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    logger.error('Admin: Failed to notify refund:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================
+// 14. ADMIN: GET TARIFFS
+// GET /marketplace/admin/tariffs
+// ============================
+router.get('/marketplace/admin/tariffs', adminRateLimiter, adminAuth, async (req, res) => {
+  try {
+    logger.info('Admin: Getting tariffs');
+
+    const service = await getMarketplaceService();
+    const result = await service.getTariffs();
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    logger.error('Admin: Failed to get tariffs:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================
+// 15. ADMIN: ADD DISCOUNTS
+// POST /marketplace/admin/discounts
+// ============================
+router.post('/marketplace/admin/discounts', adminRateLimiter, adminAuth, async (req, res) => {
+  try {
+    const { salon_ids, discount_percent } = req.body;
+
+    if (!Array.isArray(salon_ids) || salon_ids.length === 0) {
+      return res.status(400).json({ error: 'salon_ids must be a non-empty array' });
+    }
+
+    if (typeof discount_percent !== 'number' || discount_percent <= 0 || discount_percent > 100) {
+      return res.status(400).json({ error: 'discount_percent must be a number between 0 and 100' });
+    }
+
+    logger.info('Admin: Adding discounts', { salonCount: salon_ids.length, discount_percent });
+
+    const service = await getMarketplaceService();
+    const result = await service.addDiscount(salon_ids.map(id => parseInt(id)), discount_percent);
+
+    if (result.success) {
+      res.json({ success: true, message: 'Discounts added successfully' });
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    logger.error('Admin: Failed to add discounts:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================
+// 16. ADMIN: UPDATE CHANNEL
+// POST /marketplace/admin/salon/:salonId/channels
+// ============================
+router.post('/marketplace/admin/salon/:salonId/channels', adminRateLimiter, adminAuth, async (req, res) => {
+  try {
+    const { salonId } = req.params;
+    const { channel, enabled } = req.body;
+
+    if (!channel || typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'channel and enabled (boolean) are required' });
+    }
+
+    logger.info('Admin: Updating channel', { salonId, channel, enabled });
+
+    const service = await getMarketplaceService();
+    const result = await service.updateNotificationChannel(parseInt(salonId), channel, enabled);
+
+    if (result.success) {
+      res.json({ success: true, message: `Channel ${channel} ${enabled ? 'enabled' : 'disabled'}` });
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    logger.error('Admin: Failed to update channel:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================
+// 17. ADMIN: SET SMS NAMES
+// POST /marketplace/admin/salon/:salonId/sms-names
+// ============================
+router.post('/marketplace/admin/salon/:salonId/sms-names', adminRateLimiter, adminAuth, async (req, res) => {
+  try {
+    const { salonId } = req.params;
+    const { short_names } = req.body;
+
+    if (!Array.isArray(short_names)) {
+      return res.status(400).json({ error: 'short_names must be an array of strings' });
+    }
+
+    logger.info('Admin: Setting SMS short names', { salonId, short_names });
+
+    const service = await getMarketplaceService();
+    const result = await service.setSmsShortNames(parseInt(salonId), short_names);
+
+    if (result.success) {
+      res.json({ success: true, message: 'SMS short names updated successfully' });
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    logger.error('Admin: Failed to set SMS names:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================
+// HELPER FUNCTIONS
+// ============================
 
 /**
  * Рендер страницы с ошибкой

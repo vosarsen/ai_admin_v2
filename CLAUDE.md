@@ -32,6 +32,28 @@ Use MCP servers instead of SSH/scripts for faster access:
 | @yclients | YClients API | `@yclients get_available_slots date:2025-11-15` | ✅ Custom |
 | @notion | Task management | `@notion create_page parent_id:xxxxx title:"New Task"` | ✅ Official |
 
+### YClients Marketplace MCP Tools (NEW!)
+
+```bash
+# Получить подключенные салоны
+@yclients marketplace_get_salons page:1 count:100
+
+# Статус интеграции салона
+@yclients marketplace_salon_status salon_id:962302
+
+# Регистрация платежа (сохраните payment_id!)
+@yclients marketplace_notify_payment salon_id:962302 payment_sum:1990 payment_date:2025-11-26 period_from:2025-11-26 period_to:2025-12-26
+
+# Возврат платежа
+@yclients marketplace_notify_refund payment_id:12345
+
+# Управление каналами уведомлений
+@yclients marketplace_update_channel salon_id:962302 channel:whatsapp enabled:true
+
+# Отключение салона (ОПАСНО!)
+@yclients marketplace_uninstall salon_id:962302 confirm:true
+```
+
 **Configuration:** All servers configured in `.mcp.json` (see `.mcp.json.example`)
 **Redis tunnel required:** `./scripts/maintain-redis-tunnel.sh start`
 **Notion setup:** See `docs/02-guides/notion/NOTION_MCP_SETUP.md`

@@ -1,10 +1,10 @@
 # YClients Marketplace Integration - Context
 
-**Last Updated:** 2025-11-26 (API Analysis Complete)
+**Last Updated:** 2025-11-26 (Phase 1 Complete)
 
 ---
 
-## ✅ STATUS: Phase 0 Complete
+## ✅ STATUS: Phase 0 & 1 Complete
 
 ### Supabase Migration Fixed
 
@@ -328,3 +328,126 @@ YCLIENTS_APP_ID=xxx  # ID приложения в маркетплейсе
   - Added API documentation summary section
 - **Blockers resolved:** YCLIENTS_APP_ID, DB schema verified
 - **Project status:** Ready for Phase 1 implementation
+
+### Session 5 (2025-11-26) - Phase 1 COMPLETE ✅
+- **Created:** `src/integrations/yclients/marketplace-client.js` (430 lines)
+- **YclientsMarketplaceClient class** with all 14 methods:
+  - Callback: `callbackWithRedirect()`, `callbackInstall()`
+  - Payment (outbound): `notifyPayment()`, `notifyRefund()`, `generatePaymentLink()`
+  - Management: `getIntegrationStatus()`, `getConnectedSalons()`, `uninstallFromSalon()`
+  - Tariffs: `getTariffs()`, `addDiscount()`
+  - Channels: `updateChannel()`, `setShortNames()`
+  - Utility: `healthCheck()`, `getInfo()`
+- **Factory function:** `createMarketplaceClient()` for easy instantiation from env
+- **Features implemented:**
+  - Rate limiting via Bottleneck (200 req/min)
+  - Retry logic with exponential backoff
+  - Sentry error tracking
+  - Automatic `application_id` injection in all requests
+  - Channel slug validation ('sms' | 'whatsapp')
+  - Max 1000 limit enforcement for `getConnectedSalons()`
+- **Verified:** YCLIENTS_APP_ID=18289 exists on production server
+- **Tests passed:** Module import, class instantiation, method existence
+- **Actual time:** ~30 min (vs 3-4h estimated = 85% faster!)
+- **Project status:** Phase 1 complete, ready for Phase 2
+
+### Session 6 (2025-11-26) - ALL PHASES COMPLETE! 🎉
+- **Phase 1-6 implemented** in single session (~1.8 hours total)
+
+**Phase 1: YclientsMarketplaceClient** (~30 min)
+- Created `src/integrations/yclients/marketplace-client.js` (430 lines)
+- 14 methods: callback, payment, management, tariffs, channels
+- Rate limiting, retry logic, Sentry tracking
+
+**Phase 2: MarketplaceService Extension** (~30 min)
+- Extended `src/services/marketplace/marketplace-service.js` (776 lines)
+- 12 new methods with Sentry error tracking
+- Lazy initialization of marketplace client
+
+**Phase 3: API Routes** (~15 min)
+- Extended `src/api/routes/yclients-marketplace.js` (~1000 lines)
+- 10 admin routes: /marketplace/admin/*
+- adminAuth middleware for JWT/API key authentication
+
+**Phase 4: Webhook Validation** (~10 min)
+- Added partner_token validation to webhook handler
+- Added application_id validation
+- Updated handleWebhookEvent to log unknown events
+
+**Phase 5: Database Migration** (~5 min)
+- Created `scripts/migrations/20251126_add_marketplace_channel_columns.sql`
+- Added 6 columns: subscription_expires_at, whatsapp_channel_enabled, sms_channel_enabled, sms_short_names, disconnected_at, status
+- Applied to production Timeweb PostgreSQL
+
+**Phase 6: MCP Server Extension** (~20 min)
+- Extended `mcp/mcp-yclients/server.js` (~1020 lines)
+- 9 new marketplace tools: get_salons, get_status, get_tariffs, etc.
+
+**Results:**
+- ✅ ALL PHASES COMPLETE (0-6)
+- **Actual time:** ~1.8 hours (vs 17h estimated = **89% faster!**)
+- **Progress:** 95% (Completion phase remaining)
+- **Next:** Code review fixes before deploy
+
+### Session 7 (2025-11-26) - Code Review & Fixes Plan
+**Last Updated:** 2025-11-26 (context ~85%)
+
+**Code Review Results:**
+- Ran `code-architecture-reviewer` agent
+- **Grade: B+ (87/100)**
+- Full review saved: `yclients-marketplace-code-review.md` (1200 lines)
+
+**Critical Issues Identified:**
+1. ❌ No integration tests (0% coverage for 3,200 lines)
+2. ❌ Weak admin auth (no RBAC, no rate limiting)
+3. ❌ Missing transaction support in multi-write operations
+4. ❌ MCP tools lack business logic validation
+5. ❌ Migration missing rollback script
+
+**Decision Made:** Fix P0/P1 issues before deploy (~10h), defer tests to separate sprint
+
+**Prioritized Fix Plan:**
+| Priority | Task | Time | Status |
+|----------|------|------|--------|
+| P0 | Transaction support (4 methods) | 4-6h | ⏳ NEXT |
+| P0 | Rate limiting on admin routes | 1h | Pending |
+| P1 | RBAC role check in admin auth | 2h | Pending |
+| P1 | Rollback script for migration | 0.5h | Pending |
+| P1 | MCP input validation | 2h | Pending |
+
+**Key Discovery - Transaction Support Already Exists!**
+- `BaseRepository.withTransaction(callback)` exists at line 310
+- Takes callback with `client` param for all queries
+- Auto-handles BEGIN/COMMIT/ROLLBACK
+- Just need to wrap multi-write methods
+
+**Methods Needing Transaction Wrap:**
+1. `notifyYclientsAboutPayment()` - lines 375-418
+2. `disconnectSalon()` - lines 536-597
+3. `updateNotificationChannel()` - lines 607-652
+4. `setSmsShortNames()` - lines 738-773
+
+**Where I Stopped:**
+- Was about to implement transaction wrapping
+- Read BaseRepository.withTransaction() at lines 305-360
+- Pattern: `await repo.withTransaction(async (client) => { ... })`
+
+**Next Steps for New Session:**
+1. Read `marketplace-service.js` methods that need transactions
+2. Wrap each in `companyRepository.withTransaction()`
+3. Use `client.query()` for raw SQL inside transaction OR
+4. Add `*WithTransaction(client, ...)` methods to repositories
+
+**Files Modified This Session:**
+- `yclients-marketplace-code-review.md` - NEW (code review results)
+- `yclients-marketplace-full-integration-context.md` - updated
+- `yclients-marketplace-full-integration-tasks.md` - updated
+- `yclients-marketplace-full-integration-plan.md` - updated
+
+**Uncommitted Changes:**
+All Phase 1-6 implementation files (ready to commit after fixes):
+- `src/integrations/yclients/marketplace-client.js` (NEW)
+- `src/services/marketplace/marketplace-service.js` (extended)
+- `src/api/routes/yclients-marketplace.js` (extended)
+- `mcp/mcp-yclients/server.js` (extended)
+- `scripts/migrations/20251126_add_marketplace_channel_columns.sql` (NEW, already applied to prod DB)

@@ -684,11 +684,445 @@ ${paids.accounts.map(acc => `- ${acc.title}: ${acc.amount} ${report.currency}`).
   }
 );
 
+// =====================
+// MARKETPLACE API TOOLS (Phase 6)
+// Base URL: https://api.yclients.com/marketplace
+// =====================
+
+const MARKETPLACE_BASE = 'https://api.yclients.com/marketplace';
+const YCLIENTS_PARTNER_TOKEN = process.env.YCLIENTS_PARTNER_TOKEN;
+const YCLIENTS_APP_ID = parseInt(process.env.YCLIENTS_APP_ID || '18289');
+
+// Helper function for Marketplace API requests
+async function makeMarketplaceRequest(endpoint, options = {}) {
+  const response = await fetch(`${MARKETPLACE_BASE}${endpoint}`, {
+    ...options,
+    headers: {
+      'Authorization': `Bearer ${YCLIENTS_PARTNER_TOKEN}`,
+      'Accept': 'application/vnd.yclients.v2+json',
+      'Content-Type': 'application/json',
+      ...options.headers
+    }
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Marketplace API error: ${response.status} ${response.statusText} - ${error}`);
+  }
+
+  return await response.json();
+}
+
+server.registerTool("marketplace_get_salons",
+  {
+    title: "Get Connected Salons",
+    description: "Get list of salons connected to our marketplace app",
+    inputSchema: {
+      page: z.number()
+        .optional()
+        .default(1)
+        .describe('Page number'),
+      count: z.number()
+        .optional()
+        .default(100)
+        .describe('Items per page (max 1000)')
+    }
+  },
+  async ({ page, count }) => {
+    const safeCount = Math.min(count, 1000);
+    const params = new URLSearchParams({
+      page: page.toString(),
+      count: safeCount.toString()
+    });
+
+    const result = await makeMarketplaceRequest(`/application/${YCLIENTS_APP_ID}/salons?${params}`);
+
+    const salons = result.data || [];
+    return {
+      content: [{
+        type: "text",
+        text: `📊 Подключенные салоны (страница ${page}):\n\n${salons.length > 0
+          ? salons.map(s => `${s.title || s.id}\n   ID: ${s.salon_id || s.id}\n   Статус: ${s.status || 'active'}`).join('\n\n')
+          : 'Нет подключенных салонов'}\n\nВсего: ${result.meta?.total_count || salons.length}`
+      }]
+    };
+  }
+);
+
+server.registerTool("marketplace_get_status",
+  {
+    title: "Get Salon Integration Status",
+    description: "Check integration status for a specific salon",
+    inputSchema: {
+      salon_id: z.number().describe('YClients salon ID')
+    }
+  },
+  async ({ salon_id }) => {
+    const result = await makeMarketplaceRequest(`/salon/${salon_id}/application/${YCLIENTS_APP_ID}`);
+
+    return {
+      content: [{
+        type: "text",
+        text: `📋 Статус интеграции салона #${salon_id}:
+
+Статус: ${result.data?.connection_status || 'unknown'}
+Логи: ${result.data?.logs?.length || 0} записей
+Платежи: ${result.data?.payments?.length || 0} записей
+
+Детали: ${JSON.stringify(result.data, null, 2)}`
+      }]
+    };
+  }
+);
+
+server.registerTool("marketplace_get_tariffs",
+  {
+    title: "Get App Tariffs",
+    description: "Get available tariffs for the marketplace application",
+    inputSchema: {}
+  },
+  async () => {
+    const result = await makeMarketplaceRequest(`/application/${YCLIENTS_APP_ID}/tariffs`);
+
+    const tariffs = result.data || [];
+    return {
+      content: [{
+        type: "text",
+        text: `💰 Тарифы приложения:\n\n${tariffs.length > 0
+          ? tariffs.map(t => `${t.title || t.name}\n   Цена: ${t.price} ${t.currency || 'RUB'}\n   Период: ${t.period || 'месяц'}`).join('\n\n')
+          : JSON.stringify(result, null, 2)}`
+      }]
+    };
+  }
+);
+
+server.registerTool("marketplace_get_payment_link",
+  {
+    title: "Generate Payment Link",
+    description: "Generate payment link for a salon",
+    inputSchema: {
+      salon_id: z.number().describe('YClients salon ID'),
+      discount: z.number()
+        .optional()
+        .describe('Discount percentage (optional)')
+    }
+  },
+  async ({ salon_id, discount }) => {
+    const params = new URLSearchParams({
+      salon_id: salon_id.toString(),
+      application_id: YCLIENTS_APP_ID.toString()
+    });
+
+    if (discount) {
+      params.append('discount', discount.toString());
+    }
+
+    const result = await makeMarketplaceRequest(`/application/payment_link?${params}`);
+
+    return {
+      content: [{
+        type: "text",
+        text: `🔗 Ссылка на оплату для салона #${salon_id}:
+
+URL: ${result.data?.url || result.url || 'Не получена'}
+${discount ? `Скидка: ${discount}%` : ''}
+
+Детали: ${JSON.stringify(result, null, 2)}`
+      }]
+    };
+  }
+);
+
+server.registerTool("marketplace_uninstall",
+  {
+    title: "Uninstall from Salon",
+    description: "Disconnect the application from a salon (DANGEROUS!)",
+    inputSchema: {
+      salon_id: z.number().describe('YClients salon ID'),
+      confirm: z.boolean().describe('Must be true to confirm uninstall')
+    }
+  },
+  async ({ salon_id, confirm }) => {
+    if (!confirm) {
+      return {
+        content: [{
+          type: "text",
+          text: `⚠️ ВНИМАНИЕ: Отключение приложения необратимо!
+
+🔴 Это действие:
+- Отключит салон от нашего приложения
+- Прекратит синхронизацию данных
+- Удалит WhatsApp сессию
+- Клиенту придется переподключаться заново
+
+Для подтверждения вызовите: marketplace_uninstall(salon_id=${salon_id}, confirm=true)`
+        }]
+      };
+    }
+
+    if (salon_id <= 0) {
+      return {
+        content: [{
+          type: "text",
+          text: `❌ Ошибка: Некорректный salon_id: ${salon_id}`
+        }]
+      };
+    }
+
+    try {
+      const result = await makeMarketplaceRequest(
+        `/salon/${salon_id}/application/${YCLIENTS_APP_ID}/uninstall`,
+        { method: 'POST', body: JSON.stringify({ application_id: YCLIENTS_APP_ID }) }
+      );
+
+      return {
+        content: [{
+          type: "text",
+          text: `🗑️ Салон #${salon_id} отключен от приложения\n\nРезультат: ${JSON.stringify(result, null, 2)}`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `❌ Ошибка при отключении салона: ${error.message}\n\nПроверьте:\n- Существует ли салон #${salon_id}\n- Подключен ли салон к приложению`
+        }]
+      };
+    }
+  }
+);
+
+server.registerTool("marketplace_update_channel",
+  {
+    title: "Update Notification Channel",
+    description: "Enable or disable WhatsApp/SMS channel for a salon",
+    inputSchema: {
+      salon_id: z.number().describe('YClients salon ID'),
+      channel: z.enum(['whatsapp', 'sms']).describe('Channel type'),
+      enabled: z.boolean().describe('Enable (true) or disable (false)')
+    }
+  },
+  async ({ salon_id, channel, enabled }) => {
+    const result = await makeMarketplaceRequest(
+      '/application/update_channel',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          application_id: YCLIENTS_APP_ID,
+          salon_id,
+          channel_slug: channel,
+          is_available: enabled
+        })
+      }
+    );
+
+    return {
+      content: [{
+        type: "text",
+        text: `📱 Канал "${channel}" для салона #${salon_id}: ${enabled ? '✅ включен' : '❌ отключен'}\n\nРезультат: ${JSON.stringify(result, null, 2)}`
+      }]
+    };
+  }
+);
+
+server.registerTool("marketplace_add_discount",
+  {
+    title: "Add Discount for Salons",
+    description: "Add discount for multiple salons",
+    inputSchema: {
+      salon_ids: z.array(z.number()).describe('Array of salon IDs'),
+      discount_percent: z.number().describe('Discount percentage (0-100)')
+    }
+  },
+  async ({ salon_ids, discount_percent }) => {
+    // Business logic validation
+    if (!salon_ids || salon_ids.length === 0) {
+      return {
+        content: [{
+          type: "text",
+          text: `❌ Ошибка: salon_ids должен быть непустым массивом`
+        }]
+      };
+    }
+
+    if (discount_percent <= 0 || discount_percent > 100) {
+      return {
+        content: [{
+          type: "text",
+          text: `❌ Ошибка: discount_percent должен быть от 1 до 100 (получено: ${discount_percent})`
+        }]
+      };
+    }
+
+    try {
+      const result = await makeMarketplaceRequest(
+        '/application/add_discount',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            application_id: YCLIENTS_APP_ID,
+            salon_ids,
+            discount: discount_percent
+          })
+        }
+      );
+
+      return {
+        content: [{
+          type: "text",
+          text: `💸 Скидка ${discount_percent}% установлена для ${salon_ids.length} салонов\n\nРезультат: ${JSON.stringify(result, null, 2)}`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `❌ Ошибка при установке скидки: ${error.message}`
+        }]
+      };
+    }
+  }
+);
+
+server.registerTool("marketplace_notify_payment",
+  {
+    title: "Notify Payment",
+    description: "Notify YClients about a payment (OUTBOUND)",
+    inputSchema: {
+      salon_id: z.number().describe('YClients salon ID'),
+      payment_sum: z.number().describe('Payment amount'),
+      currency_iso: z.string()
+        .optional()
+        .default('RUB')
+        .describe('Currency code'),
+      payment_date: z.string().describe('Payment date (YYYY-MM-DD)'),
+      period_from: z.string().describe('Subscription start date (YYYY-MM-DD)'),
+      period_to: z.string().describe('Subscription end date (YYYY-MM-DD)')
+    }
+  },
+  async ({ salon_id, payment_sum, currency_iso, payment_date, period_from, period_to }) => {
+    // Business logic validation
+    if (payment_sum <= 0) {
+      return {
+        content: [{
+          type: "text",
+          text: `❌ Ошибка: payment_sum должна быть положительной (получено: ${payment_sum})`
+        }]
+      };
+    }
+
+    // Date format validation (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(payment_date)) {
+      return {
+        content: [{
+          type: "text",
+          text: `❌ Ошибка: Неверный формат payment_date: ${payment_date}\nОжидается: YYYY-MM-DD`
+        }]
+      };
+    }
+    if (!dateRegex.test(period_from)) {
+      return {
+        content: [{
+          type: "text",
+          text: `❌ Ошибка: Неверный формат period_from: ${period_from}\nОжидается: YYYY-MM-DD`
+        }]
+      };
+    }
+    if (!dateRegex.test(period_to)) {
+      return {
+        content: [{
+          type: "text",
+          text: `❌ Ошибка: Неверный формат period_to: ${period_to}\nОжидается: YYYY-MM-DD`
+        }]
+      };
+    }
+
+    // Validate period_from < period_to
+    if (new Date(period_from) >= new Date(period_to)) {
+      return {
+        content: [{
+          type: "text",
+          text: `❌ Ошибка: period_from (${period_from}) должен быть раньше period_to (${period_to})`
+        }]
+      };
+    }
+
+    try {
+      const result = await makeMarketplaceRequest(
+        '/partner/payment',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            application_id: YCLIENTS_APP_ID,
+            salon_id,
+            payment_sum,
+            currency_iso,
+            payment_date,
+            period_from,
+            period_to
+          })
+        }
+      );
+
+      const paymentId = result.data?.id;
+      return {
+        content: [{
+          type: "text",
+          text: `💰 Платеж зарегистрирован для салона #${salon_id}
+
+Payment ID: ${paymentId || 'не получен'}
+⚠️ СОХРАНИТЕ payment_id для возможного возврата!
+
+Сумма: ${payment_sum} ${currency_iso}
+Период: ${period_from} — ${period_to}
+
+Результат: ${JSON.stringify(result, null, 2)}`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `❌ Ошибка при регистрации платежа: ${error.message}\n\nПроверьте:\n- Существует ли салон #${salon_id}\n- Подключен ли салон к приложению\n- Корректны ли даты`
+        }]
+      };
+    }
+  }
+);
+
+server.registerTool("marketplace_notify_refund",
+  {
+    title: "Notify Refund",
+    description: "Notify YClients about a refund",
+    inputSchema: {
+      payment_id: z.number().describe('Payment ID from previous notify_payment')
+    }
+  },
+  async ({ payment_id }) => {
+    const result = await makeMarketplaceRequest(
+      `/partner/payment/refund/${payment_id}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ application_id: YCLIENTS_APP_ID })
+      }
+    );
+
+    return {
+      content: [{
+        type: "text",
+        text: `💸 Возврат зарегистрирован для платежа #${payment_id}\n\nРезультат: ${JSON.stringify(result, null, 2)}`
+      }]
+    };
+  }
+);
+
 // Start the server
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('YClients MCP Server started successfully');
+  console.error(`Marketplace tools enabled: APP_ID=${YCLIENTS_APP_ID}`);
 }
 
 main().catch((error) => {
