@@ -289,7 +289,7 @@ router.post('/demo-chat',
 
       // Process message with AI
       // We pass demo company ID and special phone format
-      // Use DeepSeek for demo (doesn't require VPN unlike Gemini)
+      // Use Gemini for demo (2.6x faster than DeepSeek: 9s vs 24s, 3.6x cheaper: $29 vs $106/mo)
       const result = await aiAdminV2.processMessage(
         message,
         demoPhone,
@@ -297,7 +297,7 @@ router.post('/demo-chat',
         {
           isDemoMode: true, // Add demo mode flag
           demoCompanyData: DEMO_COMPANY_DATA,
-          aiProvider: 'deepseek' // Use DeepSeek for demo chat
+          aiProvider: 'gemini-flash' // Use Gemini for demo chat (via Xray VPN)
         }
       );
 
