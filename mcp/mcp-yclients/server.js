@@ -817,19 +817,41 @@ server.registerTool("marketplace_get_payment_link",
       params.append('discount', discount.toString());
     }
 
-    const result = await makeMarketplaceRequest(`/application/payment_link?${params}`);
+    try {
+      const result = await makeMarketplaceRequest(`/application/payment_link?${params}`);
 
-    return {
-      content: [{
-        type: "text",
-        text: `🔗 Ссылка на оплату для салона #${salon_id}:
+      return {
+        content: [{
+          type: "text",
+          text: `🔗 Ссылка на оплату для салона #${salon_id}:
 
 URL: ${result.data?.url || result.url || 'Не получена'}
 ${discount ? `Скидка: ${discount}%` : ''}
 
 Детали: ${JSON.stringify(result, null, 2)}`
-      }]
-    };
+        }]
+      };
+    } catch (error) {
+      // Handle 404 - likely no tariffs configured
+      if (error.message.includes('404')) {
+        return {
+          content: [{
+            type: "text",
+            text: `⚠️ Невозможно сгенерировать ссылку на оплату для салона #${salon_id}
+
+Причина: Для приложения не настроены тарифы (tariffs)
+
+Решение:
+1. Проверьте тарифы: @yclients marketplace_get_tariffs
+2. Если приложение бесплатное - ссылка не нужна
+3. Если требуется настройка тарифов - обратитесь в поддержку YClients
+
+Техническая ошибка: ${error.message}`
+          }]
+        };
+      }
+      throw error;
+    }
   }
 );
 
