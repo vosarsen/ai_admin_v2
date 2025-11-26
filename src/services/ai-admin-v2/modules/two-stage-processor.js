@@ -23,7 +23,7 @@ class TwoStageProcessor {
   /**
    * Главный метод двухэтапной обработки
    */
-  async processTwoStage(message, context, aiService) {
+  async processTwoStage(message, context, aiService, aiProvider = null) {
     const startTime = Date.now();
     logger.info('🚀 Starting Two-Stage processing');
     
@@ -56,7 +56,7 @@ class TwoStageProcessor {
       const commandsResponse = await aiService.callAI(commandPromptText, {
         message: message,
         promptName: 'two-stage-command'
-      });
+      }, aiProvider);
       
       // ОТЛАДКА: Логируем сырой ответ AI для диагностики
       logger.debug(`📝 Stage 1 Raw AI Response: ${commandsResponse}`);
@@ -141,7 +141,7 @@ class TwoStageProcessor {
       const finalResponse = await aiService.callAI(responsePromptText, {
         message: message,
         promptName: 'two-stage-response'
-      });
+      }, aiProvider);
       
       const stage2Time = Date.now() - stage2Start;
       logger.info(`✅ Stage 2 completed in ${stage2Time}ms`);

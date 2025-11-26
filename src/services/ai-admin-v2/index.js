@@ -239,7 +239,8 @@ class AIAdminV2 {
         const twoStageResult = await twoStageProcessor.processTwoStage(
           message,
           context,
-          this // передаем ссылку на AIAdminV2 для вызова callAI
+          this, // передаем ссылку на AIAdminV2 для вызова callAI
+          aiProvider // передаем AI provider для демо-режима
         );
         
         finalResponse = twoStageResult.response;
