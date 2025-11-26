@@ -1,8 +1,10 @@
 /**
- * Синхронизация услуг из YClients в Supabase
+ * Синхронизация услуг из YClients в PostgreSQL
+ * Migrated from Supabase to Repository Pattern (2025-11-26)
  */
 
-const { supabase } = require('../database/supabase');
+const postgres = require('../database/postgres');
+const ServiceRepository = require('../repositories/ServiceRepository');
 const logger = require('../utils/logger').child({ module: 'services-sync' });
 const { YCLIENTS_CONFIG, createYclientsHeaders, delay } = require('./sync-utils');
 const axios = require('axios');
@@ -12,6 +14,7 @@ class ServicesSync {
   constructor() {
     this.config = YCLIENTS_CONFIG;
     this.tableName = 'services';
+    this.serviceRepo = new ServiceRepository(postgres.pool);
   }
 
   /**
@@ -59,22 +62,17 @@ class ServicesSync {
 
       // Получаем существующие услуги из БД для сохранения склонений
       logger.info('📚 Loading existing services from database...');
-      const { data: existingServices } = await supabase
-        .from(this.tableName)
-        .select('yclients_id, declensions')
-        .eq('company_id', this.config.COMPANY_ID);
+      const existingServices = await this.serviceRepo.findAll(this.config.COMPANY_ID, true);
       
       // Создаем маппинг существующих склонений
       // ВАЖНО: service.id из YClients API соответствует yclients_id в нашей БД
       const existingDeclensionsMap = new Map();
-      if (existingServices) {
-        existingServices.forEach(service => {
-          if (service.declensions) {
-            // Используем yclients_id как ключ, так как он будет сравниваться с service.id из API
-            existingDeclensionsMap.set(service.yclients_id, service.declensions);
-          }
-        });
-      }
+      existingServices.forEach(service => {
+        if (service.declensions) {
+          // Используем yclients_id как ключ, так как он будет сравниваться с service.id из API
+          existingDeclensionsMap.set(service.yclients_id, service.declensions);
+        }
+      });
       logger.info(`📝 Found ${existingDeclensionsMap.size} existing declensions`);
 
       // Определяем новые услуги (для которых нужно генерировать склонения)
@@ -191,68 +189,30 @@ class ServicesSync {
   }
 
   /**
-   * Сохранить услуги в Supabase
+   * Сохранить услуги в PostgreSQL (батчевый upsert)
    * @param {Array} services - Массив услуг
    * @returns {Promise<Object>} Результат сохранения
    */
   async saveServices(services) {
-    let processed = 0;
-    let errors = 0;
-    const errorDetails = [];
+    // Подготавливаем данные для всех услуг
+    const preparedServices = services.map(service => this.prepareServiceData(service));
 
-    for (const service of services) {
-      try {
-        const serviceData = this.prepareServiceData(service);
-        
-        const { error } = await supabase
-          .from(this.tableName)
-          .upsert(serviceData, { 
-            onConflict: 'yclients_id,company_id',
-            ignoreDuplicates: false 
-          });
+    try {
+      // Используем батчевый upsert через репозиторий
+      const result = await this.serviceRepo.syncBulkUpsert(preparedServices);
 
-        if (error) {
-          errors++;
-          errorDetails.push({
-            service: service.title,
-            error: error.message
-          });
-          
-          if (errors <= 5) {
-            logger.warn(`Failed to save service: ${service.title}`, { error: error.message });
-          }
-        } else {
-          processed++;
-          
-          if (processed % 10 === 0) {
-            logger.debug(`Progress: ${processed}/${services.length} services processed`);
-          }
-        }
+      logger.info(`✅ Batch upsert completed: ${result.count} services in ${result.duration}ms`);
 
-      } catch (error) {
-        errors++;
-        errorDetails.push({
-          service: service.title || 'Unknown',
-          error: error.message
-        });
-        
-        if (errors <= 5) {
-          logger.error('Error processing service', {
-            service: service.title,
-            error: error.message
-          });
-        }
-      }
+      return {
+        processed: result.count,
+        errors: 0,
+        errorDetails: [],
+        duration: result.duration
+      };
+    } catch (error) {
+      logger.error('❌ Batch upsert failed', { error: error.message });
+      throw error;
     }
-
-    if (errors > 0) {
-      logger.warn(`Services sync completed with ${errors} errors`, {
-        errorCount: errors,
-        firstErrors: errorDetails.slice(0, 5)
-      });
-    }
-
-    return { processed, errors, errorDetails };
   }
 
   /**
@@ -283,28 +243,13 @@ class ServicesSync {
   }
 
   /**
-   * Обновить статус синхронизации
-   * @param {string} status - Статус синхронизации
-   * @param {number} recordsProcessed - Количество обработанных записей
-   * @param {string} errorMessage - Сообщение об ошибке
+   * Обновить статус синхронизации (deprecated - не используется)
+   * TODO: Удалить после полной миграции с Supabase
    */
   async updateSyncStatus(status, recordsProcessed = 0, errorMessage = null) {
-    try {
-      await supabase
-        .from('sync_status')
-        .upsert({
-          table_name: this.tableName,
-          company_id: this.config.COMPANY_ID,
-          sync_status: status,
-          last_sync_at: new Date().toISOString(),
-          records_processed: recordsProcessed,
-          error_message: errorMessage
-        }, {
-          onConflict: 'table_name,company_id'
-        });
-    } catch (error) {
-      logger.error('Failed to update sync status', { error: error.message });
-    }
+    // Метод не используется в текущей реализации
+    // Статус синхронизации логируется, но не сохраняется в БД
+    logger.debug('updateSyncStatus called (no-op)', { status, recordsProcessed });
   }
 }
 
