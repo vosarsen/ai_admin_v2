@@ -16,6 +16,31 @@ const postgres = require('../../database/postgres');
 const { CompanyRepository, MarketplaceEventsRepository } = require('../../repositories');
 
 // ============================
+// HELPER: Validate salonId parameter
+// ============================
+function validateSalonId(salonId) {
+  const id = parseInt(salonId, 10);
+  if (isNaN(id) || id <= 0) {
+    return null;
+  }
+  return id;
+}
+
+// ============================
+// HELPER: Safe error response (hide stack traces)
+// ============================
+function safeErrorResponse(res, error, statusCode = 500) {
+  const message = process.env.NODE_ENV === 'production'
+    ? 'An error occurred'
+    : error.message;
+
+  return res.status(statusCode).json({
+    error: message,
+    code: error.code || 'INTERNAL_ERROR'
+  });
+}
+
+// ============================
 // ADMIN RATE LIMITER (in-memory, simple)
 // 100 requests per minute per IP
 // ============================
@@ -855,12 +880,15 @@ router.get('/marketplace/admin/salons', adminRateLimiter, adminAuth, async (req,
 // ============================
 router.get('/marketplace/admin/salon/:salonId/status', adminRateLimiter, adminAuth, async (req, res) => {
   try {
-    const { salonId } = req.params;
+    const validSalonId = validateSalonId(req.params.salonId);
+    if (!validSalonId) {
+      return res.status(400).json({ error: 'Invalid salon_id', code: 'INVALID_SALON_ID' });
+    }
 
-    logger.info('Admin: Getting salon status', { salonId });
+    logger.info('Admin: Getting salon status', { salonId: validSalonId });
 
     const service = await getMarketplaceService();
-    const result = await service.checkIntegrationHealth(parseInt(salonId));
+    const result = await service.checkIntegrationHealth(validSalonId);
 
     if (result.success) {
       res.json(result);
@@ -869,7 +897,8 @@ router.get('/marketplace/admin/salon/:salonId/status', adminRateLimiter, adminAu
     }
   } catch (error) {
     logger.error('Admin: Failed to get salon status:', error);
-    res.status(500).json({ error: error.message });
+    Sentry.captureException(error, { tags: { route: 'admin_salon_status' } });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -879,13 +908,16 @@ router.get('/marketplace/admin/salon/:salonId/status', adminRateLimiter, adminAu
 // ============================
 router.post('/marketplace/admin/salon/:salonId/disconnect', adminRateLimiter, adminAuth, async (req, res) => {
   try {
-    const { salonId } = req.params;
+    const validSalonId = validateSalonId(req.params.salonId);
+    if (!validSalonId) {
+      return res.status(400).json({ error: 'Invalid salon_id', code: 'INVALID_SALON_ID' });
+    }
     const { reason } = req.body;
 
-    logger.warn('Admin: Disconnecting salon', { salonId, reason, admin: req.adminUser });
+    logger.warn('Admin: Disconnecting salon', { salonId: validSalonId, reason, admin: req.adminUser });
 
     const service = await getMarketplaceService();
-    const result = await service.disconnectSalon(parseInt(salonId), reason || 'Admin requested');
+    const result = await service.disconnectSalon(validSalonId, reason || 'Admin requested');
 
     if (result.success) {
       res.json({ success: true, message: 'Salon disconnected successfully' });
@@ -894,7 +926,8 @@ router.post('/marketplace/admin/salon/:salonId/disconnect', adminRateLimiter, ad
     }
   } catch (error) {
     logger.error('Admin: Failed to disconnect salon:', error);
-    res.status(500).json({ error: error.message });
+    Sentry.captureException(error, { tags: { route: 'admin_disconnect_salon' } });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -904,14 +937,17 @@ router.post('/marketplace/admin/salon/:salonId/disconnect', adminRateLimiter, ad
 // ============================
 router.get('/marketplace/admin/salon/:salonId/payment-link', adminRateLimiter, adminAuth, async (req, res) => {
   try {
-    const { salonId } = req.params;
+    const validSalonId = validateSalonId(req.params.salonId);
+    if (!validSalonId) {
+      return res.status(400).json({ error: 'Invalid salon_id', code: 'INVALID_SALON_ID' });
+    }
     const { discount } = req.query;
 
-    logger.info('Admin: Generating payment link', { salonId, discount });
+    logger.info('Admin: Generating payment link', { salonId: validSalonId, discount });
 
     const service = await getMarketplaceService();
     const result = await service.generatePaymentLink(
-      parseInt(salonId),
+      validSalonId,
       discount ? parseFloat(discount) : null
     );
 
@@ -922,7 +958,8 @@ router.get('/marketplace/admin/salon/:salonId/payment-link', adminRateLimiter, a
     }
   } catch (error) {
     logger.error('Admin: Failed to generate payment link:', error);
-    res.status(500).json({ error: error.message });
+    Sentry.captureException(error, { tags: { route: 'admin_payment_link' } });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -1051,17 +1088,20 @@ router.post('/marketplace/admin/discounts', adminRateLimiter, adminAuth, async (
 // ============================
 router.post('/marketplace/admin/salon/:salonId/channels', adminRateLimiter, adminAuth, async (req, res) => {
   try {
-    const { salonId } = req.params;
+    const validSalonId = validateSalonId(req.params.salonId);
+    if (!validSalonId) {
+      return res.status(400).json({ error: 'Invalid salon_id', code: 'INVALID_SALON_ID' });
+    }
     const { channel, enabled } = req.body;
 
     if (!channel || typeof enabled !== 'boolean') {
       return res.status(400).json({ error: 'channel and enabled (boolean) are required' });
     }
 
-    logger.info('Admin: Updating channel', { salonId, channel, enabled });
+    logger.info('Admin: Updating channel', { salonId: validSalonId, channel, enabled });
 
     const service = await getMarketplaceService();
-    const result = await service.updateNotificationChannel(parseInt(salonId), channel, enabled);
+    const result = await service.updateNotificationChannel(validSalonId, channel, enabled);
 
     if (result.success) {
       res.json({ success: true, message: `Channel ${channel} ${enabled ? 'enabled' : 'disabled'}` });
@@ -1070,7 +1110,8 @@ router.post('/marketplace/admin/salon/:salonId/channels', adminRateLimiter, admi
     }
   } catch (error) {
     logger.error('Admin: Failed to update channel:', error);
-    res.status(500).json({ error: error.message });
+    Sentry.captureException(error, { tags: { route: 'admin_update_channel' } });
+    safeErrorResponse(res, error);
   }
 });
 
@@ -1080,17 +1121,20 @@ router.post('/marketplace/admin/salon/:salonId/channels', adminRateLimiter, admi
 // ============================
 router.post('/marketplace/admin/salon/:salonId/sms-names', adminRateLimiter, adminAuth, async (req, res) => {
   try {
-    const { salonId } = req.params;
+    const validSalonId = validateSalonId(req.params.salonId);
+    if (!validSalonId) {
+      return res.status(400).json({ error: 'Invalid salon_id', code: 'INVALID_SALON_ID' });
+    }
     const { short_names } = req.body;
 
     if (!Array.isArray(short_names)) {
       return res.status(400).json({ error: 'short_names must be an array of strings' });
     }
 
-    logger.info('Admin: Setting SMS short names', { salonId, short_names });
+    logger.info('Admin: Setting SMS short names', { salonId: validSalonId, short_names });
 
     const service = await getMarketplaceService();
-    const result = await service.setSmsShortNames(parseInt(salonId), short_names);
+    const result = await service.setSmsShortNames(validSalonId, short_names);
 
     if (result.success) {
       res.json({ success: true, message: 'SMS short names updated successfully' });
@@ -1099,7 +1143,8 @@ router.post('/marketplace/admin/salon/:salonId/sms-names', adminRateLimiter, adm
     }
   } catch (error) {
     logger.error('Admin: Failed to set SMS names:', error);
-    res.status(500).json({ error: error.message });
+    Sentry.captureException(error, { tags: { route: 'admin_sms_names' } });
+    safeErrorResponse(res, error);
   }
 });
 
