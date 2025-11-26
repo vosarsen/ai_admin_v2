@@ -1,16 +1,18 @@
 /**
- * Синхронизация клиентов из YClients в Supabase
+ * Синхронизация клиентов из YClients в PostgreSQL
+ * Migrated from Supabase to Repository Pattern (2025-11-26)
  */
 
-const { supabase } = require('../database/supabase');
+const postgres = require('../database/postgres');
+const ClientRepository = require('../repositories/ClientRepository');
 const logger = require('../utils/logger').child({ module: 'clients-sync' });
-const { 
-  YCLIENTS_CONFIG, 
-  createYclientsHeaders, 
+const {
+  YCLIENTS_CONFIG,
+  createYclientsHeaders,
   normalizePhone,
   calculateLoyaltyLevel,
   calculateClientSegment,
-  delay 
+  delay
 } = require('./sync-utils');
 const axios = require('axios');
 
@@ -18,6 +20,7 @@ class ClientsSync {
   constructor() {
     this.config = YCLIENTS_CONFIG;
     this.tableName = 'clients';
+    this.clientRepo = new ClientRepository(postgres.pool);
   }
 
   /**
@@ -160,71 +163,18 @@ class ClientsSync {
   }
 
   /**
-   * Сохранить клиентов в Supabase
+   * Сохранить клиентов в PostgreSQL (батчевый upsert)
    * @param {Array} clients - Массив клиентов
    * @returns {Promise<Object>} Результат сохранения
    */
   async saveClients(clients) {
-    let processed = 0;
-    let errors = 0;
-    const errorDetails = [];
+    // Подготавливаем данные для всех клиентов
+    const preparedClients = clients.map(client => this.prepareClientData(client));
 
-    for (const client of clients) {
-      try {
-        const clientData = this.prepareClientData(client);
-        
-        const { error } = await supabase
-          .from(this.tableName)
-          .upsert(clientData, { 
-            onConflict: 'yclients_id,company_id',
-            ignoreDuplicates: false 
-          });
-
-        if (error) {
-          errors++;
-          errorDetails.push({
-            client: client.name,
-            error: error.message
-          });
-          
-          if (errors <= 5) {
-            logger.warn(`Failed to save client: ${client.name}`, { error: error.message });
-          }
-        } else {
-          processed++;
-          
-          if (processed % 100 === 0) {
-            logger.debug(`Progress: ${processed}/${clients.length} clients processed`);
-          }
-        }
-
-      } catch (error) {
-        errors++;
-        errorDetails.push({
-          client: client.name || 'Unknown',
-          error: error.message
-        });
-        
-        if (errors <= 5) {
-          logger.error('Error processing client', {
-            client: client.name,
-            error: error.message
-          });
-        }
-      }
-    }
-
-    if (errors > 0) {
-      logger.warn(`Clients sync completed with ${errors} errors`, {
-        errorCount: errors,
-        firstErrors: errorDetails.slice(0, 5)
-      });
-    }
-    
-    // Добавляем статистику по total_spent
+    // Добавляем статистику по total_spent перед сохранением
     const statsClients = clients.filter(c => (c.sold_amount || c.spent || 0) > 0);
     logger.info(`💰 Financial stats: ${statsClients.length}/${clients.length} clients have total_spent > 0`);
-    
+
     if (statsClients.length > 0) {
       const topClients = statsClients
         .sort((a, b) => (b.sold_amount || b.spent || 0) - (a.sold_amount || a.spent || 0))
@@ -236,7 +186,22 @@ class ClientsSync {
       })));
     }
 
-    return { processed, errors, errorDetails };
+    try {
+      // Используем батчевый upsert через репозиторий
+      const result = await this.clientRepo.syncBulkUpsert(preparedClients);
+
+      logger.info(`✅ Batch upsert completed: ${result.count} clients in ${result.duration}ms`);
+
+      return {
+        processed: result.count,
+        errors: 0,
+        errorDetails: [],
+        duration: result.duration
+      };
+    } catch (error) {
+      logger.error('❌ Batch upsert failed', { error: error.message });
+      throw error;
+    }
   }
 
   /**
@@ -286,73 +251,53 @@ class ClientsSync {
   async syncVisitHistory(clients, maxClients = 50) {
     const { ClientRecordsSync } = require('./client-records-sync');
     const recordsSync = new ClientRecordsSync();
-    
+
     let processed = 0;
     const eligibleClients = clients
       .filter(c => c.visits_count >= 2 && c.phone)
       .sort((a, b) => b.visits_count - a.visits_count)
       .slice(0, maxClients);
-    
+
     for (const client of eligibleClients) {
       try {
         const records = await recordsSync.getClientRecords(client.id, client.phone);
-        
+
         if (records && records.length > 0) {
-          // Получаем ID клиента из базы
-          const { data: dbClient } = await supabase
-            .from(this.tableName)
-            .select('id')
-            .eq('yclients_id', client.id)
-            .eq('company_id', this.config.COMPANY_ID)
-            .single();
-          
+          // Получаем ID клиента из базы через Repository
+          const dbClient = await this.clientRepo.findById(client.id, this.config.COMPANY_ID);
+
           if (dbClient) {
             await recordsSync.saveClientVisits(dbClient.id, client.id, records);
             processed++;
-            
+
             if (processed % 10 === 0) {
               logger.debug(`Visit history synced for ${processed} clients`);
             }
           }
         }
-        
+
         // Задержка для соблюдения rate limits
         await delay(500);
-        
+
       } catch (error) {
-        logger.warn(`Failed to sync visits for client ${client.name}`, { 
-          error: error.message 
+        logger.warn(`Failed to sync visits for client ${client.name}`, {
+          error: error.message
         });
       }
     }
-    
+
     logger.info(`Visit history synced for ${processed} clients`);
     return { processed };
   }
 
   /**
-   * Обновить статус синхронизации
-   * @param {string} status - Статус синхронизации
-   * @param {number} recordsProcessed - Количество обработанных записей
-   * @param {string} errorMessage - Сообщение об ошибке
+   * Обновить статус синхронизации (deprecated - не используется)
+   * TODO: Удалить после полной миграции с Supabase
    */
   async updateSyncStatus(status, recordsProcessed = 0, errorMessage = null) {
-    try {
-      await supabase
-        .from('sync_status')
-        .upsert({
-          table_name: this.tableName,
-          company_id: this.config.COMPANY_ID,
-          sync_status: status,
-          last_sync_at: new Date().toISOString(),
-          records_processed: recordsProcessed,
-          error_message: errorMessage
-        }, {
-          onConflict: 'table_name,company_id'
-        });
-    } catch (error) {
-      logger.error('Failed to update sync status', { error: error.message });
-    }
+    // Метод не используется в текущей реализации
+    // Статус синхронизации логируется, но не сохраняется в БД
+    logger.debug('updateSyncStatus called (no-op)', { status, recordsProcessed });
   }
 }
 
