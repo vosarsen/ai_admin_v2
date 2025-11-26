@@ -1,8 +1,10 @@
 /**
- * Синхронизация расписаний мастеров из YClients в Supabase
+ * Синхронизация расписаний мастеров из YClients в PostgreSQL
+ * Migrated from Supabase to Repository Pattern (2025-11-26)
  */
 
-const { supabase } = require('../database/supabase');
+const postgres = require('../database/postgres');
+const StaffScheduleRepository = require('../repositories/StaffScheduleRepository');
 const logger = require('../utils/logger').child({ module: 'schedules-sync' });
 const { YCLIENTS_CONFIG, createYclientsHeaders, delay, formatDateForAPI } = require('./sync-utils');
 const axios = require('axios');
@@ -11,6 +13,7 @@ class SchedulesSync {
   constructor() {
     this.config = YCLIENTS_CONFIG;
     this.tableName = 'staff_schedules';
+    this.scheduleRepo = new StaffScheduleRepository(postgres.pool);
   }
 
   /**
@@ -193,65 +196,45 @@ class SchedulesSync {
   }
 
   /**
-   * Сохранить расписания в Supabase
+   * Сохранить расписания в PostgreSQL (батчевый upsert)
    * @param {Object} staffMember - Данные мастера
    * @param {Array} schedules - Массив дат (строки формата YYYY-MM-DD)
    * @returns {Promise<Object>} Результат сохранения
    */
   async saveSchedules(staffMember, schedules) {
-    let processed = 0;
-    let errors = 0;
+    // Подготавливаем данные для всех расписаний
+    const preparedSchedules = [];
 
     for (const dateString of schedules) {
-      try {
-        // Валидация даты
-        if (!dateString || typeof dateString !== 'string') {
-          logger.warn(`Invalid date for ${staffMember.name}: ${dateString}`);
-          errors++;
-          continue;
-        }
-
-        const scheduleData = {
-          staff_id: staffMember.id,
-          staff_name: staffMember.name,
-          date: dateString, // Используем дату напрямую как строку
-          is_working: true, // Если дата есть в списке - мастер работает
-          has_booking_slots: true, // Если дата есть - есть слоты
-          working_hours: null, // Детальные часы работы недоступны в этом endpoint
-          last_updated: new Date().toISOString()
-        };
-        
-        const { error } = await supabase
-          .from(this.tableName)
-          .upsert(scheduleData, { 
-            onConflict: 'staff_id,date',
-            ignoreDuplicates: false 
-          });
-
-        if (error) {
-          errors++;
-          if (errors <= 5) {
-            logger.warn(`Failed to save schedule for ${staffMember.name} on ${dateString}`, { 
-              error: error.message 
-            });
-          }
-        } else {
-          processed++;
-        }
-
-      } catch (error) {
-        errors++;
-        if (errors <= 5) {
-          logger.error('Error processing schedule', {
-            staff: staffMember.name,
-            date: dateString,
-            error: error.message
-          });
-        }
+      // Валидация даты
+      if (!dateString || typeof dateString !== 'string') {
+        logger.warn(`Invalid date for ${staffMember.name}: ${dateString}`);
+        continue;
       }
+
+      preparedSchedules.push({
+        yclients_staff_id: staffMember.id,
+        company_id: this.config.COMPANY_ID,
+        staff_name: staffMember.name,
+        date: dateString,
+        is_working: true,
+        has_booking_slots: true,
+        working_hours: null,
+        last_updated: new Date().toISOString()
+      });
     }
 
-    return { processed, errors };
+    if (preparedSchedules.length === 0) {
+      return { processed: 0, errors: 0 };
+    }
+
+    try {
+      const result = await this.scheduleRepo.syncBulkUpsert(preparedSchedules);
+      return { processed: result.count, errors: 0 };
+    } catch (error) {
+      logger.error('❌ Batch upsert failed for schedules', { error: error.message });
+      return { processed: 0, errors: preparedSchedules.length };
+    }
   }
 
   /**
@@ -262,18 +245,14 @@ class SchedulesSync {
     try {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
-      const { error } = await supabase
-        .from(this.tableName)
-        .delete()
-        .lt('date', formatDateForAPI(sevenDaysAgo));
-      
-      if (error) {
-        logger.warn('Failed to cleanup old schedules', { error: error.message });
-      } else {
-        logger.debug('Old schedules cleaned up');
-      }
-      
+
+      const query = `
+        DELETE FROM staff_schedules
+        WHERE date < $1
+      `;
+      await postgres.query(query, [formatDateForAPI(sevenDaysAgo)]);
+      logger.debug('Old schedules cleaned up');
+
     } catch (error) {
       logger.error('Error during schedule cleanup', { error: error.message });
     }
@@ -392,22 +371,9 @@ class SchedulesSync {
    * @param {string} errorMessage - Сообщение об ошибке
    */
   async updateSyncStatus(status, recordsProcessed = 0, errorMessage = null) {
-    try {
-      await supabase
-        .from('sync_status')
-        .upsert({
-          table_name: this.tableName,
-          company_id: this.config.COMPANY_ID,
-          sync_status: status,
-          last_sync_at: new Date().toISOString(),
-          records_processed: recordsProcessed,
-          error_message: errorMessage
-        }, {
-          onConflict: 'table_name,company_id'
-        });
-    } catch (error) {
-      logger.error('Failed to update sync status', { error: error.message });
-    }
+    // Метод не используется в текущей реализации
+    // Статус синхронизации логируется, но не сохраняется в БД
+    logger.debug('updateSyncStatus called (no-op)', { status, recordsProcessed });
   }
 }
 
