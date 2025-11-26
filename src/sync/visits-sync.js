@@ -1,16 +1,17 @@
 /**
- * Синхронизация истории визитов из YClients в Supabase
+ * Синхронизация истории визитов из YClients в PostgreSQL
+ * Migrated from Supabase to Repository Pattern (2025-11-26)
  * Загружает полную историю визитов клиентов для персонализации и аналитики
  */
 
 const axios = require('axios');
-const { supabase } = require('../database/supabase');
+const postgres = require('../database/postgres');
 const logger = require('../utils/logger').child({ module: 'visits-sync' });
-const { 
-  YCLIENTS_CONFIG, 
-  createYclientsHeaders, 
+const {
+  YCLIENTS_CONFIG,
+  createYclientsHeaders,
   normalizePhone,
-  delay 
+  delay
 } = require('./sync-utils');
 
 class VisitsSync {
@@ -114,29 +115,31 @@ class VisitsSync {
    * Получить клиентов для синхронизации
    */
   async getClientsForSync(limit, onlyVip, minVisits) {
-    let query = supabase
-      .from('clients')
-      .select('id, yclients_id, phone, name, visit_count, loyalty_level')
-      .eq('company_id', this.config.COMPANY_ID)
-      .gte('visit_count', minVisits)
-      .order('visit_count', { ascending: false });
-    
+    let sql = `
+      SELECT id, yclients_id, phone, name, visit_count, loyalty_level
+      FROM clients
+      WHERE company_id = $1 AND visit_count >= $2
+    `;
+    const params = [this.config.COMPANY_ID, minVisits];
+
     if (onlyVip) {
-      query = query.in('loyalty_level', ['Gold', 'VIP']);
+      sql += ` AND loyalty_level IN ('Gold', 'VIP')`;
     }
-    
+
+    sql += ` ORDER BY visit_count DESC`;
+
     if (limit) {
-      query = query.limit(limit);
+      sql += ` LIMIT $${params.length + 1}`;
+      params.push(limit);
     }
-    
-    const { data, error } = await query;
-    
-    if (error) {
+
+    try {
+      const result = await postgres.query(sql, params);
+      return result.rows || [];
+    } catch (error) {
       logger.error('Failed to fetch clients for sync', error);
       throw error;
     }
-    
-    return data || [];
   }
 
   /**
@@ -508,53 +511,62 @@ class VisitsSync {
   }
 
   /**
-   * Сохранить визиты пакетами
+   * Сохранить визиты пакетами (PostgreSQL)
    */
   async saveVisitsBatch(visits, client) {
     let processed = 0;
     let errors = 0;
-    
+
     // Добавляем client_id ко всем визитам
     const visitsWithClientId = visits.map(v => ({
       ...v,
       client_id: client.id
     }));
-    
+
     // Обрабатываем пакетами
     for (let i = 0; i < visitsWithClientId.length; i += this.BATCH_SIZE) {
       const batch = visitsWithClientId.slice(i, i + this.BATCH_SIZE);
-      
+
       try {
-        // Используем upsert для предотвращения дублей
-        const { data, error } = await supabase
-          .from('visits')
-          .upsert(batch, {
-            onConflict: 'company_id,yclients_record_id',
-            ignoreDuplicates: true
+        // Строим INSERT ON CONFLICT для upsert
+        for (const visit of batch) {
+          const columns = Object.keys(visit).filter(k => visit[k] !== undefined);
+          const values = columns.map(k => {
+            const val = visit[k];
+            if (val === null) return 'NULL';
+            if (typeof val === 'object') return `'${JSON.stringify(val).replace(/'/g, "''")}'`;
+            if (typeof val === 'string') return `'${val.replace(/'/g, "''")}'`;
+            if (typeof val === 'boolean') return val ? 'true' : 'false';
+            return val;
           });
-        
-        if (error) {
-          logger.error('Error saving visits batch', error);
-          errors += batch.length;
-        } else {
-          processed += batch.length;
+
+          const sql = `
+            INSERT INTO visits (${columns.join(', ')})
+            VALUES (${values.join(', ')})
+            ON CONFLICT (company_id, yclients_record_id)
+            DO UPDATE SET
+              ${columns.map(c => `${c} = EXCLUDED.${c}`).join(', ')}
+          `;
+
+          await postgres.query(sql);
+          processed++;
         }
-        
+
       } catch (error) {
         logger.error('Error processing visits batch', {
           error: error.message
         });
         errors += batch.length;
       }
-      
+
       // Небольшая задержка между пакетами
       if (i + this.BATCH_SIZE < visitsWithClientId.length) {
         await delay(100);
       }
     }
-    
+
     logger.debug(`Saved ${processed} visits for client ${client.name}, ${errors} errors`);
-    
+
     return { visitsProcessed: processed, errors };
   }
 
@@ -564,33 +576,22 @@ class VisitsSync {
   async updateSyncStats() {
     try {
       // Получаем общую статистику
-      const { data: stats } = await supabase
-        .from('visits')
-        .select('client_id', { count: 'exact', head: true })
-        .eq('company_id', this.config.COMPANY_ID);
-      
-      const { data: clientStats } = await supabase
-        .from('visits')
-        .select('client_id')
-        .eq('company_id', this.config.COMPANY_ID)
-        .limit(0);
-      
+      const countResult = await postgres.query(
+        `SELECT COUNT(*) as total, COUNT(DISTINCT client_id) as unique_clients
+         FROM visits WHERE company_id = $1`,
+        [this.config.COMPANY_ID]
+      );
+
+      const stats = countResult.rows[0] || { total: 0, unique_clients: 0 };
+
       logger.info('📊 Visits sync statistics:', {
-        totalVisits: stats?.count || 0,
-        uniqueClients: clientStats?.length || 0
+        totalVisits: stats.total,
+        uniqueClients: stats.unique_clients
       });
-      
-      // Обновляем статус синхронизации
-      await supabase
-        .from('company_sync_status')
-        .upsert({
-          company_id: this.config.COMPANY_ID,
-          table_name: 'visits',
-          last_sync_at: new Date().toISOString(),
-          records_count: stats?.count || 0,
-          status: 'completed'
-        });
-      
+
+      // Статус синхронизации логируется, но не сохраняется в БД (deprecated)
+      logger.debug('updateSyncStats completed (status update is no-op)');
+
     } catch (error) {
       logger.error('Failed to update sync stats', error);
     }
