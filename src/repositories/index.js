@@ -26,6 +26,7 @@ const WebhookEventsRepository = require('./WebhookEventsRepository');
 const MarketplaceEventsRepository = require('./MarketplaceEventsRepository');
 const AppointmentsCacheRepository = require('./AppointmentsCacheRepository');
 const MessageRepository = require('./MessageRepository');
+const DemoChatAnalyticsRepository = require('./DemoChatAnalyticsRepository');
 
 module.exports = {
   BaseRepository,
@@ -41,5 +42,6 @@ module.exports = {
   WebhookEventsRepository,
   MarketplaceEventsRepository,
   AppointmentsCacheRepository,
-  MessageRepository
+  MessageRepository,
+  DemoChatAnalyticsRepository
 };

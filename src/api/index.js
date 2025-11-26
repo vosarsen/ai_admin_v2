@@ -110,6 +110,10 @@ app.use('/api/calendar', calendarRoutes);
 const demoChatRoutes = require('./routes/demo-chat');
 app.use('/api', demoChatRoutes);
 
+// Demo chat analytics routes
+const demoChatAnalyticsRoutes = require('./routes/demo-chat-analytics');
+app.use('/api', demoChatAnalyticsRoutes);
+
 // Cache monitoring routes
 const cacheRoutes = require('./routes/cache-stats');
 app.use('/api/cache', cacheRoutes);

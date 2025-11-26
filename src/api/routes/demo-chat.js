@@ -5,6 +5,8 @@ const logger = require('../../utils/logger').child({ module: 'demo-chat' });
 const { body, validationResult } = require('express-validator');
 const aiAdminV2 = require('../../services/ai-admin-v2');
 const smartCache = require('../../services/cache/smart-cache');
+const postgres = require('../../database/postgres');
+const { DemoChatAnalyticsRepository } = require('../../repositories');
 
 // Demo configuration
 const DEMO_COMPANY_ID = 999999; // Special company ID for demo mode
@@ -48,6 +50,15 @@ const sessionLimiter = async (req, res, next) => {
 
     // Check limit
     if (messageCount >= 10) {
+      // Log limit_reached event
+      const analyticsRepo = new DemoChatAnalyticsRepository(postgres);
+      analyticsRepo.logEvent({
+        session_id: sessionId,
+        event_type: 'limit_reached',
+        user_ip: req.ip || req.connection?.remoteAddress,
+        event_data: { limit_type: 'session', message_count: messageCount }
+      });
+
       return res.status(429).json({
         success: false,
         error: 'demo_limit_reached',
@@ -83,6 +94,18 @@ const ipLimiter = async (req, res, next) => {
     const dailyCount = parseInt(count);
 
     if (dailyCount >= 100) {
+      // Log limit_reached event (no session_id for IP limits)
+      const analyticsRepo = new DemoChatAnalyticsRepository(postgres);
+      const { sessionId } = req.body;
+      if (sessionId) {
+        analyticsRepo.logEvent({
+          session_id: sessionId,
+          event_type: 'limit_reached',
+          user_ip: ip,
+          event_data: { limit_type: 'ip', request_count: dailyCount }
+        });
+      }
+
       return res.status(429).json({
         success: false,
         error: 'ip_limit_reached',
@@ -264,6 +287,7 @@ router.post('/demo-chat',
   ],
   async (req, res) => {
     const startTime = Date.now();
+    const analyticsRepo = new DemoChatAnalyticsRepository(postgres);
 
     try {
       // Validate input
@@ -281,6 +305,14 @@ router.post('/demo-chat',
         sessionId,
         message: message.substring(0, 50) + '...',
         ip: req.ip
+      });
+
+      // Log message_sent event
+      analyticsRepo.logEvent({
+        session_id: sessionId,
+        event_type: 'message_sent',
+        message: message,
+        user_ip: req.ip || req.connection?.remoteAddress
       });
 
       // Use sessionId as phone number to maintain conversation context
@@ -308,6 +340,7 @@ router.post('/demo-chat',
       const messagesRemaining = Math.max(0, 10 - parseInt(count));
 
       const duration = Date.now() - startTime;
+      const botResponse = result.message || result.response || result;
 
       logger.info('Demo chat response sent', {
         sessionId,
@@ -315,8 +348,19 @@ router.post('/demo-chat',
         messagesRemaining
       });
 
+      // Log message_received event
+      analyticsRepo.logEvent({
+        session_id: sessionId,
+        event_type: 'message_received',
+        message: message,
+        response: botResponse,
+        user_ip: req.ip || req.connection?.remoteAddress,
+        processing_time_ms: duration,
+        ai_provider: 'gemini-flash'
+      });
+
       // Generate contextual suggestions based on the conversation
-      const suggestions = generateSuggestions(message, result.message || result.response || result);
+      const suggestions = generateSuggestions(message, botResponse);
 
       res.json({
         success: true,
@@ -330,12 +374,25 @@ router.post('/demo-chat',
 
     } catch (error) {
       const duration = Date.now() - startTime;
+      const { sessionId } = req.body;
 
       logger.error('Demo chat error:', {
         error: error.message,
         stack: error.stack,
         duration
       });
+
+      // Log error event
+      if (sessionId) {
+        analyticsRepo.logEvent({
+          session_id: sessionId,
+          event_type: 'error',
+          user_ip: req.ip || req.connection?.remoteAddress,
+          processing_time_ms: duration,
+          error_type: error.name || 'UnknownError',
+          error_message: error.message
+        });
+      }
 
       // Handle different error types
       let statusCode = 500;
