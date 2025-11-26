@@ -124,7 +124,8 @@ class AIAdminV2 {
         ]
       },
       redisContext: null,
-      isDemo: true // Флаг для промпта
+      isDemo: true, // Флаг для промпта
+      startTime: Date.now() // For performance tracking
     };
   }
 
