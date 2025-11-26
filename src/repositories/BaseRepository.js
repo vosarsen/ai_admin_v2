@@ -515,6 +515,122 @@ class BaseRepository {
   }
 
   /**
+   * Split array into chunks for batch processing
+   * @private
+   * @param {Array} array - Array to split
+   * @param {number} size - Chunk size
+   * @returns {Array<Array>} Array of chunks
+   */
+  _chunk(array, size) {
+    const chunks = [];
+    for (let i = 0; i < array.length; i += size) {
+      chunks.push(array.slice(i, i + size));
+    }
+    return chunks;
+  }
+
+  /**
+   * Bulk upsert with automatic batching for large datasets
+   *
+   * Designed for sync operations that need to handle thousands of records.
+   * Automatically splits data into batches and processes within a transaction.
+   *
+   * @param {string} table - Table name
+   * @param {Array<Object>} dataArray - Array of records (can be >500)
+   * @param {Array<string>} conflictColumns - Columns for ON CONFLICT clause
+   * @param {Object} options - { batchSize: 100 }
+   * @returns {Promise<Object>} { success: boolean, count: number, duration: number }
+   *
+   * @example
+   * // Sync 1,299 clients in batches of 100
+   * const result = await repo.bulkUpsertBatched(
+   *   'clients',
+   *   clientsFromYClients,
+   *   ['phone', 'company_id'],
+   *   { batchSize: 100 }
+   * );
+   * // result: { success: true, count: 1299, duration: 4500 }
+   */
+  async bulkUpsertBatched(table, dataArray, conflictColumns, options = {}) {
+    const startTime = Date.now();
+    const { batchSize = 100 } = options;
+
+    if (!dataArray || dataArray.length === 0) {
+      return { success: true, count: 0, duration: 0 };
+    }
+
+    try {
+      const batches = this._chunk(dataArray, batchSize);
+      let totalUpserted = 0;
+
+      // Process all batches within a single transaction
+      await this.withTransaction(async (client) => {
+        for (const batch of batches) {
+          const columns = Object.keys(batch[0]);
+          const columnCount = columns.length;
+
+          // Build VALUES clause with placeholders
+          const valuesList = batch.map((_, rowIndex) => {
+            const rowPlaceholders = columns.map((_, colIndex) => {
+              const paramIndex = rowIndex * columnCount + colIndex + 1;
+              return `$${paramIndex}`;
+            });
+            return `(${rowPlaceholders.join(', ')})`;
+          }).join(', ');
+
+          // Flatten all values into single array
+          const allValues = batch.flatMap(row => columns.map(col => row[col]));
+
+          // Build UPDATE SET clause
+          const updateSet = columns
+            .filter(col => !conflictColumns.includes(col))
+            .map(col => `${col} = EXCLUDED.${col}`)
+            .join(', ');
+
+          const sql = `
+            INSERT INTO ${this._sanitize(table)} (${columns.join(', ')})
+            VALUES ${valuesList}
+            ON CONFLICT (${conflictColumns.join(', ')})
+            DO UPDATE SET ${updateSet}
+          `;
+
+          const result = await client.query(sql, allValues);
+          totalUpserted += result.rowCount;
+        }
+      });
+
+      const duration = Date.now() - startTime;
+
+      if (process.env.LOG_DATABASE_CALLS === 'true') {
+        console.log(`[DB] bulkUpsertBatched ${table} - ${totalUpserted} rows in ${batches.length} batches - ${duration}ms`);
+      }
+
+      return { success: true, count: totalUpserted, duration };
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      console.error(`[DB Error] bulkUpsertBatched ${table}:`, error.message);
+
+      Sentry.captureException(error, {
+        tags: {
+          component: 'repository',
+          table,
+          operation: 'bulkUpsertBatched',
+          migration_phase: 'supabase_removal'
+        },
+        extra: {
+          conflictColumns,
+          totalRows: dataArray.length,
+          batchSize,
+          batchCount: Math.ceil(dataArray.length / batchSize),
+          duration: `${duration}ms`
+        }
+      });
+
+      throw this._handleError(error);
+    }
+  }
+
+  /**
    * Sanitize table/column names to prevent SQL injection
    * @private
    * @param {string} identifier - Table or column name

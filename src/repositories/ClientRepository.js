@@ -171,6 +171,30 @@ class ClientRepository extends BaseRepository {
   async bulkUpsert(clientsArray) {
     return super.bulkUpsert('clients', clientsArray, ['yclients_id', 'company_id']);
   }
+
+  /**
+   * Bulk upsert clients with automatic batching for sync operations
+   *
+   * Designed for clients-sync.js to handle 1,299+ clients efficiently.
+   * Uses batching to avoid parameter limits and transaction for atomicity.
+   *
+   * @param {Array<Object>} clientsArray - Array of client data (can be >500)
+   * @param {Object} options - { batchSize: 100 }
+   * @returns {Promise<Object>} { success: boolean, count: number, duration: number }
+   *
+   * @example
+   * // Sync all clients from YClients
+   * const result = await clientRepo.syncBulkUpsert(clientsFromYClients);
+   * // result: { success: true, count: 1299, duration: 4500 }
+   */
+  async syncBulkUpsert(clientsArray, options = {}) {
+    return super.bulkUpsertBatched(
+      'clients',
+      clientsArray,
+      ['yclients_id', 'company_id'],
+      { batchSize: options.batchSize || 100 }
+    );
+  }
 }
 
 module.exports = ClientRepository;

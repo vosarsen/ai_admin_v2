@@ -52,6 +52,37 @@ class StaffRepository extends BaseRepository {
       company_id: companyId
     });
   }
+
+  /**
+   * Bulk insert or update multiple staff members
+   *
+   * @param {Array<Object>} staffArray - Array of staff data
+   * @returns {Promise<Array>} Inserted/updated staff records
+   */
+  async bulkUpsert(staffArray) {
+    return super.bulkUpsert('staff', staffArray, ['yclients_id', 'company_id']);
+  }
+
+  /**
+   * Bulk upsert staff with automatic batching for sync operations
+   *
+   * Designed for staff-sync.js to handle staff efficiently.
+   *
+   * @param {Array<Object>} staffArray - Array of staff data
+   * @param {Object} options - { batchSize: 50 }
+   * @returns {Promise<Object>} { success: boolean, count: number, duration: number }
+   *
+   * @example
+   * const result = await staffRepo.syncBulkUpsert(staffFromYClients);
+   */
+  async syncBulkUpsert(staffArray, options = {}) {
+    return super.bulkUpsertBatched(
+      'staff',
+      staffArray,
+      ['yclients_id', 'company_id'],
+      { batchSize: options.batchSize || 50 }
+    );
+  }
 }
 
 module.exports = StaffRepository;

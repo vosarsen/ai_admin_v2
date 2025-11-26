@@ -161,6 +161,39 @@ class BookingRepository extends BaseRepository {
       order: 'asc'
     });
   }
+
+  /**
+   * Bulk insert or update multiple bookings
+   *
+   * @param {Array<Object>} bookingsArray - Array of booking data
+   * @returns {Promise<Array>} Inserted/updated booking records
+   */
+  async bulkUpsert(bookingsArray) {
+    return super.bulkUpsert('bookings', bookingsArray, ['yclients_record_id', 'company_id']);
+  }
+
+  /**
+   * Bulk upsert bookings with automatic batching for sync operations
+   *
+   * Designed for bookings-sync.js to handle bookings efficiently.
+   * This is the most complex sync as bookings have foreign key dependencies
+   * on clients, staff, and services.
+   *
+   * @param {Array<Object>} bookingsArray - Array of booking data
+   * @param {Object} options - { batchSize: 100 }
+   * @returns {Promise<Object>} { success: boolean, count: number, duration: number }
+   *
+   * @example
+   * const result = await bookingRepo.syncBulkUpsert(bookingsFromYClients);
+   */
+  async syncBulkUpsert(bookingsArray, options = {}) {
+    return super.bulkUpsertBatched(
+      'bookings',
+      bookingsArray,
+      ['yclients_record_id', 'company_id'],
+      { batchSize: options.batchSize || 100 }
+    );
+  }
 }
 
 module.exports = BookingRepository;

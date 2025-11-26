@@ -92,6 +92,27 @@ class ServiceRepository extends BaseRepository {
   async bulkUpsert(servicesArray) {
     return super.bulkUpsert('services', servicesArray, ['yclients_id', 'company_id']);
   }
+
+  /**
+   * Bulk upsert services with automatic batching for sync operations
+   *
+   * Designed for services-sync.js to handle ~63 services efficiently.
+   *
+   * @param {Array<Object>} servicesArray - Array of service data
+   * @param {Object} options - { batchSize: 100 }
+   * @returns {Promise<Object>} { success: boolean, count: number, duration: number }
+   *
+   * @example
+   * const result = await serviceRepo.syncBulkUpsert(servicesFromYClients);
+   */
+  async syncBulkUpsert(servicesArray, options = {}) {
+    return super.bulkUpsertBatched(
+      'services',
+      servicesArray,
+      ['yclients_id', 'company_id'],
+      { batchSize: options.batchSize || 100 }
+    );
+  }
 }
 
 module.exports = ServiceRepository;

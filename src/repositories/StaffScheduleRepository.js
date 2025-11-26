@@ -102,6 +102,28 @@ class StaffScheduleRepository extends BaseRepository {
       ['yclients_staff_id', 'date', 'company_id']
     );
   }
+
+  /**
+   * Bulk upsert schedules with automatic batching for sync operations
+   *
+   * Designed for schedules-sync.js to handle ~500 schedules efficiently.
+   * Uses larger batch size (200) since schedules are simpler records.
+   *
+   * @param {Array<Object>} schedulesArray - Array of schedule data
+   * @param {Object} options - { batchSize: 200 }
+   * @returns {Promise<Object>} { success: boolean, count: number, duration: number }
+   *
+   * @example
+   * const result = await scheduleRepo.syncBulkUpsert(schedulesFromYClients);
+   */
+  async syncBulkUpsert(schedulesArray, options = {}) {
+    return super.bulkUpsertBatched(
+      'staff_schedules',
+      schedulesArray,
+      ['yclients_staff_id', 'date', 'company_id'],
+      { batchSize: options.batchSize || 200 }
+    );
+  }
 }
 
 module.exports = StaffScheduleRepository;
