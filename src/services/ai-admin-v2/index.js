@@ -135,7 +135,7 @@ class AIAdminV2 {
   async processMessage(message, phone, companyId, options = {}) {
     let context = null;
     let results = null;
-    const { shouldAskHowToHelp = false, isThankYouMessage = false } = options;
+    const { shouldAskHowToHelp = false, isThankYouMessage = false, aiProvider = null } = options;
     
     // Начинаем отслеживание операции
     const operation = performanceMetrics.startOperation('processMessage');
@@ -255,7 +255,7 @@ class AIAdminV2 {
         const aiResponse = await this.callAI(prompt, {
           message: message,
           promptName: promptName
-        });
+        }, aiProvider);
         
         const reactResult = await reactProcessor.processReActCycle(
           aiResponse, 
@@ -273,12 +273,12 @@ class AIAdminV2 {
         logger.info(`ReAct completed in ${reactResult.iterations} iterations`);
       } else {
         // Старая логика обработки
-        
+
         // Один вызов AI со всей информацией
         const aiResponse = await this.callAI(prompt, {
           message: message,
           promptName: promptName
-        });
+        }, aiProvider);
         
         finalResponse = await this.processAIResponse(aiResponse, context);
         executedCommands = commandHandler.extractCommands(aiResponse);
@@ -757,13 +757,13 @@ ${JSON.stringify(slotsData)}
   /**
    * Вызов AI через новую систему провайдеров
    */
-  async callAI(prompt, context = {}) {
+  async callAI(prompt, context = {}, aiProvider = null) {
     const startTime = Date.now();
-    
+
     // Используем retry логику из ErrorHandler
     return await this.errorHandler.executeWithRetry(async () => {
-      // Получаем провайдера через фабрику
-      const provider = await providerFactory.getProvider();
+      // Получаем провайдера через фабрику (используем указанный или дефолтный)
+      const provider = await providerFactory.getProvider(aiProvider);
       
       // Вызываем AI
       const result = await provider.call(prompt, {

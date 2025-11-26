@@ -289,13 +289,15 @@ router.post('/demo-chat',
 
       // Process message with AI
       // We pass demo company ID and special phone format
+      // Use DeepSeek for demo (doesn't require VPN unlike Gemini)
       const result = await aiAdminV2.processMessage(
         message,
         demoPhone,
         DEMO_COMPANY_ID,
         {
           isDemoMode: true, // Add demo mode flag
-          demoCompanyData: DEMO_COMPANY_DATA
+          demoCompanyData: DEMO_COMPANY_DATA,
+          aiProvider: 'deepseek' // Use DeepSeek for demo chat
         }
       );
 
