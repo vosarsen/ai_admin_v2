@@ -369,13 +369,20 @@ class CommandHandler {
       tomorrow.setDate(tomorrow.getDate() + 1);
       const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-      // Mock available time slots
+      // Mock available time slots (every 30 minutes for better UX)
       const mockSlots = [
         { time: '10:00', datetime: `${tomorrowStr}T10:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 },
-        { time: '12:00', datetime: `${tomorrowStr}T12:00:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 },
+        { time: '10:30', datetime: `${tomorrowStr}T10:30:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 },
+        { time: '11:00', datetime: `${tomorrowStr}T11:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 },
+        { time: '11:30', datetime: `${tomorrowStr}T11:30:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 },
+        { time: '12:00', datetime: `${tomorrowStr}T12:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 },
+        { time: '12:30', datetime: `${tomorrowStr}T12:30:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 },
         { time: '14:00', datetime: `${tomorrowStr}T14:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 },
-        { time: '16:00', datetime: `${tomorrowStr}T16:00:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 },
-        { time: '18:00', datetime: `${tomorrowStr}T18:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 }
+        { time: '14:30', datetime: `${tomorrowStr}T14:30:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 },
+        { time: '16:00', datetime: `${tomorrowStr}T16:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 },
+        { time: '16:30', datetime: `${tomorrowStr}T16:30:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 },
+        { time: '18:00', datetime: `${tomorrowStr}T18:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 },
+        { time: '18:30', datetime: `${tomorrowStr}T18:30:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 }
       ];
 
       // Try to find the service from context
@@ -1378,23 +1385,35 @@ class CommandHandler {
       }
     }
     
-    // Если имя все еще не найдено, это ошибка
+    // Если имя все еще не найдено, это ошибка (кроме demo режима)
     if (!clientName) {
-      const nameError = new Error('Требуется имя клиента');
-      nameError.code = 'CLIENT_NAME_REQUIRED';
-      throw nameError;
+      // В demo режиме используем дефолтное имя
+      if (context.isDemo) {
+        clientName = 'Demo User';
+        logger.info('🎭 Demo mode: using default client name');
+      } else {
+        const nameError = new Error('Требуется имя клиента');
+        nameError.code = 'CLIENT_NAME_REQUIRED';
+        throw nameError;
+      }
     }
     
-    // Проверяем, что staff_id определен
+    // Проверяем, что staff_id определен (кроме demo режима)
     if (!staffId || isNaN(staffId)) {
-      logger.error('Staff ID is not defined:', { 
-        staffId, 
-        params,
-        lastSearch: context.lastSearch
-      });
-      const staffError = new Error('Мастер не определен');
-      staffError.code = 'STAFF_NOT_SPECIFIED';
-      throw staffError;
+      // В demo режиме используем дефолтного мастера
+      if (context.isDemo) {
+        staffId = context.staff[0]?.id || 1; // Первый мастер или ID 1
+        logger.info('🎭 Demo mode: using default staff_id:', staffId);
+      } else {
+        logger.error('Staff ID is not defined:', {
+          staffId,
+          params,
+          lastSearch: context.lastSearch
+        });
+        const staffError = new Error('Мастер не определен');
+        staffError.code = 'STAFF_NOT_SPECIFIED';
+        throw staffError;
+      }
     }
     
     // Проверяем, что время указано
@@ -1432,7 +1451,34 @@ class CommandHandler {
       lastSearch: context.lastSearch,
       fullBookingData: JSON.stringify(bookingData)
     });
-    
+
+    // DEMO MODE: Return mock successful booking
+    if (context.isDemo) {
+      logger.info('🎭 Demo mode: returning mock successful booking');
+
+      // Find service name
+      const service = context.services.find(s => s.id === serviceId || s.yclients_id === serviceId);
+      const serviceName = service?.title || params.service_name || 'Услуга';
+
+      // Find staff name
+      const staff = context.staff.find(s => s.id === staffId || s.yclients_id === staffId);
+      const staffName = staff?.name || params.staff_name || 'мастера';
+
+      return {
+        success: true,
+        type: 'booking_created',
+        data: {
+          id: Math.floor(Math.random() * 1000000) + 100000, // Random booking ID
+          datetime: `${parsedDate} ${params.time}:00`,
+          service: serviceName,
+          staff: staffName,
+          client: clientName,
+          phone: cleanPhone
+        },
+        message: `✅ Отлично! Записал вас на ${serviceName} к ${staffName} на ${parsedDate} в ${params.time}`
+      };
+    }
+
     // Сначала ищем или создаем клиента в YClients
     const yclientsClient = bookingService.getYclientsClient();
     const companyId = context.company.yclients_id || context.company.company_id;
