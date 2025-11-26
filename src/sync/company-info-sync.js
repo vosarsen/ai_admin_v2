@@ -1,14 +1,17 @@
+/**
+ * Синхронизация информации о компании из YClients в PostgreSQL
+ * Migrated from Supabase to Repository Pattern (2025-11-26)
+ */
+
 const logger = require('../utils/logger').child({ module: 'company-info-sync' });
-const { supabase } = require('../database/supabase');
+const postgres = require('../database/postgres');
+const CompanyRepository = require('../repositories/CompanyRepository');
 const { YclientsClient } = require('../integrations/yclients/client');
 
-/**
- * Синхронизация информации о компании из YClients API
- * Автоматически загружает и обновляет данные компании в таблице companies
- */
 class CompanyInfoSync {
   constructor() {
     this.yclientsClient = new YclientsClient();
+    this.companyRepo = new CompanyRepository(postgres.pool);
   }
 
   /**
@@ -50,40 +53,9 @@ class CompanyInfoSync {
         updated_at: new Date().toISOString()
       };
 
-      // Сохраняем или обновляем запись в БД
-      const { data: existingCompany, error: fetchError } = await supabase
-        .from('companies')
-        .select('id')
-        .eq('company_id', companyId)
-        .single();
-
-      let result;
-      if (fetchError && fetchError.code === 'PGRST116') {
-        // Запись не найдена, создаем новую
-        logger.info(`Creating new company record for ${companyId}`);
-        const { data, error } = await supabase
-          .from('companies')
-          .insert([companyRecord])
-          .select()
-          .single();
-          
-        if (error) throw error;
-        result = data;
-      } else if (existingCompany) {
-        // Обновляем существующую запись
-        logger.info(`Updating existing company record for ${companyId}`);
-        const { data, error } = await supabase
-          .from('companies')
-          .update(companyRecord)
-          .eq('company_id', companyId)
-          .select()
-          .single();
-          
-        if (error) throw error;
-        result = data;
-      } else if (fetchError) {
-        throw fetchError;
-      }
+      // Сохраняем или обновляем запись в БД через Repository Pattern
+      logger.info(`Upserting company record for ${companyId}`);
+      const result = await this.companyRepo.upsert(companyRecord);
 
       logger.info(`Company info sync completed for ${companyId}`, {
         title: result.title,
