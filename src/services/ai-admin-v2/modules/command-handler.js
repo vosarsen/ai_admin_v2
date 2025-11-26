@@ -360,6 +360,42 @@ class CommandHandler {
    * Поиск свободных слотов
    */
   async searchSlots(params, context) {
+    // DEMO MODE: Return mock slots for demo chat
+    if (context.isDemo) {
+      logger.info('🎭 Demo mode: returning mock slots');
+
+      // Generate tomorrow's date
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+      // Mock available time slots
+      const mockSlots = [
+        { time: '10:00', datetime: `${tomorrowStr}T10:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 },
+        { time: '12:00', datetime: `${tomorrowStr}T12:00:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 },
+        { time: '14:00', datetime: `${tomorrowStr}T14:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 },
+        { time: '16:00', datetime: `${tomorrowStr}T16:00:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 },
+        { time: '18:00', datetime: `${tomorrowStr}T18:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 }
+      ];
+
+      // Try to find the service from context
+      const service = context.services.find(s =>
+        s.title.toLowerCase().includes((params.service_name || '').toLowerCase())
+      ) || context.services[0];
+
+      logger.info(`🎭 Demo mode: returning ${mockSlots.length} mock slots for ${service?.title || 'service'}`);
+
+      return {
+        service: {
+          title: service?.title || 'Стрижка',
+          yclients_id: service?.id || 1
+        },
+        staff: null,
+        slots: mockSlots,
+        partialWindows: []
+      };
+    }
+
     // Сначала пытаемся использовать данные из контекста диалога
     let serviceToSearch = params.service_name;
     let staffToSearch = params.staff_name;
