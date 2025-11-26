@@ -83,7 +83,12 @@ class AIAdminV2 {
       company: {
         id: 999999,
         name: demoData.name,
+        title: demoData.name, // Add title for business logic detection
         type: 'beauty_salon',
+        raw_data: {
+          short_descr: 'Демонстрационный салон красоты',
+          services: demoData.services
+        },
         settings: {
           timezone: 'Europe/Moscow',
           workingHours: {
