@@ -1,8 +1,10 @@
 /**
- * Синхронизация мастеров из YClients в Supabase
+ * Синхронизация мастеров из YClients в PostgreSQL
+ * Migrated from Supabase to Repository Pattern (2025-11-26)
  */
 
-const { supabase } = require('../database/supabase');
+const postgres = require('../database/postgres');
+const StaffRepository = require('../repositories/StaffRepository');
 const logger = require('../utils/logger').child({ module: 'staff-sync' });
 const { YCLIENTS_CONFIG, createYclientsHeaders, delay } = require('./sync-utils');
 const axios = require('axios');
@@ -12,6 +14,7 @@ class StaffSync {
   constructor() {
     this.config = YCLIENTS_CONFIG;
     this.tableName = 'staff';
+    this.staffRepo = new StaffRepository(postgres.pool);
   }
 
   /**
@@ -42,22 +45,17 @@ class StaffSync {
 
       // Получаем существующих мастеров из БД для сохранения склонений
       logger.info('📚 Loading existing staff from database...');
-      const { data: existingStaff } = await supabase
-        .from(this.tableName)
-        .select('yclients_id, declensions')
-        .eq('company_id', this.config.COMPANY_ID);
-      
+      const existingStaff = await this.staffRepo.findAll(this.config.COMPANY_ID, true);
+
       // Создаем маппинг существующих склонений
       // ВАЖНО: staffMember.id из YClients API соответствует yclients_id в нашей БД
       const existingDeclensionsMap = new Map();
-      if (existingStaff) {
-        existingStaff.forEach(staffMember => {
-          if (staffMember.declensions) {
-            // Используем yclients_id как ключ, так как он будет сравниваться с staffMember.id из API
-            existingDeclensionsMap.set(staffMember.yclients_id, staffMember.declensions);
-          }
-        });
-      }
+      existingStaff.forEach(staffMember => {
+        if (staffMember.declensions) {
+          // Используем yclients_id как ключ, так как он будет сравниваться с staffMember.id из API
+          existingDeclensionsMap.set(staffMember.yclients_id, staffMember.declensions);
+        }
+      });
       logger.info(`📝 Found ${existingDeclensionsMap.size} existing staff declensions`);
 
       // Определяем новых мастеров (для которых нужно генерировать склонения)
@@ -160,68 +158,30 @@ class StaffSync {
   }
 
   /**
-   * Сохранить мастеров в Supabase
+   * Сохранить мастеров в PostgreSQL (батчевый upsert)
    * @param {Array} staffList - Массив мастеров
    * @returns {Promise<Object>} Результат сохранения
    */
   async saveStaff(staffList) {
-    let processed = 0;
-    let errors = 0;
-    const errorDetails = [];
+    // Подготавливаем данные для всех мастеров
+    const preparedStaff = staffList.map(staff => this.prepareStaffData(staff));
 
-    for (const staff of staffList) {
-      try {
-        const staffData = this.prepareStaffData(staff);
-        
-        const { error } = await supabase
-          .from(this.tableName)
-          .upsert(staffData, { 
-            onConflict: 'yclients_id,company_id',
-            ignoreDuplicates: false 
-          });
+    try {
+      // Используем батчевый upsert через репозиторий
+      const result = await this.staffRepo.syncBulkUpsert(preparedStaff);
 
-        if (error) {
-          errors++;
-          errorDetails.push({
-            staff: staff.name,
-            error: error.message
-          });
-          
-          if (errors <= 5) {
-            logger.warn(`Failed to save staff: ${staff.name}`, { error: error.message });
-          }
-        } else {
-          processed++;
-          
-          if (processed % 10 === 0) {
-            logger.debug(`Progress: ${processed}/${staffList.length} staff processed`);
-          }
-        }
+      logger.info(`✅ Batch upsert completed: ${result.count} staff in ${result.duration}ms`);
 
-      } catch (error) {
-        errors++;
-        errorDetails.push({
-          staff: staff.name || 'Unknown',
-          error: error.message
-        });
-        
-        if (errors <= 5) {
-          logger.error('Error processing staff', {
-            staff: staff.name,
-            error: error.message
-          });
-        }
-      }
+      return {
+        processed: result.count,
+        errors: 0,
+        errorDetails: [],
+        duration: result.duration
+      };
+    } catch (error) {
+      logger.error('❌ Batch upsert failed', { error: error.message });
+      throw error;
     }
-
-    if (errors > 0) {
-      logger.warn(`Staff sync completed with ${errors} errors`, {
-        errorCount: errors,
-        firstErrors: errorDetails.slice(0, 5)
-      });
-    }
-
-    return { processed, errors, errorDetails };
   }
 
   /**
@@ -255,44 +215,26 @@ class StaffSync {
    */
   async deactivateAllStaff() {
     try {
-      const { error } = await supabase
-        .from(this.tableName)
-        .update({ is_active: false })
-        .eq('company_id', this.config.COMPANY_ID);
-      
-      if (error) {
-        logger.warn('Failed to deactivate staff', { error: error.message });
-      } else {
-        logger.debug('All staff deactivated before sync');
-      }
+      const query = `
+        UPDATE staff
+        SET is_active = false, last_sync_at = NOW()
+        WHERE company_id = $1
+      `;
+      await postgres.query(query, [this.config.COMPANY_ID]);
+      logger.debug('All staff deactivated before sync');
     } catch (error) {
       logger.error('Error deactivating staff', { error: error.message });
     }
   }
 
   /**
-   * Обновить статус синхронизации
-   * @param {string} status - Статус синхронизации
-   * @param {number} recordsProcessed - Количество обработанных записей
-   * @param {string} errorMessage - Сообщение об ошибке
+   * Обновить статус синхронизации (deprecated - не используется)
+   * TODO: Удалить после полной миграции с Supabase
    */
   async updateSyncStatus(status, recordsProcessed = 0, errorMessage = null) {
-    try {
-      await supabase
-        .from('sync_status')
-        .upsert({
-          table_name: this.tableName,
-          company_id: this.config.COMPANY_ID,
-          sync_status: status,
-          last_sync_at: new Date().toISOString(),
-          records_processed: recordsProcessed,
-          error_message: errorMessage
-        }, {
-          onConflict: 'table_name,company_id'
-        });
-    } catch (error) {
-      logger.error('Failed to update sync status', { error: error.message });
-    }
+    // Метод не используется в текущей реализации
+    // Статус синхронизации логируется, но не сохраняется в БД
+    logger.debug('updateSyncStatus called (no-op)', { status, recordsProcessed });
   }
 }
 
