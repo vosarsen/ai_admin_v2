@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const logger = require('../../utils/logger');
-const { supabase } = require('../../database/supabase');
+// Supabase import removed (2025-11-26) - not used in this file
 const YClientsWebhookProcessor = require('../../services/webhook-processor');
 const config = require('../../config');
 const crypto = require('crypto');

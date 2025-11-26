@@ -1,11 +1,11 @@
 // src/api/routes/yclients-marketplace.js
 // YClients Marketplace Integration - ПРАВИЛЬНАЯ РЕАЛИЗАЦИЯ согласно документации
 // https://docs.yclients.com/marketplace
+// Supabase import removed (2025-11-26) - not used in this file
 
 const express = require('express');
 const router = express.Router();
 const logger = require('../../utils/logger');
-const { supabase } = require('../../database/supabase');
 const { getSessionPool } = require('../../integrations/whatsapp/session-pool');
 const { YclientsClient } = require('../../integrations/yclients/client');
 const crypto = require('crypto');

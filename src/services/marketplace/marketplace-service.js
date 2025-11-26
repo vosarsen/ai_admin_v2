@@ -1,7 +1,7 @@
 // src/services/marketplace/marketplace-service.js
 // Сервис для работы с маркетплейсом YClients и управления подключениями
+// Supabase import removed (2025-11-26) - not used in this file
 
-const { supabase } = require('../../database/supabase');
 const { createRedisClient } = require('../../utils/redis-factory');
 const logger = require('../../utils/logger');
 const { YclientsClient } = require('../../integrations/yclients/client');

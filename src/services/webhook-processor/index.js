@@ -1,5 +1,5 @@
 const logger = require('../../utils/logger');
-const { supabase } = require('../../database/supabase');
+// Supabase import removed (2025-11-26) - not used in this file
 const whatsappClient = require('../../integrations/whatsapp/client');
 const { YclientsClient } = require('../../integrations/yclients/client');
 const config = require('../../config');

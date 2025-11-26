@@ -411,19 +411,18 @@ class MessageWorkerV2 {
   async sendCalendarInvite(booking, phone, companyId) {
     try {
       const axios = require('axios');
-      const { supabase } = require('../database/supabase');
-      
+      const postgres = require('../database/postgres');
+
       // Получаем данные компании для названия
       let companyName = 'Салон красоты';
       try {
-        const { data: company } = await supabase
-          .from('companies')
-          .select('title')
-          .eq('company_id', companyId)
-          .maybeSingle();
-        
-        if (company?.title) {
-          companyName = company.title;
+        const result = await postgres.query(
+          'SELECT title FROM companies WHERE company_id = $1 LIMIT 1',
+          [companyId]
+        );
+
+        if (result.rows[0]?.title) {
+          companyName = result.rows[0].title;
         }
       } catch (error) {
         logger.warn('Failed to fetch company name for ICS:', error);

@@ -1,9 +1,10 @@
 /**
  * Automatic cleanup of expired WhatsApp keys from database
  * Removes lid-mappings and other keys that have expired
+ * Migrated from Supabase to PostgreSQL (2025-11-26)
  */
 
-const { supabase } = require('../../database/supabase');
+const postgres = require('../../database/postgres');
 const logger = require('../../utils/logger');
 
 // Cleanup interval: every 6 hours
@@ -15,25 +16,24 @@ const CLEANUP_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours in ms
  */
 async function cleanupExpiredKeys() {
   try {
-    logger.info('🧹 Starting automatic cleanup of expired WhatsApp keys...');
+    logger.info('Starting automatic cleanup of expired WhatsApp keys...');
 
-    // Delete expired keys
-    const { data, error, count } = await supabase
-      .from('whatsapp_keys')
-      .delete()
-      .lt('expires_at', new Date().toISOString())
-      .select('company_id, key_type', { count: 'exact' });
+    // Delete expired keys and return them for logging
+    const result = await postgres.query(
+      `DELETE FROM whatsapp_keys
+       WHERE expires_at < $1
+       RETURNING company_id, key_type`,
+      [new Date().toISOString()]
+    );
 
-    if (error) {
-      logger.error('❌ Failed to cleanup expired keys:', error);
-      return 0;
-    }
+    const count = result.rowCount || 0;
+    const data = result.rows || [];
 
     if (count > 0) {
-      logger.info(`✅ Cleaned up ${count} expired keys from database`);
+      logger.info(`Cleaned up ${count} expired keys from database`);
 
       // Log breakdown by key type
-      if (data && data.length > 0) {
+      if (data.length > 0) {
         const breakdown = data.reduce((acc, row) => {
           acc[row.key_type] = (acc[row.key_type] || 0) + 1;
           return acc;
@@ -47,7 +47,7 @@ async function cleanupExpiredKeys() {
 
     return count;
   } catch (error) {
-    logger.error('❌ Error during cleanup:', error);
+    logger.error('Error during cleanup:', error);
     return 0;
   }
 }
@@ -58,38 +58,28 @@ async function cleanupExpiredKeys() {
 async function getStorageStats() {
   try {
     // Get auth count
-    const { count: authCount, error: authError } = await supabase
-      .from('whatsapp_auth')
-      .select('*', { count: 'exact', head: true });
+    const authResult = await postgres.query(
+      'SELECT COUNT(*) as count FROM whatsapp_auth'
+    );
+    const authCount = parseInt(authResult.rows[0]?.count) || 0;
 
-    if (authError) {
-      logger.error('Failed to get auth count:', authError);
-      return null;
-    }
+    // Get keys count (total)
+    const keysResult = await postgres.query(
+      'SELECT COUNT(*) as count FROM whatsapp_keys'
+    );
+    const keysCount = parseInt(keysResult.rows[0]?.count) || 0;
 
-    // Get keys count (total and expired)
-    const { count: keysCount, error: keysError } = await supabase
-      .from('whatsapp_keys')
-      .select('*', { count: 'exact', head: true });
-
-    if (keysError) {
-      logger.error('Failed to get keys count:', keysError);
-      return null;
-    }
-
-    const { count: expiredCount, error: expiredError } = await supabase
-      .from('whatsapp_keys')
-      .select('*', { count: 'exact', head: true })
-      .lt('expires_at', new Date().toISOString());
-
-    if (expiredError) {
-      logger.error('Failed to get expired count:', expiredError);
-    }
+    // Get expired count
+    const expiredResult = await postgres.query(
+      'SELECT COUNT(*) as count FROM whatsapp_keys WHERE expires_at < $1',
+      [new Date().toISOString()]
+    );
+    const expiredCount = parseInt(expiredResult.rows[0]?.count) || 0;
 
     return {
       companies: authCount,
       keys: keysCount,
-      expired: expiredCount || 0
+      expired: expiredCount
     };
   } catch (error) {
     logger.error('Error getting storage stats:', error);
@@ -104,7 +94,7 @@ async function logStorageStats() {
   const stats = await getStorageStats();
 
   if (stats) {
-    logger.info(`📊 WhatsApp Auth Storage Stats:`);
+    logger.info(`WhatsApp Auth Storage Stats:`);
     logger.info(`   Companies: ${stats.companies}`);
     logger.info(`   Keys (total): ${stats.keys}`);
     logger.info(`   Keys (expired): ${stats.expired}`);
@@ -116,7 +106,7 @@ async function logStorageStats() {
  * Runs cleanup every 6 hours
  */
 function startAutomaticCleanup() {
-  logger.info(`🤖 Starting automatic WhatsApp keys cleanup service`);
+  logger.info(`Starting automatic WhatsApp keys cleanup service`);
   logger.info(`   Interval: every ${CLEANUP_INTERVAL / (60 * 60 * 1000)} hours`);
 
   // Run cleanup immediately on start
@@ -131,7 +121,7 @@ function startAutomaticCleanup() {
     await logStorageStats();
   }, CLEANUP_INTERVAL);
 
-  logger.info(`✅ Automatic cleanup service started`);
+  logger.info(`Automatic cleanup service started`);
 }
 
 /**
@@ -139,7 +129,7 @@ function startAutomaticCleanup() {
  */
 function stopAutomaticCleanup() {
   // Cleanup intervals are handled by process exit
-  logger.info('🛑 Stopping automatic cleanup service');
+  logger.info('Stopping automatic cleanup service');
 }
 
 module.exports = {

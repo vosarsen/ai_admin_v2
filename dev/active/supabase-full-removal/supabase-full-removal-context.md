@@ -1,11 +1,11 @@
 # Supabase Full Removal - Context
 
-**Last Updated:** 2025-11-26 (Session 3 - After Phase 3)
-**Code Review Score:** 7.5/10 → **9/10** (после фазы 2) → **10/10** (после фазы 3)
+**Last Updated:** 2025-11-26 (Session 4 - Phase 4 COMPLETE!)
+**Code Review Score:** 7.5/10 → 9/10 → 10/10 → **MIGRATION COMPLETE**
 
 ---
 
-## Current State (Session 3 Complete)
+## Current State (Session 4 Complete)
 
 ### ✅ Phase 1: COMPLETE (Commit: 2468654)
 - Deleted `src/services/vector-memory/` (dead code)
@@ -19,132 +19,108 @@
 ### ✅ Phase 2: COMPLETE (Commit: 3770087)
 - Added `_chunk()` helper to BaseRepository
 - Added `bulkUpsertBatched()` method to BaseRepository
-- Added `syncBulkUpsert()` to 5 repositories:
-  - ClientRepository (batchSize=100)
-  - ServiceRepository (batchSize=100)
-  - StaffRepository (batchSize=50)
-  - StaffScheduleRepository (batchSize=200)
-  - BookingRepository (batchSize=100)
+- Added `syncBulkUpsert()` to 5 repositories
 - **Result:** +247 lines, все методы протестированы
 
 ### ✅ Phase 3: COMPLETE (Session 3)
-All 9 sync modules migrated from Supabase to Repository Pattern:
+All 9 sync modules migrated from Supabase to Repository Pattern
 
-| Module | Commit | Changes |
-|--------|--------|---------|
-| services-sync.js | - | Supabase → ServiceRepository.syncBulkUpsert() |
-| staff-sync.js | 5785050 | Supabase → StaffRepository.syncBulkUpsert() |
-| company-info-sync.js | 1475415 | Supabase → CompanyRepository.upsert() |
-| clients-sync.js | 5d8cbd9 | Supabase → ClientRepository.syncBulkUpsert() |
-| schedules-sync.js | 4fe5fe9 | Supabase → StaffScheduleRepository.syncBulkUpsert() |
-| visits-sync.js | ab980eb | Supabase → Direct PostgreSQL queries |
-| client-records-sync.js | e4e211a | Supabase → Direct PostgreSQL queries |
-| goods-transactions-sync.js | b3fb67e | Supabase → Direct PostgreSQL queries |
-| bookings-sync.js | 0ed6422 | Supabase → BookingRepository.syncBulkUpsert() |
+### ✅ Phase 4: COMPLETE (Session 4)
+**MAJOR MILESTONE: Supabase fully removed from codebase!**
 
-**Total Phase 3:** -400+ lines, all sync modules now use PostgreSQL directly!
+Files migrated:
+| File | Action |
+|------|--------|
+| `src/integrations/yclients/data/supabase-data-layer.js` | Replaced with `postgres-data-layer.js` |
+| `src/services/booking/index.js` | Updated imports |
+| `src/services/ai-admin-v2/modules/data-loader.js` | Full rewrite to PostgreSQL |
+| `src/api/routes/health.js` | Migrated to PostgreSQL |
+| `src/workers/message-worker-v2.js` | Migrated sendCalendarInvite |
+| `src/services/ai-admin-v2/index.js` | Migrated saveBookingToDatabase |
+| `src/services/ai-admin-v2/modules/command-handler.js` | Migrated staff schedules query |
+| `src/services/webhook-processor/index.js` | Removed dead import |
+| `src/api/webhooks/yclients.js` | Removed dead import |
+| `src/utils/critical-error-logger.js` | Removed dead import |
+| `src/services/marketplace/marketplace-service.js` | Removed dead import |
+| `src/api/routes/yclients-marketplace.js` | Removed dead import |
+| `src/api/websocket/marketplace-socket.js` | Migrated onboarding update |
+| `src/services/whatsapp/database-cleanup.js` | Full rewrite to PostgreSQL |
+| `src/sync/clients-sync-optimized.js` | Full rewrite to PostgreSQL |
+| `src/monitoring/health-check.js` | Renamed checkSupabase → checkPostgres |
+| `src/services/ai-admin-v2/__tests__/data-loader.test.js` | Updated mocks |
 
-### ⏳ Phase 4: NEXT
-- Delete `src/database/supabase.js`
-- Remove SUPABASE_* environment variables
-- Final verification and cleanup
+Files deleted:
+| File | Reason |
+|------|--------|
+| `src/database/supabase.js` | Core Supabase module - no longer needed |
+| `src/integrations/yclients/data/supabase-data-layer.js` | Replaced by postgres-data-layer.js |
+| `src/services/booking-monitor/index-old.js` | Dead code |
+| `src/services/booking-monitor/index-new.js` | Dead code |
+
+Package removed:
+- `@supabase/supabase-js` removed from package.json
+
+**Total Phase 4:** ~2,000 lines of code migrated/cleaned!
 
 ---
 
-## Key Files Modified in Session 3
+## Remaining Supabase References
 
-| File | Changes |
-|------|---------|
-| `src/sync/services-sync.js` | Replaced Supabase with ServiceRepository |
-| `src/sync/staff-sync.js` | Replaced Supabase with StaffRepository + direct queries |
-| `src/sync/company-info-sync.js` | Replaced Supabase with CompanyRepository |
-| `src/sync/clients-sync.js` | Replaced Supabase with ClientRepository |
-| `src/sync/schedules-sync.js` | Replaced Supabase with StaffScheduleRepository |
-| `src/sync/visits-sync.js` | Replaced Supabase with direct PostgreSQL |
-| `src/sync/client-records-sync.js` | Replaced Supabase with direct PostgreSQL |
-| `src/sync/goods-transactions-sync.js` | Replaced Supabase with direct PostgreSQL |
-| `src/sync/bookings-sync.js` | Replaced Supabase with BookingRepository |
+Only archive/deprecated files remain:
+1. `src/services/ai-admin-v2/prompts/archive/index-pre-qwen-2025-08-01.js` - Archive
+2. `src/mcp-server/supabase-server.js` - MCP server (deprecated, can be removed)
+
+**Core application is 100% Supabase-free!**
 
 ---
 
-## Migration Pattern Used
+## Migration Summary
 
-```javascript
-// BEFORE:
-const { supabase } = require('../database/supabase');
-await supabase.from('services').upsert(services, { onConflict: 'yclients_id' });
+### Before (Session 1)
+- 30+ files using Supabase
+- Dual database (Supabase + Timeweb PostgreSQL)
+- Feature flags for switching
+- Complexity and maintenance burden
 
-// AFTER (Repository Pattern):
-const postgres = require('../database/postgres');
-const ServiceRepository = require('../repositories/ServiceRepository');
-this.serviceRepo = new ServiceRepository(postgres.pool);
-const result = await this.serviceRepo.syncBulkUpsert(services);
+### After (Session 4)
+- **0 active files** using Supabase
+- Single database (Timeweb PostgreSQL)
+- Repository Pattern for data access
+- Clean, maintainable architecture
 
-// AFTER (Direct PostgreSQL):
-const postgres = require('../database/postgres');
-await postgres.query('INSERT INTO ... ON CONFLICT DO UPDATE SET ...', params);
+---
+
+## Production Deployment Ready
+
+### Environment Changes Required
+```bash
+# REMOVE these variables (no longer needed):
+# SUPABASE_URL
+# SUPABASE_KEY
+# SUPABASE_SERVICE_KEY
+# USE_LEGACY_SUPABASE
+
+# KEEP these (still active):
+USE_REPOSITORY_PATTERN=true
+USE_DATABASE_AUTH_STATE=true
 ```
 
----
-
-## Production State
-
-### Environment
+### Deployment Steps
 ```bash
-USE_LEGACY_SUPABASE=false      # ✅ Supabase disabled
-USE_REPOSITORY_PATTERN=true    # ✅ Repositories active
-USE_DATABASE_AUTH_STATE=true   # ✅ Timeweb for WhatsApp auth
+# 1. Pull latest code
+ssh root@46.149.70.219 "cd /opt/ai-admin && git pull origin main"
 
-# Still present (to be removed in Phase 4):
-SUPABASE_URL=https://yazteodihdglhoxgqunp.supabase.co
-SUPABASE_KEY=eyJ...
-SUPABASE_SERVICE_KEY=eyJ...
-```
+# 2. Update dependencies (removes @supabase/supabase-js)
+ssh root@46.149.70.219 "cd /opt/ai-admin && npm install"
 
-### Server Access
-```bash
-ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219
-cd /opt/ai-admin
-```
+# 3. Update .env (remove SUPABASE_* variables)
+ssh root@46.149.70.219 "cd /opt/ai-admin && nano .env"
 
----
+# 4. Restart services
+ssh root@46.149.70.219 "cd /opt/ai-admin && pm2 restart all"
 
-## Files Still Using Supabase (Phase 4 targets)
-
-```bash
-# Check remaining Supabase usage
-grep -r "require.*supabase" src/ --include="*.js" | grep -v "//"
-```
-
-**Expected targets for Phase 4:**
-- `src/database/supabase.js` - DELETE entirely
-- Any remaining imports in unused files
-
----
-
-## Testing Commands
-
-### Test Sync Modules (Phase 3)
-```bash
-# On server after deploy
-node -e "require('./src/sync/services-sync').syncServices()"
-node -e "require('./src/sync/staff-sync').syncStaff()"
-node -e "require('./src/sync/clients-sync').syncClients()"
-
-# Check counts
-psql -c "SELECT COUNT(*) FROM services"  # Expected: ~63
-psql -c "SELECT COUNT(*) FROM staff"     # Expected: varies
-psql -c "SELECT COUNT(*) FROM clients"   # Expected: ~1299
-```
-
----
-
-## Rollback Procedure
-
-### Quick Rollback (< 5 min)
-```bash
-git revert HEAD~N  # N = number of commits to revert
-ssh root@46.149.70.219 "cd /opt/ai-admin && git pull && npm install && pm2 restart all"
+# 5. Verify
+ssh root@46.149.70.219 "cd /opt/ai-admin && pm2 logs --lines 50"
 ```
 
 ---
@@ -160,29 +136,51 @@ ssh root@46.149.70.219 "cd /opt/ai-admin && git pull && npm install && pm2 resta
 ### Session 2 (2025-11-26)
 - **Phase 1 Complete:** Removed 1,220 lines of dead code
 - **Phase 2 Complete:** Added 247 lines of bulk operations
-- **Discovered:** session-pool.js had active Supabase import (fixed)
-- **Commits:** 2468654, 3770087
 - Code Review: 9/10
 
-### Session 3 (2025-11-26) - CURRENT
+### Session 3 (2025-11-26)
 - **Phase 3 Complete:** Migrated all 9 sync modules
-- **Commits:** 5785050, 1475415, 5d8cbd9, 4fe5fe9, ab980eb, e4e211a, b3fb67e, 0ed6422
-- **Result:** -400+ lines, all sync modules now use PostgreSQL
 - Code Review: 10/10
 
-### Next Session (TBD)
-- [ ] Phase 4: Delete supabase.js
-- [ ] Remove SUPABASE_* env vars
-- [ ] Final verification
-- [ ] Phase 5: Deploy to production
+### Session 4 (2025-11-26) - CURRENT
+- **Phase 4 Complete:** Full Supabase removal!
+- Migrated all remaining files to PostgreSQL
+- Deleted Supabase database module
+- Removed @supabase/supabase-js package
+- Updated tests
+- **MIGRATION COMPLETE!**
 
 ---
 
-## Remaining Supabase Dependencies
+## Post-Migration Benefits
 
-After Phase 3, check what's left:
-```bash
-grep -r "supabase" src/ --include="*.js" | grep -v "Migrated from Supabase" | grep -v "//"
+1. **Simplified Architecture:** Single database, no feature flags
+2. **Better Performance:** Direct PostgreSQL queries, connection pooling
+3. **Lower Costs:** No Supabase subscription ($30-50/month saved)
+4. **Easier Debugging:** One data source, clear query paths
+5. **Better Maintainability:** Repository Pattern, consistent patterns
+6. **Compliance:** 152-ФЗ data stored in Russia (Timeweb MSK)
+
+---
+
+## Files Structure After Migration
+
+```
+src/
+├── database/
+│   └── postgres.js              # Main PostgreSQL connection
+├── repositories/
+│   ├── index.js
+│   ├── BaseRepository.js
+│   ├── ClientRepository.js
+│   ├── ServiceRepository.js
+│   ├── StaffRepository.js
+│   ├── StaffScheduleRepository.js
+│   ├── BookingRepository.js
+│   ├── CompanyRepository.js
+│   └── DialogContextRepository.js
+└── integrations/yclients/data/
+    └── postgres-data-layer.js   # Data access layer (renamed)
 ```
 
-Expected: Only `src/database/supabase.js` itself and possibly some archive/test files.
+**No more `supabase.js` or `supabase-data-layer.js`!**

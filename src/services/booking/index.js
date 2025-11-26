@@ -1,5 +1,6 @@
 // src/services/booking/index.js
-const { SupabaseDataLayer } = require('../../integrations/yclients/data/supabase-data-layer');
+// Migrated from Supabase to PostgreSQL (2025-11-26)
+const { PostgresDataLayer } = require('../../integrations/yclients/data/postgres-data-layer');
 const { YclientsClient } = require('../../integrations/yclients/client');
 const config = require('../../config');
 const logger = require('../../utils/logger');
@@ -16,7 +17,7 @@ class BookingService {
     this.timezone = config.business.timezone;
     this.maxDaysAhead = config.business.maxBookingDaysAhead;
     this.minMinutesAhead = config.business.minBookingMinutesAhead;
-    this.dataLayer = new SupabaseDataLayer();
+    this.dataLayer = new PostgresDataLayer();
     this.yclientsClient = null;
     
     // Временные периоды для фильтрации

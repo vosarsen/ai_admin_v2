@@ -1,9 +1,9 @@
 // src/utils/critical-error-logger.js
+// Supabase import removed (2025-11-26) - not used in this file
 const logger = require('./logger');
 const config = require('../config');
 const { format } = require('date-fns');
 const os = require('os');
-const { supabase } = require('../database/supabase');
 
 /**
  * Система подробного логирования критичных ошибок

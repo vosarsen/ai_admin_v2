@@ -1,9 +1,10 @@
 // src/api/routes/health.js
+// Migrated from Supabase to PostgreSQL (2025-11-26)
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const { createRedisClient } = require('../../utils/redis-factory');
-const { supabase } = require('../../database/supabase');
+const postgres = require('../../database/postgres');
 const logger = require('../../utils/logger');
 const config = require('../../config');
 const { checkSessionHealth } = require('../../integrations/whatsapp/auth-state-timeweb');
@@ -178,23 +179,23 @@ async function checkRedis() {
 
 async function checkDatabase() {
   try {
-    const { data, error } = await supabase
-      .from('companies')
-      .select('id')
-      .limit(1);
-
-    if (error) throw error;
+    const startTime = Date.now();
+    await postgres.query('SELECT 1');
+    const responseTime = Date.now() - startTime;
 
     return {
       status: 'ok',
       connected: true,
-      responseTime: 'fast'
+      responseTime: responseTime < 100 ? 'fast' : responseTime < 500 ? 'normal' : 'slow',
+      responseTimeMs: responseTime,
+      backend: 'postgres'
     };
   } catch (error) {
     return {
       status: 'error',
       connected: false,
-      error: error.message
+      error: error.message,
+      backend: 'postgres'
     };
   }
 }
@@ -446,21 +447,22 @@ async function checkCompanyWhatsApp(companyId) {
 
 async function getLastMessages(companyId, limit = 5) {
   try {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('created_at, from_phone, message_text')
-      .eq('company_id', companyId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
+    const result = await postgres.query(
+      `SELECT created_at, from_phone, message_text
+       FROM messages
+       WHERE company_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [companyId, limit]
+    );
 
-    if (error) throw error;
-
-    return data.map(msg => ({
+    return result.rows.map(msg => ({
       time: msg.created_at,
       from: msg.from_phone,
       preview: msg.message_text?.substring(0, 50)
     }));
   } catch (error) {
+    // Table might not exist
     return [];
   }
 }

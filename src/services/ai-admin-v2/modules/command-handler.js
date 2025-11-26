@@ -2543,49 +2543,53 @@ class CommandHandler {
     }
     
     // Получаем расписание из базы данных
-    const { supabase } = require('../../../database/supabase');
-    
-    let query = supabase
-      .from('staff_schedules')
-      .select('*')
-      .eq('date', dateStr);
-      
-    if (staff) {
-      query = query.eq('staff_id', staff.yclients_id);
-    }
-    
-    const { data: schedules, error } = await query;
-    
-    if (error) {
+    // Migrated from Supabase to PostgreSQL (2025-11-26)
+    const postgres = require('../../../database/postgres');
+
+    let schedules = [];
+    try {
+      let queryText = 'SELECT * FROM staff_schedules WHERE date = $1';
+      let params = [dateStr];
+
+      if (staff) {
+        queryText += ' AND staff_id = $2';
+        params.push(staff.yclients_id);
+      }
+
+      const result = await postgres.query(queryText, params);
+      schedules = result.rows;
+    } catch (error) {
       logger.error('Error fetching staff schedules:', error);
       return {
         success: false,
         error: 'Не удалось получить расписание'
       };
     }
-    
+
     // Если проверяем конкретного мастера - получим его рабочие дни на ближайшие 14 дней
     let workingDays = [];
     if (staff) {
       const futureDate = new Date(dateStr);
       futureDate.setDate(futureDate.getDate() + 14);
       const futureDateStr = futureDate.toISOString().split('T')[0];
-      
-      const { data: futureSchedules } = await supabase
-        .from('staff_schedules')
-        .select('date, is_working, has_booking_slots')
-        .eq('staff_id', staff.yclients_id)
-        .gte('date', dateStr)
-        .lte('date', futureDateStr)
-        .eq('is_working', true)
-        .eq('has_booking_slots', true)
-        .order('date', { ascending: true });
-      
-      if (futureSchedules && futureSchedules.length > 0) {
-        workingDays = futureSchedules.map(s => {
-          // Используем человечное форматирование дат
-          return formatHumanDate(s.date);
-        });
+
+      try {
+        const futureResult = await postgres.query(
+          `SELECT date, is_working, has_booking_slots FROM staff_schedules
+           WHERE staff_id = $1 AND date >= $2 AND date <= $3
+           AND is_working = true AND has_booking_slots = true
+           ORDER BY date ASC`,
+          [staff.yclients_id, dateStr, futureDateStr]
+        );
+
+        if (futureResult.rows && futureResult.rows.length > 0) {
+          workingDays = futureResult.rows.map(s => {
+            // Используем человечное форматирование дат
+            return formatHumanDate(s.date);
+          });
+        }
+      } catch (futureError) {
+        logger.warn('Error fetching future schedules:', futureError);
       }
     }
     

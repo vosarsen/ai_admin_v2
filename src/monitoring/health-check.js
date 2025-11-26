@@ -1,14 +1,15 @@
 // src/monitoring/health-check.js
+// Migrated from Supabase to PostgreSQL (2025-11-26)
 const logger = require('../utils/logger');
 const performanceMonitor = require('./performance-monitor');
 
 /**
- * 🏥 HEALTH CHECK SERVICE
+ * HEALTH CHECK SERVICE
  * Проверка здоровья всех компонентов системы
- * 
+ *
  * Проверяет:
  * - Redis соединение
- * - Supabase соединение
+ * - PostgreSQL соединение
  * - AI сервис
  * - YClients API
  * - WhatsApp клиент
@@ -18,7 +19,7 @@ class HealthCheck {
   constructor() {
     this.checks = {
       redis: { status: 'unknown', lastCheck: null, error: null },
-      supabase: { status: 'unknown', lastCheck: null, error: null },
+      postgres: { status: 'unknown', lastCheck: null, error: null },
       ai: { status: 'unknown', lastCheck: null, error: null },
       yclients: { status: 'unknown', lastCheck: null, error: null },
       whatsapp: { status: 'unknown', lastCheck: null, error: null },
@@ -40,7 +41,7 @@ class HealthCheck {
     // Проверяем все компоненты параллельно
     const checkPromises = [
       this.checkRedis(),
-      this.checkSupabase(),
+      this.checkPostgres(),
       this.checkAI(),
       this.checkYClients(),
       this.checkWhatsApp(),
@@ -116,50 +117,37 @@ class HealthCheck {
   }
 
   /**
-   * 🗄️ Проверить Supabase
+   * Check PostgreSQL database
+   * Migrated from Supabase (2025-11-26)
    */
-  async checkSupabase() {
-    return this.runCheck('supabase', async () => {
+  async checkPostgres() {
+    return this.runCheck('postgres', async () => {
       try {
-        const config = require('../config');
-        
-        if (!config.supabase.url || !config.supabase.key) {
+        const postgres = require('../database/postgres');
+
+        if (!postgres.pool) {
           return {
             status: 'warning',
-            message: 'Supabase not configured, using mocks'
+            message: 'PostgreSQL pool not initialized'
           };
         }
-        
-        // Простая проверка подключения
-        const { createClient } = require('@supabase/supabase-js');
-        const supabase = createClient(config.supabase.url, config.supabase.key);
-        
+
         const startTime = Date.now();
-        const { data, error } = await supabase
-          .from('companies')
-          .select('count')
-          .limit(1);
-          
+        await postgres.query('SELECT 1');
         const responseTime = Date.now() - startTime;
-        
-        if (error) {
-          return {
-            status: 'error',
-            error: error.message,
-            fallback: 'Using mock data'
-          };
-        }
-        
+
         return {
           status: 'healthy',
           responseTime: `${responseTime}ms`,
-          info: 'Supabase connection active'
+          info: 'PostgreSQL connection active',
+          backend: 'timeweb'
         };
       } catch (error) {
         return {
           status: 'error',
           error: error.message,
-          fallback: 'Using mock data'
+          fallback: 'Using mock data',
+          backend: 'timeweb'
         };
       }
     });

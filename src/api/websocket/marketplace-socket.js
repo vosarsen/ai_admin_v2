@@ -318,17 +318,18 @@ class MarketplaceSocket {
       });
 
       // Обновляем статус в БД
-      const { supabase } = require('../../database/supabase');
+      // Migrated from Supabase to PostgreSQL (2025-11-26)
+      const postgres = require('../../database/postgres');
 
-      await supabase
-        .from('companies')
-        .update({
-          whatsapp_connected: true,
-          whatsapp_phone: whatsappPhone,
-          integration_status: 'active',
-          connected_at: new Date().toISOString()
-        })
-        .eq('id', companyId);
+      await postgres.query(
+        `UPDATE companies SET
+          whatsapp_connected = true,
+          whatsapp_phone = $1,
+          integration_status = 'active',
+          connected_at = $2
+        WHERE id = $3`,
+        [whatsappPhone, new Date().toISOString(), companyId]
+      );
 
       // Запускаем синхронизацию данных из YClients
       const { getSyncManager } = require('../../sync/sync-manager');

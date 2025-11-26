@@ -691,41 +691,41 @@ ${JSON.stringify(slotsData)}
 
   /**
    * Сохранение информации о записи в базу данных
+   * Migrated from Supabase to PostgreSQL (2025-11-26)
    */
   async saveBookingToDatabase(bookingData, context) {
     if (!bookingData?.record_id) return;
-    
+
     try {
-      const { supabase } = require('../../database/supabase');
+      const postgres = require('../../database/postgres');
       const phone = InternationalPhone.normalize(context.phone) || context.phone.replace('@c.us', '');
-      
+
       // Находим клиента
-      const { data: clientData } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('phone', phone)
-        .eq('company_id', context.company.company_id)
-        .maybeSingle();
-      
+      const clientResult = await postgres.query(
+        'SELECT id FROM clients WHERE phone = $1 AND company_id = $2 LIMIT 1',
+        [phone, context.company.company_id]
+      );
+      const clientId = clientResult.rows[0]?.id || null;
+
       // Сохраняем запись
-      const appointmentData = {
-        yclients_record_id: parseInt(bookingData.record_id),
-        company_id: context.company.company_id,
-        client_id: clientData?.id || null,
-        appointment_datetime: bookingData.datetime || null,
-        status: 'confirmed',
-        comment: 'Запись через AI администратора WhatsApp',
-        synced_at: new Date().toISOString()
-      };
-      
-      await supabase
-        .from('appointments_cache')
-        .insert([appointmentData]);
-        
+      await postgres.query(
+        `INSERT INTO appointments_cache (yclients_record_id, company_id, client_id, appointment_datetime, status, comment, synced_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          parseInt(bookingData.record_id),
+          context.company.company_id,
+          clientId,
+          bookingData.datetime || null,
+          'confirmed',
+          'Запись через AI администратора WhatsApp',
+          new Date().toISOString()
+        ]
+      );
+
       // Инвалидируем кэш
       await dataLoader.invalidateCache('fullContext', `${phone}_${context.company.company_id}`);
-      
-      logger.info('Booking saved to database:', appointmentData);
+
+      logger.info('Booking saved to database:', { record_id: bookingData.record_id });
     } catch (error) {
       logger.error('Failed to save booking to database:', error);
     }
