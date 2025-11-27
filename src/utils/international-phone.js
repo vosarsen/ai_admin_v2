@@ -19,10 +19,15 @@ class InternationalPhone {
    */
   static normalize(phone) {
     if (!phone) return null;
-    
+
+    // Demo mode: сохраняем demo_ префикс как есть (для демо-чата)
+    if (phone.toString().startsWith('demo_')) {
+      return phone.toString();
+    }
+
     // Удаляем все нецифровые символы
     let cleaned = phone.toString().replace(/[^\d]/g, '');
-    
+
     // Обработка WhatsApp формата (79001234567@c.us)
     if (phone.includes('@c.us')) {
       cleaned = phone.split('@')[0].replace(/[^\d]/g, '');
