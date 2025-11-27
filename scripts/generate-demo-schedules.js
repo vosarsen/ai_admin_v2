@@ -29,27 +29,25 @@ async function generateDemoSchedules() {
         // Day off
         schedules.push({
           company_id: DEMO_COMPANY_ID,
-          staff_yclients_id: staffId,
+          yclients_staff_id: staffId,
           date: dateStr,
           is_working: false,
-          is_day_off: true,
-          start_time: null,
-          end_time: null
+          work_start: null,
+          work_end: null
         });
       } else {
         // Working day
         // Анна (staff 1) starts at 10:00, others at 11:00
-        const startTime = staffId === 1 ? '10:00' : '11:00';
-        const endTime = '20:00';
+        const workStart = staffId === 1 ? '10:00' : '11:00';
+        const workEnd = '20:00';
 
         schedules.push({
           company_id: DEMO_COMPANY_ID,
-          staff_yclients_id: staffId,
+          yclients_staff_id: staffId,
           date: dateStr,
-          start_time: startTime,
-          end_time: endTime,
-          is_working: true,
-          is_day_off: false
+          work_start: workStart,
+          work_end: workEnd,
+          is_working: true
         });
       }
     }
@@ -66,23 +64,21 @@ async function generateDemoSchedules() {
     try {
       const result = await postgres.query(
         `INSERT INTO staff_schedules
-         (company_id, staff_yclients_id, date, start_time, end_time, is_working, is_day_off, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-         ON CONFLICT (company_id, staff_yclients_id, date)
+         (company_id, yclients_staff_id, date, work_start, work_end, is_working, last_updated)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())
+         ON CONFLICT (yclients_staff_id, date, company_id)
          DO UPDATE SET
-           start_time = EXCLUDED.start_time,
-           end_time = EXCLUDED.end_time,
+           work_start = EXCLUDED.work_start,
+           work_end = EXCLUDED.work_end,
            is_working = EXCLUDED.is_working,
-           is_day_off = EXCLUDED.is_day_off,
-           updated_at = NOW()`,
+           last_updated = NOW()`,
         [
           schedule.company_id,
-          schedule.staff_yclients_id,
+          schedule.yclients_staff_id,
           schedule.date,
-          schedule.start_time,
-          schedule.end_time,
-          schedule.is_working,
-          schedule.is_day_off
+          schedule.work_start,
+          schedule.work_end,
+          schedule.is_working
         ]
       );
 
@@ -105,14 +101,14 @@ async function generateDemoSchedules() {
   console.log('\n📊 Verification:');
   const verification = await postgres.query(
     `SELECT
-       staff_yclients_id,
+       yclients_staff_id,
        COUNT(*) as total_days,
        SUM(CASE WHEN is_working THEN 1 ELSE 0 END) as working_days,
-       SUM(CASE WHEN is_day_off THEN 1 ELSE 0 END) as days_off
+       SUM(CASE WHEN NOT is_working THEN 1 ELSE 0 END) as days_off
      FROM staff_schedules
      WHERE company_id = $1
-     GROUP BY staff_yclients_id
-     ORDER BY staff_yclients_id`,
+     GROUP BY yclients_staff_id
+     ORDER BY yclients_staff_id`,
     [DEMO_COMPANY_ID]
   );
 
