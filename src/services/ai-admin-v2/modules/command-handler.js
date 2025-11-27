@@ -219,6 +219,17 @@ class CommandHandler {
             break;
             
           case 'CREATE_BOOKING':
+            // ⛔ DEMO MODE: Block booking creation for demo company
+            if (context.company?.company_id === 999999) {
+              logger.info('CREATE_BOOKING blocked: demo company (ID 999999)');
+              results.push({
+                type: 'demo_blocked',
+                command: 'CREATE_BOOKING',
+                message: 'Создание записей недоступно в демо-режиме'
+              });
+              break;
+            }
+
             const booking = await this.createBooking(cmd.params, context);
             results.push({ type: 'booking_created', data: booking });
             break;
