@@ -93,13 +93,10 @@ class AIAdminV2 {
       '19:00', '19:30', '20:00', '20:30'
     ];
 
-    // ДЛЯ ДЕМО: ВСЕ слоты всегда доступны!
-    // Это демо-режим, не нужно имитировать занятые слоты - пользователь должен всегда суметь записаться
-    const markAllSlotsAsAvailable = (slots) => {
-      return slots.map(time => ({
-        time,
-        available: true  // Все слоты доступны в демо-режиме
-      }));
+    // ДЛЯ ДЕМО: Просто возвращаем времена БЕЗ информации о доступности
+    // Это заставит ИИ вызвать SEARCH_SLOTS для получения актуальных слотов
+    const formatSlotsForDemo = (slots) => {
+      return slots.map(time => ({ time }));  // Только время, без available флага
     };
 
     // Фильтруем слоты на сегодня - только те что через 40+ минут от текущего времени
@@ -114,10 +111,10 @@ class AIAdminV2 {
     // Если сейчас позже 21:00 (салон скоро закрывается) или нет доступных слотов на сегодня - оставляем только завтра
     // Салоны обычно работают до 21:00-22:00, поэтому после 21:00 логично предлагать только завтра
     const schedules = (currentHour >= 21 || todaySlots.length === 0) ? {
-      tomorrow: markAllSlotsAsAvailable(allSlots)
+      tomorrow: formatSlotsForDemo(allSlots)
     } : {
-      today: markAllSlotsAsAvailable(todaySlots),
-      tomorrow: markAllSlotsAsAvailable(allSlots)
+      today: formatSlotsForDemo(todaySlots),
+      tomorrow: formatSlotsForDemo(allSlots)
     };
 
     return {
