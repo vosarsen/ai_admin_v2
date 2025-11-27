@@ -329,9 +329,9 @@ router.post('/demo-chat',
           { id: 6, title: 'Массаж лица', price: 2000 }
         ],
         staff: [
-          { id: 1, name: 'Мастер Алексей' },
-          { id: 2, name: 'Мастер Мария' },
-          { id: 3, name: 'Мастер Елена' }
+          { id: 1, name: 'Алексей' },
+          { id: 2, name: 'Мария' },
+          { id: 3, name: 'Елена' }
         ]
       };
 
