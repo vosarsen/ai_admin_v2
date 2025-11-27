@@ -405,8 +405,8 @@ class CommandHandler {
    * Поиск свободных слотов
    */
   async searchSlots(params, context) {
-    // DEMO MODE: Return mock slots for demo chat
-    if (context.isDemo) {
+    // DEMO MODE: Return mock slots for demo chat (company_id 999999)
+    if (context.company?.company_id === 999999) {
       logger.info('🎭 Demo mode: returning mock slots');
 
       // Generate tomorrow's date
