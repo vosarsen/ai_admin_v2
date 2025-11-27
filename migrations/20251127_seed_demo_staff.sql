@@ -5,7 +5,7 @@
 -- Insert demo staff
 INSERT INTO staff (
   company_id,
-  yclients_staff_id,
+  yclients_id,
   name,
   specialization,
   rating,
@@ -22,14 +22,14 @@ INSERT INTO staff (
   -- Staff 3: Nail Master
   (999999, 3, 'Мария Нэйл-мастер', 'Мастер маникюра', 4.7, true, NOW(), NOW())
 
-ON CONFLICT (company_id, yclients_staff_id) DO UPDATE SET
+ON CONFLICT (yclients_id, company_id) DO UPDATE SET
   name = EXCLUDED.name,
   specialization = EXCLUDED.specialization,
   rating = EXCLUDED.rating,
   updated_at = NOW();
 
 -- Verify creation
-SELECT yclients_staff_id, name, specialization, rating
+SELECT yclients_id, name, specialization, rating
 FROM staff
 WHERE company_id = 999999
-ORDER BY yclients_staff_id;
+ORDER BY yclients_id;
