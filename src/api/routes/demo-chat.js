@@ -308,9 +308,26 @@ router.post('/demo-chat',
       // Format: demo_{sessionId} to make it distinguishable
       const demoPhone = `demo_${sessionId}`;
 
+      // Demo company data for createDemoContext
+      const demoCompanyData = {
+        name: 'Салон красоты "Стиль"',
+        services: [
+          { id: 1, title: 'Стрижка', price: 1500 },
+          { id: 2, title: 'Окрашивание', price: 3500 },
+          { id: 3, title: 'Укладка', price: 1200 },
+          { id: 4, title: 'Маникюр', price: 1000 },
+          { id: 5, title: 'Педикюр', price: 1500 },
+          { id: 6, title: 'Массаж лица', price: 2000 }
+        ],
+        staff: [
+          { id: 1, name: 'Мастер Алексей' },
+          { id: 2, name: 'Мастер Мария' },
+          { id: 3, name: 'Мастер Елена' }
+        ]
+      };
+
       // Process message with AI
-      // We pass demo company ID and special phone format
-      // Demo company data (ID 999999) will be loaded from database automatically
+      // Pass demoCompanyData to trigger createDemoContext() which generates schedules
       // Temporary: Using DeepSeek due to SOCKS proxy SSL issues with Gemini
       const result = await aiAdminV2.processMessage(
         message,
@@ -318,6 +335,7 @@ router.post('/demo-chat',
         DEMO_COMPANY_ID,
         {
           isDemoMode: true, // Add demo mode flag
+          demoCompanyData, // Provide demo data to trigger createDemoContext
           aiProvider: 'deepseek' // Using DeepSeek temporarily (SOCKS proxy issue with Gemini)
         }
       );
