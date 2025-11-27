@@ -86,27 +86,44 @@ class AIAdminV2 {
     const currentHour = mskTime.getHours();
     const currentMinute = mskTime.getMinutes();
 
-    // Все возможные слоты (с 10:00 до 18:00, каждые 30 минут)
+    // Все возможные слоты (с 10:00 до 21:00, каждые 30 минут)
     const allSlots = [
       '10:00', '10:30', '11:00', '11:30', '12:00', '12:30',
-      '14:00', '14:30', '16:00', '16:30'
+      '14:00', '14:30', '16:00', '16:30', '18:00', '18:30',
+      '19:00', '19:30', '20:00', '20:30'
     ];
 
-    // Фильтруем слоты на сегодня - только те что через 1+ час от текущего времени
+    // Функция для случайного выбора 2-3 занятых слотов
+    const markSomeSlotsAsUnavailable = (slots) => {
+      const unavailableCount = Math.floor(Math.random() * 2) + 2; // 2 или 3
+      const unavailableIndices = new Set();
+
+      while (unavailableIndices.size < Math.min(unavailableCount, slots.length)) {
+        const randomIndex = Math.floor(Math.random() * slots.length);
+        unavailableIndices.add(randomIndex);
+      }
+
+      return slots.map((time, index) => ({
+        time,
+        available: !unavailableIndices.has(index)
+      }));
+    };
+
+    // Фильтруем слоты на сегодня - только те что через 40+ минут от текущего времени
     const todaySlots = allSlots.filter(slot => {
       const [hour, minute] = slot.split(':').map(Number);
       const slotMinutes = hour * 60 + minute;
       const currentMinutes = currentHour * 60 + currentMinute;
-      // Слот доступен если он минимум через 60 минут
-      return slotMinutes > currentMinutes + 60;
-    }).map(time => ({ time, available: true }));
+      // Слот доступен если он минимум через 40 минут
+      return slotMinutes > currentMinutes + 40;
+    });
 
     // Если сейчас позже 22:00 или нет доступных слотов на сегодня - оставляем только завтра
     const schedules = (currentHour >= 22 || todaySlots.length === 0) ? {
-      tomorrow: allSlots.map(time => ({ time, available: true }))
+      tomorrow: markSomeSlotsAsUnavailable(allSlots)
     } : {
-      today: todaySlots,
-      tomorrow: allSlots.map(time => ({ time, available: true }))
+      today: markSomeSlotsAsUnavailable(todaySlots),
+      tomorrow: markSomeSlotsAsUnavailable(allSlots)
     };
 
     return {
