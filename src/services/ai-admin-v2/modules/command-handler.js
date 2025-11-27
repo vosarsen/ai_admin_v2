@@ -414,20 +414,24 @@ class CommandHandler {
       tomorrow.setDate(tomorrow.getDate() + 1);
       const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
+      // Use staff from context (Алексей, Мария, Елена from createDemoContext)
+      const staff1 = context.staff?.[0] || { id: 1, name: 'Алексей' };
+      const staff2 = context.staff?.[1] || { id: 2, name: 'Мария' };
+
       // Mock available time slots (every 30 minutes for better UX)
       const mockSlots = [
-        { time: '10:00', datetime: `${tomorrowStr}T10:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 },
-        { time: '10:30', datetime: `${tomorrowStr}T10:30:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 },
-        { time: '11:00', datetime: `${tomorrowStr}T11:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 },
-        { time: '11:30', datetime: `${tomorrowStr}T11:30:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 },
-        { time: '12:00', datetime: `${tomorrowStr}T12:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 },
-        { time: '12:30', datetime: `${tomorrowStr}T12:30:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 },
-        { time: '14:00', datetime: `${tomorrowStr}T14:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 },
-        { time: '14:30', datetime: `${tomorrowStr}T14:30:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 },
-        { time: '16:00', datetime: `${tomorrowStr}T16:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 },
-        { time: '16:30', datetime: `${tomorrowStr}T16:30:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 },
-        { time: '18:00', datetime: `${tomorrowStr}T18:00:00+03:00`, staff_name: 'Анна Мастер', staff_id: 1 },
-        { time: '18:30', datetime: `${tomorrowStr}T18:30:00+03:00`, staff_name: 'Ольга Стилист', staff_id: 2 }
+        { time: '10:00', datetime: `${tomorrowStr}T10:00:00+03:00`, staff_name: staff1.name, staff_id: staff1.id },
+        { time: '10:30', datetime: `${tomorrowStr}T10:30:00+03:00`, staff_name: staff2.name, staff_id: staff2.id },
+        { time: '11:00', datetime: `${tomorrowStr}T11:00:00+03:00`, staff_name: staff1.name, staff_id: staff1.id },
+        { time: '11:30', datetime: `${tomorrowStr}T11:30:00+03:00`, staff_name: staff2.name, staff_id: staff2.id },
+        { time: '12:00', datetime: `${tomorrowStr}T12:00:00+03:00`, staff_name: staff1.name, staff_id: staff1.id },
+        { time: '12:30', datetime: `${tomorrowStr}T12:30:00+03:00`, staff_name: staff2.name, staff_id: staff2.id },
+        { time: '14:00', datetime: `${tomorrowStr}T14:00:00+03:00`, staff_name: staff1.name, staff_id: staff1.id },
+        { time: '14:30', datetime: `${tomorrowStr}T14:30:00+03:00`, staff_name: staff2.name, staff_id: staff2.id },
+        { time: '16:00', datetime: `${tomorrowStr}T16:00:00+03:00`, staff_name: staff1.name, staff_id: staff1.id },
+        { time: '16:30', datetime: `${tomorrowStr}T16:30:00+03:00`, staff_name: staff2.name, staff_id: staff2.id },
+        { time: '18:00', datetime: `${tomorrowStr}T18:00:00+03:00`, staff_name: staff1.name, staff_id: staff1.id },
+        { time: '18:30', datetime: `${tomorrowStr}T18:30:00+03:00`, staff_name: staff2.name, staff_id: staff2.id }
       ];
 
       // Try to find the service from context
