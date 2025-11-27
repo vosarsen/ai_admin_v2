@@ -4,37 +4,35 @@
 
 -- Create demo company
 INSERT INTO companies (
-  id,
-  name,
-  yclients_company_id,
+  company_id,
+  yclients_id,
+  title,
   phone,
   email,
   timezone,
-  settings,
-  is_active,
-  subscription_status,
+  raw_data,
+  status,
   created_at,
   updated_at
 ) VALUES (
   999999,
-  'Demo Beauty Salon',
   999999,
+  'Demo Beauty Salon',
   '+79001234567',
   'demo@ai-admin.app',
   'Europe/Moscow',
   '{"demo_mode": true, "allow_bookings": false}'::jsonb,
-  true,
   'demo',
   NOW(),
   NOW()
 )
-ON CONFLICT (id) DO UPDATE SET
-  name = EXCLUDED.name,
-  settings = EXCLUDED.settings,
-  subscription_status = EXCLUDED.subscription_status,
+ON CONFLICT (company_id) DO UPDATE SET
+  title = EXCLUDED.title,
+  raw_data = EXCLUDED.raw_data,
+  status = EXCLUDED.status,
   updated_at = NOW();
 
 -- Verify creation
-SELECT id, name, subscription_status, settings
+SELECT company_id, title, status, raw_data
 FROM companies
-WHERE id = 999999;
+WHERE company_id = 999999;
