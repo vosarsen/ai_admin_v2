@@ -5198,6 +5198,216 @@
             });
         }
     </script>
+    <script>
+        // Demo Chat AI Admin v2 Integration
+        (function() {
+            const demoMessages = document.getElementById('demoMessages');
+            const demoInput = document.getElementById('demoInput');
+            const demoSend = document.getElementById('demoSend');
+            const demoTyping = document.getElementById('demoTyping');
+            const shortcutsList = document.getElementById('shortcutsList');
+            const shortcutsToggle = document.getElementById('shortcutsToggle');
+
+            if (!demoMessages || !demoInput || !demoSend) {
+                console.warn('Demo chat elements not found');
+                return;
+            }
+
+            // Generate UUID
+            function generateUUID() {
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    const r = Math.random() * 16 | 0;
+                    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            }
+
+            let sessionId = generateUUID();
+            let messagesRemaining = 10;
+            let isProcessing = false;
+
+            // Shortcuts toggle
+            if (shortcutsToggle && shortcutsList) {
+                shortcutsToggle.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    shortcutsToggle.classList.toggle('active');
+                    shortcutsList.classList.toggle('hidden');
+                });
+            }
+
+            // Auto-resize textarea
+            demoInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            });
+
+            // Add message to chat
+            function addMessage(type, text) {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = `message ${type}`;
+
+                const now = new Date();
+                const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+                msgDiv.innerHTML = `
+                    <div class="message-bubble">
+                        <div class="message-text">${escapeHtml(text)}</div>
+                    </div>
+                    <div class="message-time">${time}</div>
+                `;
+
+                demoMessages.appendChild(msgDiv);
+                scrollToBottom();
+            }
+
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            function scrollToBottom() {
+                setTimeout(() => {
+                    demoMessages.scrollTop = demoMessages.scrollHeight;
+                }, 100);
+            }
+
+            // Send message
+            async function sendMessage(text) {
+                if (!text.trim() || isProcessing || messagesRemaining <= 0) return;
+
+                isProcessing = true;
+                demoSend.disabled = true;
+                demoInput.disabled = true;
+
+                // Add user message
+                addMessage('user', text);
+
+                // Clear input
+                demoInput.value = '';
+                demoInput.style.height = 'auto';
+
+                // Show typing
+                if (demoTyping) {
+                    demoTyping.classList.add('active');
+                    demoMessages.appendChild(demoTyping);
+                    scrollToBottom();
+                }
+
+                try {
+                    const response = await fetch('/api/demo-chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sessionId, message: text })
+                    });
+
+                    const data = await response.json();
+
+                    // Hide typing
+                    if (demoTyping) {
+                        demoTyping.classList.remove('active');
+                    }
+
+                    if (data.success) {
+                        addMessage('bot', data.response);
+
+                        // Update suggestions
+                        if (data.suggestions && shortcutsList) {
+                            updateShortcuts(data.suggestions);
+                        }
+
+                        // Update remaining
+                        if (data.messagesRemaining !== undefined) {
+                            messagesRemaining = data.messagesRemaining;
+                        }
+
+                        if (messagesRemaining <= 0) {
+                            demoInput.placeholder = 'Лимит достигнут';
+                            demoInput.disabled = true;
+                            demoSend.disabled = true;
+                        }
+                    } else {
+                        addMessage('bot', data.message || 'Ошибка. Попробуйте еще раз.');
+                    }
+
+                } catch (error) {
+                    console.error('Demo chat error:', error);
+                    if (demoTyping) demoTyping.classList.remove('active');
+                    addMessage('bot', 'Произошла ошибка. Попробуйте еще раз.');
+                } finally {
+                    isProcessing = false;
+                    demoSend.disabled = false;
+                    demoInput.disabled = messagesRemaining <= 0;
+                }
+            }
+
+            function updateShortcuts(suggestions) {
+                if (!shortcutsList) return;
+
+                shortcutsList.innerHTML = '';
+
+                suggestions.slice(0, 4).forEach(text => {
+                    const chip = document.createElement('button');
+                    chip.className = 'shortcut-chip';
+                    chip.setAttribute('data-message', text);
+
+                    const icon = document.createElement('span');
+                    icon.className = 'chip-icon';
+                    icon.textContent = getIcon(text);
+
+                    const label = document.createElement('span');
+                    label.className = 'chip-text';
+                    label.textContent = text;
+
+                    chip.appendChild(icon);
+                    chip.appendChild(label);
+
+                    chip.addEventListener('click', function() {
+                        sendMessage(text);
+                        shortcutsList.classList.add('hidden');
+                    });
+
+                    shortcutsList.appendChild(chip);
+                });
+            }
+
+            function getIcon(text) {
+                const lower = text.toLowerCase();
+                if (lower.includes('стрижк')) return '✂️';
+                if (lower.includes('окрашив')) return '🎨';
+                if (lower.includes('маникюр')) return '💅';
+                if (lower.includes('цен')) return '💰';
+                if (lower.includes('время') || lower.includes('свободн')) return '🕐';
+                if (lower.includes('запис')) return '📅';
+                if (lower.includes('перенес')) return '🔄';
+                if (lower.includes('отмен')) return '❌';
+                return '💬';
+            }
+
+            // Initial shortcuts
+            const initialChips = shortcutsList ? shortcutsList.querySelectorAll('.shortcut-chip') : [];
+            initialChips.forEach(chip => {
+                chip.addEventListener('click', function() {
+                    const msg = this.getAttribute('data-message');
+                    if (msg) sendMessage(msg);
+                });
+            });
+
+            // Send button
+            demoSend.addEventListener('click', () => sendMessage(demoInput.value));
+
+            // Enter key
+            demoInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage(demoInput.value);
+                }
+            });
+
+            // Welcome message
+            addMessage('bot', 'Здравствуйте! Я Admin AI - умный бот для салонов красоты. Могу помочь с записью, рассказать о ценах и услугах. Чем могу помочь?');
+        })();
+    </script>
 
     <!-- Contact Modal -->
     <div class="modal-overlay" id="contactModal">
