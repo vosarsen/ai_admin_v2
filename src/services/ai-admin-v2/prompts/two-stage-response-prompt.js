@@ -236,11 +236,35 @@ module.exports = {
       lastMessageDate,
       askedForTimeSelection,
       askedForTimeAt,
-      shownSlotsAt
+      shownSlotsAt,
+      isDemo,
+      schedules
     } = context;
 
     // Форматируем результаты команд для промпта
-    const formattedResults = formatCommandResults(commandResults);
+    let formattedResults = formatCommandResults(commandResults);
+
+    // В режиме демо, если есть schedules - добавляем их в результаты
+    if (isDemo && schedules) {
+      const todaySlots = schedules.today?.filter(s => s.available).map(s => s.time) || [];
+      const tomorrowSlots = schedules.tomorrow?.filter(s => s.available).map(s => s.time) || [];
+
+      let demoScheduleInfo = '\n\n✅ ДОСТУПНОЕ РАСПИСАНИЕ (DEMO):\n';
+
+      if (todaySlots.length > 0) {
+        demoScheduleInfo += `Сегодня: ${todaySlots.join(', ')}\n`;
+      }
+
+      if (tomorrowSlots.length > 0) {
+        demoScheduleInfo += `Завтра: ${tomorrowSlots.join(', ')}\n`;
+      }
+
+      demoScheduleInfo += '\nВАЖНО: При показе времени клиенту используй ТОЛЬКО эти слоты!';
+
+      formattedResults = formattedResults === 'Команды не выполнялись (простое сообщение)'
+        ? demoScheduleInfo
+        : formattedResults + demoScheduleInfo;
+    }
 
     // Определяем, это продолжение диалога или новый
     const isConversationContinuation = intermediateContext?.isRecent;
