@@ -219,12 +219,13 @@ class AIAdminV2 {
       await this.messageProcessor.checkAndWaitForPreviousProcessing(phone);
 
       // 3. Загружаем полный контекст
-      // DEMO MODE: Если включен демо-режим, создаем mock контекст вместо загрузки из БД
+      // DEMO MODE: Старый код с mock данными (сейчас не используется, т.к. демо использует реальную БД)
+      // Demo company (ID 999999) загружается как обычная компания через loadFullContext()
       if (options.isDemoMode && options.demoCompanyData) {
         logger.info('📊 Demo mode enabled, creating mock context for AI');
         context = this.createDemoContext(options.demoCompanyData, phone);
       } else {
-        // Обычный режим - загружаем из БД
+        // Обычный режим - загружаем из БД (включая demo company ID 999999)
         context = await contextManager.loadFullContext(phone, companyId);
       }
 
