@@ -20,17 +20,21 @@ class InternationalPhone {
   static normalize(phone) {
     if (!phone) return null;
 
-    // Demo mode: сохраняем demo_ префикс как есть (для демо-чата)
-    if (phone.toString().startsWith('demo_')) {
-      return phone.toString();
+    // Convert to string first
+    const phoneStr = String(phone);
+
+    // Demo mode: сохраняем demo_ префикс и UUID полностью (для демо-чата)
+    // Пример: demo_550e8400-e29b-41d4-a716-446655440000
+    if (phoneStr.startsWith('demo_')) {
+      return phoneStr;
     }
 
     // Удаляем все нецифровые символы
-    let cleaned = phone.toString().replace(/[^\d]/g, '');
+    let cleaned = phoneStr.replace(/[^\d]/g, '');
 
     // Обработка WhatsApp формата (79001234567@c.us)
-    if (phone.includes('@c.us')) {
-      cleaned = phone.split('@')[0].replace(/[^\d]/g, '');
+    if (phoneStr.includes('@c.us')) {
+      cleaned = phoneStr.split('@')[0].replace(/[^\d]/g, '');
     }
     
     // Обработка российских номеров
@@ -45,13 +49,13 @@ class InternationalPhone {
     // Валидация длины по стандарту E.164
     // Минимум 7 цифр (некоторые страны), максимум 15 цифр
     if (cleaned.length < 7 || cleaned.length > 15) {
-      console.warn(`Invalid phone number length: ${phone} -> ${cleaned} (${cleaned.length} digits)`);
+      console.warn(`Invalid phone number length: ${phoneStr} -> ${cleaned} (${cleaned.length} digits)`);
       return null;
     }
-    
+
     // Логирование международных номеров для мониторинга
     if (!cleaned.startsWith('7') || cleaned.length !== 11) {
-      console.log(`International phone normalized: ${phone} -> ${cleaned}`);
+      console.log(`International phone normalized: ${phoneStr} -> ${cleaned}`);
     }
     
     return cleaned;
