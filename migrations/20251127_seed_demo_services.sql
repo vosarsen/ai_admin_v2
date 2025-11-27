@@ -5,13 +5,13 @@
 -- Insert demo services
 INSERT INTO services (
   company_id,
-  yclients_service_id,
+  yclients_id,
   title,
-  category_name,
+  category_title,
   price_min,
   price_max,
   duration,
-  comment,
+  description,
   is_active,
   created_at,
   updated_at
@@ -40,16 +40,16 @@ INSERT INTO services (
   (999999, 6, 'Ботокс для волос', 'Уход за волосами', 4000, 4000, 120,
    'Восстановление и разглаживание волос', true, NOW(), NOW())
 
-ON CONFLICT (company_id, yclients_service_id) DO UPDATE SET
+ON CONFLICT (yclients_id, company_id) DO UPDATE SET
   title = EXCLUDED.title,
   price_min = EXCLUDED.price_min,
   price_max = EXCLUDED.price_max,
   duration = EXCLUDED.duration,
-  comment = EXCLUDED.comment,
+  description = EXCLUDED.description,
   updated_at = NOW();
 
 -- Verify creation
-SELECT yclients_service_id, title, category_name, price_min, price_max, duration
+SELECT yclients_id, title, category_title, price_min, price_max, duration
 FROM services
 WHERE company_id = 999999
-ORDER BY yclients_service_id;
+ORDER BY yclients_id;
