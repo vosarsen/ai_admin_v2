@@ -321,7 +321,7 @@ router.post('/demo-chat',
 
       // Process message with AI
       // We pass demo company ID and special phone format
-      // Use Gemini for demo (2.6x faster than DeepSeek: 9s vs 24s, 3.6x cheaper: $29 vs $106/mo)
+      // Temporary: Using DeepSeek due to SOCKS proxy SSL issues with Gemini
       const result = await aiAdminV2.processMessage(
         message,
         demoPhone,
@@ -329,7 +329,7 @@ router.post('/demo-chat',
         {
           isDemoMode: true, // Add demo mode flag
           demoCompanyData: DEMO_COMPANY_DATA,
-          aiProvider: 'gemini-flash' // Use Gemini for demo chat (via Xray VPN)
+          aiProvider: 'deepseek' // Using DeepSeek temporarily (SOCKS proxy issue with Gemini)
         }
       );
 
@@ -356,7 +356,7 @@ router.post('/demo-chat',
         response: botResponse,
         user_ip: req.ip || req.connection?.remoteAddress,
         processing_time_ms: duration,
-        ai_provider: 'gemini-flash'
+        ai_provider: 'deepseek' // Using DeepSeek temporarily due to proxy issues
       });
 
       // Generate contextual suggestions based on the conversation
