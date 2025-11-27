@@ -93,12 +93,16 @@ class AIAdminV2 {
       '19:00', '19:30', '20:00', '20:30'
     ];
 
-    // Функция для случайного выбора 2-3 занятых слотов
+    // Функция для случайного выбора занятых слотов (не более 30% от общего количества)
+    // ВАЖНО: Всегда должны оставаться свободные слоты для демо-записи!
     const markSomeSlotsAsUnavailable = (slots) => {
-      const unavailableCount = Math.floor(Math.random() * 2) + 2; // 2 или 3
+      // Помечаем как занятые только 20-30% слотов (максимум 4-5 из 16)
+      const maxUnavailable = Math.max(2, Math.floor(slots.length * 0.25)); // 25% слотов
+      const unavailableCount = Math.floor(Math.random() * 2) + 2; // 2-3 слота
+      const actualUnavailable = Math.min(unavailableCount, maxUnavailable);
       const unavailableIndices = new Set();
 
-      while (unavailableIndices.size < Math.min(unavailableCount, slots.length)) {
+      while (unavailableIndices.size < actualUnavailable) {
         const randomIndex = Math.floor(Math.random() * slots.length);
         unavailableIndices.add(randomIndex);
       }
@@ -118,8 +122,9 @@ class AIAdminV2 {
       return slotMinutes > currentMinutes + 40;
     });
 
-    // Если сейчас позже 22:00 или нет доступных слотов на сегодня - оставляем только завтра
-    const schedules = (currentHour >= 22 || todaySlots.length === 0) ? {
+    // Если сейчас позже 21:00 (салон скоро закрывается) или нет доступных слотов на сегодня - оставляем только завтра
+    // Салоны обычно работают до 21:00-22:00, поэтому после 21:00 логично предлагать только завтра
+    const schedules = (currentHour >= 21 || todaySlots.length === 0) ? {
       tomorrow: markSomeSlotsAsUnavailable(allSlots)
     } : {
       today: markSomeSlotsAsUnavailable(todaySlots),
