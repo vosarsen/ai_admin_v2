@@ -79,6 +79,36 @@ class AIAdminV2 {
    * Возвращает структуру аналогичную contextManager.loadFullContext()
    */
   createDemoContext(demoData, phone) {
+    // Генерируем расписание с учетом текущего времени (MSK)
+    const now = new Date();
+    const mskOffset = 3 * 60; // MSK = UTC+3
+    const mskTime = new Date(now.getTime() + (mskOffset + now.getTimezoneOffset()) * 60000);
+    const currentHour = mskTime.getHours();
+    const currentMinute = mskTime.getMinutes();
+
+    // Все возможные слоты (с 10:00 до 18:00, каждые 30 минут)
+    const allSlots = [
+      '10:00', '10:30', '11:00', '11:30', '12:00', '12:30',
+      '14:00', '14:30', '16:00', '16:30'
+    ];
+
+    // Фильтруем слоты на сегодня - только те что через 1+ час от текущего времени
+    const todaySlots = allSlots.filter(slot => {
+      const [hour, minute] = slot.split(':').map(Number);
+      const slotMinutes = hour * 60 + minute;
+      const currentMinutes = currentHour * 60 + currentMinute;
+      // Слот доступен если он минимум через 60 минут
+      return slotMinutes > currentMinutes + 60;
+    }).map(time => ({ time, available: true }));
+
+    // Если сейчас позже 22:00 или нет доступных слотов на сегодня - оставляем только завтра
+    const schedules = (currentHour >= 22 || todaySlots.length === 0) ? {
+      tomorrow: allSlots.map(time => ({ time, available: true }))
+    } : {
+      today: todaySlots,
+      tomorrow: allSlots.map(time => ({ time, available: true }))
+    };
+
     return {
       company: {
         id: 999999,
@@ -113,16 +143,7 @@ class AIAdminV2 {
       bookings: [], // Нет записей в демо
       conversation: [],
       intermediateContext: null,
-      schedules: {
-        // Mock расписание на ближайшие 2 дня
-        tomorrow: [
-          { time: '10:00', available: true },
-          { time: '12:00', available: true },
-          { time: '14:00', available: true },
-          { time: '16:00', available: true },
-          { time: '18:00', available: true }
-        ]
-      },
+      schedules,
       redisContext: null,
       isDemo: true, // Флаг для промпта
       startTime: Date.now() // For performance tracking
