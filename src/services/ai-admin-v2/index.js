@@ -129,11 +129,12 @@ class AIAdminV2 {
     return {
       company: {
         id: 999999,
+        company_id: 999999, // Add company_id for consistency
         name: demoData.name,
         title: demoData.name, // Add title for business logic detection
         type: 'beauty_salon',
         raw_data: {
-          short_descr: 'Демонстрационный салон красоты',
+          short_descr: 'Современный салон красоты в центре города',
           services: demoData.services
         },
         settings: {
@@ -162,7 +163,7 @@ class AIAdminV2 {
       intermediateContext: null,
       schedules,
       redisContext: null,
-      isDemo: true, // Флаг для промпта
+      // REMOVED: isDemo flag - we want demo to behave EXACTLY like regular salon
       startTime: Date.now() // For performance tracking
     };
   }
