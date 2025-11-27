@@ -219,13 +219,28 @@ class CommandHandler {
             break;
             
           case 'CREATE_BOOKING':
-            // ⛔ DEMO MODE: Block booking creation for demo company
+            // 🎪 DEMO MODE: Simulate booking creation for demo company
             if (context.company?.company_id === 999999) {
-              logger.info('CREATE_BOOKING blocked: demo company (ID 999999)');
+              logger.info('CREATE_BOOKING simulated: demo company (ID 999999)', { params: cmd.params });
+
+              // Generate mock booking data
+              const mockBooking = {
+                success: true,
+                record_id: `demo_${Date.now()}`, // Fake ID
+                booking_id: `demo_${Date.now()}`,
+                service_name: cmd.params.service_name || cmd.params.service || 'услуга',
+                staff_name: cmd.params.staff_name || cmd.params.staff || 'мастер',
+                date: cmd.params.date || 'завтра',
+                time: cmd.params.time || '10:00',
+                datetime: `${cmd.params.date || 'завтра'} ${cmd.params.time || '10:00'}`,
+                client_name: context.client?.name || 'Клиент',
+                is_demo: true
+              };
+
               results.push({
-                type: 'demo_blocked',
-                command: 'CREATE_BOOKING',
-                message: 'Создание записей недоступно в демо-режиме'
+                type: 'booking_created',
+                data: mockBooking,
+                success: true
               });
               break;
             }
@@ -245,13 +260,21 @@ class CommandHandler {
             break;
             
           case 'SAVE_CLIENT_NAME':
-            // ⛔ DEMO MODE: Block client creation for demo company
+            // 🎪 DEMO MODE: Simulate client name saving for demo company
             if (context.company?.company_id === 999999) {
-              logger.info('SAVE_CLIENT_NAME blocked: demo company (ID 999999)');
+              logger.info('SAVE_CLIENT_NAME simulated: demo company (ID 999999)', { params: cmd.params });
+
+              // Simulate successful name save
+              const mockNameSave = {
+                success: true,
+                name: cmd.params.name || cmd.params.client_name,
+                is_demo: true
+              };
+
               results.push({
-                type: 'demo_blocked',
-                command: 'SAVE_CLIENT_NAME',
-                message: 'Сохранение данных клиентов недоступно в демо-режиме'
+                type: 'client_name_saved',
+                data: mockNameSave,
+                success: true
               });
               break;
             }
