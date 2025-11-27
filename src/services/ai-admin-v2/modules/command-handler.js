@@ -245,6 +245,17 @@ class CommandHandler {
             break;
             
           case 'SAVE_CLIENT_NAME':
+            // ⛔ DEMO MODE: Block client creation for demo company
+            if (context.company?.company_id === 999999) {
+              logger.info('SAVE_CLIENT_NAME blocked: demo company (ID 999999)');
+              results.push({
+                type: 'demo_blocked',
+                command: 'SAVE_CLIENT_NAME',
+                message: 'Сохранение данных клиентов недоступно в демо-режиме'
+              });
+              break;
+            }
+
             const savedName = await this.saveClientName(cmd.params, context);
             results.push({ type: 'name_saved', data: savedName });
             break;
