@@ -130,6 +130,35 @@ function generateSuggestions(userMessage, botResponse) {
     "Перенести запись"
   ];
 
+  // Extract time slots from bot response (format: HH:MM)
+  const timeSlotRegex = /\b([0-2]?[0-9]):([0-5][0-9])\b/g;
+  const timeSlots = [...botResponse.matchAll(timeSlotRegex)].map(match => match[0]);
+
+  // If bot mentioned specific time slots, suggest first 3-4 slots
+  if (timeSlots.length > 0 && (lowerResponse.includes('свободн') || lowerResponse.includes('время'))) {
+    const uniqueSlots = [...new Set(timeSlots)].slice(0, 3);
+    const suggestions = uniqueSlots.map(slot => `${slot} подходит`);
+
+    // Add "show more" option if there are more slots
+    if (timeSlots.length > 3) {
+      suggestions.push("Показать другие варианты");
+    } else {
+      suggestions.push("Другое время");
+    }
+
+    return suggestions;
+  }
+
+  // If conversation seems complete (booking confirmed)
+  if (lowerResponse.includes('записал') || lowerResponse.includes('подтверждаю') || lowerResponse.includes('напомню')) {
+    return [
+      "Узнать цены на другие услуги",
+      "Записаться еще на одну услугу",
+      "Перенести эту запись",
+      "Спасибо!"
+    ];
+  }
+
   // If user asked about booking/appointment
   if (lowerMessage.includes('запис') || lowerMessage.includes('хочу')) {
     return [
@@ -150,23 +179,13 @@ function generateSuggestions(userMessage, botResponse) {
     ];
   }
 
-  // If bot is asking about time/date
+  // If bot is asking about time/date (but no specific slots mentioned)
   if (lowerResponse.includes('какое время') || lowerResponse.includes('когда') || lowerResponse.includes('на какое число')) {
     return [
       "Завтра утром",
       "Завтра вечером",
       "Послезавтра",
       "Свободное время на неделю"
-    ];
-  }
-
-  // If bot mentioned available time slots
-  if (lowerResponse.includes('14:00') || lowerResponse.includes('16:30') || lowerResponse.includes('свободн')) {
-    return [
-      "14:00 подходит",
-      "16:30 подходит",
-      "18:00 подходит",
-      "Показать другие варианты"
     ];
   }
 
@@ -187,16 +206,6 @@ function generateSuggestions(userMessage, botResponse) {
       "Послезавтра",
       "На следующей неделе",
       "Узнать цену"
-    ];
-  }
-
-  // If conversation seems complete (booking confirmed)
-  if (lowerResponse.includes('записал') || lowerResponse.includes('подтверждаю') || lowerResponse.includes('напомню')) {
-    return [
-      "Узнать цены на другие услуги",
-      "Записаться еще на одну услугу",
-      "Перенести эту запись",
-      "Начать новый диалог"
     ];
   }
 
