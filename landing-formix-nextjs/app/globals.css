@@ -1,18 +1,22 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 @layer base {
   :root {
+    --color-primary: #ff3700;
+    --color-bg-primary: #f0f0f0;
+    --color-text-primary: #151619;
+    --color-text-secondary: #818284;
     --header-height: 80px;
   }
 
   body {
-    @apply bg-bg-primary text-text-primary font-body;
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-heading;
+    font-family: var(--font-geist), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 }
 

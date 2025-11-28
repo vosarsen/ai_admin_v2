@@ -7,7 +7,12 @@ export default function Hero() {
   return (
     <section className="min-h-screen flex items-center justify-center px-8 pt-32 pb-20 relative overflow-hidden">
       {/* Gradient Background */}
-      <div className="absolute inset-0 bg-gradient-radial from-primary/5 to-transparent pointer-events-none" />
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'radial-gradient(circle at center, rgba(255, 55, 0, 0.05) 0%, transparent 70%)'
+        }}
+      />
 
       <div className="relative z-10 max-w-4xl mx-auto text-center">
         {/* Available Badge */}
@@ -17,8 +22,11 @@ export default function Hero() {
           transition={{ duration: 0.5 }}
           className="mb-8"
         >
-          <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-text-primary text-white rounded-pill font-semibold text-sm hover:scale-105 hover:shadow-xl transition-all cursor-pointer">
-            <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+          <span
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-white rounded-full font-semibold text-sm hover:scale-105 hover:shadow-xl transition-all cursor-pointer"
+            style={{ backgroundColor: 'var(--color-text-primary)' }}
+          >
+            <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--color-primary)' }} />
             Available For Projects
           </span>
         </motion.div>
@@ -28,7 +36,8 @@ export default function Hero() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          className="font-heading font-black text-5xl md:text-6xl lg:text-7xl tracking-tight leading-tight mb-6 text-balance"
+          className="font-black text-5xl md:text-6xl lg:text-7xl tracking-tight leading-tight mb-6 text-balance"
+          style={{ fontFamily: 'var(--font-geist)' }}
         >
           Умный WhatsApp бот
           <br />
@@ -40,7 +49,8 @@ export default function Hero() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="text-text-secondary text-lg md:text-xl leading-relaxed mb-10 max-w-2xl mx-auto"
+          className="text-lg md:text-xl leading-relaxed mb-10 max-w-2xl mx-auto"
+          style={{ color: 'var(--color-text-secondary)' }}
         >
           Автоматизируйте запись клиентов, ответы на вопросы и напоминания 24/7.
           <br />
@@ -56,7 +66,8 @@ export default function Hero() {
         >
           <Link
             href="#contact"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-primary text-white font-bold rounded-pill hover:scale-105 hover:shadow-2xl transition-all text-lg group"
+            className="inline-flex items-center gap-2 px-8 py-4 text-white font-bold rounded-full hover:scale-105 hover:shadow-2xl transition-all text-lg group"
+            style={{ backgroundColor: 'var(--color-primary)' }}
           >
             Начать бесплатно
             <svg
@@ -76,7 +87,11 @@ export default function Hero() {
 
           <Link
             href="#demo"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-transparent border-2 border-text-primary text-text-primary font-bold rounded-pill hover:scale-105 hover:shadow-xl transition-all text-lg group"
+            className="inline-flex items-center gap-2 px-8 py-4 bg-transparent border-2 font-bold rounded-full hover:scale-105 hover:shadow-xl transition-all text-lg group"
+            style={{
+              borderColor: 'var(--color-text-primary)',
+              color: 'var(--color-text-primary)'
+            }}
           >
             Посмотреть демо
             <svg
