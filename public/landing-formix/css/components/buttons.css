@@ -153,14 +153,16 @@
 
 /* Icon inside button */
 .btn__icon {
-  width: 20px;
-  height: 20px;
-  fill: currentColor;
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  flex-shrink: 0;
 }
 
 .btn--large .btn__icon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
 }
 
 .btn--small .btn__icon {
