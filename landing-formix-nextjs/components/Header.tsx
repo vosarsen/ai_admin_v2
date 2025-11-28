@@ -14,8 +14,8 @@ export default function Header() {
   ]
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b border-gray-200" style={{ backgroundColor: 'rgba(240, 240, 240, 0.8)' }}>
-      <div className="max-w-[1270px] mx-auto px-8 py-5 flex items-center gap-8 h-20">
+    <header className="fixed top-0 left-0 right-0 z-50 px-8 pt-6">
+      <div className="max-w-[1270px] mx-auto px-8 py-4 flex items-center gap-8 backdrop-blur-xl rounded-full border border-gray-200/50" style={{ backgroundColor: 'rgba(255, 255, 255, 0.8)' }}
         {/* Logo */}
         <Link
           href="/"
@@ -67,7 +67,7 @@ export default function Header() {
 
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <nav className="md:hidden backdrop-blur-xl border-b border-gray-200" style={{ backgroundColor: 'rgba(240, 240, 240, 0.95)' }}>
+        <nav className="md:hidden mt-4 mx-8 backdrop-blur-xl rounded-3xl border border-gray-200/50" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)' }}>
           <div className="px-8 py-6 flex flex-col gap-4">
             {navLinks.map((link) => (
               <Link
