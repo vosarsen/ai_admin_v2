@@ -295,6 +295,95 @@ ${data.message || 'На какую дату и время перенести з�
 
 ⚠️ КРИТИЧНО: НЕ говори клиенту что записал! Сообщи об ошибке и предложи помощь!`;
 
+      case 'SHOW_BOOKINGS':
+      case 'SHOWBOOKINGS':
+        // Error case
+        if (data && data.success === false) {
+          return `❌ SHOW_BOOKINGS: ${data.error || data.message || 'Не удалось получить записи'}`;
+        }
+
+        // Success with bookings
+        if (data && data.bookings && data.bookings.length > 0) {
+          const bookingsList = data.bookings.map(b => {
+            // Data structure: {date, time, services, staff, status}
+            return `- ${b.date}, ${b.time}: ${b.services}${b.staff ? ' (мастер: ' + b.staff + ')' : ''}`;
+          }).join('\n');
+          return `✅ SHOW_BOOKINGS: У вас ${data.total || data.bookings.length} записей:
+${bookingsList}`;
+        }
+
+        // Empty bookings
+        return `⚠️ SHOW_BOOKINGS: ${data?.message || 'У вас нет активных записей'}`;
+
+      case 'CONFIRM_BOOKING':
+        // Temporary limitation (API restriction)
+        if (data && data.temporaryLimitation) {
+          const instructions = data.instructions?.join('\n') || '';
+          return `⚠️ CONFIRM_BOOKING: Функция временно недоступна
+
+${data.message || ''}
+${instructions}
+
+💡 Ваша запись уже активна и не требует подтверждения`;
+        }
+
+        // Success case (for future when API allows)
+        if (data && data.success) {
+          return `✅ CONFIRM_BOOKING: ${data.message || 'Запись подтверждена'}`;
+        }
+
+        // Error case
+        return `❌ CONFIRM_BOOKING: ${data?.error || error || 'Не удалось подтвердить запись'}`;
+
+      case 'SAVE_CLIENT_NAME':
+        // Success case - data has {name, phone} or {name, is_demo}
+        // NOTE: NO success field in return!
+        if (data && data.name) {
+          return `✅ SAVE_CLIENT_NAME: Приятно познакомиться, ${data.name}! Имя сохранено`;
+        }
+
+        // Error case
+        return `⚠️ SAVE_CLIENT_NAME: ${data?.error || error || 'Не удалось сохранить имя'}`;
+
+      case 'MARK_NO_SHOW':
+        // Temporary limitation (API restriction)
+        if (data && data.temporaryLimitation) {
+          const noShowInstructions = data.instructions?.join('\n') || '';
+          const suggestion = data.suggestion ? `\n\n💡 ${data.suggestion}` : '';
+          return `⚠️ MARK_NO_SHOW: Функция временно недоступна
+
+${data.message || ''}
+${noShowInstructions}${suggestion}`;
+        }
+
+        // Success case (for future when API allows)
+        if (data && data.success) {
+          return `✅ MARK_NO_SHOW: Клиент отмечен как не пришедший`;
+        }
+
+        // Error case
+        return `❌ MARK_NO_SHOW: ${data?.error || error || 'Не удалось отметить неявку'}`;
+
+      case 'SHOW_PORTFOLIO':
+        // Current implementation returns empty array (TODO feature)
+        if (data && Array.isArray(data)) {
+          if (data.length > 0) {
+            return `✅ SHOW_PORTFOLIO: Найдено ${data.length} работ мастера`;
+          } else {
+            return `⚠️ SHOW_PORTFOLIO: Портфолио пока не добавлено
+💡 Эта функция находится в разработке`;
+          }
+        }
+
+        // Future object structure support
+        if (data && data.portfolio) {
+          if (data.portfolio.length > 0) {
+            return `✅ SHOW_PORTFOLIO: Найдено ${data.portfolio.length} работ`;
+          }
+        }
+
+        return `⚠️ SHOW_PORTFOLIO: ${data?.error || 'Портфолио не найдено'}`;
+
       default:
         return `✅ ${command}: Выполнено`;
     }
@@ -302,7 +391,7 @@ ${data.message || 'На какую дату и время перенести з�
 }
 
 module.exports = {
-  version: '1.2',  // Added RESCHEDULE_BOOKING case handler (2025-11-28)
+  version: '1.3',  // Added 6 missing command handlers: SHOW_BOOKINGS, CONFIRM_BOOKING, SAVE_CLIENT_NAME, MARK_NO_SHOW, SHOW_PORTFOLIO (2025-11-28)
   name: 'two-stage-response-prompt',
   
   getPrompt: (context) => {
