@@ -222,7 +222,79 @@ ID записи: ${bookingId}
             return `⚠️ CHECK_STAFF_SCHEDULE: ${data.formattedDate || data.date} никто не работает`;
           }
         }
-        
+
+      case 'RESCHEDULE_BOOKING':
+        // Хелпер для форматирования даты
+        const formatDT = (dt) => {
+          if (!dt) return 'не указано';
+          try {
+            if (dt.includes('T')) {
+              const [date, time] = dt.split('T');
+              const [y, m, d] = date.split('-');
+              return `${d}.${m}.${y} в ${time.substring(0, 5)}`;
+            }
+            return dt;
+          } catch (e) {
+            return dt;
+          }
+        };
+
+        // Case 1: Успешный перенос
+        if (data && data.success === true) {
+          return `✅ RESCHEDULE_BOOKING: Запись успешно перенесена
+Было: ${formatDT(data.oldDateTime)}
+Стало: ${formatDT(data.newDateTime)}
+Услуга: ${data.services?.[0]?.title || data.services?.[0]?.service_title || 'не указана'}
+Мастер: ${data.staff?.name || 'не указан'}`;
+        }
+
+        // Case 2: Слот занят (ТЕКУЩИЙ БАГ - исправление)
+        if (data && data.slotNotAvailable) {
+          return `❌ RESCHEDULE_BOOKING: Время ${data.requestedTime || 'запрошенное'} ЗАНЯТО
+Альтернативы: ${data.nearbySlots?.join(', ') || 'нет свободных рядом'}
+${data.message || ''}
+${data.suggestions || ''}
+
+⚠️ КРИТИЧНО: НЕ говори что перенёс! Предложи альтернативное время из списка!`;
+        }
+
+        // Case 3: Ошибка доступа (403)
+        if (data && data.permissionError) {
+          return `❌ RESCHEDULE_BOOKING: Ошибка доступа
+${data.error || 'Не удалось перенести запись через бота'}
+Альтернатива: ${data.alternativeAction === 'cancel_and_rebook' ? 'отменить старую и создать новую' : 'обратиться к администратору'}
+
+⚠️ Предложи клиенту отменить старую запись и создать новую!`;
+        }
+
+        // Case 4: Нужна дата/время
+        if (data && data.needsDateTime) {
+          const bookingsInfo = data.bookings?.length > 0
+            ? `\nТекущие записи клиента: ${data.bookings.map(b => formatDT(b.datetime)).join(', ')}`
+            : '';
+          return `⚠️ RESCHEDULE_BOOKING: Требуется дата и время
+${data.message || 'На какую дату и время перенести запись?'}${bookingsInfo}`;
+        }
+
+        // Case 5: Нет активных записей
+        if (data && data.error && data.error.includes('нет активных записей')) {
+          return `⚠️ RESCHEDULE_BOOKING: У клиента нет активных записей
+Сообщи клиенту что у него нет записей для переноса`;
+        }
+
+        // Case 6: Нет предстоящих записей
+        if (data && data.error && data.error.includes('нет предстоящих записей')) {
+          return `⚠️ RESCHEDULE_BOOKING: Нет предстоящих записей для переноса
+Все записи клиента в прошлом или уже отменены`;
+        }
+
+        // Case 7-8: Общая ошибка или исключение
+        const rescheduleErrorMsg = data?.error || error || 'неизвестная ошибка';
+        return `❌ RESCHEDULE_BOOKING: Перенос НЕ выполнен
+Причина: ${rescheduleErrorMsg}
+
+⚠️ КРИТИЧНО: НЕ говори клиенту что записал! Сообщи об ошибке и предложи помощь!`;
+
       default:
         return `✅ ${command}: Выполнено`;
     }
@@ -230,7 +302,7 @@ ID записи: ${bookingId}
 }
 
 module.exports = {
-  version: '1.1',
+  version: '1.2',  // Added RESCHEDULE_BOOKING case handler (2025-11-28)
   name: 'two-stage-response-prompt',
   
   getPrompt: (context) => {
