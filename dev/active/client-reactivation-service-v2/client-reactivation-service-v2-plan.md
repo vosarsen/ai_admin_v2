@@ -1,10 +1,55 @@
-# Client Reactivation Service v2 - Strategic Plan
+# Client Reactivation Service v2 - Strategic Plan (REVIEWED)
 
-**Last Updated:** 2025-11-12
-**Status:** 📋 Ready for Implementation
-**Timeline:** 4 days (3 days MVP + 0.5 Redis integration + 0.5 buffer)
-**Complexity:** Medium
+**Last Updated:** 2025-11-26 (After Plan Review - All Fixes Applied)
+**Status:** 📋 Ready for Implementation (APPROVED WITH CHANGES)
+**Timeline:** 4-5 days (revised from 3 days after review)
+**Complexity:** Low-Medium (reduced scope)
 **Risk Level:** 🟢 Low
+**Version:** 2.2 (Post-Review)
+**Review Score:** 7.5/10
+
+---
+
+## 🔴 PLAN REVIEW SUMMARY (2025-11-26)
+
+### Verdict: APPROVE WITH CHANGES
+
+### Critical Fixes Applied:
+1. **MessageGenerator API** - Fixed to use `providerFactory.getProvider()` + `provider.call()`
+2. **ReactivationRepository** - Changed to raw SQL (no `create`/`update` in BaseRepository)
+3. **Industry Standard SQL** - Fixed `ILIKE ANY` to `EXISTS` subquery
+4. **Sentry Tracking** - Added to all new services (project standard)
+5. **Phone Normalization** - Added `InternationalPhone.normalize()` (project standard)
+
+### Timeline Adjustment:
+| Phase | Before Review | After Review |
+|-------|---------------|--------------|
+| Day 2 | 6h | **8h** (+API/SQL fixes) |
+| Day 3 | 6h | **8-10h** (+Sentry, phone norm) |
+| Buffer | 0.5d | **1d** |
+| **Total** | 3 days | **4-5 days** |
+
+---
+
+## 🚨 CRITICAL UPDATE: 2025-11-26 Codebase Review
+
+### Key Discoveries
+1. **appointments_cache is EMPTY!** (0 rows) - Level 2 calculations impossible
+2. **Supabase fully removed** - Clean PostgreSQL-only codebase
+3. **pendingAction pattern exists** - Already used for cancellation flows
+4. **clients table has rich data** - 1286 clients with last_services, last_visit_date
+
+### Plan Simplifications
+| Original | Post-Discovery | Post-Review |
+|----------|----------------|-------------|
+| 4 tables | 2 tables | 2 tables |
+| 3-level waterfall | 2-level | 2-level |
+| 4 days | 3 days | **4-5 days** |
+| Complex SQL | Simple queries | **Fixed SQL** |
+
+### Deferred to Month 2
+- Level 2 (Service Average) - requires populating appointments_cache
+- Level 1 (Personalized) - requires more historical data
 
 ---
 

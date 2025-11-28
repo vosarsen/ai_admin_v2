@@ -4,6 +4,8 @@ set -e
 # Post-tool-use hook that tracks edited files and their repos
 # This runs after Edit, MultiEdit, or Write tools complete successfully
 
+# Export CLAUDE_PROJECT_DIR for consistency
+export CLAUDE_PROJECT_DIR
 
 # Read tool information from stdin
 tool_info=$(cat)

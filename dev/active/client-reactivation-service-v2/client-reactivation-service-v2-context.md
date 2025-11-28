@@ -1,8 +1,65 @@
 # Client Reactivation Service v2 - Context & Key Decisions
 
-**Last Updated:** 2025-11-12
-**Status:** 📋 Ready for Implementation
-**Approach:** 3-Level Waterfall MVP + Redis Integration
+**Last Updated:** 2025-11-26 (After Plan Review)
+**Status:** 📋 Ready for Implementation (Fixes Applied)
+**Approach:** 2-Level Waterfall MVP + Redis Integration
+**Review Score:** 7.5/10 → APPROVE WITH CHANGES
+
+---
+
+## 🚨 CRITICAL DISCOVERIES (Session 2025-11-26)
+
+### 1. appointments_cache Table is EMPTY!
+**Discovery:** Таблица `appointments_cache` существует но ПУСТАЯ (0 записей).
+```sql
+-- Проверка показала:
+SELECT COUNT(*) FROM appointments_cache;  -- 0 rows!
+```
+
+**Impact:** Level 2 (Service Average) НЕ БУДЕТ РАБОТАТЬ без данных в этой таблице!
+
+**Solution Options:**
+1. **Option A (Recommended):** Использовать `clients.last_services` массив вместо appointments_cache
+2. **Option B:** Populate appointments_cache из YClients API (historical data)
+3. **Option C:** Skip Level 2, start with Level 3 (Industry Standards) only
+
+**Decision:** Нужно изменить SQL функцию `calculate_service_averages()` для работы с `clients.last_services` вместо `appointments_cache`.
+
+### 2. Supabase Fully Removed!
+**Discovery:** Проект `supabase-full-removal` завершён 2025-11-26.
+- Supabase полностью удалён из кодовой базы
+- Все 30+ файлов мигрированы на Timeweb PostgreSQL
+- `@supabase/supabase-js` удалён из package.json
+
+**Impact:** План v2 корректен - используем Repository Pattern напрямую с PostgreSQL.
+
+### 3. Repository Pattern Already Comprehensive
+**Discovery:** Уже есть 14 репозиториев, включая:
+- `AppointmentsCacheRepository` (но таблица пустая!)
+- `ClientRepository` с методами `findByPhone`, `findUpcoming`, `searchByName`
+- `BookingRepository`, `ServiceRepository`, `StaffRepository`
+- `BaseRepository` с методами `findOne`, `findMany`, `upsert`, `withTransaction`
+
+**Impact:** Не нужно создавать ReactivationRepository с нуля - расширяем существующие.
+
+### 4. pendingAction Pattern Already Exists
+**Discovery:** `pendingAction` уже используется в проекте:
+- `context-service-v2.js` - сохраняет/читает pendingAction из Redis
+- `context-manager-v2.js` - обрабатывает pendingAction в `handlePendingActions()`
+- Существует тип `cancellation` для pendingAction
+
+**Impact:** Нужно только добавить новый тип `reactivation_response` - паттерн уже есть!
+
+### 5. clients Table Has Rich Data
+**Discovery:** Таблица `clients` имеет все нужные поля:
+- `last_visit_date` - 1286 клиентов с данными
+- `last_services` - массив строк с именами услуг
+- `last_service_ids` - массив ID услуг (но часто пустой `{}`)
+- `visit_count` - количество визитов
+- `blacklisted` - флаг для исключения
+- `total_spent` - для сортировки VIP клиентов
+
+**Impact:** Можно найти неактивных клиентов напрямую из `clients` без appointments_cache!
 
 ---
 
@@ -17,685 +74,423 @@ This is NOT a continuation of January 2025 plan. Key differences:
 2. **Waterfall:** 3-level (not 4-level) - Level 1 deferred to Month 2
 3. **Redis Integration:** **CRITICAL ADDITION** - enables AI Admin to understand reactivation responses
 4. **Repository Pattern:** Already implemented, we're using it
+5. **Supabase Removed:** No legacy code, clean architecture
 
-### MVP Priorities
+### MVP Priorities (Revised)
 1. 🥇 **Redis Context Integration** (enables end-to-end tracking)
-2. 🥈 **3-Level Interval Selection** (good enough for 95% of clients)
+2. 🥈 **3-Level Interval Selection** (simplified due to empty appointments_cache)
 3. 🥉 **AI Message Generation** (visible WOW factor)
 
 ---
 
 ## 🗂️ Key Files & Their Roles
 
-### Core Service Files (To Be Created)
+### Existing Files to Use
 
-**`src/repositories/ReactivationRepository.js`**
-- Extends BaseRepository
-- Methods:
-  - `findInactiveClients()` - Find clients inactive X+ days
-  - `getServiceAverage()` - Level 2 interval lookup
-  - `matchIndustryStandard()` - Level 3 keyword matching
-  - `saveReactivationRecord()` - Save to history
-  - `updateReactivationResponse()` - Track response
-  - `updateReactivationBooking()` - Track conversion
-  - `getConversionStats()` - Analytics
+**`src/repositories/ClientRepository.js`**
+- Already has `findByPhone()`, `findUpcoming()`, `searchByName()`
+- Need to add: `findInactiveClients()` method
+
+**`src/repositories/BaseRepository.js`**
+- Has `withTransaction()`, `upsert()`, `bulkUpsert()`
+- Has `_buildWhere()` with operators: gte, lte, neq, ilike, in
+
+**`src/services/context/context-service-v2.js`**
+- Has `getDialogContext()`, `updateDialogContext()`
+- Has `pendingAction` support (used for cancellation)
+- Has `addMessage()` for message history
+
+**`src/services/ai-admin-v2/modules/context-manager-v2.js`**
+- Has `handlePendingActions()` - add reactivation handler here
+- Has `saveContext()` for updating pendingAction
+
+**`src/services/booking-monitor/index.js`**
+- Template for service structure (start/stop pattern)
+- Uses repositories, PM2 worker pattern
+
+### New Files to Create
+
+**`src/repositories/ReactivationRepository.js`** (Simplified)
+- Extend BaseRepository
+- `findInactiveClients()` - query clients table directly
+- `matchIndustryStandard()` - keyword matching
+- `saveReactivationRecord()`, `updateReactivationResponse()`, `updateReactivationBooking()`
 
 **`src/services/client-reactivation/interval-selector.js`**
 - 3-level waterfall: Level 2 → Level 3 → Level 4
-- Returns: `{ interval, source, confidence, metadata }`
-- Pure logic + DB queries (no external calls)
-- NEVER returns null (Level 4 fallback always works)
+- Level 2: Use `clients.last_services` pattern matching (NOT appointments_cache!)
+- Level 3: Industry standards
+- Level 4: Universal fallback (30/60/90)
 
 **`src/services/client-reactivation/message-generator.js`**
-- AI-powered via Gemini Flash
-- 3 message types based on days_inactive:
-  - gentle (30-44 days)
-  - offer (45-74 days)
-  - win_back (75+ days)
-- Fallback to templates on AI failure
-- Rate limiting: 4 sec delay between calls
+- Gemini Flash API integration
+- Fallback templates
 
 **`src/services/client-reactivation/index.js`**
-- Main orchestrator (pattern: BookingMonitorService)
-- Methods:
-  - `start()` - Start daily interval (24 hours)
-  - `stop()` - Stop interval
-  - `runReactivationCampaign()` - Process 30/60/90 day thresholds
-  - `processClient()` - Handle one client
-  - `_saveReactivationContext()` - **🔥 CRITICAL: Save to Redis**
-- Runs daily at 10:00 AM (configurable)
+- Main orchestrator
+- Save pendingAction to Redis
 
-**`src/services/ai-admin-v2/modules/reactivation-handler.js` (NEW!)**
-- AI Admin integration for response handling
-- Methods:
-  - `checkReactivationResponse()` - Detect pendingAction
-  - `handleReactivationResponse()` - Classify and enrich prompt
-  - `markBookingCreated()` - Update conversion tracking
-  - `_classifyResponse()` - positive/negative/neutral
-  - `_buildEnrichedPrompt()` - Context for AI
-
-### Worker Files
-
-**`src/workers/reactivation-worker.js`**
-- PM2 entry point
-- Starts ClientReactivationService
-- Graceful shutdown on SIGTERM/SIGINT
-
-### Background Jobs
-
-**`scripts/calculate-service-averages.js`**
-- Weekly SQL aggregation
-- Calls `calculate_service_averages(company_id)` function
-- Updates `service_reactivation_intervals` table
-- Run: Sundays 3:00 AM (crontab)
-
-### Existing Files (Reference)
-
-**`src/services/context/context-service-v2.js` (Lines 1-935)**
-- **CRITICAL DEPENDENCY** for Redis integration
-- Methods we use:
-  - `updateDialogContext()` - Save pendingAction
-  - `getDialogContext()` - Read pendingAction
-  - `addMessage()` - Save message history
-  - `saveClientCache()` - Update client cache
-  - `clearDialogContext()` - After booking complete
-
-**`src/services/ai-admin-v2/modules/context-manager-v2.js` (Lines 1-430)**
-- Loads full context for AI
-- `loadFullContext()` - Gets dialog + client + messages
-- `saveContext()` - Updates after processing
-- `saveCommandContext()` - Extracts info from commands
-
-**`src/services/ai-admin-v2/modules/message-processor.js`**
-- Where we ADD reactivation detection
-- Before AI processing: check `pendingAction.type`
-- After CREATE_BOOKING: mark booking created
-
-**`src/services/booking-monitor/index.js` (Lines 30-77)**
-- **Template for our service structure**
-- Pattern: `start()` with `setInterval()`, `stop()` with `clearInterval()`
-- Proven pattern, copy this structure
+**`src/services/ai-admin-v2/modules/reactivation-handler.js`**
+- Check pendingAction.type === 'reactivation_response'
+- Classify response (positive/negative/neutral)
+- Build enriched prompt for AI
 
 ---
 
-## 🗄️ Database Schema
+## 🗄️ Database Schema (REVISED)
 
-### New Tables (Create All 4, Use 3)
+### Existing Tables (READ-ONLY)
 
-**1. service_reactivation_intervals** (ACTIVE in MVP)
+**`clients`** - Primary source for inactive clients
 ```sql
-company_id BIGINT NOT NULL
-service_id INTEGER NOT NULL
-service_name TEXT
-median_interval_days INTEGER NOT NULL  -- Prefer median!
-sample_size INTEGER NOT NULL  -- Min 10 for validity
-last_calculated TIMESTAMP
-is_active BOOLEAN
-UNIQUE(company_id, service_id)
+-- Key columns:
+last_visit_date DATE          -- 1286 clients have data
+last_services TEXT[]          -- Array of service names
+last_service_ids INTEGER[]    -- Array of service IDs (often empty)
+visit_count INTEGER           -- Number of visits
+blacklisted BOOLEAN           -- Exclude from campaigns
+total_spent NUMERIC           -- For VIP sorting
+company_id INTEGER            -- Multi-tenant filter
 ```
 
-**Purpose:** Level 2 - Company-specific service patterns
-**Coverage:** 60-70% of clients
-**Update:** Weekly via `calculate_service_averages()` function
+**`appointments_cache`** - EXISTS but EMPTY!
+- Table exists with correct schema
+- Has 0 records
+- NOT suitable for Level 2 calculations until populated
+- Consider populating from YClients API in future
 
-**2. industry_standard_intervals** (ACTIVE in MVP)
+### New Tables to Create (3 tables)
+
+**1. industry_standard_intervals** (Level 3)
 ```sql
-category_key TEXT UNIQUE
-category_name TEXT
-interval_days INTEGER NOT NULL
-keywords TEXT[]  -- For matching service names
-service_type TEXT  -- 'hair', 'nails', 'beauty'
-confidence_score DECIMAL(3,2) DEFAULT 0.75
+CREATE TABLE industry_standard_intervals (
+  id SERIAL PRIMARY KEY,
+  category_key TEXT UNIQUE NOT NULL,
+  category_name TEXT NOT NULL,
+  interval_days INTEGER NOT NULL,
+  min_days INTEGER,
+  max_days INTEGER,
+  keywords TEXT[] NOT NULL,
+  service_type TEXT,
+  confidence_score DECIMAL(3,2) DEFAULT 0.75,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_industry_keywords ON industry_standard_intervals USING GIN(keywords);
 ```
 
-**Purpose:** Level 3 - Global best practices
-**Coverage:** 20-25% of clients
-**Data:** Pre-seeded with 15+ beauty industry standards
-
-**3. client_reactivation_history** (ACTIVE in MVP)
+**2. client_reactivation_history** (Audit log)
 ```sql
-company_id, client_id, phone
-message_sent_at, message_text
-last_service_id, last_service_name
-inactive_days, last_visit_date
-interval_days, interval_source, confidence_score
+CREATE TABLE client_reactivation_history (
+  id SERIAL PRIMARY KEY,
+  company_id BIGINT NOT NULL,
+  client_id BIGINT NOT NULL,
+  phone TEXT NOT NULL,
+  message_sent_at TIMESTAMP DEFAULT NOW(),
+  message_text TEXT NOT NULL,
+  last_service_id INTEGER,
+  last_service_name TEXT,
+  inactive_days INTEGER NOT NULL,
+  last_visit_date DATE,
+  interval_days INTEGER NOT NULL,
+  interval_source TEXT NOT NULL,
+  confidence_score DECIMAL(3,2),
+  response_received BOOLEAN DEFAULT FALSE,
+  response_at TIMESTAMP,
+  response_type TEXT,
+  response_text TEXT,
+  booking_created BOOLEAN DEFAULT FALSE,
+  booking_id BIGINT,
+  booking_created_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
 
--- 🔥 Response tracking
-response_received BOOLEAN
-response_at TIMESTAMP
-response_type TEXT  -- 'positive', 'negative', 'neutral'
-response_text TEXT
-
--- 🔥 Booking tracking
-booking_created BOOLEAN
-booking_id BIGINT
-booking_created_at TIMESTAMP
+CREATE INDEX idx_reactivation_phone ON client_reactivation_history(phone);
+CREATE INDEX idx_reactivation_company ON client_reactivation_history(company_id);
+CREATE INDEX idx_reactivation_status ON client_reactivation_history(response_received, booking_created);
 ```
 
-**Purpose:** Audit log + Analytics + Conversion tracking
-**Usage:** Track end-to-end reactivation funnel
+**3. client_personalized_intervals** (Schema only, NOT used in MVP)
+- Create for future use (Month 2)
 
-**4. client_personalized_intervals** (Schema only, NOT used in MVP)
-```sql
-company_id, client_id, service_id
-personal_interval_days INTEGER
-visit_count, consistency_score
-```
-
-**Purpose:** Level 1 (deferred to Month 2)
-**Status:** Create schema now, don't populate
-
-### Existing Tables (Read-Only)
-
-**`clients`** - Main client data
-- `last_visit_date` - Find inactive clients
-- `visit_count` - Exclude brand new (0 visits)
-- `last_services` - JSONB array, use [0] for last service
-- `blacklisted` - CRITICAL: exclude from campaigns
-- `favorite_staff_ids`, `preferred_time_slots` - For AI context
-
-**`appointments_cache`** - **NEEDS VERIFICATION!**
-- Used by `calculate_service_averages()` function
-- Columns: `client_id`, `service_ids[]`, `appointment_datetime`, `attendance`, `company_id`
-- Filter: `attendance = 1` (completed visits only)
-- **Action:** Verify existence on Day 1, create if missing
-
-**`bookings`** - Current/upcoming bookings
-- Skip clients with `datetime > CURRENT_DATE` and `status != 'deleted'`
-- Used to exclude clients with upcoming appointments
-
-**`services`** - All company services
-- Used in SQL function for service name lookup
-- Join on `yclients_id = service_id`
+### REMOVED from Plan
+- `service_reactivation_intervals` - SKIP for MVP (requires populated appointments_cache)
+- `calculate_service_averages()` SQL function - SKIP for MVP
 
 ---
 
 ## 🧠 Key Architectural Decisions
 
-### Decision 1: 3-Level Waterfall (Not 4-Level)
+### Decision 1: Skip Level 2 in MVP
+**Chosen:** Level 3 → Level 4 only (Skip Level 2 initially)
 
-**Chosen:** Level 2 → Level 3 → Level 4 (Skip Level 1 in MVP)
+**Rationale:**
+- `appointments_cache` is empty
+- `clients.last_service_ids` is often empty `{}`
+- Level 3 (Industry Standards) + Level 4 (Universal) gives 100% coverage
+- Add Level 2 when we populate appointments_cache
 
-**Rationale (from plan-reviewer):**
-- Level 1 (Personalized) coverage: 10-15% (not worth 3-4 days dev time)
-- Level 2 (Service Average) coverage: 60-70% (worth 1 day!) ✅
-- 3-level = 100% coverage with 50% less dev time
+**Trade-off:** Lower accuracy initially, but faster time-to-market
 
-**Trade-off:** Slightly lower accuracy for 10-15% of clients initially, but faster time-to-market
+### Decision 2: Use clients.last_services for Matching
+**Chosen:** Match industry standards against `clients.last_services` array
 
-**Path Forward:** Add Level 1 in Month 2 if conversion rate > 15% proves value
+**Example:**
+```javascript
+// clients.last_services = ["МУЖСКАЯ СТРИЖКА", "ОКАНТОВКА ГОЛОВЫ | БОРОДЫ"]
+// Match against industry_standard_intervals.keywords
+```
 
----
-
-### Decision 2: Redis Context Integration (CRITICAL!)
-
-**Chosen:** Save `pendingAction` to Redis after sending reactivation message
-
-**Why Critical:**
-Without this, when client responds "Да, хочу записаться", AI Admin would:
-- ❌ Treat it as random message
-- ❌ Not understand it's a reactivation response
-- ❌ Not pre-fill service selection
-- ❌ Not track conversion
-
-With this:
-- ✅ AI Admin reads `pendingAction.type === 'reactivation_response'`
-- ✅ Knows client is responding to reactivation
-- ✅ Pre-fills `suggestedService` from context
-- ✅ Tracks booking → updates `booking_created = TRUE`
+### Decision 3: Extend Existing pendingAction Pattern
+**Chosen:** Add `type: 'reactivation_response'` to existing pendingAction system
 
 **Implementation:**
 ```javascript
-// After sending WhatsApp message:
-await contextService.updateDialogContext(phone, companyId, {
-  pendingAction: {
-    type: 'reactivation_response',
-    campaign: 'dormant_30',
-    suggestedService: { id: 123, name: 'Стрижка' },
-    daysInactive: 35,
-    messageSent: "...",
-    messageSentAt: "2025-11-12T10:00:00Z",
-    reactivationHistoryId: 456
+// In context-manager-v2.js handlePendingActions():
+if (context.pendingAction.type === 'reactivation_response') {
+  return await reactivationHandler.handleReactivationResponse(...);
+}
+```
+
+---
+
+## 📊 Current Database State (2025-11-26)
+
+```sql
+-- Tables in Timeweb PostgreSQL:
+17 tables total:
+- appointments_cache (EXISTS, 0 rows)
+- clients (1304 rows, 1286 with visit data)
+- bookings (13 active future bookings)
+- services, staff, staff_schedules
+- companies, dialog_contexts, messages
+- booking_notifications, webhook_events
+- marketplace_events, demo_chat_events
+- whatsapp_auth, whatsapp_keys
+- company_sync_status, actions
+
+-- Client data for company 962302:
+Total clients: 1304
+With visits: 1286
+With last_visit_date: 1286
+```
+
+---
+
+## 🔄 Revised Implementation Phases
+
+### Day 1: Database Foundation (SIMPLIFIED - 4 hours)
+1. Create 2 tables: `industry_standard_intervals`, `client_reactivation_history`
+2. Seed industry standards (15+ entries)
+3. Create indexes
+4. Skip: `service_reactivation_intervals`, `calculate_service_averages()` function
+
+### Day 2: Core Logic (6 hours)
+1. Create `ReactivationRepository` (simplified)
+2. Create `IntervalSelector` (2-level: Industry + Universal)
+3. Create `MessageGenerator`
+4. Unit tests
+
+### Day 3: Service Integration (6 hours)
+1. Create `ClientReactivationService`
+2. Create `ReactivationHandler`
+3. Integrate with AI Admin
+
+### Day 4: PM2 Worker & Deployment (4 hours)
+1. Create PM2 worker
+2. Deploy to production
+3. Test full flow
+
+---
+
+## 📝 Session Summary (2025-11-26)
+
+### What Was Done
+1. ✅ Deleted outdated `client-reactivation-service` v1
+2. ✅ Reviewed all completed projects (supabase-full-removal, etc.)
+3. ✅ Discovered critical issues:
+   - appointments_cache is EMPTY
+   - clients table has rich data we can use
+   - pendingAction pattern already exists
+4. ✅ Updated plan to work around empty appointments_cache
+
+### Key Files Reviewed
+- `src/repositories/BaseRepository.js` - Full implementation
+- `src/repositories/ClientRepository.js` - Methods available
+- `src/repositories/AppointmentsCacheRepository.js` - Exists but table empty
+- `src/services/context/context-service-v2.js` - pendingAction support
+- `src/services/ai-admin-v2/modules/context-manager-v2.js` - handlePendingActions()
+- `src/services/booking-monitor/index.js` - PM2 pattern template
+
+### Next Steps (For Next Session)
+1. Create migration file with 2 tables (skip service_reactivation_intervals)
+2. Seed industry standards
+3. Create ReactivationRepository
+4. Create IntervalSelector (2-level MVP)
+5. Integrate with pendingAction system
+
+---
+
+## 🔴 PLAN REVIEW CRITICAL FIXES (Must Apply)
+
+### Fix 1: MessageGenerator API Pattern
+**Problem:** План использует несуществующий API
+```javascript
+// НЕПРАВИЛЬНО (в плане):
+const provider = createProvider('gemini-flash');
+const message = await provider.generateText(prompt);
+
+// ПРАВИЛЬНО (реальный код):
+const providerFactory = require('../ai/provider-factory');
+const provider = await providerFactory.getProvider('gemini-flash');
+const result = await provider.call(prompt, { message: '' });
+return result.text;
+```
+
+### Fix 2: ReactivationRepository Methods
+**Problem:** `BaseRepository` НЕ имеет методов `create()` и `update()`
+
+**Решение для saveReactivationRecord:**
+```javascript
+async saveReactivationRecord(data) {
+  const sql = `
+    INSERT INTO client_reactivation_history
+    (company_id, client_id, phone, message_text, last_service_name,
+     inactive_days, last_visit_date, interval_days, interval_source, confidence_score)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    RETURNING id
+  `;
+  const result = await this.db.query(sql, [...]);
+  return result.rows[0].id;
+}
+```
+
+**Решение для updateReactivationResponse:**
+```javascript
+async updateReactivationResponse(historyId, responseType, responseText) {
+  const sql = `
+    UPDATE client_reactivation_history
+    SET response_received = true, response_at = NOW(),
+        response_type = $2, response_text = $3, updated_at = NOW()
+    WHERE id = $1
+    RETURNING *
+  `;
+  const result = await this.db.query(sql, [historyId, responseType, responseText]);
+  return result.rows[0];
+}
+```
+
+### Fix 3: Industry Standard SQL Query
+**Problem:** `ILIKE ANY(subquery)` синтаксически неверен
+
+```sql
+-- НЕПРАВИЛЬНО:
+WHERE $1 ILIKE ANY(SELECT '%' || keyword || '%' FROM unnest(keywords))
+
+-- ПРАВИЛЬНО:
+WHERE EXISTS (
+  SELECT 1 FROM unnest(keywords) AS keyword
+  WHERE $1 ILIKE '%' || keyword || '%'
+)
+ORDER BY confidence_score DESC
+LIMIT 1
+```
+
+### Fix 4: Add Sentry Error Tracking
+**Problem:** План не включает Sentry, но это обязательно
+
+```javascript
+const Sentry = require('@sentry/node');
+
+// В каждом catch блоке:
+catch (error) {
+  Sentry.captureException(error, {
+    tags: {
+      component: 'reactivation-service',
+      operation: 'processClient'
+    },
+    extra: { clientId: client.id, phone: client.phone }
+  });
+  throw error;
+}
+```
+
+### Fix 5: Phone Number Normalization
+**Problem:** План не использует нормализацию телефона
+
+```javascript
+const InternationalPhone = require('../../utils/international-phone');
+
+// При сохранении контекста:
+const normalizedPhone = InternationalPhone.normalize(client.phone);
+await contextService.updateDialogContext(normalizedPhone, companyId, {...});
+```
+
+---
+
+## 🟡 PLAN REVIEW RECOMMENDATIONS (Should Apply)
+
+### Recommendation 1: Add Opt-Out Column
+Подготовить SQL для будущего opt-out:
+```sql
+-- В миграцию (закомментировано для MVP):
+-- ALTER TABLE clients ADD COLUMN reactivation_opted_out BOOLEAN DEFAULT FALSE;
+```
+
+### Recommendation 2: Duplicate Prevention Per Run
+```javascript
+// В ClientReactivationService:
+constructor() {
+  // ...existing code...
+  this.processedClientsThisRun = new Set(); // Prevent duplicates if restart mid-run
+}
+
+async processClient(client) {
+  if (this.processedClientsThisRun.has(client.id)) {
+    return; // Already processed in this run
   }
-});
-```
-
----
-
-### Decision 3: Median Over Average
-
-**Chosen:** Use `median_interval_days` instead of `avg_interval_days`
-
-**Rationale:**
-- Outlier resistant (one client who came 6 months ago doesn't skew data)
-- Better represents "typical" client behavior
-- PostgreSQL: `PERCENTILE_CONT(0.5)` function
-
-**Example:**
-```
-Client visits to same service:
-[25, 26, 28, 27, 180] days between visits
-
-Average: 57 days (WRONG! Skewed by outlier)
-Median: 27 days (CORRECT! Typical behavior)
-```
-
----
-
-### Decision 4: Daily Interval Service (Not Event-Driven)
-
-**Chosen:** `setInterval()` pattern, runs every 24 hours
-
-**Rationale:**
-- Proven pattern (BookingMonitorService uses this)
-- Predictable, easy to debug
-- Daily frequency sufficient for reactivation
-- No need for complex event system
-
-**Alternative Considered:** Event-driven after each booking completion
-- Pro: More precise timing
-- Con: More complex, requires event infrastructure
-- Verdict: Overkill for MVP
-
----
-
-### Decision 5: Create All 4 Tables Now
-
-**Chosen:** Create schema for all 4 tables, but only populate 3 in MVP
-
-**Rationale:**
-- Avoid schema migration later (when adding Level 1 in Month 2)
-- Minimal cost (empty table doesn't hurt)
-- Level 1 ready when needed
-
----
-
-## 🚨 Critical Implementation Notes
-
-### Multi-Tenant Isolation (CRITICAL!)
-
-**RULE:** Every query MUST filter by `company_id`
-
-**Correct:**
-```javascript
-const { data } = await repo.queryMany(`
-  SELECT * FROM clients
-  WHERE company_id = $1  -- ✅ ALWAYS
-    AND last_visit_date < $2
-`, [companyId, threshold]);
-```
-
-**WRONG:**
-```javascript
-const { data } = await repo.queryMany(`
-  SELECT * FROM clients
-  WHERE last_visit_date < $1  -- ❌ MISSING company_id
-`, [threshold]);
-```
-
-**Code Review Checklist:**
-- [ ] Every SELECT has `WHERE company_id = ...`
-- [ ] Every INSERT has `company_id` column
-- [ ] Every UPDATE verifies ownership
-
----
-
-### Deduplication Strategy
-
-**Check before sending each message:**
-```javascript
-// src/services/client-reactivation/index.js
-
-const contactedToday = await this.repo.checkContactedToday(client.id);
-if (contactedToday) {
-  logger.debug(`Client ${client.id} already contacted today, skipping`);
-  return;
+  this.processedClientsThisRun.add(client.id);
+  // ...rest of processing...
 }
 ```
 
-**Database check:**
-```sql
-SELECT COUNT(*) FROM client_reactivation_history
-WHERE client_id = $1
-  AND message_sent_at >= CURRENT_DATE
-```
-
-**Why Important:** Prevents annoying clients with duplicate messages
-
----
-
-### Error Handling Per Client
-
-**Pattern:**
+### Recommendation 3: Timezone Handling
 ```javascript
-for (const client of inactiveClients) {
-  try {
-    await processClient(client);
-  } catch (error) {
-    logger.error(`Failed for client ${client.id}:`, error);
-    // CONTINUE to next client (don't throw!)
-  }
-}
-```
-
-**Why:** One client's error shouldn't stop entire campaign
-
-**DON'T use `Promise.all()`** - first error stops everything!
-
----
-
-### Redis Context Survival
-
-**Problem:** What if Redis save fails?
-
-**Solution:** Non-blocking try-catch
-```javascript
-try {
-  await this._saveReactivationContext(...);
-  logger.info('✅ Context saved to Redis');
-} catch (error) {
-  logger.error('Failed to save context:', error);
-  // Don't throw! Message already sent, this is non-critical
-  // AI Admin just won't have context (degraded but not broken)
-}
+// Явно использовать Moscow timezone:
+const moscowNow = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
 ```
 
 ---
 
-## 📊 Performance Considerations
+## 🐛 Known Issues & Workarounds
 
-### Database Indexes (CRITICAL!)
+### Issue 1: Empty appointments_cache
+**Status:** Known, workaround in place
+**Workaround:** Use `clients.last_services` for service matching
+**Permanent Fix:** Populate appointments_cache from YClients API (future)
 
-**Without these, queries timeout on 10K+ clients:**
-
-```sql
--- For finding inactive clients (most important!)
-CREATE INDEX idx_clients_last_visit
-ON clients(company_id, last_visit_date);
-
--- For interval lookups
-CREATE INDEX idx_service_intervals
-ON service_reactivation_intervals(company_id, service_id, is_active);
-
--- For industry standard matching
-CREATE INDEX idx_industry_keywords
-ON industry_standard_intervals USING GIN(keywords);
-
--- For deduplication checks
-CREATE INDEX idx_reactivation_history_recent
-ON client_reactivation_history(client_id, message_sent_at DESC);
-
--- For analytics
-CREATE INDEX idx_reactivation_status
-ON client_reactivation_history(response_received, booking_created, message_sent_at DESC);
-```
-
-**Test with EXPLAIN ANALYZE:**
-```sql
-EXPLAIN ANALYZE
-SELECT * FROM clients
-WHERE company_id = 962302
-  AND last_visit_date < CURRENT_DATE - INTERVAL '30 days'
-  AND blacklisted = FALSE
-LIMIT 100;
-
--- Should use idx_clients_last_visit
--- Should complete in < 100ms
-```
+### Issue 2: clients.last_service_ids Often Empty
+**Status:** Known
+**Workaround:** Match by service name strings instead of IDs
+**Example:** Match "МУЖСКАЯ СТРИЖКА" to industry standard "haircut_male"
 
 ---
 
-### Batch Processing Limits
+## ⏱️ REVISED TIMELINE (After Review)
 
-**Gemini Rate Limits:**
-- 15 requests/minute (Flash tier)
-- Solution: 4 second delay between calls
-- 100 clients × 4 sec = 400 sec (~7 minutes)
+| Phase | Original | Revised | Delta |
+|-------|----------|---------|-------|
+| Day 1: Database | 4-6h | 4-6h | - |
+| Day 2: Core Logic | 6h | **8h** | +2h (API fixes, SQL fixes) |
+| Day 3: Integration | 6h | **8-10h** | +2-4h (Sentry, error handling) |
+| Day 4: Testing | 4h | **4-6h** | +0-2h (E2E tests) |
+| Buffer | 0.5d | **1d** | +0.5d |
 
-**WhatsApp:**
-- No hard limit, but avoid bursts
-- Solution: 2 second delay between messages
-- 100 clients = ~3 minutes
-
-**Total Campaign Time:**
-- 100 clients: ~10 minutes
-- 200 clients: ~20 minutes
-- Acceptable for daily job
-
-**Daily Limit:**
-- Max 100 clients per campaign
-- 3 campaigns (30/60/90 days)
-- Total: 300 clients/day maximum
+**Total: 4-5 days** (было 3 дня)
 
 ---
 
-## 🧪 Testing Strategy
-
-### Unit Tests
-
-**interval-selector.test.js:**
-- ✅ Service with 10+ bookings → Returns service average (Level 2)
-- ✅ Service with < 10 bookings → Falls to industry standard (Level 3)
-- ✅ Service name "Стрижка мужская" → Matches "haircut_male"
-- ✅ No match → Returns universal (30/60/90)
-- ✅ Never returns null
-- ✅ Confidence scores correct
-
-**message-generator.test.js:**
-- ✅ Generates unique messages for different clients
-- ✅ Falls back to template when AI fails
-- ✅ Message length < 250 chars
-- ✅ No placeholders in output (`{clientName}` replaced)
-- ✅ Rate limiting respected (4 sec delay)
-
-### Integration Test (Critical!)
-
-**Full flow with test phone 89686484488:**
-```bash
-# 1. Send reactivation message
-# Service runs, contacts test phone
-
-# 2. Check Redis context
-redis-cli GET "dialog:962302:89686484488"
-# Should show pendingAction with type: 'reactivation_response'
-
-# 3. Respond via WhatsApp
-# Send: "Да, хочу записаться"
-
-# 4. Check AI Admin logs
-pm2 logs ai-admin-worker-v2 --lines 50
-# Should show: "📨 Detected reactivation response"
-# Should show: "Response classified as: positive"
-
-# 5. Complete booking
-# Follow AI Admin flow, create booking
-
-# 6. Check database
-SELECT * FROM client_reactivation_history
-WHERE phone = '89686484488'
-ORDER BY created_at DESC
-LIMIT 1;
-# Should show: booking_created = TRUE, booking_id = XXX
-```
-
-**Success Criteria:**
-- [ ] Message sent successfully
-- [ ] Redis context saved with pendingAction
-- [ ] AI Admin detected reactivation response
-- [ ] Response classified correctly
-- [ ] Booking created and tracked
-
----
-
-## 🔄 Phased Rollout Strategy
-
-### Phase 1: MVP (4 Days)
-```
-Day 1: Database (all 4 tables, 3 used)
-Day 2: IntervalSelector (3 levels) + MessageGenerator
-Day 3: ReactivationService + ReactivationHandler
-Day 4: PM2 Worker + Deployment + Testing
-```
-
-### Week 2: Stabilization
-- Monitor conversion rates
-- Tune AI prompts based on responses
-- Add opt-out mechanism ("stop", "отписаться")
-- Fix any bugs found in production
-
-### Month 2: Enhancements (Optional)
-**Decision Point:** Add Level 1 (Personalized) if:
-- Conversion rate > 15% (proves value)
-- Have 3+ months of data (enough for personalization)
-- Technical capacity available
-
-**Tasks:**
-- Populate `client_personalized_intervals` table
-- Add `tryPersonalizedInterval()` to IntervalSelector
-- Update waterfall to check Level 1 first
-- Test with 10-20 clients
-- Deploy if results > 5% better than Level 2
-
-**Timeline:** +2-3 days
-
----
-
-## 📚 Integration Points
-
-### YClientsClient
-- **Method:** `getRecords()` - If needed for validation
-- **No modifications required** - works as-is
-
-### WhatsAppManager
-- **Method:** `sendMessage(phone, message, { companyId })`
-- **Already multi-tenant** - ready to use
-- **Location:** `src/integrations/whatsapp/client.js`
-
-### Gemini Provider
-- **Method:** `createProvider('gemini-flash')`
-- **Returns:** Provider with `generateText()` method
-- **Location:** `src/services/ai/provider-factory.js`
-- **Rate Limit:** 15 req/min, add 4 sec delay
-
-### Context Service V2
-- **Methods:** `updateDialogContext()`, `getDialogContext()`, `addMessage()`
-- **Location:** `src/services/context/context-service-v2.js`
-- **Critical for Redis integration**
-
-### Logger
-- **Winston with Telegram alerts**
-- **Pattern:** `logger.info()`, `logger.error()`, `logger.warn()`
-- **Child logger:** `logger.child({ module: 'reactivation' })`
-
----
-
-## 🐛 Potential Issues & Mitigations
-
-### Issue 1: appointments_cache Table Missing
-
-**Symptom:** SQL function fails, Level 2 doesn't work
-**Solution:**
-- Check on Day 1: `SELECT * FROM information_schema.tables WHERE table_name = 'appointments_cache'`
-- If missing: Create table, populate from bookings + YClients history
-- Add 1 day to timeline
-**Test:** `SELECT COUNT(*) FROM appointments_cache WHERE company_id = 962302`
-
----
-
-### Issue 2: Gemini API Down
-
-**Symptom:** All AI messages fail, logs show Gemini errors
-**Solution:**
-- Automatic fallback to static templates
-- Log failures for debugging
-- Templates still personalized (use client name, days inactive)
-**Test:** Simulate API error, verify fallback works
-
----
-
-### Issue 3: Redis Context Not Saved
-
-**Symptom:** AI Admin doesn't recognize reactivation responses
-**Solution:**
-- Non-blocking try-catch around context save
-- Log all failures
-- Monitor success rate
-- Manual Redis check: `redis-cli GET "dialog:962302:{phone}"`
-**Test:** Check Redis after each reactivation message
-
----
-
-### Issue 4: Duplicate Messages
-
-**Symptom:** Client gets 2+ messages same day
-**Solution:**
-- Deduplication check in `client_reactivation_history`
-- Query: `message_sent_at >= CURRENT_DATE`
-- Skip if already contacted today
-**Test:** Run service twice, verify no duplicates
-
----
-
-### Issue 5: SQL Performance Slow
-
-**Symptom:** `calculate_service_averages()` takes > 30 sec
-**Solution:**
-- Add indexes (critical!)
-- LIMIT in subqueries
-- Test with production data size
-**Test:** `EXPLAIN ANALYZE` on production
-
----
-
-## 🎯 Month 2 Enhancement Path
-
-**When:** After 30 days of MVP operation
-
-**Decision Criteria:**
-1. Conversion rate from Levels 2-4 meets/exceeds 15%
-2. Have real data on which services need personalization
-3. Technical capacity available
-4. Business case: ROI > 20% improvement expected
-
-**Tasks:**
-1. Write SQL to populate `client_personalized_intervals`
-2. Add `tryPersonalizedInterval()` to IntervalSelector
-3. Update waterfall to check Level 1 first
-4. Test with 10-20 clients
-5. A/B test: Level 1 vs Level 2-4
-6. Deploy if results > 5% better
-
-**Estimated:** +2-3 days
-
----
-
-## 📝 Key Learnings from Plan Review
-
-### What Plan Reviewer Flagged
-
-1. **appointments_cache might not exist** - CRITICAL, verify on Day 1
-2. **Multi-tenant claims were false** - Simplified to single-tenant (962302)
-3. **4-level waterfall was overkill** - Reduced to 3-level MVP
-4. **Redis integration was missing** - Now core feature of v2 plan
-
-### What We Changed
-
-- ✅ Realistic timeline: 4 days (not 6-7)
-- ✅ Focus on Redis integration as critical path
-- ✅ Verify appointments_cache before starting
-- ✅ Single-tenant MVP (multi-tenant later if needed)
-- ✅ Conservative estimates with buffer
-
-### What Stayed Strong
-
-- ✅ Repository pattern (already implemented)
-- ✅ Service architecture (proven with booking-monitor)
-- ✅ AI message generation (unique differentiator)
-- ✅ PM2 worker pattern (stable in production)
-
----
-
-**Context Status:** ✅ Complete - Ready for Implementation
-**Last Review:** 2025-11-12
-**Version:** 2.0 (Redis Integration)
-**Next Step:** Day 1 - Database migrations + verification
+**Context Status:** ✅ Updated with Plan Review fixes
+**Next Session:** Start Day 1 database work (with fixes applied)
+**Confidence:** 85% (after addressing review findings)

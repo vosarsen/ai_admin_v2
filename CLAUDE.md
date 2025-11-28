@@ -478,6 +478,39 @@ npm run notion:health            # Health check + stats
 - **Total:** 13 hours (63% under estimate) - Completed 2025-11-16
 - **Location:** `dev/completed/notion-workspace-redesign/`
 
+## 📊 Google Sheets Financial Model
+
+**Ссылка:** https://docs.google.com/spreadsheets/d/1c3TSGl9It3byKuH1RCKU1ijVV3soPLLefC36Y82rlGg
+**Credentials:** `config/google-service-account.json`
+**Scripts:** `scripts/notion/` (setup-financial-sheets.js, read-sheets-data.js, etc.)
+
+### Структура (7 листов)
+| Лист | Назначение |
+|------|------------|
+| Dashboard | Hero-метрики, milestones, данные для графиков |
+| Parameters | Бизнес-параметры (цена 50K, rev share 20%, налог 1%) |
+| LLM_Models | Сравнение 5 моделей с Value Score |
+| Infrastructure | Тиерные затраты (MVP 999₽ → Enterprise 22.5K₽) |
+| Scaling | Модель 1→10K салонов (MRR, LLM Cost, Net Profit в ₽ и USD) |
+| Unit_Economics | P&L breakdown для 1 салона |
+| Sensitivity | Анализ влияния Price, Rev Share, LLM model |
+
+### Ключевые метрики (5 салонов)
+- **MRR:** 250,000₽ | **Net Profit:** 186K₽ | **Margin:** 74-75%
+- **LLM cost:** 0.9% от выручки (Gemini 2.5 Flash-Lite = 459₽/салон)
+- **@ 10K салонов:** $45.9K USD/месяц на карте для LLM
+
+### Работа с таблицей
+```bash
+# Чтение данных из таблицы
+node scripts/notion/read-sheets-data.js
+
+# Чтение Dashboard полностью
+node scripts/notion/read-dashboard-full.js
+```
+
+**Документация:** `dev/completed/google-sheets-financial-model/`
+
 ## 📂 Project Structure
 
 ```
