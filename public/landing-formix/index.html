@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Admin AI - Умный WhatsApp бот для салонов красоты. Автоматизация записей, ответов на вопросы и напоминаний клиентам 24/7.">
+    <meta name="keywords" content="WhatsApp бот, автоматизация салона, CRM для салонов, YClients интеграция">
+    <meta name="author" content="Admin AI">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://adminai.tech/landing-formix/">
+    <meta property="og:title" content="Admin AI beta - Умный WhatsApp бот для салонов красоты">
+    <meta property="og:description" content="Автоматизация записей, ответов на вопросы и напоминаний клиентам 24/7">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://adminai.tech/landing-formix/">
+    <meta property="twitter:title" content="Admin AI beta - Умный WhatsApp бот для салонов красоты">
+    <meta property="twitter:description" content="Автоматизация записей, ответов на вопросы и напоминаний клиентам 24/7">
+
+    <title>Admin AI beta - Умный WhatsApp бот для салонов красоты</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="../landing/vite.svg">
+
+    <!-- Preload critical fonts -->
+    <link rel="preload" href="fonts/geist/Geist-Black.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="fonts/inter/Inter-Regular.woff2" as="font" type="font/woff2" crossorigin>
+
+    <!-- Stylesheets (order matters!) -->
+    <link rel="stylesheet" href="css/reset.css">
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components/navigation.css">
+    <link rel="stylesheet" href="css/components/hero.css">
+    <link rel="stylesheet" href="css/components/buttons.css">
+    <link rel="stylesheet" href="css/components/cards.css">
+    <link rel="stylesheet" href="css/components/faq.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="css/utilities.css">
+</head>
+<body>
+    <!-- Custom Cursor -->
+    <div class="custom-cursor" aria-hidden="true"></div>
+
+    <!-- Header -->
+    <header class="header" id="header">
+        <div class="header__container">
+            <a href="/" class="header__logo">
+                <span class="logo__text">Admin AI</span>
+            </a>
+
+            <nav class="header__nav" id="nav">
+                <a href="#features" class="nav__link">Возможности</a>
+                <a href="#demo" class="nav__link">Демо</a>
+                <a href="#pricing" class="nav__link">Цены</a>
+                <a href="#faq" class="nav__link">FAQ</a>
+            </nav>
+
+            <div class="header__cta">
+                <a href="#contact" class="btn btn--primary">Попробовать бесплатно</a>
+            </div>
+
+            <button class="header__toggle" id="menuToggle" aria-label="Toggle navigation menu" aria-expanded="false">
+                <span class="toggle__line"></span>
+                <span class="toggle__line"></span>
+                <span class="toggle__line"></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main>
+        <!-- Hero Section -->
+        <section class="hero" id="hero">
+            <div class="container">
+                <h1 class="hero__title" data-animate="slide-up">
+                    Умный WhatsApp бот<br>для салонов красоты
+                </h1>
+                <p class="hero__subtitle" data-animate="slide-up" data-animate-delay="100">
+                    Автоматизируйте запись клиентов, ответы на вопросы и напоминания 24/7.<br>
+                    Интеграция с YClients за 24 часа.
+                </p>
+                <div class="hero__cta" data-animate="slide-up" data-animate-delay="200">
+                    <a href="#contact" class="btn btn--primary btn--large">
+                        Начать бесплатно
+                    </a>
+                    <a href="#demo" class="btn btn--secondary btn--large">
+                        Посмотреть демо
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section class="features" id="features">
+            <div class="container">
+                <h2 class="section__title" data-animate="fade-in">Возможности</h2>
+                <p class="section__subtitle" data-animate="fade-in" data-animate-delay="100">
+                    Всё что нужно для автоматизации вашего салона красоты
+                </p>
+
+                <div class="features__grid">
+                    <!-- Feature cards will be added here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- FAQ Section -->
+        <section class="faq" id="faq">
+            <div class="container">
+                <h2 class="section__title" data-animate="fade-in">Часто задаваемые вопросы</h2>
+
+                <div class="faq__container">
+                    <!-- FAQ items will be added here -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer__content">
+                <div class="footer__legal">
+                    <p>&copy; 2025 ADMIN AI. Все права защищены.</p>
+                    <p class="footer__entity">
+                        ИП ВОСКАНЯН АРСЕН ВАЛЕРИЕВИЧ | ИНН: 502717663760 | ОГРН: 325508100473782
+                    </p>
+                </div>
+                <div class="footer__links">
+                    <a href="../landing/privacy-policy.html">Политика конфиденциальности</a>
+                    <a href="tel:+79686484488">+7 (968) 648-44-88</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts (defer for performance) -->
+    <script src="js/main.js" defer></script>
+    <script src="js/animations.js" defer></script>
+    <script src="js/cursor.js" defer></script>
+    <script src="js/navigation.js" defer></script>
+</body>
+</html>

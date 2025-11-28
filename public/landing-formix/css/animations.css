@@ -1,0 +1,41 @@
+/**
+ * Animations & Transitions
+ * Scroll-triggered animations and transition utilities
+ */
+
+/* Fade In Animation */
+[data-animate="fade-in"] {
+  opacity: 0;
+  transition: opacity var(--duration-slow) var(--ease-out);
+}
+
+[data-animate="fade-in"].animate-in {
+  opacity: 1;
+}
+
+/* Slide Up Animation */
+[data-animate="slide-up"] {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity var(--duration-slow) var(--ease-out),
+              transform var(--duration-slow) var(--ease-out);
+}
+
+[data-animate="slide-up"].animate-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  [data-animate] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  [data-animate].animate-in {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
