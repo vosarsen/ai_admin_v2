@@ -29,13 +29,13 @@
   padding: var(--space-sm) var(--space-md);
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-md);
   height: var(--header-height);
 }
 
 /* ===== LOGO ===== */
 .header__logo {
+  margin-right: auto; /* Logo stays left, nav+CTA pushed to right */
   text-decoration: none;
   color: var(--color-text-primary);
   font-family: var(--font-heading);
@@ -137,7 +137,7 @@
               opacity var(--duration-normal) var(--ease-in-out);
 }
 
-/* Animated hamburger ’ X */
+/* Animated hamburger ï¿½ X */
 .header__toggle[aria-expanded="true"] .toggle__line:nth-child(1) {
   transform: translateY(8px) rotate(45deg);
 }
