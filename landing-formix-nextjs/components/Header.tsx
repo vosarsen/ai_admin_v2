@@ -15,7 +15,7 @@ export default function Header() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 px-8 pt-6">
-      <div className="max-w-[1270px] mx-auto px-8 py-4 flex items-center gap-8 backdrop-blur-xl rounded-full border border-gray-200/50" style={{ backgroundColor: 'rgba(255, 255, 255, 0.8)' }}
+      <div className="max-w-[1270px] mx-auto px-8 py-4 flex items-center gap-8 backdrop-blur-xl rounded-full border border-gray-200/50" style={{ backgroundColor: 'rgba(255, 255, 255, 0.8)' }}>
         {/* Logo */}
         <Link
           href="/"
