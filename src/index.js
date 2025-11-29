@@ -10,6 +10,7 @@ const { validateRedisConfig } = require('./utils/redis-factory');
 const secureConfig = require('./config/secure-config');
 const { getSyncManager } = require('./sync/sync-manager');
 const MarketplaceWebSocket = require('./api/websocket/marketplace-ws');
+const telegramManager = require('./integrations/telegram/telegram-manager');
 
 // Handle uncaught errors
 process.on('uncaughtException', (error) => {
@@ -31,21 +32,26 @@ process.on('SIGINT', shutdown);
 
 async function shutdown() {
   logger.info('🛑 Shutting down API server...');
-  
+
   // Stop accepting new requests
   if (server) {
     server.close(() => {
       logger.info('✅ HTTP server closed');
     });
   }
-  
+
+  // Stop Telegram manager
+  if (config.telegram.enabled) {
+    await telegramManager.shutdown();
+  }
+
   // Stop sync manager
   const syncManager = getSyncManager();
   await syncManager.shutdown();
-  
+
   // Close queue connections
   await messageQueue.shutdown();
-  
+
   // Give pending requests 10s to complete
   setTimeout(() => {
     logger.info('⏱️ Forcing shutdown after timeout');
@@ -82,7 +88,18 @@ async function startServer() {
     const syncManager = getSyncManager();
     await syncManager.initialize();
     logger.info('✅ Sync manager started successfully');
-    
+
+    // Initialize Telegram Business Bot (if enabled)
+    if (config.telegram.enabled) {
+      logger.info('📱 Initializing Telegram Business Bot...');
+      const telegramInitialized = await telegramManager.initialize();
+      if (telegramInitialized) {
+        logger.info('✅ Telegram Business Bot initialized successfully');
+      } else {
+        logger.warn('⚠️ Telegram Business Bot initialization failed (continuing without it)');
+      }
+    }
+
     return server;
   } catch (error) {
     logger.error('Failed to start server:', error);
