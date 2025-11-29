@@ -1,8 +1,8 @@
 # Telegram Integration - Context
 
-**Last Updated:** 2025-11-29
-**Current Phase:** Phase 3 - Production & Monitoring (IN PROGRESS)
-**Session:** 6
+**Last Updated:** 2025-11-29 17:55 MSK
+**Current Phase:** Phase 3.1 COMPLETE ✅ | Phase 3.2-3.4 PENDING
+**Session:** 6 (context limit reached)
 
 ---
 
@@ -317,17 +317,16 @@ To test end-to-end:
 
 ## Quick Resume (for next session)
 
+### 🚀 IMMEDIATE START COMMANDS
 ```bash
-# Current state: Phase 1+2 COMPLETE, Phase 3.1 COMPLETE
-# Bot deployed and webhook active
+# 1. Verify bot is healthy (should return healthy: true)
+curl -s https://adminai.tech/webhook/telegram/info | jq '.health.healthy'
 
-# Check bot health:
-curl https://adminai.tech/webhook/telegram/info
+# 2. Check PM2 status
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 status | grep ai-admin"
 
-# Check logs:
-ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 logs ai-admin-api --lines 50 --nostream | grep -i telegram"
-
-# Next action: Test Business Bot flow or continue with Phase 3.2 (Monitoring)
+# 3. Check recent Telegram logs
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 logs ai-admin-api --lines 30 --nostream | grep -i telegram"
 ```
 
 ### What's Complete
@@ -336,8 +335,14 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 logs ai-admin-api --li
 - ✅ Phase 3.1: Deployment (0.5h)
 - **Total: 12.75h actual vs 100h estimated = 87% faster**
 
-### What's Next
-1. Test Business Bot flow (requires Telegram Premium + Business Mode setup)
-2. Phase 3.2: Add Prometheus metrics
-3. Phase 3.3: Custom error classes
-4. Phase 3.4: Documentation updates
+### What's Next (Priority Order)
+1. **Phase 3.2 (Optional):** Prometheus metrics - can skip for MVP, internal metrics already exist
+2. **Phase 3.3 (Low):** Custom error classes - nice to have
+3. **Phase 3.4 (Medium):** Update CLAUDE.md with Telegram section
+
+### 💡 Session 6 Key Insights
+- **Bot tokens split:** `TELEGRAM_BOT_TOKEN` (alerts) vs `TELEGRAM_BUSINESS_BOT_TOKEN` (customer messaging)
+- **Config fallback:** `config.telegram.botToken` reads `TELEGRAM_BUSINESS_BOT_TOKEN` first, falls back to `TELEGRAM_BOT_TOKEN`
+- **Webhook mode:** Using Express webhook handler, NOT separate PM2 process
+- **Initialization:** TelegramManager.initialize() called in `src/index.js` startServer()
+- **grammY installed:** Had to run `npm install grammy` on production server

@@ -19,6 +19,7 @@ Quick reference for Claude Code when working with AI Admin v2.
 - `docs/01-architecture/database/TIMEWEB_POSTGRES_SUMMARY.md` - 🗄️ Timeweb PostgreSQL миграция
 - **`dev/active/database-migration-supabase-timeweb/`** - 🎯 **COMPLETE: Database Migration** (Nov 11, 2025)
 - **`dev/active/baileys-resilience-improvements/`** - 🔄 **ACTIVE: Baileys Resilience** (Phase 3: 25% complete)
+- **`dev/active/telegram-integration/`** - 📱 **ACTIVE: Telegram Business Bot** (Phase 3.1 COMPLETE, Nov 29, 2025)
 
 ## 🔧 Essential MCP Servers
 
@@ -727,10 +728,63 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 info backup-postgresql
 ```
 
 ---
-**Last updated:** November 19, 2025 (Session 8)
+
+## 📱 Telegram Business Bot Integration (ACTIVE)
+
+**Status:** Phase 3.1 COMPLETE ✅ | Bot deployed and healthy
+**Bot:** `@AdmiAI_bot` (ID: 8522061774)
+**Location:** `dev/active/telegram-integration/`
+
+### Quick Commands
+```bash
+# Check bot health
+curl -s https://adminai.tech/webhook/telegram/info | jq '.health.healthy'
+
+# Check logs
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 logs ai-admin-api --lines 30 --nostream | grep -i telegram"
+
+# Get webhook status from Telegram
+curl -s "https://api.telegram.org/bot8522061774:AAGCt6A7mTWJdFL5riSJfmnNsVEnc-sfPnc/getWebhookInfo"
+```
+
+### Architecture
+- **Library:** grammY (official Telegram Bot API)
+- **Mode:** Webhook (not polling)
+- **Integration:** Via `ai-admin-api` (not separate PM2 process)
+- **Init:** TelegramManager.initialize() in `src/index.js`
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `src/integrations/telegram/telegram-bot.js` | grammY client (485 lines) |
+| `src/integrations/telegram/telegram-manager.js` | Orchestrator (525 lines) |
+| `src/api/webhooks/telegram.js` | Webhook handler |
+| `src/api/routes/telegram-management.js` | 7 management endpoints |
+
+### Environment Variables (Production)
+```bash
+TELEGRAM_ENABLED=true
+TELEGRAM_BUSINESS_BOT_TOKEN=8522061774:AAGCt6A7mTWJdFL5riSJfmnNsVEnc-sfPnc
+TELEGRAM_WEBHOOK_SECRET=93e928be78fc9789f8f147cb6224fbd8523d04f10bcde1cae37cc197a6db2bd3
+TELEGRAM_DEFAULT_COMPANY_ID=962302
+```
+
+### Business Bot Flow
+1. Salon owner gets Telegram Premium ($4.99/month)
+2. Settings → Business → Chatbot → Connect `@AdmiAI_bot`
+3. Customer messages salon's personal account
+4. Bot handles via Business API - messages appear as from salon
+
+### Remaining Work
+- Phase 3.2: Prometheus metrics (optional, internal metrics exist)
+- Phase 3.3: Custom error classes (nice to have)
+- Phase 3.4: Documentation updates
+
+---
+**Last updated:** November 29, 2025 (Session 6)
 **Current branch:** main (GitHub Flow с короткими feature ветками)
 **AI Provider:** Gemini 2.5 Flash (via USA VPN) - 2.6x faster, $77/month savings 🚀
-**Latest change:** 🛡️ Baileys Resilience - Task 4.1 PostgreSQL Backups COMPLETE! Phase 3: 25% ✅
+**Latest change:** 📱 Telegram Business Bot - Phase 3.1 Deployment COMPLETE! Bot @AdmiAI_bot deployed ✅
 **Infrastructure Status:** 100% Complete - Skills System ✅ | Dev Docs ✅ | 10 Agents ✅ | Hook Pipeline ✅ | Error Handling ✅
 ---
 
