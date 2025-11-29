@@ -1,8 +1,8 @@
 # Telegram Integration - Context
 
 **Last Updated:** 2025-11-29
-**Current Phase:** Phase 3 - Production & Monitoring (Pending)
-**Session:** 5
+**Current Phase:** Phase 3 - Production & Monitoring (IN PROGRESS)
+**Session:** 6
 
 ---
 
@@ -66,7 +66,7 @@ Integrating Telegram Business Bot API as a second messaging channel for AI Admin
   - [x] Added Context Key Migration Plan section to plan
 
 ### In Progress
-- [ ] Phase 3: Production & Monitoring (Deployment, Monitoring, Documentation)
+- [ ] Phase 3: Production & Monitoring (Deployment ✅, Testing 🔄, Documentation ⏸️)
 
 ### Blocked
 - None
@@ -186,6 +186,24 @@ All AI integration complete:
 - **Plan Status:** ✅ READY FOR IMPLEMENTATION
 - **Next:** Continue with Phase 1.4 (telegram-manager.js)
 
+### Session 6 (2025-11-29) - Phase 3 Deployment 🚀
+- **Phase 3.1 - Deployment Configuration:**
+  - ✅ Created bot `@AdmiAI_bot` via @BotFather
+  - ✅ Ran database migration on Timeweb PostgreSQL
+  - ✅ Added `TELEGRAM_BUSINESS_BOT_TOKEN` to config (separate from alerts bot)
+  - ✅ Added TelegramManager initialization in `src/index.js`
+  - ✅ Installed grammY on production server
+  - ✅ Set webhook URL: `https://adminai.tech/webhook/telegram`
+  - ✅ Bot healthy and responding
+
+- **Technical Decisions:**
+  - Split bot tokens: `TELEGRAM_BOT_TOKEN` for alerts, `TELEGRAM_BUSINESS_BOT_TOKEN` for customer messaging
+  - Webhook mode (not polling) for production reliability
+  - Telegram Manager initialized at API startup, not as separate PM2 process
+
+- **Result:** Phase 3.1 complete in ~30 minutes
+- **Next:** Test end-to-end Business Bot flow (requires Premium + Business Mode setup)
+
 ### Session 5 (2025-11-29) - Phase 2 Complete! 🎉
 - **Phase 2.1 - Context Service:**
   - Updated `context-service-v2.js` with platform parameter
@@ -248,54 +266,40 @@ All AI integration complete:
 ### Current State
 **Phase 1: COMPLETE ✅** - All core infrastructure committed.
 **Phase 2: COMPLETE ✅** - All AI integration committed.
-**Ready for:** Phase 3 - Production & Monitoring
+**Phase 3.1: COMPLETE ✅** - Deployment done, webhook set.
+**Ready for:** Phase 3.2-3.4 - Monitoring, Error handling, Documentation
 
 ### Commits Made
 1. **Phase 1 commit:** `7e28c9b feat(telegram): Phase 1 - Core infrastructure complete`
 2. **Phase 2 commit:** `a845b91 feat(telegram): Phase 2 - AI Integration with platform support`
+3. **Phase 3 commit:** `bc06134 feat(telegram): add TELEGRAM_BUSINESS_BOT_TOKEN config support`
+4. **Phase 3 commit:** `9c76b73 feat(telegram): initialize TelegramManager on API startup`
 
-### Before Deployment (Phase 3)
-1. **Run migration on production:**
-   ```bash
-   ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219
-   cd /opt/ai-admin
-   psql $DATABASE_URL < migrations/20251129_create_telegram_tables.sql
-   ```
+### Deployment Complete ✅
+- **Bot:** `@AdmiAI_bot` (ID: 8522061774)
+- **Webhook:** `https://adminai.tech/webhook/telegram`
+- **Secret:** `93e928be78fc9789f8f147cb6224fbd8523d04f10bcde1cae37cc197a6db2bd3`
+- **Health check:** `curl https://adminai.tech/webhook/telegram/info`
 
-2. **Create bot via @BotFather:**
-   - Create new bot
-   - Enable Business Mode
-   - Get bot token
+### Environment Variables (Production)
+```bash
+TELEGRAM_ENABLED=true
+TELEGRAM_BUSINESS_BOT_TOKEN=8522061774:AAGCt6A7mTWJdFL5riSJfmnNsVEnc-sfPnc
+TELEGRAM_WEBHOOK_SECRET=93e928be78fc9789f8f147cb6224fbd8523d04f10bcde1cae37cc197a6db2bd3
+TELEGRAM_DEFAULT_COMPANY_ID=962302
+```
 
-3. **Set environment variables:**
-   ```
-   TELEGRAM_ENABLED=true
-   TELEGRAM_BOT_TOKEN=<from @BotFather>
-   TELEGRAM_WEBHOOK_SECRET=<generate random>
-   TELEGRAM_DEFAULT_COMPANY_ID=962302
-   ```
+### Testing Business Bot Flow
+To test end-to-end:
+1. Salon owner needs Telegram Premium ($4.99/month)
+2. In Telegram app: Settings → Business → Chatbot → Connect `@AdmiAI_bot`
+3. Customer messages salon's personal Telegram → bot handles via Business Bot API
+4. Bot responses appear as from salon (no bot label)
 
-4. **Configure Nginx for webhook:**
-   ```nginx
-   location /webhook/telegram {
-     proxy_pass http://localhost:3000;
-     # Verify webhook secret
-   }
-   ```
-
-5. **Set webhook URL:**
-   ```bash
-   curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
-     -d "url=https://your-domain.com/webhook/telegram" \
-     -d "secret_token=<WEBHOOK_SECRET>"
-   ```
-
-### Next Phase (Phase 3: Production & Monitoring)
-Start with `telegram-integration-tasks.md` section "Phase 3: Production & Monitoring":
-1. Deployment configuration (PM2, Nginx)
-2. Monitoring & alerts (Prometheus, Grafana)
-3. Error handling (custom error classes)
-4. Documentation (user guide, API docs)
+### Next Tasks
+1. **Phase 3.2:** Add Prometheus metrics for Telegram
+2. **Phase 3.3:** Create custom error classes
+3. **Phase 3.4:** Update documentation and CLAUDE.md
 
 ### Key Files to Read First
 - `dev/active/telegram-integration/telegram-integration-plan.md` - Full plan with all sections
@@ -314,29 +318,26 @@ Start with `telegram-integration-tasks.md` section "Phase 3: Production & Monito
 ## Quick Resume (for next session)
 
 ```bash
-# Current state: Phase 1+2 COMPLETE, Phase 3 PENDING
-# All code committed, working tree clean
+# Current state: Phase 1+2 COMPLETE, Phase 3.1 COMPLETE
+# Bot deployed and webhook active
 
-# Read these files to resume:
-cat dev/active/telegram-integration/telegram-integration-tasks.md | head -n 100
-cat dev/active/telegram-integration/telegram-integration-context.md | head -n 50
+# Check bot health:
+curl https://adminai.tech/webhook/telegram/info
 
-# Next action: Start Phase 3.1 (Deployment Configuration)
-# - Create standalone bot service for PM2
-# - Configure Nginx for webhook
-# - Run migration on production
-# - Set environment variables
+# Check logs:
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 logs ai-admin-api --lines 50 --nostream | grep -i telegram"
+
+# Next action: Test Business Bot flow or continue with Phase 3.2 (Monitoring)
 ```
 
 ### What's Complete
 - ✅ Phase 1: Core Infrastructure (10.5h)
 - ✅ Phase 2: AI Integration (1.75h)
-- **Total: 12.25h actual vs 80h estimated = 85% faster**
+- ✅ Phase 3.1: Deployment (0.5h)
+- **Total: 12.75h actual vs 100h estimated = 87% faster**
 
-### What's Next (Phase 3)
-1. Run migration: `psql $DATABASE_URL < migrations/20251129_create_telegram_tables.sql`
-2. Create bot via @BotFather (manual)
-3. Set env vars: TELEGRAM_ENABLED, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET
-4. Configure Nginx webhook location
-5. Set webhook URL via Telegram API
-6. Test end-to-end flow
+### What's Next
+1. Test Business Bot flow (requires Telegram Premium + Business Mode setup)
+2. Phase 3.2: Add Prometheus metrics
+3. Phase 3.3: Custom error classes
+4. Phase 3.4: Documentation updates
