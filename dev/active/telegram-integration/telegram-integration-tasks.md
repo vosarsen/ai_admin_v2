@@ -224,6 +224,45 @@
 
 ---
 
+## Post-Review Tasks (from Code Review)
+
+### Critical Fixes (11h) - RECOMMENDED
+- [ ] **Input Validation** (8h) - Add Joi validation to API routes
+  - [ ] POST /send - validate companyId, chatId, message
+  - [ ] POST /webhook/set - validate URL (HTTPS, no private IPs)
+  - [ ] POST /webhook/telegram - validate Telegram update structure
+- [ ] **Cache Invalidation** (2h) - Fix stale data risk
+  - [ ] Add `invalidateConnectionCache()` method
+  - [ ] Call on connection deactivate
+- [ ] **Event Emitter** (1h) - Replace custom with Node.js built-in
+  - [ ] Extend EventEmitter in TelegramBot class
+  - [ ] Remove custom _eventHandlers, on(), emit(), off()
+
+### High Priority (48h) - Phase 3.2
+- [ ] **Tests** (40h)
+  - [ ] Unit tests for telegram-manager.js
+  - [ ] Unit tests for telegram-errors.js
+  - [ ] Integration tests for webhook flow
+  - [ ] E2E test for full message flow
+- [ ] **Rate Limiting** (4h)
+  - [ ] Telegram-specific rate limiter (30 msg/sec global, 1 msg/sec per chat)
+  - [ ] Separate from WhatsApp limits
+- [ ] **Retry Logic** (4h)
+  - [ ] Add retries to telegram-api-client.js
+  - [ ] Use TelegramErrorHandler.retry()
+
+### Medium Priority (28h) - Phase 3.3
+- [ ] **Error Notification** (4h) - Send error messages to customers on failures
+- [ ] **Monitoring** (8h) - Cache hit rate alerts, slow query detection
+- [ ] **Backport to WhatsApp** (16h) - Apply Telegram error patterns
+
+### Low Priority (10h) - Nice to Have
+- [ ] **Smart Typing Delay** (2h) - Calculate based on message length
+- [ ] **Non-text Analytics** (4h) - Track skipped media messages
+- [ ] **Documentation** (4h) - README in telegram/, Swagger/OpenAPI
+
+---
+
 ## Post-Launch Tasks
 
 ### Week 4+ (After stable launch)
@@ -264,6 +303,24 @@
 **Phase 2 Complete:** 1.75h actual vs 40h estimated = **96% faster**
 **Phase 3 Complete:** 1.25h actual vs 16h estimated = **92% faster**
 **Total Project:** 13h actual vs 100h estimated = **87% faster** 🎉
+
+### Session 8 (2025-11-29) - Code Architecture Review 📋
+**Completed:**
+- Ran code-architecture-reviewer agent on entire Telegram integration
+- Generated `telegram-integration-code-review.md` (1,452 lines)
+- **Overall Grade: A- (92/100)** - Production ready
+
+**Key Findings:**
+- 🟢 **Strengths:** Architecture (A), Error Handling (A+), Code Quality (A)
+- 🔴 **Critical Issues (11h):**
+  1. Input Validation missing (8h) - security risk
+  2. Cache Invalidation missing (2h) - stale data risk
+  3. Custom Event Emitter (1h) - use Node.js built-in
+- 🟡 **High Priority (48h):** Tests (40h), Rate Limiting (4h), Retry Logic (4h)
+
+**Comparison:** Telegram (92) vs WhatsApp (88) - Telegram error handling is superior
+
+**Code Review Status: ✅ COMPLETE**
 
 ### Session 7 (2025-11-29) - Phase 3 Complete! 🎉
 **Completed:**
