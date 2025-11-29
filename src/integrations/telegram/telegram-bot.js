@@ -8,9 +8,16 @@
  */
 
 const { Bot, webhookCallback, GrammyError, HttpError } = require('grammy');
+const Sentry = require('@sentry/node');
 const config = require('../../config');
 const logger = require('../../utils/logger').child({ module: 'telegram-bot' });
 const messageQueue = require('../../queue/message-queue');
+const {
+  TelegramError,
+  TelegramAPIError,
+  TelegramConfigError,
+  TelegramErrorHandler
+} = require('../../utils/telegram-errors');
 
 class TelegramBot {
   constructor() {
@@ -74,7 +81,7 @@ class TelegramBot {
   }
 
   /**
-   * Setup global error handler
+   * Setup global error handler with Sentry integration
    */
   setupErrorHandler() {
     this.bot.catch((err) => {
@@ -83,21 +90,46 @@ class TelegramBot {
 
       this.metrics.errors++;
 
-      if (error instanceof GrammyError) {
-        logger.error('Telegram API error:', {
-          description: error.description,
-          error_code: error.error_code,
-          method: error.method,
-          payload: error.payload
+      // Extract context for error handling
+      const context = {
+        chatId: ctx?.chat?.id,
+        method: error instanceof GrammyError ? error.method : undefined
+      };
+
+      // Standardize error using our error classes
+      const standardizedError = TelegramErrorHandler.fromGrammyError(error, context);
+
+      // Log with appropriate level
+      TelegramErrorHandler.log(standardizedError, logger);
+
+      // Capture to Sentry with proper tags
+      Sentry.withScope((scope) => {
+        // Set Telegram-specific tags
+        const tags = TelegramErrorHandler.getSentryTags(standardizedError, context);
+        Object.entries(tags).forEach(([key, value]) => {
+          scope.setTag(key, value);
         });
-      } else if (error instanceof HttpError) {
-        logger.error('HTTP error from Telegram:', {
-          status: error.status,
-          message: error.message
+
+        // Set context
+        scope.setContext('telegram', {
+          chatId: context.chatId,
+          method: context.method,
+          errorCode: standardizedError.code,
+          isRetryable: standardizedError.isRetryable,
+          timestamp: standardizedError.timestamp
         });
-      } else {
-        logger.error('Unknown Telegram error:', error);
-      }
+
+        // Set level based on error type
+        if (!standardizedError.isOperational) {
+          scope.setLevel('fatal');
+        } else if (standardizedError.isRetryable) {
+          scope.setLevel('warning');
+        } else {
+          scope.setLevel('error');
+        }
+
+        Sentry.captureException(standardizedError);
+      });
     });
   }
 
@@ -282,7 +314,14 @@ class TelegramBot {
    */
   async sendMessage(chatId, text, businessConnectionId) {
     if (!this.isInitialized || !this.bot) {
-      throw new Error('Telegram bot is not initialized');
+      const error = new TelegramConfigError(
+        'Telegram bot is not initialized',
+        'bot.initialized'
+      );
+      Sentry.captureException(error, {
+        tags: TelegramErrorHandler.getSentryTags(error, { chatId })
+      });
+      throw error;
     }
 
     try {
@@ -302,12 +341,24 @@ class TelegramBot {
         messageId: result.message_id.toString()
       };
     } catch (error) {
-      logger.error('Failed to send message:', error);
       this.metrics.errors++;
+
+      // Standardize error
+      const context = { chatId, method: 'sendMessage' };
+      const standardizedError = TelegramErrorHandler.fromGrammyError(error, context);
+
+      // Log and capture to Sentry
+      TelegramErrorHandler.log(standardizedError, logger);
+      Sentry.captureException(standardizedError, {
+        tags: TelegramErrorHandler.getSentryTags(standardizedError, context),
+        extra: { businessConnectionId, textLength: text?.length }
+      });
 
       return {
         success: false,
-        error: error.message
+        error: standardizedError.message,
+        code: standardizedError.code,
+        isRetryable: standardizedError.isRetryable
       };
     }
   }
@@ -357,7 +408,8 @@ class TelegramBot {
    */
   async setWebhook(url) {
     if (!this.bot) {
-      throw new Error('Bot not initialized');
+      const error = new TelegramConfigError('Bot not initialized', 'bot.initialized');
+      throw error;
     }
 
     try {
@@ -376,7 +428,18 @@ class TelegramBot {
       logger.info('Webhook set successfully:', url);
       return true;
     } catch (error) {
-      logger.error('Failed to set webhook:', error);
+      const { TelegramWebhookError } = require('../../utils/telegram-errors');
+      const webhookError = new TelegramWebhookError(
+        `Failed to set webhook: ${error.message}`,
+        url,
+        { originalError: error.message }
+      );
+
+      TelegramErrorHandler.log(webhookError, logger);
+      Sentry.captureException(webhookError, {
+        tags: TelegramErrorHandler.getSentryTags(webhookError)
+      });
+
       return false;
     }
   }

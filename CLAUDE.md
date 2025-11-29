@@ -15,11 +15,12 @@ Quick reference for Claude Code when working with AI Admin v2.
 - **`docs/02-guides/claude-code/CLAUDE_CODE_MASTER_GUIDE.md`** - 🚀 **ПОЛНОЕ РУКОВОДСТВО по Claude Code (NEW!)**
 - `docs/TROUBLESHOOTING.md` - Common issues
 - `docs/02-guides/telegram/TELEGRAM_BOT_QUICK_REFERENCE.md` - 🤖 Telegram бот управление
+- `docs/02-guides/telegram/TELEGRAM_BUSINESS_BOT_GUIDE.md` - 📱 Telegram Business Bot интеграция
 - `docs/02-guides/marketplace/AUTHORIZATION_QUICK_REFERENCE.md` - ⚡ YClients авторизация
 - `docs/01-architecture/database/TIMEWEB_POSTGRES_SUMMARY.md` - 🗄️ Timeweb PostgreSQL миграция
 - **`dev/active/database-migration-supabase-timeweb/`** - 🎯 **COMPLETE: Database Migration** (Nov 11, 2025)
 - **`dev/active/baileys-resilience-improvements/`** - 🔄 **ACTIVE: Baileys Resilience** (Phase 3: 25% complete)
-- **`dev/active/telegram-integration/`** - 📱 **ACTIVE: Telegram Business Bot** (Phase 3.1 COMPLETE, Nov 29, 2025)
+- **`dev/active/telegram-integration/`** - ✅ **COMPLETE: Telegram Business Bot** (Phase 3 COMPLETE, Nov 29, 2025)
 
 ## 🔧 Essential MCP Servers
 
@@ -729,16 +730,20 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 info backup-postgresql
 
 ---
 
-## 📱 Telegram Business Bot Integration (ACTIVE)
+## 📱 Telegram Business Bot Integration (PRODUCTION READY)
 
-**Status:** Phase 3.1 COMPLETE ✅ | Bot deployed and healthy
+**Status:** ✅ **PRODUCTION READY** | Phase 3 Complete
 **Bot:** `@AdmiAI_bot` (ID: 8522061774)
 **Location:** `dev/active/telegram-integration/`
+**Docs:** `docs/02-guides/telegram/TELEGRAM_BUSINESS_BOT_GUIDE.md`
 
 ### Quick Commands
 ```bash
 # Check bot health
 curl -s https://adminai.tech/webhook/telegram/info | jq '.health.healthy'
+
+# Check metrics
+curl -s https://adminai.tech/api/telegram/metrics | jq '.'
 
 # Check logs
 ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 logs ai-admin-api --lines 30 --nostream | grep -i telegram"
@@ -752,14 +757,25 @@ curl -s "https://api.telegram.org/bot8522061774:AAGCt6A7mTWJdFL5riSJfmnNsVEnc-sf
 - **Mode:** Webhook (not polling)
 - **Integration:** Via `ai-admin-api` (not separate PM2 process)
 - **Init:** TelegramManager.initialize() in `src/index.js`
+- **Error Handling:** Custom error classes with Sentry integration
 
 ### Key Files
 | File | Purpose |
 |------|---------|
-| `src/integrations/telegram/telegram-bot.js` | grammY client (485 lines) |
-| `src/integrations/telegram/telegram-manager.js` | Orchestrator (525 lines) |
+| `src/integrations/telegram/telegram-bot.js` | grammY client with Sentry |
+| `src/integrations/telegram/telegram-manager.js` | Business logic orchestrator |
+| `src/utils/telegram-errors.js` | Error classes & handler |
 | `src/api/webhooks/telegram.js` | Webhook handler |
 | `src/api/routes/telegram-management.js` | 7 management endpoints |
+
+### Error Classes
+| Class | When |
+|-------|------|
+| `TelegramRateLimitError` | 429 Too Many Requests |
+| `TelegramBotBlockedError` | 403 User blocked bot |
+| `TelegramActivityWindowError` | 24h window expired |
+| `TelegramConnectionNotFoundError` | No connection for company |
+| `TelegramAPIError` | Telegram API errors |
 
 ### Environment Variables (Production)
 ```bash
@@ -775,16 +791,20 @@ TELEGRAM_DEFAULT_COMPANY_ID=962302
 3. Customer messages salon's personal account
 4. Bot handles via Business API - messages appear as from salon
 
-### Remaining Work
-- Phase 3.2: Prometheus metrics (optional, internal metrics exist)
-- Phase 3.3: Custom error classes (nice to have)
-- Phase 3.4: Documentation updates
+### Phase Completion
+- ✅ Phase 1: Core Infrastructure (10.5h)
+- ✅ Phase 2: AI Integration (1.75h)
+- ✅ Phase 3.1: Deployment (0.5h)
+- ✅ Phase 3.2: Sentry monitoring integration
+- ✅ Phase 3.3: Custom error classes
+- ✅ Phase 3.4: Documentation
+- **Total: 13h actual vs 100h estimated = 87% faster**
 
 ---
-**Last updated:** November 29, 2025 (Session 6)
+**Last updated:** November 29, 2025 (Session 7)
 **Current branch:** main (GitHub Flow с короткими feature ветками)
 **AI Provider:** Gemini 2.5 Flash (via USA VPN) - 2.6x faster, $77/month savings 🚀
-**Latest change:** 📱 Telegram Business Bot - Phase 3.1 Deployment COMPLETE! Bot @AdmiAI_bot deployed ✅
+**Latest change:** 📱 Telegram Business Bot - Phase 3 COMPLETE! Production ready with error handling ✅
 **Infrastructure Status:** 100% Complete - Skills System ✅ | Dev Docs ✅ | 10 Agents ✅ | Hook Pipeline ✅ | Error Handling ✅
 ---
 

@@ -21,6 +21,12 @@ const messageQueue = require('../../queue/message-queue');
 const postgres = require('../../database/postgres');
 const { TelegramConnectionRepository } = require('../../repositories');
 const Sentry = require('@sentry/node');
+const {
+  TelegramConfigError,
+  TelegramConnectionNotFoundError,
+  TelegramActivityWindowError,
+  TelegramErrorHandler
+} = require('../../utils/telegram-errors');
 
 class TelegramManager {
   constructor() {
@@ -293,7 +299,11 @@ class TelegramManager {
    */
   async sendMessage(companyId, chatId, message, options = {}) {
     if (!this.isInitialized) {
-      throw new Error('Telegram Manager not initialized');
+      const error = new TelegramConfigError(
+        'Telegram Manager not initialized',
+        'manager.initialized'
+      );
+      throw error;
     }
 
     try {
@@ -301,21 +311,29 @@ class TelegramManager {
       const connection = await this.connectionRepository.findByCompanyId(companyId);
 
       if (!connection) {
-        logger.error('No Telegram connection for company:', companyId);
+        const error = new TelegramConnectionNotFoundError(
+          'No Telegram connection for this company',
+          companyId
+        );
+        TelegramErrorHandler.log(error, logger);
         return {
           success: false,
-          error: 'No Telegram connection for this company'
+          error: error.message,
+          code: error.code
         };
       }
 
       if (!connection.can_reply) {
-        logger.warn('Cannot reply via Telegram (24h window expired):', {
-          companyId,
-          chatId
-        });
+        const error = new TelegramActivityWindowError(
+          'Cannot reply - 24h activity window expired',
+          chatId,
+          { companyId }
+        );
+        TelegramErrorHandler.log(error, logger);
         return {
           success: false,
-          error: 'Cannot reply - chat inactive (24h window)',
+          error: error.message,
+          code: error.code,
           reason: 'chat_inactive'
         };
       }
@@ -334,16 +352,27 @@ class TelegramManager {
       return result;
 
     } catch (error) {
-      logger.error('Error sending Telegram message:', error);
       this.metrics.errors++;
-      Sentry.captureException(error, {
-        tags: { component: 'telegram-manager', operation: 'sendMessage' },
-        extra: { companyId, chatId }
+
+      // Standardize error
+      const context = { companyId, chatId };
+      const standardizedError = TelegramErrorHandler.standardize(error, context);
+
+      // Log and capture to Sentry
+      TelegramErrorHandler.log(standardizedError, logger);
+      Sentry.captureException(standardizedError, {
+        tags: {
+          ...TelegramErrorHandler.getSentryTags(standardizedError, context),
+          component: 'telegram-manager',
+          operation: 'sendMessage'
+        }
       });
 
       return {
         success: false,
-        error: error.message
+        error: standardizedError.message,
+        code: standardizedError.code,
+        isRetryable: standardizedError.isRetryable
       };
     }
   }
