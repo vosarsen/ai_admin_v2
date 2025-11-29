@@ -145,7 +145,9 @@ module.exports = {
   get telegram() {
     return {
       enabled: process.env.TELEGRAM_ENABLED === 'true',
-      botToken: getConfig('TELEGRAM_BOT_TOKEN'),
+      // Business bot token (for customer communication)
+      // Falls back to TELEGRAM_BOT_TOKEN for backwards compatibility
+      botToken: getConfig('TELEGRAM_BUSINESS_BOT_TOKEN') || getConfig('TELEGRAM_BOT_TOKEN'),
       webhookUrl: process.env.TELEGRAM_WEBHOOK_URL,
       webhookSecret: getConfig('TELEGRAM_WEBHOOK_SECRET'),
       botUsername: process.env.TELEGRAM_BOT_USERNAME,
