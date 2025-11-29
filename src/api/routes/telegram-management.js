@@ -11,12 +11,28 @@
 
 const express = require('express');
 const router = express.Router();
+const { body, validationResult } = require('express-validator');
 const config = require('../../config');
 const logger = require('../../utils/logger').child({ module: 'telegram-api' });
 const telegramManager = require('../../integrations/telegram/telegram-manager');
 const rateLimiter = require('../../middlewares/rate-limiter');
 const { validateApiKey } = require('../../middlewares/webhook-auth');
 const Sentry = require('@sentry/node');
+
+/**
+ * Validation middleware - extracts validation errors and returns 400
+ */
+const validate = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation error',
+      details: errors.array().map(e => e.msg)
+    });
+  }
+  next();
+};
 
 /**
  * Middleware to check if Telegram is enabled
@@ -198,73 +214,112 @@ router.get('/metrics', rateLimiter, checkTelegramEnabled, async (req, res) => {
  * POST /api/telegram/webhook/set
  * Set Telegram webhook URL (admin only)
  */
-router.post('/webhook/set', rateLimiter, validateApiKey, checkTelegramEnabled, async (req, res) => {
-  try {
-    const { url } = req.body;
+router.post('/webhook/set',
+  rateLimiter,
+  validateApiKey,
+  checkTelegramEnabled,
+  [
+    body('url')
+      .isURL({ protocols: ['https'], require_protocol: true })
+      .withMessage('url must be a valid HTTPS URL')
+      .custom((value) => {
+        // Block localhost and private IPs for security
+        const { URL } = require('url');
+        const parsed = new URL(value);
+        const hostname = parsed.hostname.toLowerCase();
 
-    if (!url) {
-      return res.status(400).json({
+        // Block localhost
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          throw new Error('Cannot set webhook to localhost');
+        }
+
+        // Block private IP ranges
+        const privateIPRegex = /^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)/;
+        if (privateIPRegex.test(hostname)) {
+          throw new Error('Cannot set webhook to private IP address');
+        }
+
+        return true;
+      })
+  ],
+  validate,
+  async (req, res) => {
+    try {
+      const { url } = req.body;
+
+      logger.info('Setting Telegram webhook:', url);
+
+      const result = await telegramManager.setWebhook(url);
+
+      res.json({
+        success: result,
+        message: result ? 'Webhook set successfully' : 'Failed to set webhook'
+      });
+
+    } catch (error) {
+      logger.error('Error setting Telegram webhook:', error);
+      Sentry.captureException(error, {
+        tags: { component: 'telegram-api', operation: 'setWebhook' }
+      });
+
+      res.status(500).json({
         success: false,
-        error: 'Webhook URL is required'
+        error: error.message
       });
     }
-
-    logger.info('Setting Telegram webhook:', url);
-
-    const result = await telegramManager.setWebhook(url);
-
-    res.json({
-      success: result,
-      message: result ? 'Webhook set successfully' : 'Failed to set webhook'
-    });
-
-  } catch (error) {
-    logger.error('Error setting Telegram webhook:', error);
-    Sentry.captureException(error, {
-      tags: { component: 'telegram-api', operation: 'setWebhook' }
-    });
-
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
   }
-});
+);
 
 /**
  * POST /api/telegram/send
  * Send Telegram message (for testing)
  */
-router.post('/send', rateLimiter, validateApiKey, checkTelegramEnabled, async (req, res) => {
-  try {
-    const { companyId, chatId, message, withTyping } = req.body;
+router.post('/send',
+  rateLimiter,
+  validateApiKey,
+  checkTelegramEnabled,
+  [
+    body('companyId')
+      .isInt({ min: 1 })
+      .withMessage('companyId must be a positive integer'),
+    body('chatId')
+      .isInt()
+      .withMessage('chatId must be an integer'),
+    body('message')
+      .isString()
+      .trim()
+      .isLength({ min: 1, max: 4096 })
+      .withMessage('message must be a string between 1 and 4096 characters'),
+    body('withTyping')
+      .optional()
+      .isBoolean()
+      .withMessage('withTyping must be a boolean')
+  ],
+  validate,
+  async (req, res) => {
+    try {
+      const { companyId, chatId, message, withTyping = true } = req.body;
 
-    if (!companyId || !chatId || !message) {
-      return res.status(400).json({
+      logger.info('Sending Telegram message:', { companyId, chatId });
+
+      const result = withTyping
+        ? await telegramManager.sendWithTyping(companyId, chatId, message)
+        : await telegramManager.sendMessage(companyId, chatId, message);
+
+      res.json(result);
+
+    } catch (error) {
+      logger.error('Error sending Telegram message:', error);
+      Sentry.captureException(error, {
+        tags: { component: 'telegram-api', operation: 'sendMessage' }
+      });
+
+      res.status(500).json({
         success: false,
-        error: 'Missing required fields: companyId, chatId, message'
+        error: error.message
       });
     }
-
-    logger.info('Sending Telegram message:', { companyId, chatId });
-
-    const result = withTyping
-      ? await telegramManager.sendWithTyping(companyId, chatId, message)
-      : await telegramManager.sendMessage(companyId, chatId, message);
-
-    res.json(result);
-
-  } catch (error) {
-    logger.error('Error sending Telegram message:', error);
-    Sentry.captureException(error, {
-      tags: { component: 'telegram-api', operation: 'sendMessage' }
-    });
-
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
   }
-});
+);
 
 module.exports = router;

@@ -131,17 +131,20 @@ class TelegramConnectionRepository extends BaseRepository {
   async update(id, data) {
     const startTime = Date.now();
     try {
+      // Remove updated_at from data if present - we set it explicitly below
+      const { updated_at: _ignored, ...updateData } = data;
+
       const setClauses = [];
       const values = [];
       let paramIndex = 1;
 
-      for (const [key, value] of Object.entries(data)) {
+      for (const [key, value] of Object.entries(updateData)) {
         setClauses.push(`${key} = $${paramIndex}`);
         values.push(value);
         paramIndex++;
       }
 
-      // updated_at is handled by trigger, but we'll set it explicitly for consistency
+      // Always set updated_at to NOW() for consistency
       setClauses.push('updated_at = NOW()');
       values.push(id);
 

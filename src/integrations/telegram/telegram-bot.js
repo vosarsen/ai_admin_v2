@@ -8,6 +8,7 @@
  */
 
 const { Bot, webhookCallback, GrammyError, HttpError } = require('grammy');
+const EventEmitter = require('events');
 const Sentry = require('@sentry/node');
 const config = require('../../config');
 const logger = require('../../utils/logger').child({ module: 'telegram-bot' });
@@ -19,8 +20,10 @@ const {
   TelegramErrorHandler
 } = require('../../utils/telegram-errors');
 
-class TelegramBot {
+class TelegramBot extends EventEmitter {
   constructor() {
+    super();
+    this.setMaxListeners(20); // Prevent memory leak warnings
     this.bot = null;
     this.isInitialized = false;
     this.webhookHandler = null;
@@ -516,31 +519,8 @@ class TelegramBot {
     logger.info('Telegram bot shutdown complete');
   }
 
-  // Simple event emitter implementation
-  _eventHandlers = {};
-
-  on(event, handler) {
-    if (!this._eventHandlers[event]) {
-      this._eventHandlers[event] = [];
-    }
-    this._eventHandlers[event].push(handler);
-  }
-
-  emit(event, data) {
-    const handlers = this._eventHandlers[event] || [];
-    for (const handler of handlers) {
-      try {
-        handler(data);
-      } catch (error) {
-        logger.error(`Error in event handler for ${event}:`, error);
-      }
-    }
-  }
-
-  off(event, handler) {
-    if (!this._eventHandlers[event]) return;
-    this._eventHandlers[event] = this._eventHandlers[event].filter(h => h !== handler);
-  }
+  // Note: Event emitter methods (on, emit, off, once, removeAllListeners)
+  // are inherited from Node.js EventEmitter - no custom implementation needed
 }
 
 // Export singleton instance

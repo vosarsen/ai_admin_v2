@@ -165,8 +165,8 @@ class TelegramManager {
         // Disconnection - deactivate in database
         await this.connectionRepository.deactivateByBusinessConnectionId(data.connectionId);
 
-        // Remove from cache
-        this.connectionCache.delete(data.connectionId);
+        // Invalidate cache immediately to prevent stale data
+        this.invalidateConnectionCache(data.connectionId);
 
         logger.info('Business connection deactivated:', {
           connectionId: data.connectionId
@@ -265,6 +265,32 @@ class TelegramManager {
     this.connectionCache.set(businessConnectionId, connectionInfo);
 
     return connectionInfo;
+  }
+
+  /**
+   * Invalidate cache for a specific business connection
+   * @param {string} businessConnectionId - Business connection ID to invalidate
+   */
+  invalidateConnectionCache(businessConnectionId) {
+    this.connectionCache.delete(businessConnectionId);
+    logger.debug('Cache invalidated for connection:', { businessConnectionId });
+  }
+
+  /**
+   * Invalidate all cache entries for a specific company
+   * @param {number} companyId - Company ID to invalidate cache for
+   */
+  invalidateCompanyCache(companyId) {
+    let invalidatedCount = 0;
+    for (const [connId, info] of this.connectionCache.entries()) {
+      if (info.companyId === companyId) {
+        this.connectionCache.delete(connId);
+        invalidatedCount++;
+      }
+    }
+    if (invalidatedCount > 0) {
+      logger.debug('Cache invalidated for company:', { companyId, entriesRemoved: invalidatedCount });
+    }
   }
 
   /**
@@ -425,12 +451,8 @@ class TelegramManager {
     try {
       const result = await this.connectionRepository.deactivate(companyId);
 
-      // Clear from cache
-      for (const [connId, info] of this.connectionCache.entries()) {
-        if (info.companyId === companyId) {
-          this.connectionCache.delete(connId);
-        }
-      }
+      // Invalidate cache immediately to prevent stale data
+      this.invalidateCompanyCache(companyId);
 
       return {
         success: !!result,

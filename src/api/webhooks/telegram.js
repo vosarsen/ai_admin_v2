@@ -7,6 +7,7 @@
 
 const express = require('express');
 const router = express.Router();
+const { body, validationResult } = require('express-validator');
 const config = require('../../config');
 const logger = require('../../utils/logger').child({ module: 'telegram-webhook' });
 const telegramManager = require('../../integrations/telegram/telegram-manager');
@@ -38,6 +39,39 @@ const verifyTelegramSecret = (req, res, next) => {
 };
 
 /**
+ * Validate Telegram update payload structure
+ * Returns true if valid, false if invalid (logs warning)
+ */
+const validateTelegramPayload = (update) => {
+  // Must have update_id
+  if (typeof update.update_id !== 'number') {
+    logger.warn('Invalid Telegram payload: missing or invalid update_id', {
+      hasUpdateId: 'update_id' in update,
+      updateIdType: typeof update.update_id
+    });
+    return false;
+  }
+
+  // Must have at least one known update type
+  const knownUpdateTypes = [
+    'message', 'edited_message', 'channel_post', 'edited_channel_post',
+    'business_connection', 'business_message', 'edited_business_message',
+    'deleted_business_messages', 'callback_query', 'inline_query'
+  ];
+
+  const hasKnownType = knownUpdateTypes.some(type => type in update);
+  if (!hasKnownType) {
+    logger.warn('Invalid Telegram payload: no known update type', {
+      update_id: update.update_id,
+      keys: Object.keys(update).slice(0, 10) // Log first 10 keys for debugging
+    });
+    return false;
+  }
+
+  return true;
+};
+
+/**
  * POST /webhook/telegram
  * Receive Telegram updates
  */
@@ -49,8 +83,19 @@ router.post('/webhook/telegram', verifyTelegramSecret, async (req, res) => {
       return res.status(503).json({ error: 'Telegram integration disabled' });
     }
 
-    // Log update type for monitoring
+    // Validate payload structure
     const update = req.body;
+    if (!update || typeof update !== 'object') {
+      logger.warn('Telegram webhook: empty or non-object payload');
+      return res.status(400).json({ error: 'Invalid payload' });
+    }
+
+    if (!validateTelegramPayload(update)) {
+      // Return 400 for malformed requests (not from Telegram)
+      return res.status(400).json({ error: 'Invalid Telegram update structure' });
+    }
+
+    // Log update type for monitoring
     const updateType = Object.keys(update).find(key =>
       ['message', 'business_connection', 'business_message',
        'edited_business_message', 'deleted_business_messages'].includes(key)
