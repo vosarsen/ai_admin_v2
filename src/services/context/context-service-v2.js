@@ -48,15 +48,18 @@ class ContextServiceV2 {
   /**
    * Получить полный контекст для AI
    * Использует Redis Pipeline для оптимизации
-   * @param {string} phone - Номер телефона клиента
+   * @param {string} phone - Номер телефона клиента или Telegram user ID
    * @param {number} companyId - ID компании
+   * @param {Object} [options] - Дополнительные опции
+   * @param {string} [options.platform='whatsapp'] - Платформа (whatsapp, telegram)
    * @returns {Promise<Object>} Полный контекст для обработки AI
    */
-  async getFullContext(phone, companyId) {
+  async getFullContext(phone, companyId, options = {}) {
+    const { platform = 'whatsapp' } = options;
     const normalizedPhone = this._normalizePhoneForKey(phone);
-    const contextKey = this._getKey('fullContext', companyId, phone);
-    
-    logger.info(`Getting full context for ${normalizedPhone}, company ${companyId}`);
+    const contextKey = this._getKey('fullContext', companyId, phone, platform);
+
+    logger.info(`Getting full context for ${normalizedPhone}, company ${companyId}, platform ${platform}`);
     
     try {
       // 1. Проверяем кэш полного контекста
@@ -68,12 +71,12 @@ class ContextServiceV2 {
       
       // 2. Используем Pipeline для параллельного получения всех данных
       const pipeline = this.redis.pipeline();
-      
+
       // В pipeline используем стандартные Redis команды
-      pipeline.hgetall(this._getKey('dialog', companyId, phone));
-      pipeline.get(this._getKey('client', companyId, phone));
-      pipeline.get(this._getKey('preferences', companyId, phone));
-      pipeline.lrange(this._getKey('messages', companyId, phone), 0, 19);
+      pipeline.hgetall(this._getKey('dialog', companyId, phone, platform));
+      pipeline.get(this._getKey('client', companyId, phone, platform));
+      pipeline.get(this._getKey('preferences', companyId, phone, platform));
+      pipeline.lrange(this._getKey('messages', companyId, phone, platform), 0, 19);
       
       const results = await pipeline.exec();
       
@@ -99,7 +102,8 @@ class ContextServiceV2 {
           }
         }).reverse() : [],
         phone: normalizedPhone,
-        companyId
+        companyId,
+        platform
       });
       
       // 5. Кэшируем на 12 часов
@@ -125,12 +129,15 @@ class ContextServiceV2 {
 
   /**
    * Получить контекст текущего диалога
-   * @param {string} phone - Номер телефона клиента
+   * @param {string} phone - Номер телефона клиента или Telegram user ID
    * @param {number} companyId - ID компании
+   * @param {Object} [options] - Дополнительные опции
+   * @param {string} [options.platform='whatsapp'] - Платформа (whatsapp, telegram)
    * @returns {Promise<Object|null>} Контекст диалога или null
    */
-  async getDialogContext(phone, companyId) {
-    const key = this._getKey('dialog', companyId, phone);
+  async getDialogContext(phone, companyId, options = {}) {
+    const { platform = 'whatsapp' } = options;
+    const key = this._getKey('dialog', companyId, phone, platform);
     
     try {
       const data = await this.redis.hgetall(key);
@@ -141,7 +148,7 @@ class ContextServiceV2 {
       // Получаем последние сообщения для контекста
       let previousUserMessage = '';
       try {
-        const messagesKey = this._getKey('messages', companyId, phone);
+        const messagesKey = this._getKey('messages', companyId, phone, platform);
         const messages = await this.redis.lrange(messagesKey, -10, -1); // Последние 10 сообщений
         
         // Ищем последнее сообщение от пользователя
@@ -178,18 +185,22 @@ class ContextServiceV2 {
   /**
    * Сохранить/обновить контекст диалога
    * Использует WATCH и транзакции для защиты от race conditions
-   * @param {string} phone - Номер телефона клиента
+   * @param {string} phone - Номер телефона клиента или Telegram user ID
    * @param {number} companyId - ID компании
    * @param {Object} updates - Обновления контекста
+   * @param {Object} [options] - Дополнительные опции
+   * @param {string} [options.platform='whatsapp'] - Платформа (whatsapp, telegram)
    * @returns {Promise<{success: boolean, error?: string}>} Результат операции
    */
-  async updateDialogContext(phone, companyId, updates) {
+  async updateDialogContext(phone, companyId, updates, options = {}) {
+    const { platform = 'whatsapp' } = options;
     const normalizedPhone = this._normalizePhoneForKey(phone);
-    const key = this._getKey('dialog', companyId, phone);
-    
+    const key = this._getKey('dialog', companyId, phone, platform);
+
     logger.info('Updating dialog context:', {
       phone: normalizedPhone,
       companyId,
+      platform,
       updateKeys: Object.keys(updates)
     });
     
@@ -285,8 +296,8 @@ class ContextServiceV2 {
         multi.expire(key, TTL_CONFIG.dialog.selection);
         
         // Инвалидируем кэш полного контекста
-        multi.del(this._getKey('fullContext', companyId, phone));
-        
+        multi.del(this._getKey('fullContext', companyId, phone, platform));
+
         // 5. Выполняем транзакцию
         const result = await multi.exec();
         
@@ -320,14 +331,17 @@ class ContextServiceV2 {
   /**
    * Сохранить сообщение в историю
    * Использует Pipeline для атомарной операции
-   * @param {string} phone - Номер телефона клиента
+   * @param {string} phone - Номер телефона клиента или Telegram user ID
    * @param {number} companyId - ID компании
    * @param {Object} message - Объект сообщения
+   * @param {Object} [options] - Дополнительные опции
+   * @param {string} [options.platform='whatsapp'] - Платформа (whatsapp, telegram)
    * @returns {Promise<{success: boolean, error?: string}>} Результат операции
    */
-  async addMessage(phone, companyId, message) {
+  async addMessage(phone, companyId, message, options = {}) {
+    const { platform = 'whatsapp' } = options;
     const normalizedPhone = this._normalizePhoneForKey(phone);
-    const key = this._getKey('messages', companyId, phone);
+    const key = this._getKey('messages', companyId, phone, platform);
     
     try {
       const messageData = {
@@ -356,14 +370,17 @@ class ContextServiceV2 {
 
   /**
    * Получить историю сообщений
-   * @param {string} phone - Номер телефона клиента
+   * @param {string} phone - Номер телефона клиента или Telegram user ID
    * @param {number} companyId - ID компании
    * @param {number} [limit=20] - Максимальное количество сообщений
+   * @param {Object} [options] - Дополнительные опции
+   * @param {string} [options.platform='whatsapp'] - Платформа (whatsapp, telegram)
    * @returns {Promise<Array>} Массив сообщений в хронологическом порядке
    */
-  async getMessages(phone, companyId, limit = 20) {
+  async getMessages(phone, companyId, limit = 20, options = {}) {
+    const { platform = 'whatsapp' } = options;
     const normalizedPhone = this._normalizePhoneForKey(phone);
-    const key = this._getKey('messages', companyId, phone);
+    const key = this._getKey('messages', companyId, phone, platform);
     
     try {
       const messages = await this.redis.lrange(key, 0, limit - 1);
@@ -376,14 +393,17 @@ class ContextServiceV2 {
 
   /**
    * Сохранить кэш клиента из Supabase
-   * @param {string} phone - Номер телефона клиента
+   * @param {string} phone - Номер телефона клиента или Telegram user ID
    * @param {number} companyId - ID компании
    * @param {Object} clientData - Данные клиента для кэширования
+   * @param {Object} [options] - Дополнительные опции
+   * @param {string} [options.platform='whatsapp'] - Платформа (whatsapp, telegram)
    * @returns {Promise<{success: boolean, error?: string}>} Результат операции
    */
-  async saveClientCache(phone, companyId, clientData) {
+  async saveClientCache(phone, companyId, clientData, options = {}) {
+    const { platform = 'whatsapp' } = options;
     const normalizedPhone = this._normalizePhoneForKey(phone);
-    const key = this._getKey('client', companyId, phone);
+    const key = this._getKey('client', companyId, phone, platform);
     
     try {
       await this.redis.setex(
@@ -404,13 +424,16 @@ class ContextServiceV2 {
 
   /**
    * Получить кэш клиента
-   * @param {string} phone - Номер телефона клиента
+   * @param {string} phone - Номер телефона клиента или Telegram user ID
    * @param {number} companyId - ID компании
+   * @param {Object} [options] - Дополнительные опции
+   * @param {string} [options.platform='whatsapp'] - Платформа (whatsapp, telegram)
    * @returns {Promise<Object|null>} Кэшированные данные клиента или null
    */
-  async getClientCache(phone, companyId) {
+  async getClientCache(phone, companyId, options = {}) {
+    const { platform = 'whatsapp' } = options;
     const normalizedPhone = this._normalizePhoneForKey(phone);
-    const key = this._getKey('client', companyId, phone);
+    const key = this._getKey('client', companyId, phone, platform);
     
     try {
       const data = await this.redis.get(key);
@@ -423,14 +446,17 @@ class ContextServiceV2 {
 
   /**
    * Сохранить долгосрочные предпочтения
-   * @param {string} phone - Номер телефона клиента
+   * @param {string} phone - Номер телефона клиента или Telegram user ID
    * @param {number} companyId - ID компании
    * @param {Object} preferences - Предпочтения клиента
+   * @param {Object} [options] - Дополнительные опции
+   * @param {string} [options.platform='whatsapp'] - Платформа (whatsapp, telegram)
    * @returns {Promise<{success: boolean, preferences?: Object, error?: string}>} Результат операции
    */
-  async savePreferences(phone, companyId, preferences) {
+  async savePreferences(phone, companyId, preferences, options = {}) {
+    const { platform = 'whatsapp' } = options;
     const normalizedPhone = this._normalizePhoneForKey(phone);
-    const key = this._getKey('preferences', companyId, phone);
+    const key = this._getKey('preferences', companyId, phone, platform);
     
     try {
       // Получаем существующие предпочтения
@@ -459,10 +485,16 @@ class ContextServiceV2 {
 
   /**
    * Получить предпочтения
+   * @param {string} phone - Номер телефона клиента или Telegram user ID
+   * @param {number} companyId - ID компании
+   * @param {Object} [options] - Дополнительные опции
+   * @param {string} [options.platform='whatsapp'] - Платформа (whatsapp, telegram)
+   * @returns {Promise<Object|null>} Предпочтения клиента или null
    */
-  async getPreferences(phone, companyId) {
+  async getPreferences(phone, companyId, options = {}) {
+    const { platform = 'whatsapp' } = options;
     const normalizedPhone = this._normalizePhoneForKey(phone);
-    const key = this._getKey('preferences', companyId, phone);
+    const key = this._getKey('preferences', companyId, phone, platform);
     
     try {
       const data = await this.redis.get(key);
@@ -476,14 +508,17 @@ class ContextServiceV2 {
   /**
    * Очистить контекст диалога (после создания записи)
    * Использует Pipeline для атомарного удаления
-   * @param {string} phone - Номер телефона клиента
+   * @param {string} phone - Номер телефона клиента или Telegram user ID
    * @param {number} companyId - ID компании
+   * @param {Object} [options] - Дополнительные опции
+   * @param {string} [options.platform='whatsapp'] - Платформа (whatsapp, telegram)
    * @returns {Promise<{success: boolean, error?: string}>} Результат операции
    */
-  async clearDialogContext(phone, companyId) {
+  async clearDialogContext(phone, companyId, options = {}) {
+    const { platform = 'whatsapp' } = options;
     const normalizedPhone = this._normalizePhoneForKey(phone);
-    const dialogKey = this._getKey('dialog', companyId, phone);
-    const contextKey = this._getKey('fullContext', companyId, phone);
+    const dialogKey = this._getKey('dialog', companyId, phone, platform);
+    const contextKey = this._getKey('fullContext', companyId, phone, platform);
     
     try {
       // Используем Pipeline для атомарного удаления
@@ -504,10 +539,16 @@ class ContextServiceV2 {
 
   /**
    * Инвалидировать кэш полного контекста
+   * @param {string} phone - Номер телефона клиента или Telegram user ID
+   * @param {number} companyId - ID компании
+   * @param {Object} [options] - Дополнительные опции
+   * @param {string} [options.platform='whatsapp'] - Платформа (whatsapp, telegram)
+   * @returns {Promise<boolean>} Успешность операции
    */
-  async invalidateFullContextCache(phone, companyId) {
+  async invalidateFullContextCache(phone, companyId, options = {}) {
+    const { platform = 'whatsapp' } = options;
     const normalizedPhone = this._normalizePhoneForKey(phone);
-    const key = this._getKey('fullContext', companyId, phone);
+    const key = this._getKey('fullContext', companyId, phone, platform);
     
     try {
       await this.redis.del(key);
@@ -521,14 +562,17 @@ class ContextServiceV2 {
 
   /**
    * Установить статус обработки
-   * @param {string} phone - Номер телефона клиента
+   * @param {string} phone - Номер телефона клиента или Telegram user ID
    * @param {number} companyId - ID компании
    * @param {string} status - Статус обработки
+   * @param {Object} [options] - Дополнительные опции
+   * @param {string} [options.platform='whatsapp'] - Платформа (whatsapp, telegram)
    * @returns {Promise<boolean>} Успешность операции
    */
-  async setProcessingStatus(phone, companyId, status) {
+  async setProcessingStatus(phone, companyId, status, options = {}) {
+    const { platform = 'whatsapp' } = options;
     const normalizedPhone = this._normalizePhoneForKey(phone);
-    const key = this._getKey('processing', companyId, phone);
+    const key = this._getKey('processing', companyId, phone, platform);
     
     try {
       await this.redis.setex(
@@ -548,10 +592,16 @@ class ContextServiceV2 {
 
   /**
    * Проверить статус обработки
+   * @param {string} phone - Номер телефона клиента или Telegram user ID
+   * @param {number} companyId - ID компании
+   * @param {Object} [options] - Дополнительные опции
+   * @param {string} [options.platform='whatsapp'] - Платформа (whatsapp, telegram)
+   * @returns {Promise<Object|null>} Статус обработки или null
    */
-  async getProcessingStatus(phone, companyId) {
+  async getProcessingStatus(phone, companyId, options = {}) {
+    const { platform = 'whatsapp' } = options;
     const normalizedPhone = this._normalizePhoneForKey(phone);
-    const key = this._getKey('processing', companyId, phone);
+    const key = this._getKey('processing', companyId, phone, platform);
     
     try {
       const data = await this.redis.get(key);
@@ -591,11 +641,19 @@ class ContextServiceV2 {
   
   /**
    * Генерация ключа с правильным префиксом
+   * @param {string} type - Тип ключа (dialog, client, preferences, messages, fullContext, processing)
+   * @param {number} companyId - ID компании
+   * @param {string} phone - Номер телефона или Telegram user ID
+   * @param {string} [platform='whatsapp'] - Платформа (whatsapp, telegram)
+   * @returns {string} Сгенерированный ключ
    */
-  _getKey(type, companyId, phone) {
+  _getKey(type, companyId, phone, platform = 'whatsapp') {
     const prefix = this.prefixes[type] || '';
     const normalizedPhone = this._normalizePhoneForKey(phone);
-    return `${prefix}${companyId}:${normalizedPhone}`;
+    // Format: prefix:companyId:platform:phone
+    // e.g., dialog:962302:whatsapp:79001234567
+    // e.g., dialog:962302:telegram:123456789
+    return `${prefix}${companyId}:${platform}:${normalizedPhone}`;
   }
 
   /**
@@ -657,15 +715,17 @@ class ContextServiceV2 {
    * @param {Object} params.client - Данные клиента
    * @param {Object} params.preferences - Предпочтения
    * @param {Array} params.messages - История сообщений
-   * @param {string} params.phone - Номер телефона
+   * @param {string} params.phone - Номер телефона или Telegram user ID
    * @param {number} params.companyId - ID компании
+   * @param {string} [params.platform='whatsapp'] - Платформа (whatsapp, telegram)
    * @returns {Object} Объединённый контекст
    */
-  _mergeContexts({ dialog, client, preferences, messages, phone, companyId }) {
+  _mergeContexts({ dialog, client, preferences, messages, phone, companyId, platform = 'whatsapp' }) {
     // Базовая структура
     const merged = {
       phone,
       companyId,
+      platform,
       timestamp: new Date().toISOString(),
       
       // Информация о клиенте (приоритет: диалог > кэш)

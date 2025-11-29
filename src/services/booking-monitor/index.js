@@ -884,9 +884,11 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
         };
 
         // Обновляем контекст с информацией о напоминании
+        // NOTE: booking-monitor currently only supports WhatsApp reminders
+        // Telegram reminders will be added in Phase 3
         const updateResult = await contextService.updateDialogContext(phoneForContext, companyId, {
           lastSystemAction: JSON.stringify(reminderInfo)
-        });
+        }, { platform: 'whatsapp' });
 
         if (updateResult.success) {
           // Добавляем сообщение в историю диалога
@@ -894,7 +896,7 @@ ${price > 0 ? `💰 Стоимость: ${price} руб.\n` : ''}
             sender: 'system',
             text: `[Отправлено напоминание о записи]\n${message}`,
             timestamp: new Date().toISOString()
-          });
+          }, { platform: 'whatsapp' });
 
           logger.info(`📝 Reminder added to dialog context for ${phoneForContext}`);
         } else {

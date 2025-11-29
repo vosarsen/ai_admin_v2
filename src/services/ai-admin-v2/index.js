@@ -162,11 +162,20 @@ class AIAdminV2 {
   /**
    * Основной метод обработки сообщений
    * Упрощен с использованием MessageProcessor
+   * @param {string} message - Сообщение пользователя
+   * @param {string} phone - Номер телефона или Telegram user ID
+   * @param {number} companyId - ID компании
+   * @param {Object} [options] - Дополнительные опции
+   * @param {string} [options.platform='whatsapp'] - Платформа (whatsapp, telegram)
+   * @param {boolean} [options.shouldAskHowToHelp=false] - Нужно ли спрашивать как помочь
+   * @param {boolean} [options.isThankYouMessage=false] - Сообщение благодарности
+   * @param {Object} [options.aiProvider=null] - AI провайдер для демо-режима
+   * @returns {Promise<Object>} Результат обработки
    */
   async processMessage(message, phone, companyId, options = {}) {
     let context = null;
     let results = null;
-    const { shouldAskHowToHelp = false, isThankYouMessage = false, aiProvider = null } = options;
+    const { shouldAskHowToHelp = false, isThankYouMessage = false, aiProvider = null, platform = 'whatsapp' } = options;
     
     // Начинаем отслеживание операции
     const operation = performanceMetrics.startOperation('processMessage');
@@ -192,7 +201,7 @@ class AIAdminV2 {
 
       // 1. Проверяем ожидающую отмену записи (через v2)
       const cleanPhone = InternationalPhone.normalize(phone) || phone.replace('@c.us', '');
-      const dialogContext = await contextServiceV2.getDialogContext(cleanPhone, companyId);
+      const dialogContext = await contextServiceV2.getDialogContext(cleanPhone, companyId, { platform });
       const redisContext = dialogContext ? {
         ...dialogContext,
         pendingCancellation: dialogContext.pendingAction?.type === 'cancellation'
@@ -218,8 +227,11 @@ class AIAdminV2 {
         context = this.createDemoContext(options.demoCompanyData, phone);
       } else {
         // Обычный режим - загружаем из БД (включая demo company ID 999999)
-        context = await contextManager.loadFullContext(phone, companyId);
+        context = await contextManager.loadFullContext(phone, companyId, { platform });
       }
+
+      // Добавляем платформу в контекст для использования в промптах и командах
+      context.platform = platform;
 
       // КРИТИЧНО: Добавляем Redis контекст в полный контекст для Stage 1
       context.redisContext = redisContext;
@@ -441,23 +453,26 @@ class AIAdminV2 {
       logger.info('🔥 Calling contextManager.saveContext with:', {
         phone: normalizedPhone,
         companyId,
+        platform,
         updates: contextUpdates
       });
-      await contextManager.saveContext(normalizedPhone, companyId, contextUpdates);
+      await contextManager.saveContext(normalizedPhone, companyId, contextUpdates, { platform });
       
       // Сохраняем контекст из команд (включая результаты)
       if (result.executedCommands && result.executedCommands.length > 0) {
         logger.info('🔥 Calling contextManager.saveCommandContext with:', {
           phone: normalizedPhone,
           companyId,
+          platform,
           commands: result.executedCommands,
           hasResults: !!result.commandResults
         });
         await contextManager.saveCommandContext(
-          normalizedPhone, 
-          companyId, 
+          normalizedPhone,
+          companyId,
           result.executedCommands,
-          result.commandResults
+          result.commandResults,
+          { platform }
         );
         
         // Дополнительно сохраняем дату в старом формате для совместимости
@@ -555,9 +570,14 @@ class AIAdminV2 {
 
   /**
    * Загрузка полного контекста (делегируем в ContextManager)
+   * @param {string} phone - Номер телефона или Telegram user ID
+   * @param {number} companyId - ID компании
+   * @param {Object} [options] - Дополнительные опции
+   * @param {string} [options.platform='whatsapp'] - Платформа (whatsapp, telegram)
+   * @returns {Promise<Object>} Полный контекст для обработки AI
    */
-  async loadFullContext(phone, companyId) {
-    return await contextManager.loadFullContext(phone, companyId);
+  async loadFullContext(phone, companyId, options = {}) {
+    return await contextManager.loadFullContext(phone, companyId, options);
   }
 
   /**

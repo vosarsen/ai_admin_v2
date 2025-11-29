@@ -63,28 +63,49 @@ class MessageQueue {
 
   /**
    * Add message to queue
+   *
+   * Job data structure:
+   * {
+   *   companyId: number,                    // Company ID
+   *   platform: 'whatsapp' | 'telegram',    // Message platform (default: 'whatsapp')
+   *   from: string,                         // Phone number or Telegram user ID
+   *   message: string,                      // Message text
+   *   messageId: string,                    // Platform-specific message ID
+   *
+   *   // Telegram-specific fields:
+   *   chatId?: number,                      // Telegram chat ID
+   *   businessConnectionId?: string,        // Telegram Business connection ID
+   *
+   *   // WhatsApp-specific fields:
+   *   jid?: string,                         // WhatsApp JID (phone@c.us)
+   *
+   *   timestamp: string,                    // ISO timestamp when job was added
+   *   metadata?: object                     // Additional metadata
+   * }
    */
   async addMessage(companyId, data, options = {}) {
     try {
       if (!companyId) {
         throw new Error('CompanyId is required and cannot be undefined');
       }
-      
+
       const queueName = `company-${companyId}-messages`;
-      logger.debug(`📤 Adding message to queue: ${queueName}`);
-      
+      const platform = data.platform || 'whatsapp';
+      logger.debug(`📤 Adding ${platform} message to queue: ${queueName}`);
+
       const queue = this.getQueue(queueName);
-      
+
       const job = await queue.add('process-message', {
         ...data,
         companyId,
+        platform,
         timestamp: new Date().toISOString()
       }, {
         ...options,
         priority: options.priority || 0
       });
 
-      logger.info(`📤 Message added to queue ${queueName}, job ID: ${job.id}`);
+      logger.info(`📤 ${platform} message added to queue ${queueName}, job ID: ${job.id}`);
       return { success: true, jobId: job.id };
     } catch (error) {
       logger.error('Failed to add message to queue:', error);
