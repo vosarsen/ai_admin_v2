@@ -24,7 +24,9 @@ const whatsappBatchedWebhook = require('./webhooks/whatsapp-batched');
 const whatsappBaileysWebhook = require('./webhooks/whatsapp-baileys');
 const whatsappReactionWebhook = require('./webhooks/whatsapp-reaction');
 const glitchtipWebhook = require('./webhooks/glitchtip');
+const telegramWebhook = require('./webhooks/telegram');
 const whatsappManagement = require('./routes/whatsapp-management');
+const telegramManagement = require('./routes/telegram-management');
 
 // Import Swagger documentation
 const { setupSwagger } = require('./swagger');
@@ -98,9 +100,11 @@ app.use(whatsappBatchedWebhook);
 app.use(whatsappBaileysWebhook);
 app.use(whatsappReactionWebhook);
 app.use('/api/webhooks/glitchtip', glitchtipWebhook);
+app.use(telegramWebhook); // Telegram webhook at /webhook/telegram
 
 // Mount API routes
 app.use('/api/whatsapp', whatsappManagement);
+app.use('/api/telegram', telegramManagement); // Telegram management API
 
 // Other API routes
 const calendarRoutes = require('./routes/calendar');

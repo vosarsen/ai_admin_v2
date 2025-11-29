@@ -7,6 +7,8 @@ const aiAdminV2 = require('../services/ai-admin-v2');
 // Use API client instead of direct WhatsApp connection in worker
 const WhatsAppAPIClient = require('../integrations/whatsapp/api-client');
 const whatsappClient = new WhatsAppAPIClient();
+// Telegram API client for multi-channel support
+const telegramClient = require('../integrations/telegram/telegram-api-client');
 const messageQueue = require('../queue/message-queue');
 const errorMessages = require('../utils/error-messages');
 const criticalErrorLogger = require('../utils/critical-error-logger');
@@ -42,6 +44,55 @@ class MessageWorkerV2 {
       port: this.connection.port,
       hasPassword: !!this.connection.password
     });
+  }
+
+  /**
+   * Send message via appropriate channel (WhatsApp or Telegram)
+   *
+   * @param {Object} options - Message options
+   * @param {string} options.to - Phone number or user ID
+   * @param {string} options.message - Message text
+   * @param {string} options.platform - 'whatsapp' or 'telegram'
+   * @param {number} options.companyId - Company ID
+   * @param {number} options.chatId - Telegram chat ID (only for Telegram)
+   */
+  async sendMessage({ to, message, platform = 'whatsapp', companyId, chatId }) {
+    if (platform === 'telegram' && chatId) {
+      logger.debug(`Sending via Telegram to chatId ${chatId}`);
+      return telegramClient.sendMessage(companyId, chatId, message);
+    }
+
+    // Default: WhatsApp
+    logger.debug(`Sending via WhatsApp to ${to}`);
+    return whatsappClient.sendMessage(to, message, { companyId });
+  }
+
+  /**
+   * Send reaction via appropriate channel
+   *
+   * @param {Object} options - Reaction options
+   * @param {string} options.to - Phone number or user ID
+   * @param {string} options.emoji - Emoji to send
+   * @param {string} options.messageId - Message ID to react to
+   * @param {string} options.platform - 'whatsapp' or 'telegram'
+   * @param {number} options.companyId - Company ID
+   */
+  async sendReaction({ to, emoji, messageId, platform = 'whatsapp', companyId }) {
+    if (platform === 'telegram') {
+      // Telegram Business Bot doesn't support reactions yet
+      // Send emoji as message instead
+      logger.debug(`Telegram reaction not supported, sending ${emoji} as message`);
+      // For now, skip reactions on Telegram
+      return { success: true, skipped: true, reason: 'telegram_reactions_not_supported' };
+    }
+
+    // WhatsApp reaction
+    if (messageId) {
+      return whatsappClient.sendReaction(to, emoji, messageId, companyId);
+    }
+
+    // Fallback: send as message
+    return whatsappClient.sendMessage(to, emoji, { companyId });
   }
 
   async start() {
@@ -124,10 +175,13 @@ class MessageWorkerV2 {
 
   async processMessage(job) {
     const startTime = Date.now();
-    const { from, message, companyId, metadata = {} } = job.data;
-    
+    const { from, message, companyId, metadata = {}, platform = 'whatsapp', chatId, businessConnectionId } = job.data;
+
     // Извлекаем messageId из metadata
     const messageId = metadata.messageId || null;
+
+    // Platform-specific client selection
+    const isTelegram = platform === 'telegram';
     
     // Добавляем валидацию номера телефона
     if (!from || from === null || from === 'null' || from === '+' || (typeof from === 'string' && from.length < 5)) {
@@ -143,10 +197,11 @@ class MessageWorkerV2 {
       };
     }
     
-    logger.info(`💬 Processing message from ${from}: "${message}"`);
+    const platformEmoji = isTelegram ? '📱' : '📲';
+    logger.info(`${platformEmoji} [${platform.toUpperCase()}] Processing message from ${from}: "${message}"`);
     logger.info(`📝 Worker patterns loaded - thanks: ${this.thanksPatterns}, closing: ${this.closingPatterns}`);
     logger.info(`🔌 Conversation tracker status: ${this.conversationTracker ? 'initialized' : 'not initialized'}`);
-    logger.info(`📬 Message ID: ${messageId || 'not provided'}`);
+    logger.info(`📬 Message ID: ${messageId || 'not provided'}${isTelegram ? `, chatId: ${chatId}` : ''}`);
     
     // Проверяем, применялась ли уже rapid-fire protection в webhook
     if (metadata.isRapidFireBatch) {
@@ -214,15 +269,14 @@ class MessageWorkerV2 {
           try {
             // Отправляем реакцию сердечком на благодарность
             if (isThankYou) {
-              if (messageId) {
-                // Если есть messageId - отправляем настоящую реакцию
-                await whatsappClient.sendReaction(from, '❤️', messageId, companyId);
-                logger.info(`❤️ Sent heart reaction to ${from} for thank you message (messageId: ${messageId})`);
-              } else {
-                // Fallback: отправляем эмодзи как сообщение
-                await whatsappClient.sendMessage(from, '❤️', { companyId });
-                logger.info(`❤️ Sent heart emoji as message to ${from} (no messageId available)`);
-              }
+              await this.sendReaction({
+                to: from,
+                emoji: '❤️',
+                messageId,
+                platform,
+                companyId
+              });
+              logger.info(`❤️ Sent heart reaction to ${from} for thank you message (platform: ${platform})`);
             }
             
             // Сбрасываем флаг "спрашивали ли мы уже"
@@ -290,23 +344,29 @@ class MessageWorkerV2 {
               // Если после фильтрации не осталось сообщений, пропускаем отправку
               logger.warn(`No messages to send after filtering [THINK] blocks from response`);
             } else {
-              logger.info(`🤖 Bot sending ${messages.length} messages to ${from}`);
-              
+              logger.info(`🤖 Bot sending ${messages.length} messages to ${from} via ${platform}`);
+
               // Отправляем каждое сообщение с небольшой задержкой
               for (let i = 0; i < messages.length; i++) {
-              const message = messages[i];
-              logger.info(`🤖 Message ${i + 1}/${messages.length} to ${from}: "${message}"`);
-              
-              const sendResult = await whatsappClient.sendMessage(from, message);
-              if (!sendResult.success) {
-                throw new Error(`Failed to send message ${i + 1}: ${sendResult.error}`);
+                const msg = messages[i];
+                logger.info(`🤖 Message ${i + 1}/${messages.length} to ${from}: "${msg}"`);
+
+                const sendResult = await this.sendMessage({
+                  to: from,
+                  message: msg,
+                  platform,
+                  companyId,
+                  chatId
+                });
+                if (!sendResult.success) {
+                  throw new Error(`Failed to send message ${i + 1}: ${sendResult.error}`);
+                }
+
+                // Добавляем задержку между сообщениями (кроме последнего)
+                if (i < messages.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 500)); // 500ms задержка
+                }
               }
-              
-              // Добавляем задержку между сообщениями (кроме последнего)
-              if (i < messages.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 500)); // 500ms задержка
-              }
-            }
             
             // Проверяем, содержит ли ответ вопрос "Чем еще могу помочь?"
             if (this.conversationTracker && cleanResponse.includes('Чем еще могу помочь') || cleanResponse.includes('Чем ещё могу помочь')) {
@@ -331,7 +391,10 @@ class MessageWorkerV2 {
               
               // Генерируем и отправляем .ics файл
               try {
-                await this.sendCalendarInvite(bookingResult.data, from, job.data.companyId);
+                await this.sendCalendarInvite(bookingResult.data, from, job.data.companyId, {
+                  platform,
+                  chatId
+                });
               } catch (error) {
                 logger.error('Failed to send calendar invite:', error);
                 // Не прерываем основной процесс если не удалось отправить календарь
@@ -378,9 +441,15 @@ class MessageWorkerV2 {
           
           // Отправляем сообщение об ошибке
           try {
-            logger.info(`🤖 Bot response to ${from} (error): "${userErrorMessage}"`);
-            await whatsappClient.sendMessage(from, userErrorMessage);
-            
+            logger.info(`🤖 Bot response to ${from} (error) via ${platform}: "${userErrorMessage}"`);
+            await this.sendMessage({
+              to: from,
+              message: userErrorMessage,
+              platform,
+              companyId,
+              chatId
+            });
+
             // Если ошибка временная, добавляем job в retry очередь
             if (errorResult.needsRetry && job.attemptsMade < 3) {
               logger.info(`Scheduling retry for job ${job.id}, attempt ${job.attemptsMade + 1}/3`);
@@ -408,7 +477,8 @@ class MessageWorkerV2 {
     });
   }
 
-  async sendCalendarInvite(booking, phone, companyId) {
+  async sendCalendarInvite(booking, phone, companyId, options = {}) {
+    const { platform = 'whatsapp', chatId } = options;
     try {
       const axios = require('axios');
       const postgres = require('../database/postgres');
@@ -443,10 +513,16 @@ class MessageWorkerV2 {
                          `🔗 ${response.data.url}\n\n` +
                          `Ссылка действительна в течение 1 часа`;
           
-          const sendResult = await whatsappClient.sendMessage(phone, message);
-          
+          const sendResult = await this.sendMessage({
+            to: phone,
+            message,
+            platform,
+            companyId,
+            chatId
+          });
+
           if (sendResult.success) {
-            logger.info('📅 Calendar link sent successfully', { url: response.data.url });
+            logger.info(`📅 Calendar link sent successfully via ${platform}`, { url: response.data.url });
           } else {
             logger.error('Failed to send calendar link:', sendResult.error);
           }

@@ -28,6 +28,9 @@ const AppointmentsCacheRepository = require('./AppointmentsCacheRepository');
 const MessageRepository = require('./MessageRepository');
 const DemoChatAnalyticsRepository = require('./DemoChatAnalyticsRepository');
 
+// Telegram integration (2025-11-29)
+const TelegramConnectionRepository = require('./TelegramConnectionRepository');
+
 module.exports = {
   BaseRepository,
   ClientRepository,
@@ -43,5 +46,7 @@ module.exports = {
   MarketplaceEventsRepository,
   AppointmentsCacheRepository,
   MessageRepository,
-  DemoChatAnalyticsRepository
+  DemoChatAnalyticsRepository,
+  // Telegram integration
+  TelegramConnectionRepository
 };

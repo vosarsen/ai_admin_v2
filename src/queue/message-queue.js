@@ -144,6 +144,49 @@ class MessageQueue {
   }
 
   /**
+   * Add reminder to queue with scheduled delay
+   * @param {Object} data - Reminder data (type, booking, phone, platform, etc.)
+   * @param {Date} scheduledTime - When to send the reminder
+   * @param {Object} options - Additional job options
+   */
+  async addReminder(data, scheduledTime, options = {}) {
+    try {
+      const queueName = 'reminders';
+      const queue = this.getQueue(queueName);
+      const delay = scheduledTime.getTime() - Date.now();
+
+      // Don't schedule reminders in the past
+      if (delay <= 0) {
+        logger.warn(`Skipping reminder scheduled in the past: ${scheduledTime.toISOString()}`);
+        return { success: false, reason: 'scheduled_in_past' };
+      }
+
+      const job = await queue.add('send-reminder', {
+        ...data,
+        platform: data.platform || 'whatsapp',
+        scheduledFor: scheduledTime.toISOString(),
+        createdAt: new Date().toISOString()
+      }, {
+        delay,
+        removeOnComplete: true,
+        removeOnFail: false,
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 60000 // 1 minute initial backoff
+        },
+        ...options
+      });
+
+      logger.info(`📅 Reminder scheduled for ${scheduledTime.toISOString()}, job ID: ${job.id}, delay: ${Math.round(delay / 60000)}min`);
+      return { success: true, jobId: job.id };
+    } catch (error) {
+      logger.error('Failed to add reminder to queue:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
    * Graceful shutdown
    */
   async shutdown() {

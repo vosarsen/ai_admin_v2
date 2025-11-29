@@ -140,5 +140,25 @@ module.exports = {
       checkInterval: parseInt(process.env.BOOKING_MONITOR_INTERVAL) || 60000, // 1 минута
       notificationDelay: parseInt(process.env.BOOKING_NOTIFICATION_DELAY) || 30000, // 30 секунд задержка перед отправкой
     };
+  },
+
+  get telegram() {
+    return {
+      enabled: process.env.TELEGRAM_ENABLED === 'true',
+      botToken: getConfig('TELEGRAM_BOT_TOKEN'),
+      webhookUrl: process.env.TELEGRAM_WEBHOOK_URL,
+      webhookSecret: getConfig('TELEGRAM_WEBHOOK_SECRET'),
+      botUsername: process.env.TELEGRAM_BOT_USERNAME,
+      // Default company ID for MVP (single-company mode)
+      // In multi-company setup, this will be resolved via connection code flow
+      defaultCompanyId: process.env.TELEGRAM_DEFAULT_COMPANY_ID
+        ? parseInt(process.env.TELEGRAM_DEFAULT_COMPANY_ID)
+        : null,
+      // Rate limiting (Telegram official limits)
+      rateLimit: {
+        messagesPerSecondPerUser: 1,
+        messagesPerSecondGlobal: 30
+      }
+    };
   }
 };
