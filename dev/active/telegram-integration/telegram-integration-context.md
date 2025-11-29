@@ -1,8 +1,8 @@
 # Telegram Integration - Context
 
 **Last Updated:** 2025-11-29
-**Current Phase:** Phase 1 - Core Infrastructure (In Progress)
-**Session:** 2
+**Current Phase:** Phase 3 - Production & Monitoring (Pending)
+**Session:** 5
 
 ---
 
@@ -66,7 +66,7 @@ Integrating Telegram Business Bot API as a second messaging channel for AI Admin
   - [x] Added Context Key Migration Plan section to plan
 
 ### In Progress
-- [ ] Phase 2: AI Integration (Context service, Queue, AI Admin v2)
+- [ ] Phase 3: Production & Monitoring (Deployment, Monitoring, Documentation)
 
 ### Blocked
 - None
@@ -81,6 +81,14 @@ All core infrastructure is ready:
 - `routes/telegram-management.js` - 7 management endpoints
 - `message-worker-v2.js` - multi-platform support
 
+### Phase 2: COMPLETE ✅
+All AI integration complete:
+- `context-service-v2.js` - platform parameter added to all methods
+- `context-manager-v2.js` - platform-aware caching and context loading
+- `message-queue.js` - documented job structure with platform
+- `ai-admin-v2/index.js` - platform in processMessage options
+- `booking-monitor` - explicit platform for WhatsApp reminders
+
 ---
 
 ## Important Files
@@ -92,8 +100,10 @@ All core infrastructure is ready:
 | `src/api/webhooks/telegram.js` | Webhook handler | ✅ Complete |
 | `src/api/routes/telegram-management.js` | Management API | ✅ Complete |
 | `src/workers/message-worker-v2.js` | Multi-platform worker | ✅ Complete |
-| `src/services/context/context-service-v2.js` | Will need platform prefix | Phase 2 |
-| `src/queue/message-queue.js` | Message queue | Phase 2 |
+| `src/services/context/context-service-v2.js` | Platform-aware context | ✅ Complete |
+| `src/services/ai-admin-v2/modules/context-manager-v2.js` | Platform-aware cache | ✅ Complete |
+| `src/services/ai-admin-v2/index.js` | Platform in options | ✅ Complete |
+| `src/queue/message-queue.js` | Message queue | ✅ Complete |
 
 ---
 
@@ -176,6 +186,35 @@ All core infrastructure is ready:
 - **Plan Status:** ✅ READY FOR IMPLEMENTATION
 - **Next:** Continue with Phase 1.4 (telegram-manager.js)
 
+### Session 5 (2025-11-29) - Phase 2 Complete! 🎉
+- **Phase 2.1 - Context Service:**
+  - Updated `context-service-v2.js` with platform parameter
+  - All 13 public methods now accept `options.platform`
+  - Key format: `prefix:companyId:platform:phone`
+  - Default platform: 'whatsapp' for backward compatibility
+
+- **Phase 2.2 - Message Queue:**
+  - Documented job data structure with platform-specific fields
+  - Added platform to `addMessage()` method
+
+- **Phase 2.3 - AI Admin v2:**
+  - Added platform to `processMessage()` options
+  - Updated `context-manager-v2.js` with platform parameter
+  - Context object now includes platform
+
+- **Phase 2.4 - Reminders:**
+  - booking-monitor already WhatsApp-only
+  - Added explicit platform to context updates
+  - Telegram reminders deferred to Phase 3
+
+- **Phase 2.5 - Calendar Invites:**
+  - Already supports platform in options
+  - No changes needed
+
+- **Result:** Phase 2 complete in 1.75 hours (vs 40 hours estimated = **96% faster**)
+- **Cumulative:** Phase 1+2 in 12.25 hours (vs 80 hours estimated = **85% faster**)
+- **Next:** Phase 3 - Production & Monitoring (Deployment, Alerts, Documentation)
+
 ### Session 4 (2025-11-29) - Phase 1 Complete! 🎉
 - **Phase 1.4 - Telegram Manager:**
   - Created `telegram-manager.js` (420 lines)
@@ -207,52 +246,28 @@ All core infrastructure is ready:
 ## Handoff Notes (Last Updated: 2025-11-29)
 
 ### Current State
-**Phase 1: COMPLETE ✅** - All core infrastructure ready, not yet deployed.
+**Phase 1: COMPLETE ✅** - All core infrastructure committed.
+**Phase 2: COMPLETE ✅** - All AI integration committed.
+**Ready for:** Phase 3 - Production & Monitoring
 
-### Uncommitted Changes (NEED TO COMMIT!)
-```
-Modified:
-- .env.example (added TELEGRAM_DEFAULT_COMPANY_ID)
-- src/api/index.js (registered Telegram routes)
-- src/config/index.js (added defaultCompanyId)
-- src/queue/message-queue.js (added addReminder() method - fixes WhatsApp bug too!)
-- src/repositories/index.js (registered TelegramConnectionRepository)
-- src/workers/message-worker-v2.js (multi-platform support)
+### Commits Made
+1. **Phase 1 commit:** `7e28c9b feat(telegram): Phase 1 - Core infrastructure complete`
+2. **Phase 2 commit:** `a845b91 feat(telegram): Phase 2 - AI Integration with platform support`
 
-New files:
-- migrations/20251129_create_telegram_tables.sql
-- src/api/routes/telegram-management.js
-- src/api/webhooks/telegram.js
-- src/integrations/telegram/ (bot, manager, api-client, index)
-- src/repositories/TelegramConnectionRepository.js
-- dev/active/telegram-integration/ (plan, context, tasks, review)
-```
-
-### Before Continuing
-1. **Commit Phase 1 changes:**
-   ```bash
-   git add -A && git commit -m "feat(telegram): Phase 1 - Core infrastructure complete
-
-   - Add Telegram Business Bot integration (grammY framework)
-   - Create TelegramConnectionRepository for connection management
-   - Add webhook handler and 7 management API endpoints
-   - Modify message-worker-v2 for multi-platform support
-   - Add addReminder() to message-queue (fixes WhatsApp reminder bug)
-   - Add connection cache with 5-min TTL for performance
-
-   Phase 1: 10.5 hours (vs 40 estimated = 74% faster)
-
-   🤖 Generated with Claude Code"
-   ```
-
-2. **Run migration on production** (when ready):
+### Before Deployment (Phase 3)
+1. **Run migration on production:**
    ```bash
    ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219
    cd /opt/ai-admin
    psql $DATABASE_URL < migrations/20251129_create_telegram_tables.sql
    ```
 
-3. **Set environment variables** (when ready):
+2. **Create bot via @BotFather:**
+   - Create new bot
+   - Enable Business Mode
+   - Get bot token
+
+3. **Set environment variables:**
    ```
    TELEGRAM_ENABLED=true
    TELEGRAM_BOT_TOKEN=<from @BotFather>
@@ -260,20 +275,36 @@ New files:
    TELEGRAM_DEFAULT_COMPANY_ID=962302
    ```
 
-### Next Phase (Phase 2: AI Integration)
-Start with `telegram-integration-tasks.md` section "Phase 2: AI Integration":
-1. Context Service updates (platform prefix for Redis keys)
-2. Queue integration (message routing for Telegram)
-3. AI Admin v2 updates (minimal - mostly works)
-4. Reminder system updates (already partially done with addReminder)
+4. **Configure Nginx for webhook:**
+   ```nginx
+   location /webhook/telegram {
+     proxy_pass http://localhost:3000;
+     # Verify webhook secret
+   }
+   ```
+
+5. **Set webhook URL:**
+   ```bash
+   curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
+     -d "url=https://your-domain.com/webhook/telegram" \
+     -d "secret_token=<WEBHOOK_SECRET>"
+   ```
+
+### Next Phase (Phase 3: Production & Monitoring)
+Start with `telegram-integration-tasks.md` section "Phase 3: Production & Monitoring":
+1. Deployment configuration (PM2, Nginx)
+2. Monitoring & alerts (Prometheus, Grafana)
+3. Error handling (custom error classes)
+4. Documentation (user guide, API docs)
 
 ### Key Files to Read First
 - `dev/active/telegram-integration/telegram-integration-plan.md` - Full plan with all sections
-- `dev/active/telegram-integration/TELEGRAM_PLAN_REVIEW.md` - Issues found and fixed
 - `src/integrations/telegram/telegram-manager.js` - Main orchestrator
+- `src/services/context/context-service-v2.js` - Platform-aware context
 
 ### Important Decisions Made
 1. **MVP Single Company Mode** - Use `TELEGRAM_DEFAULT_COMPANY_ID` instead of complex mapping
 2. **24-hour window** - Graceful degradation with fallback to WhatsApp
 3. **Connection cache** - 5-min TTL to reduce DB lookups
 4. **Platform detection** - Via `platform` field in job data, defaults to 'whatsapp'
+5. **Context separation** - Each platform has separate Redis keys (`dialog:962302:telegram:123456789`)
