@@ -308,3 +308,35 @@ Start with `telegram-integration-tasks.md` section "Phase 3: Production & Monito
 3. **Connection cache** - 5-min TTL to reduce DB lookups
 4. **Platform detection** - Via `platform` field in job data, defaults to 'whatsapp'
 5. **Context separation** - Each platform has separate Redis keys (`dialog:962302:telegram:123456789`)
+
+---
+
+## Quick Resume (for next session)
+
+```bash
+# Current state: Phase 1+2 COMPLETE, Phase 3 PENDING
+# All code committed, working tree clean
+
+# Read these files to resume:
+cat dev/active/telegram-integration/telegram-integration-tasks.md | head -n 100
+cat dev/active/telegram-integration/telegram-integration-context.md | head -n 50
+
+# Next action: Start Phase 3.1 (Deployment Configuration)
+# - Create standalone bot service for PM2
+# - Configure Nginx for webhook
+# - Run migration on production
+# - Set environment variables
+```
+
+### What's Complete
+- ✅ Phase 1: Core Infrastructure (10.5h)
+- ✅ Phase 2: AI Integration (1.75h)
+- **Total: 12.25h actual vs 80h estimated = 85% faster**
+
+### What's Next (Phase 3)
+1. Run migration: `psql $DATABASE_URL < migrations/20251129_create_telegram_tables.sql`
+2. Create bot via @BotFather (manual)
+3. Set env vars: TELEGRAM_ENABLED, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET
+4. Configure Nginx webhook location
+5. Set webhook URL via Telegram API
+6. Test end-to-end flow
