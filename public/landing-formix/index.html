@@ -48,21 +48,30 @@
     <!-- Header -->
     <header class="header" id="header">
         <div class="header__container">
+            <!-- Logo (outside pill) -->
             <a href="/" class="header__logo">
                 <span class="logo__text">Admin AI</span>
             </a>
 
-            <nav class="header__nav" id="nav">
+            <!-- Navigation Pill -->
+            <nav class="header__nav-pill" id="nav">
                 <a href="#features" class="nav__link">Возможности</a>
                 <a href="#demo" class="nav__link">Демо</a>
                 <a href="#pricing" class="nav__link">Цены</a>
                 <a href="#faq" class="nav__link">FAQ</a>
             </nav>
 
-            <div class="header__cta">
-                <a href="#contact" class="btn btn--primary">Попробовать бесплатно</a>
+            <!-- CTA Pill -->
+            <div class="header__cta-pill">
+                <a href="#contact" class="btn btn--primary btn--pill">
+                    Попробовать бесплатно
+                    <svg class="btn__icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M3 8H13M13 8L8 3M13 8L8 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </a>
             </div>
 
+            <!-- Mobile Menu Toggle -->
             <button class="header__toggle" id="menuToggle" aria-label="Toggle navigation menu" aria-expanded="false">
                 <span class="toggle__line"></span>
                 <span class="toggle__line"></span>
