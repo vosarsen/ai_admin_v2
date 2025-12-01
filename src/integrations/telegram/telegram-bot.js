@@ -210,16 +210,34 @@ class TelegramBot extends EventEmitter {
     this.bot.on('business_message', async (ctx) => {
       try {
         const message = ctx.businessMessage;
+        const businessConnectionId = ctx.businessConnectionId;
+        const chatId = message.chat.id;
+        const from = message.from;
 
-        // Only process text messages for now
+        // Handle contact sharing (user sent their phone number)
+        if (message.contact) {
+          const contact = message.contact;
+          logger.info('Contact received:', {
+            chat_id: chatId,
+            phone: contact.phone_number,
+            first_name: contact.first_name
+          });
+
+          // Save phone number to Redis
+          await this.saveUserPhone(chatId, contact.phone_number, contact.first_name);
+
+          // Confirm receipt and continue conversation
+          await this.sendBusinessMessage(businessConnectionId, chatId,
+            `✅ Спасибо, ${contact.first_name || 'друг'}! Номер сохранён.\n\nТеперь напишите ваш вопрос, и я помогу вам записаться!`
+          );
+          return;
+        }
+
+        // Only process text messages
         if (!message.text) {
           logger.debug('Skipping non-text business message');
           return;
         }
-
-        const businessConnectionId = ctx.businessConnectionId;
-        const chatId = message.chat.id;
-        const from = message.from;
 
         logger.info('Business message received:', {
           business_connection_id: businessConnectionId,
@@ -231,8 +249,17 @@ class TelegramBot extends EventEmitter {
 
         this.metrics.messagesReceived++;
 
-        // Queue message for AI processing
-        // The companyId will be resolved from business_connection_id by TelegramManager
+        // Check if we have the user's phone number
+        const savedPhone = await this.getUserPhone(chatId);
+
+        if (!savedPhone) {
+          // Request phone number via contact sharing button
+          logger.info('Requesting phone number from user:', { chatId });
+          await this.requestPhoneNumber(businessConnectionId, chatId, from.first_name);
+          return;
+        }
+
+        // Queue message for AI processing with saved phone number
         await this.queueMessageForProcessing({
           platform: 'telegram',
           businessConnectionId,
@@ -240,6 +267,7 @@ class TelegramBot extends EventEmitter {
           fromId: from.id,
           fromUsername: from.username,
           fromFirstName: from.first_name,
+          fromPhone: savedPhone, // Use saved phone number
           message: message.text,
           messageId: message.message_id.toString(),
           timestamp: message.date * 1000 // Convert to milliseconds
@@ -553,7 +581,7 @@ class TelegramBot extends EventEmitter {
       // TelegramManager will resolve companyId from businessConnectionId
       const queueData = {
         platform: 'telegram',
-        from: data.fromId.toString(),
+        from: data.fromPhone || data.fromId.toString(), // Use phone if available, fallback to Telegram ID
         chatId: data.chatId,
         message: data.message,
         messageId: data.messageId,
@@ -562,6 +590,7 @@ class TelegramBot extends EventEmitter {
           businessConnectionId: data.businessConnectionId,
           fromUsername: data.fromUsername,
           fromFirstName: data.fromFirstName,
+          fromTelegramId: data.fromId.toString(),
           platform: 'telegram'
         }
       };
@@ -570,7 +599,10 @@ class TelegramBot extends EventEmitter {
       // It will resolve companyId and add to appropriate queue
       this.emit('incoming_message', queueData);
 
-      logger.debug('Message queued for processing');
+      logger.debug('Message queued for processing:', {
+        from: queueData.from,
+        chatId: data.chatId
+      });
     } catch (error) {
       logger.error('Failed to queue message:', error);
       throw error;
@@ -774,6 +806,130 @@ class TelegramBot extends EventEmitter {
   }
 
   /**
+   * Get Redis client for phone storage
+   * @private
+   */
+  _getRedisClient() {
+    if (!this._redisClient) {
+      const { createRedisClient } = require('../../utils/redis-factory');
+      this._redisClient = createRedisClient('telegram-contacts');
+    }
+    return this._redisClient;
+  }
+
+  /**
+   * Save user's phone number to Redis
+   * @param {number} chatId - Telegram chat ID
+   * @param {string} phone - Phone number
+   * @param {string} [firstName] - User's first name
+   */
+  async saveUserPhone(chatId, phone, firstName = null) {
+    try {
+      const redis = this._getRedisClient();
+      const key = `telegram_phone:${chatId}`;
+
+      // Normalize phone number (remove spaces, dashes, etc.)
+      const normalizedPhone = phone.replace(/[\s\-\(\)]/g, '');
+
+      // Store as JSON with metadata
+      const data = JSON.stringify({
+        phone: normalizedPhone,
+        firstName,
+        savedAt: Date.now()
+      });
+
+      // Store permanently (no TTL - phone numbers don't change often)
+      await redis.set(key, data);
+
+      logger.info('User phone saved:', { chatId, phone: normalizedPhone });
+    } catch (error) {
+      logger.error('Failed to save user phone:', error);
+      Sentry.captureException(error, {
+        tags: { module: 'telegram-bot', operation: 'saveUserPhone' },
+        extra: { chatId }
+      });
+    }
+  }
+
+  /**
+   * Get user's phone number from Redis
+   * @param {number} chatId - Telegram chat ID
+   * @returns {Promise<string|null>} Phone number or null
+   */
+  async getUserPhone(chatId) {
+    try {
+      const redis = this._getRedisClient();
+      const key = `telegram_phone:${chatId}`;
+      const data = await redis.get(key);
+
+      if (!data) {
+        return null;
+      }
+
+      const parsed = JSON.parse(data);
+      return parsed.phone;
+    } catch (error) {
+      logger.error('Failed to get user phone:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Request phone number from user via contact sharing button
+   * @param {string} businessConnectionId - Business connection ID
+   * @param {number} chatId - Telegram chat ID
+   * @param {string} [firstName] - User's first name for personalization
+   */
+  async requestPhoneNumber(businessConnectionId, chatId, firstName) {
+    try {
+      const greeting = firstName ? `Привет, ${firstName}!` : 'Привет!';
+
+      await this.bot.api.sendMessage(
+        chatId,
+        `${greeting} 👋\n\n` +
+        `Я помогу записаться в салон. Для этого мне нужен ваш номер телефона.\n\n` +
+        `Нажмите кнопку ниже, чтобы поделиться контактом:`,
+        {
+          business_connection_id: businessConnectionId,
+          reply_markup: {
+            keyboard: [
+              [{ text: '📱 Поделиться контактом', request_contact: true }]
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          }
+        }
+      );
+
+      logger.info('Phone number request sent:', { chatId });
+    } catch (error) {
+      logger.error('Failed to request phone number:', error);
+      Sentry.captureException(error, {
+        tags: { module: 'telegram-bot', operation: 'requestPhoneNumber' },
+        extra: { chatId, businessConnectionId }
+      });
+    }
+  }
+
+  /**
+   * Send message via business connection (helper method)
+   * @param {string} businessConnectionId - Business connection ID
+   * @param {number} chatId - Telegram chat ID
+   * @param {string} text - Message text
+   */
+  async sendBusinessMessage(businessConnectionId, chatId, text) {
+    try {
+      await this.bot.api.sendMessage(chatId, text, {
+        business_connection_id: businessConnectionId,
+        reply_markup: { remove_keyboard: true } // Remove contact button after use
+      });
+    } catch (error) {
+      logger.error('Failed to send business message:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Graceful shutdown
    */
   async shutdown() {
@@ -781,6 +937,15 @@ class TelegramBot extends EventEmitter {
 
     if (this.bot) {
       await this.deleteWebhook();
+    }
+
+    // Close Redis connection
+    if (this._redisClient) {
+      try {
+        await this._redisClient.quit();
+      } catch (e) {
+        // Ignore
+      }
     }
 
     this.isInitialized = false;
