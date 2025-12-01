@@ -7,6 +7,7 @@
 const postgres = require('../database/postgres');
 const { ClientRepository } = require('../repositories');
 const logger = require('../utils/logger').child({ module: 'clients-sync-optimized' });
+const Sentry = require('@sentry/node');
 const {
   YCLIENTS_CONFIG,
   createYclientsHeaders,
@@ -256,32 +257,21 @@ class ClientsSyncOptimized {
   }
 
   /**
-   * Direct bulk upsert fallback
+   * Direct bulk upsert using repository pattern
+   * Migrated to Repository Pattern (2025-12-02)
    */
   async bulkUpsertDirect(batchData) {
     if (batchData.length === 0) return;
 
-    // Build columns from first item
-    const columns = Object.keys(batchData[0]);
-    const placeholders = batchData.map((_, rowIdx) =>
-      `(${columns.map((_, colIdx) => `$${rowIdx * columns.length + colIdx + 1}`).join(', ')})`
-    ).join(', ');
-
-    const values = batchData.flatMap(row => columns.map(col => row[col]));
-
-    const updateSet = columns
-      .filter(col => !['yclients_id', 'company_id'].includes(col))
-      .map(col => `${col} = EXCLUDED.${col}`)
-      .join(', ');
-
-    const query = `
-      INSERT INTO clients (${columns.join(', ')})
-      VALUES ${placeholders}
-      ON CONFLICT (yclients_id, company_id)
-      DO UPDATE SET ${updateSet}
-    `;
-
-    await postgres.query(query, values);
+    try {
+      await this.clientRepo.bulkUpsert(batchData);
+    } catch (error) {
+      Sentry.captureException(error, {
+        tags: { component: 'clients-sync-optimized', operation: 'bulkUpsert' },
+        extra: { batchSize: batchData.length }
+      });
+      throw error;
+    }
   }
 
   /**
@@ -340,15 +330,8 @@ class ClientsSyncOptimized {
         const records = await recordsSync.getClientRecords(client.id, client.phone);
 
         if (records && records.length > 0) {
-          // Получаем ID клиента из базы
-          const dbClientResult = await postgres.query(
-            `SELECT id FROM clients
-             WHERE yclients_id = $1 AND company_id = $2
-             LIMIT 1`,
-            [client.id, this.config.COMPANY_ID]
-          );
-
-          const dbClient = dbClientResult.rows[0];
+          // Получаем клиента из базы через repository
+          const dbClient = await this.clientRepo.findById(client.id, this.config.COMPANY_ID);
 
           if (dbClient) {
             await recordsSync.saveClientVisits(dbClient.id, client.id, records);
@@ -367,6 +350,10 @@ class ClientsSyncOptimized {
         logger.warn(`Failed to sync visits for client ${client.name}`, {
           error: error.message
         });
+        Sentry.captureException(error, {
+          tags: { component: 'clients-sync-optimized', operation: 'syncVisitHistory' },
+          extra: { clientId: client.id, clientName: client.name }
+        });
       }
     }
 
@@ -376,7 +363,7 @@ class ClientsSyncOptimized {
 
   /**
    * Обновить статус синхронизации
-   * Migrated from Supabase to PostgreSQL
+   * Note: Uses direct postgres.query for sync_status table (no repository needed)
    */
   async updateSyncStatus(status, recordsProcessed = 0, errorMessage = null) {
     try {
@@ -396,6 +383,9 @@ class ClientsSyncOptimized {
       );
     } catch (error) {
       logger.error('Failed to update sync status', { error: error.message });
+      Sentry.captureException(error, {
+        tags: { component: 'clients-sync-optimized', operation: 'updateSyncStatus' }
+      });
     }
   }
 }

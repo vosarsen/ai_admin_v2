@@ -6,18 +6,21 @@
 
 const postgres = require('../database/postgres');
 const logger = require('../utils/logger').child({ module: 'goods-transactions-sync' });
+const Sentry = require('@sentry/node');
 const {
   YCLIENTS_CONFIG,
   createYclientsHeaders,
   delay
 } = require('./sync-utils');
 const axios = require('axios');
+const { ClientRepository } = require('../repositories');
 
 class GoodsTransactionsSync {
   constructor() {
     this.config = YCLIENTS_CONFIG;
     this.headers = createYclientsHeaders(true);
     this.GOODS_EXPENSE_ID = 7; // ID для "Продажа товаров"
+    this.clientRepo = new ClientRepository(postgres.pool);
   }
 
   /**
@@ -176,6 +179,7 @@ class GoodsTransactionsSync {
 
   /**
    * Обновить данные клиентов с информацией о товарах
+   * Migrated to Repository Pattern (2025-12-02)
    */
   async updateClientsWithGoods(clientTransactions) {
     let processed = 0;
@@ -185,34 +189,27 @@ class GoodsTransactionsSync {
     for (const [yclientsId, data] of Object.entries(clientTransactions)) {
       try {
         // Находим клиента в нашей базе по yclients_id
-        const findResult = await postgres.query(
-          `SELECT id, services_amount, total_spent FROM clients
-           WHERE yclients_id = $1 AND company_id = $2`,
-          [yclientsId, this.config.COMPANY_ID]
+        const client = await this.clientRepo.findById(
+          parseInt(yclientsId),
+          this.config.COMPANY_ID
         );
 
-        const client = findResult.rows[0];
         if (!client) {
           logger.debug(`Client not found in database: ${yclientsId}`);
           errors++;
           continue;
         }
 
-        // Обновляем клиента
-        await postgres.query(
-          `UPDATE clients SET
-             goods_amount = $1,
-             goods_count = $2,
-             goods_purchases = $3,
-             services_amount = $4
-           WHERE id = $5`,
-          [
-            data.total_amount,
-            data.transactions_count,
-            JSON.stringify(data.purchases),
-            client.total_spent - data.total_amount,
-            client.id
-          ]
+        // Обновляем клиента через repository
+        await this.clientRepo.update(
+          'clients',
+          { id: client.id },
+          {
+            goods_amount: data.total_amount,
+            goods_count: data.transactions_count,
+            goods_purchases: JSON.stringify(data.purchases),
+            services_amount: client.total_spent - data.total_amount
+          }
         );
 
         processed++;
@@ -224,6 +221,10 @@ class GoodsTransactionsSync {
 
       } catch (error) {
         logger.error(`Error processing client ${yclientsId}:`, error);
+        Sentry.captureException(error, {
+          tags: { component: 'goods-transactions-sync', operation: 'updateClient' },
+          extra: { yclientsId, companyId: this.config.COMPANY_ID }
+        });
         errors++;
       }
     }

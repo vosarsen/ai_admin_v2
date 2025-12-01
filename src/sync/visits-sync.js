@@ -7,6 +7,7 @@
 const axios = require('axios');
 const postgres = require('../database/postgres');
 const logger = require('../utils/logger').child({ module: 'visits-sync' });
+const Sentry = require('@sentry/node');
 const {
   YCLIENTS_CONFIG,
   createYclientsHeaders,
@@ -134,10 +135,14 @@ class VisitsSync {
     }
 
     try {
+      // Note: Direct query for visits sync (no VisitRepository exists)
       const result = await postgres.query(sql, params);
       return result.rows || [];
     } catch (error) {
       logger.error('Failed to fetch clients for sync', error);
+      Sentry.captureException(error, {
+        tags: { component: 'visits-sync', operation: 'getClientsForSync' }
+      });
       throw error;
     }
   }
@@ -556,6 +561,10 @@ class VisitsSync {
         logger.error('Error processing visits batch', {
           error: error.message
         });
+        Sentry.captureException(error, {
+          tags: { component: 'visits-sync', operation: 'saveVisitsBatch' },
+          extra: { batchSize: batch.length, clientId: client.id }
+        });
         errors += batch.length;
       }
 
@@ -594,6 +603,9 @@ class VisitsSync {
 
     } catch (error) {
       logger.error('Failed to update sync stats', error);
+      Sentry.captureException(error, {
+        tags: { component: 'visits-sync', operation: 'updateSyncStats' }
+      });
     }
   }
 }
