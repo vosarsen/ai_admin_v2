@@ -34,17 +34,25 @@ class TelegramConnectionRepository extends BaseRepository {
 
   /**
    * Find connection by Telegram business_connection_id
+   * Returns yclients_id as company_id for queue compatibility
    *
    * @param {string} businessConnectionId - Telegram's connection ID
-   * @returns {Promise<Object|null>} Connection record or null
+   * @returns {Promise<Object|null>} Connection record with yclients_id as company_id
    *
    * @example
    * const connection = await telegramRepo.findByBusinessConnectionId('conn_abc123');
    */
   async findByBusinessConnectionId(businessConnectionId) {
-    return this.findOne('telegram_business_connections', {
-      business_connection_id: businessConnectionId
-    });
+    const sql = `
+      SELECT
+        tbc.*,
+        c.yclients_id as company_id
+      FROM telegram_business_connections tbc
+      JOIN companies c ON c.id = tbc.company_id
+      WHERE tbc.business_connection_id = $1
+    `;
+    const result = await this.db.query(sql, [businessConnectionId]);
+    return result.rows[0] || null;
   }
 
   /**
@@ -276,10 +284,17 @@ class TelegramConnectionRepository extends BaseRepository {
    * @returns {Promise<Array>} Array of active connections
    */
   async getAllActive() {
-    return this.findMany('telegram_business_connections', { is_active: true }, {
-      orderBy: 'connected_at',
-      order: 'desc'
-    });
+    const sql = `
+      SELECT
+        tbc.*,
+        c.yclients_id as company_id
+      FROM telegram_business_connections tbc
+      JOIN companies c ON c.id = tbc.company_id
+      WHERE tbc.is_active = true
+      ORDER BY tbc.connected_at DESC
+    `;
+    const result = await this.db.query(sql);
+    return result.rows;
   }
 
   /**
