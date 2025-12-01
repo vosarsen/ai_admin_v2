@@ -1,6 +1,6 @@
 /**
  * Синхронизация активных записей (bookings) из YClients в PostgreSQL
- * Migrated from Supabase to Repository Pattern (2025-11-26)
+ * Migration: Supabase → PostgreSQL Repository Pattern (2025-11-26)
  * Синхронизирует только будущие записи для быстрого доступа AI Admin
  */
 

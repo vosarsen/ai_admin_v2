@@ -13,6 +13,9 @@
 
 const Sentry = require('@sentry/node');
 
+// Slow query threshold (configurable via env var)
+const SLOW_QUERY_THRESHOLD_MS = parseInt(process.env.DB_QUERY_LATENCY_THRESHOLD_MS) || 500;
+
 class BaseRepository {
   /**
    * Create a BaseRepository instance
@@ -23,6 +26,41 @@ class BaseRepository {
       throw new Error('Database connection pool is required');
     }
     this.db = db;
+  }
+
+  /**
+   * Log query execution with slow query detection
+   * @param {string} operation - Operation name (findOne, findMany, etc.)
+   * @param {string} table - Table name
+   * @param {number} duration - Query duration in ms
+   * @param {Object} context - Additional context for slow query alerts
+   * @private
+   */
+  _logQuery(operation, table, duration, context = {}) {
+    const isSlowQuery = duration > SLOW_QUERY_THRESHOLD_MS;
+
+    if (process.env.LOG_DATABASE_CALLS === 'true') {
+      const suffix = context.rows ? ` - ${context.rows} rows` : '';
+      console.log(`[DB] ${operation} ${table}${suffix} - ${duration}ms`);
+    }
+
+    if (isSlowQuery) {
+      console.warn(`[DB SLOW] ${operation} ${table} took ${duration}ms (threshold: ${SLOW_QUERY_THRESHOLD_MS}ms)`);
+      Sentry.captureMessage(`Slow database query: ${operation} ${table}`, {
+        level: 'warning',
+        tags: {
+          component: 'repository',
+          table,
+          operation,
+          alert_type: 'slow_query'
+        },
+        extra: {
+          duration: `${duration}ms`,
+          threshold: `${SLOW_QUERY_THRESHOLD_MS}ms`,
+          ...context
+        }
+      });
+    }
   }
 
   /**
@@ -48,9 +86,7 @@ class BaseRepository {
       const result = await this.db.query(sql, params);
 
       const duration = Date.now() - startTime;
-      if (process.env.LOG_DATABASE_CALLS === 'true') {
-        console.log(`[DB] findOne ${table} - ${duration}ms`);
-      }
+      this._logQuery('findOne', table, duration, { filters });
 
       return result.rows[0] || null;
     } catch (error) {
@@ -96,9 +132,7 @@ class BaseRepository {
       const result = await this.db.query(sql, params);
 
       const duration = Date.now() - startTime;
-      if (process.env.LOG_DATABASE_CALLS === 'true') {
-        console.log(`[DB] findMany ${table} - ${result.rows.length} rows - ${duration}ms`);
-      }
+      this._logQuery('findMany', table, duration, { rows: result.rows.length, filters, options });
 
       return result.rows;
     } catch (error) {
@@ -162,9 +196,7 @@ class BaseRepository {
       const result = await this.db.query(sql, values);
 
       const duration = Date.now() - startTime;
-      if (process.env.LOG_DATABASE_CALLS === 'true') {
-        console.log(`[DB] upsert ${table} - ${duration}ms`);
-      }
+      this._logQuery('upsert', table, duration);
 
       return result.rows[0];
     } catch (error) {
@@ -227,9 +259,7 @@ class BaseRepository {
       const result = await this.db.query(sql, allParams);
 
       const duration = Date.now() - startTime;
-      if (process.env.LOG_DATABASE_CALLS === 'true') {
-        console.log(`[DB] update ${table} - ${result.rowCount} rows - ${duration}ms`);
-      }
+      this._logQuery('update', table, duration, { rows: result.rowCount, filters });
 
       return result.rows[0] || null;
     } catch (error) {
@@ -313,9 +343,7 @@ class BaseRepository {
       const result = await this.db.query(sql, allValues);
 
       const duration = Date.now() - startTime;
-      if (process.env.LOG_DATABASE_CALLS === 'true') {
-        console.log(`[DB] bulkUpsert ${table} - ${dataArray.length} rows - ${duration}ms`);
-      }
+      this._logQuery('bulkUpsert', table, duration, { rows: dataArray.length });
 
       return result.rows;
     } catch (error) {
@@ -403,9 +431,7 @@ class BaseRepository {
       await client.query('COMMIT');
 
       const duration = Date.now() - startTime;
-      if (process.env.LOG_DATABASE_CALLS === 'true') {
-        console.log(`[DB] Transaction committed in ${duration}ms`);
-      }
+      this._logQuery('transaction', 'COMMIT', duration);
 
       return result;
     } catch (error) {
@@ -676,9 +702,10 @@ class BaseRepository {
 
       const duration = Date.now() - startTime;
 
-      if (process.env.LOG_DATABASE_CALLS === 'true') {
-        console.log(`[DB] bulkUpsertBatched ${table} - ${totalUpserted} rows in ${batches.length} batches - ${duration}ms`);
-      }
+      this._logQuery('bulkUpsertBatched', table, duration, {
+        rows: totalUpserted,
+        batches: batches.length
+      });
 
       return { success: true, count: totalUpserted, duration };
     } catch (error) {

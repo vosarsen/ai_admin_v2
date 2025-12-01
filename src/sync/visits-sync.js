@@ -1,6 +1,6 @@
 /**
  * Синхронизация истории визитов из YClients в PostgreSQL
- * Migrated from Supabase to Repository Pattern (2025-11-26)
+ * Migration: Supabase → PostgreSQL Repository Pattern (2025-11-26)
  * Загружает полную историю визитов клиентов для персонализации и аналитики
  */
 

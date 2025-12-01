@@ -1,5 +1,5 @@
 // src/services/ai-admin-v2/modules/data-loader.js
-// Migrated from Supabase to PostgreSQL (2025-11-26)
+// Migration: Supabase → PostgreSQL Repository Pattern (2025-11-26)
 const postgres = require('../../../database/postgres');
 const logger = require('../../../utils/logger').child({ module: 'ai-admin-v2:data-loader' });
 const { CompanyInfoSync } = require('../../../sync/company-info-sync');

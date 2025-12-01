@@ -1,6 +1,6 @@
 /**
  * Синхронизация информации о компании из YClients в PostgreSQL
- * Migrated from Supabase to Repository Pattern (2025-11-26)
+ * Migration: Supabase → PostgreSQL Repository Pattern (2025-11-26)
  */
 
 const logger = require('../utils/logger').child({ module: 'company-info-sync' });

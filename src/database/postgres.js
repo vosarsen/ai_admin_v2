@@ -351,6 +351,9 @@ pool = new Pool({
         checkPoolHealthAlerts(snapshot);
       }, 10000); // 10 seconds
 
+      // Allow process to exit even if interval is running (for tests)
+      monitoringInterval.unref();
+
       // Clean up monitoring on shutdown
       process.on('SIGINT', () => {
         clearInterval(monitoringInterval);
@@ -501,4 +504,15 @@ module.exports = {
   getPoolStats, // Legacy function (basic stats)
   getPoolMetrics, // New comprehensive metrics for dashboard
   isEnabled: true, // Always enabled (Supabase removed)
+
+  /**
+   * Close connection pool (for test cleanup)
+   * Safe to call multiple times.
+   * @returns {Promise<void>}
+   */
+  async end() {
+    if (pool && !pool.ended) {
+      await pool.end();
+    }
+  }
 };

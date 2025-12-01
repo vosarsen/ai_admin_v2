@@ -1,6 +1,6 @@
 /**
  * Синхронизация товарных транзакций из YClients в PostgreSQL
- * Migrated from Supabase to PostgreSQL (2025-11-26)
+ * Migration: Supabase → PostgreSQL Repository Pattern (2025-11-26)
  * Загружает финансовые транзакции с expense_id=7 (Продажа товаров)
  */
 

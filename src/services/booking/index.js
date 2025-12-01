@@ -1,5 +1,5 @@
 // src/services/booking/index.js
-// Migrated from Supabase to PostgreSQL (2025-11-26)
+// Migration: Supabase → PostgreSQL Repository Pattern (2025-11-26)
 const { PostgresDataLayer } = require('../../integrations/yclients/data/postgres-data-layer');
 const { YclientsClient } = require('../../integrations/yclients/client');
 const config = require('../../config');
