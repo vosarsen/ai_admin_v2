@@ -1,9 +1,11 @@
 // src/utils/critical-error-logger.js
 // Migration: Supabase → PostgreSQL (2025-11-26)
+// Added Sentry integration (2025-12-02)
 const logger = require('./logger');
 const config = require('../config');
 const { format } = require('date-fns');
 const os = require('os');
+const Sentry = require('@sentry/node');
 
 // PostgreSQL for database operations (lazy loaded to avoid circular deps)
 let postgres = null;
@@ -297,22 +299,42 @@ class CriticalErrorLogger {
    * Логировать в несколько мест
    */
   async logToMultipleTargets(errorData) {
-    // 1. Winston logger
+    // 1. Sentry - главный канал для мониторинга
+    try {
+      Sentry.captureException(new Error(errorData.error.message), {
+        tags: {
+          component: 'critical-error-logger',
+          error_type: errorData.type,
+          severity: errorData.severity
+        },
+        extra: {
+          errorId: errorData.id,
+          context: errorData.context,
+          system: errorData.system,
+          pattern: errorData.pattern
+        },
+        level: errorData.severity === 'critical' ? 'fatal' : 'error'
+      });
+    } catch (sentryError) {
+      logger.error('Failed to send to Sentry:', sentryError);
+    }
+
+    // 2. Winston logger
     logger.error('CRITICAL ERROR', errorData);
-    
-    // 2. Файловая система для критичных ошибок
+
+    // 3. Файловая система для критичных ошибок
     if (errorData.severity === 'critical') {
       await this.logToFile(errorData);
     }
-    
-    // 3. База данных для анализа
+
+    // 4. База данных для анализа
     try {
       await this.logToDatabase(errorData);
     } catch (dbError) {
       logger.error('Failed to log to database:', dbError);
     }
-    
-    // 4. Консоль для немедленного внимания
+
+    // 5. Консоль для немедленного внимания
     if (errorData.severity === 'critical') {
       this.logToConsole(errorData);
     }

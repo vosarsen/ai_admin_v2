@@ -2674,21 +2674,17 @@ class CommandHandler {
     }
     
     // Получаем расписание из базы данных
-    // Migrated from Supabase to PostgreSQL (2025-11-26)
+    // Migrated to Repository Pattern (2025-12-02)
     const postgres = require('../../../database/postgres');
+    const StaffScheduleRepository = require('../../../repositories/StaffScheduleRepository');
+    const scheduleRepo = new StaffScheduleRepository(postgres);
 
     let schedules = [];
     try {
-      let queryText = 'SELECT * FROM staff_schedules WHERE date = $1';
-      let params = [dateStr];
-
-      if (staff) {
-        queryText += ' AND yclients_staff_id = $2';
-        params.push(staff.yclients_id);
-      }
-
-      const result = await postgres.query(queryText, params);
-      schedules = result.rows;
+      schedules = await scheduleRepo.findByDate(
+        dateStr,
+        staff ? staff.yclients_id : null
+      );
     } catch (error) {
       logger.error('Error fetching staff schedules:', error);
       return {
@@ -2705,16 +2701,14 @@ class CommandHandler {
       const futureDateStr = futureDate.toISOString().split('T')[0];
 
       try {
-        const futureResult = await postgres.query(
-          `SELECT date, is_working, has_booking_slots FROM staff_schedules
-           WHERE yclients_staff_id = $1 AND date >= $2 AND date <= $3
-           AND is_working = true AND has_booking_slots = true
-           ORDER BY date ASC`,
-          [staff.yclients_id, dateStr, futureDateStr]
+        const futureSchedules = await scheduleRepo.findWorkingDaysInRange(
+          staff.yclients_id,
+          dateStr,
+          futureDateStr
         );
 
-        if (futureResult.rows && futureResult.rows.length > 0) {
-          workingDays = futureResult.rows.map(s => {
+        if (futureSchedules && futureSchedules.length > 0) {
+          workingDays = futureSchedules.map(s => {
             // Используем человечное форматирование дат
             return formatHumanDate(s.date);
           });

@@ -18,17 +18,18 @@ const {
 /**
  * 💾 POSTGRES DATA LAYER
  *
- * Unified data access layer using Repository Pattern
- * All Supabase dependencies removed (2025-11-26)
+ * @deprecated Use repositories directly instead (src/repositories/)
+ * This is a legacy facade that wraps Repository Pattern.
+ * Kept for backward compatibility with booking/index.js.
  *
- * METHODS:
- * - getDialogContext, upsertDialogContext
- * - getClientByPhone, getClientById, getClientAppointments, getUpcomingAppointments
- * - searchClientsByName, upsertClient, upsertClients
- * - getStaffById, getStaff, getStaffSchedule, getStaffSchedules, upsertStaffSchedules
- * - getServices, getServiceById, getServicesByCategory, upsertServices
- * - getCompany, upsertCompany
- * - healthCheck
+ * Migration guide:
+ * - getServices() → ServiceRepository.findMany()
+ * - getStaff() → StaffRepository.findMany()
+ * - getClientByPhone() → ClientRepository.findByPhone()
+ * - etc.
+ *
+ * This file will be removed in a future release.
+ * Last updated: 2025-12-02
  */
 class PostgresDataLayer {
   constructor(config = {}) {

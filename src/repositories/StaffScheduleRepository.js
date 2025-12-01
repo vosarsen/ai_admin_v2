@@ -169,6 +169,56 @@ class StaffScheduleRepository extends BaseRepository {
     const result = await this.db.query(sql, [beforeDate]);
     return result.rowCount;
   }
+
+  /**
+   * Find schedules by date, optionally filtered by staff
+   * Used by command-handler.js for CHECK_STAFF_SCHEDULE
+   *
+   * @param {string} date - Date (YYYY-MM-DD)
+   * @param {number|null} staffYclientsId - Optional staff YClients ID
+   * @returns {Promise<Array>} Array of schedule records
+   *
+   * @example
+   * // All schedules for date
+   * const schedules = await scheduleRepo.findByDate('2025-12-02');
+   * // Specific staff schedule
+   * const schedules = await scheduleRepo.findByDate('2025-12-02', 2895125);
+   */
+  async findByDate(date, staffYclientsId = null) {
+    let sql = 'SELECT * FROM staff_schedules WHERE date = $1';
+    const params = [date];
+
+    if (staffYclientsId !== null) {
+      sql += ' AND yclients_staff_id = $2';
+      params.push(staffYclientsId);
+    }
+
+    const result = await this.db.query(sql, params);
+    return result.rows;
+  }
+
+  /**
+   * Find working days with available slots in date range
+   * Used by command-handler.js for showing staff's upcoming working days
+   *
+   * @param {number} staffYclientsId - Staff YClients ID
+   * @param {string} startDate - Start date (YYYY-MM-DD)
+   * @param {string} endDate - End date (YYYY-MM-DD)
+   * @returns {Promise<Array>} Array of schedule records with is_working=true and has_booking_slots=true
+   *
+   * @example
+   * const workingDays = await scheduleRepo.findWorkingDaysInRange(2895125, '2025-12-02', '2025-12-16');
+   */
+  async findWorkingDaysInRange(staffYclientsId, startDate, endDate) {
+    const sql = `
+      SELECT date, is_working, has_booking_slots FROM staff_schedules
+      WHERE yclients_staff_id = $1 AND date >= $2 AND date <= $3
+      AND is_working = true AND has_booking_slots = true
+      ORDER BY date ASC
+    `;
+    const result = await this.db.query(sql, [staffYclientsId, startDate, endDate]);
+    return result.rows;
+  }
 }
 
 module.exports = StaffScheduleRepository;
