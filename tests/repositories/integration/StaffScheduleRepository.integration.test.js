@@ -18,6 +18,24 @@
 const StaffScheduleRepository = require('../../../src/repositories/StaffScheduleRepository');
 const postgres = require('../../../src/database/postgres');
 
+/**
+ * Helper to normalize PostgreSQL DATE to string
+ *
+ * PostgreSQL stores DATE as midnight in server timezone (Moscow UTC+3).
+ * When retrieved, it comes as UTC timestamp (e.g., 2025-11-30T21:00:00Z for 2025-12-01 MSK).
+ * We need to convert back to Moscow timezone to get the original date.
+ */
+const getDateStr = (d) => {
+  if (typeof d === 'string') return d;
+  // Add 3 hours to UTC to get Moscow time, then extract date
+  const mskOffset = 3 * 60 * 60 * 1000; // UTC+3
+  const mskDate = new Date(d.getTime() + mskOffset);
+  const year = mskDate.getUTCFullYear();
+  const month = String(mskDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(mskDate.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 describe('StaffScheduleRepository Integration Tests', () => {
   let scheduleRepo;
   const TEST_COMPANY_ID = 962302;
@@ -151,18 +169,10 @@ describe('StaffScheduleRepository Integration Tests', () => {
 
       expect(Array.isArray(schedules)).toBe(true);
 
-      // Helper to normalize date - handle Date object timezone properly
-      const getDateStr = (d) => {
-        if (typeof d === 'string') return d;
-        // Use local date parts to avoid UTC offset issues
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      };
-
+      // Use global getDateStr helper for timezone-aware date comparison
       schedules.forEach(schedule => {
         const scheduleDate = getDateStr(schedule.date);
+        // Compare dates as strings (YYYY-MM-DD format)
         expect(scheduleDate >= startDate).toBe(true);
         expect(scheduleDate <= endDate).toBe(true);
       });
@@ -263,15 +273,7 @@ describe('StaffScheduleRepository Integration Tests', () => {
       });
 
       expect(fetched.length).toBe(2);
-      // Helper to normalize date - handle Date object timezone properly
-      const getDateStr = (d) => {
-        if (typeof d === 'string') return d;
-        // Use local date parts to avoid UTC offset issues
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      };
+      // Use global getDateStr helper for timezone-aware date comparison
       expect(fetched.find(s => getDateStr(s.date) === TEST_DATE).is_working).toBe(true);
       expect(fetched.find(s => getDateStr(s.date) === '2099-12-30').is_working).toBe(false);
 

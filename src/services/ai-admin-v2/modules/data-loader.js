@@ -444,9 +444,11 @@ class DataLoader {
    */
   async getStaffNamesByIds(staffIds, companyId) {
     try {
+      // staffIds are YClients external IDs (e.g., 2895125), not internal DB IDs
+      // Must use yclients_id column, not id
       const result = await postgres.query(
-        `SELECT id, name FROM staff
-         WHERE company_id = $1 AND id = ANY($2)`,
+        `SELECT yclients_id, name FROM staff
+         WHERE company_id = $1 AND yclients_id = ANY($2)`,
         [companyId, staffIds]
       );
 
@@ -462,9 +464,11 @@ class DataLoader {
    */
   async getServiceNamesByIds(serviceIds, companyId) {
     try {
+      // serviceIds are YClients external IDs (e.g., 18356010), not internal DB IDs
+      // Must use yclients_id column, not id
       const result = await postgres.query(
-        `SELECT id, title FROM services
-         WHERE company_id = $1 AND id = ANY($2)`,
+        `SELECT yclients_id, title FROM services
+         WHERE company_id = $1 AND yclients_id = ANY($2)`,
         [companyId, serviceIds]
       );
 
