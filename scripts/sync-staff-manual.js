@@ -56,7 +56,6 @@ async function syncStaff() {
       name: s.name,
       specialization: s.specialization || '',
       position: s.position?.title || '',
-      avatar: s.avatar || '',
       is_active: true
     };
 
@@ -74,19 +73,18 @@ async function syncStaff() {
             name = $1,
             specialization = $2,
             position = $3,
-            avatar = $4,
             updated_at = NOW()
-          WHERE yclients_id = $5 AND company_id = $6`,
-          [data.name, data.specialization, data.position, data.avatar, s.id, INTERNAL_COMPANY_ID]
+          WHERE yclients_id = $4 AND company_id = $5`,
+          [data.name, data.specialization, data.position, s.id, INTERNAL_COMPANY_ID]
         );
         console.log(`✅ Updated: ${data.name}`);
         updated++;
       } else {
         // Insert
         await postgres.pool.query(
-          `INSERT INTO staff (yclients_id, company_id, name, specialization, position, avatar, is_active)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [data.yclients_id, data.company_id, data.name, data.specialization, data.position, data.avatar, data.is_active]
+          `INSERT INTO staff (yclients_id, company_id, name, specialization, position, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [data.yclients_id, data.company_id, data.name, data.specialization, data.position, data.is_active]
         );
         console.log(`✅ Inserted: ${data.name}`);
         inserted++;
