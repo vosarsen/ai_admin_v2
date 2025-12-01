@@ -1,29 +1,55 @@
 # Formix Clone - Context & Key Decisions
 
-**Last Updated:** 2025-12-01 (Session: Phase 4 Complete - Services Section with Horizontal Cards)
+**Last Updated:** 2025-12-01 (Session: Phase 4 Refinements - Services Section Styling Iterations)
 
 ---
 
-## 🔥 CRITICAL SESSION STATE (Updated: 2025-12-01 - Phase 4 Services Complete)
+## 🔥 CRITICAL SESSION STATE (Updated: 2025-12-01 - Phase 4 Services Refinements)
 
 ### Current Implementation Status
-- **Phase:** Phase 4 (Services Section) - ✅ **COMPLETE & COMMITTED**
+- **Phase:** Phase 4 (Services Section) - ⚠️ **REFINEMENTS IN PROGRESS**
 - **Progress:** 4/18 phases complete (22.2% overall progress)
-- **Status:** ✅ **ALL CHANGES COMMITTED** - Ready for next phase
-- **Latest Commit:** 82fc34c ("feat: Phase 4 Services Section complete")
-- **Next Immediate Step:** Phase 5 (Why Us Section)
+- **Status:** ⚠️ **UNCOMMITTED CHANGES** - Minor styling refinements
+- **Last Major Commit:** 82fc34c ("feat: Phase 4 Services Section complete")
+- **Last Doc Commit:** f335944 ("docs(formix): Update tasks and context - Phase 4 Services Section complete")
+- **Next Immediate Step:** Commit refinements, then Phase 5 (Why Us Section)
 - **Dev Server:** Running at http://localhost:3000
 - **Branch:** main (formix-landing-nextjs)
 - **Project Location:** `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/`
 
-### What Just Happened (This Session - Phase 4 Services Section)
+### ⚠️ CURRENT WORKING STATE
 
-**Session Duration:** ~75 minutes
+**Files with uncommitted changes:**
+- `src/components/Services/ServiceCard.tsx` - Gradient experiments (reverted)
+- `src/app/page.tsx` - Bottom blur removed
+- `src/components/Services/Services.tsx` - Layout alignment experiments (reverted to original)
+
+**Current issue being addressed:**
+User requested alignment adjustments for Services section to match Hero section alignment. Multiple approaches were tried:
+1. Gradient border (tried, rejected, reverted)
+2. Two-column grid layout matching Hero (tried, rejected, reverted)
+3. Returned to original full-width layout
+
+**Latest user feedback:**
+- "Убери вообще эту штуку снизу" - Removed bottom viewport blur effect ✅
+- "Верни, как было" - Reverted Services layout to original ✅
+
+**Current state:** Services section back to original working version with:
+- Badge + horizontal heading/description layout (grid-cols-[1.3fr_1fr])
+- Full-width service cards below
+- No bottom blur effect
+- Original card styling (no gradient)
+
+### What Just Happened (This Session - Phase 4 Services Refinements)
+
+**Session Duration:** ~120 minutes total (75 min initial + 45 min refinements)
 **Date:** December 1, 2025 (continued from previous context)
 
-This session focused on implementing the **Services Section** with horizontal card layout based on the original Formix design. Multiple iterations were made to match exact proportions, colors, and styling.
+This session had two parts:
+1. **Initial Implementation** - Services Section with horizontal cards (COMMITTED)
+2. **Refinement Iterations** - Styling and alignment experiments (IN PROGRESS)
 
-#### Phase 4 Implementation Summary:
+#### Phase 4.1 - Initial Implementation (COMMITTED - 82fc34c):
 
 1. **Component Structure**
    - Created `Services.tsx` with two-tier layout
@@ -52,10 +78,11 @@ This session focused on implementing the **Services Section** with horizontal ca
    - Stagger effect: delay: index * 0.1
    - Hover: translateY(-4px) + shadow increase
 
-6. **Bottom Blur Effect**
-   - Fixed to viewport bottom (not section-specific)
+6. **Bottom Blur Effect** (LATER REMOVED)
+   - Initially added: Fixed to viewport bottom (not section-specific)
    - h-10 with backdrop-blur-2xl
    - Scrolls with page content
+   - **Status:** Removed in Phase 4.2 per user feedback
 
 **Key Changes Made:**
 - Changed from vertical to horizontal card layout
@@ -63,13 +90,70 @@ This session focused on implementing the **Services Section** with horizontal ca
 - Increased heading size to text-6xl
 - Changed description color from text-dark/50 to text-dark/60
 - Removed white background to show grid lines
-- Added bottom viewport blur effect
+- Added bottom viewport blur effect (later removed)
 
 **Acceptance Criteria Met:** ✅
 - Horizontal cards with proper proportions
 - Smooth animations on scroll
 - Custom badge with colored slashes
-- Viewport blur effect at bottom
+- Viewport blur effect at bottom (later removed)
+
+---
+
+#### Phase 4.2 - Refinement Iterations (IN PROGRESS - UNCOMMITTED):
+
+**Experiments tried (all reverted):**
+
+1. **Gradient Border Attempt** (ServiceCard.tsx)
+   - User: "Сделай так, чтобы не было видно границ"
+   - Tried: `bg-gradient-to-br from-[rgb(240,240,240)] via-[rgb(235,235,235)] to-[rgb(229,229,229)]`
+   - User: "Сделай так, чтобы к верху не было видны границы вообще"
+   - Tried: `bg-gradient-to-b from-white via-[rgb(235,235,235)] to-[rgb(229,229,229)]`
+   - User: "ладно, убери вообще это"
+   - **Result:** Reverted to solid color `bg-[rgb(229,229,229)]` ✅
+
+2. **Bottom Blur Removal** (page.tsx)
+   - User: "Убери вообще эту штуку снизу"
+   - Removed: `<div className="fixed bottom-0 left-0 right-0 h-10 backdrop-blur-2xl pointer-events-none z-20" />`
+   - **Result:** COMMITTED as final change ✅
+
+3. **Alignment Adjustment Attempts** (Services.tsx)
+   - User: "Соблюдай выравнивание текста. Текст и карточки выровняй по тому же принципу, как и в hero"
+   - **Attempt 1:** Changed to `grid lg:grid-cols-2` layout with badge/heading in left column, cards below
+   - **Issue:** Cards were in left column only (50% width)
+   - **Attempt 2:** Restructured with heading in grid, cards full-width below
+   - User: "Верни, как было"
+   - **Result:** Reverted to original two-tier layout ✅
+
+**Current Code State (Services.tsx):**
+```tsx
+<section id="services" className="py-20 md:py-32">
+  <div className="max-w-[1280px] mx-auto px-4">
+    {/* Top Section - Badge, Title and Description */}
+    <motion.div className="mb-16">
+      {/* Badge with orange slashes */}
+      <div className="inline-flex...">// Services //</div>
+
+      {/* Title and Description - Horizontal Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-8 lg:gap-24 items-end">
+        <h2>How We Grow<br />Your Business</h2>
+        <p>We combine strategy...</p>
+      </div>
+    </motion.div>
+
+    {/* Bottom Section - Services Cards (Full Width) */}
+    <div className="grid grid-cols-1 gap-6">
+      {services.map(...)}
+    </div>
+  </div>
+</section>
+```
+
+**Pending Issues:**
+- User mentioned alignment should match Hero section
+- Specifically asked to check spacing from edge for "WhatsApp бот который понимает ваших клиентов" text
+- May need to verify padding/margin alignment between Hero and Services sections
+- Current structure seems correct but user may want pixel-perfect alignment verification
 
 ---
 
