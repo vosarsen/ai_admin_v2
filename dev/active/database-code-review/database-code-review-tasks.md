@@ -112,45 +112,54 @@ RUN_INTEGRATION_TESTS=true npx jest tests/repositories/integration/ --no-coverag
 - `getServiceNamesByIds()` was using `id = ANY($2)` instead of `yclients_id = ANY($2)`
 - `last_service_ids` contains YClients IDs (e.g., 18356010), not internal DB IDs
 
-### 1.6 companies Table Queries
-- [ ] `src/sync/company-info-sync.js` - audit column names
-- [ ] `src/repositories/CompanyRepository.js` - verify column names
+### 1.6 companies Table Queries ✅ COMPLETE
+- [x] `src/sync/company-info-sync.js` - **VERIFIED CORRECT** (yclients_id: companyData.id)
+- [x] `src/repositories/CompanyRepository.js` - **VERIFIED CORRECT** (uses yclients_id for lookups)
 
 ---
 
 ## Phase 2: Repository Pattern Enforcement
 
-### 2.1 command-handler.js Migration
-- [ ] Identify all direct postgres.query() calls
+### 2.1 command-handler.js Migration ⏸️ DEFERRED
+- [ ] Identify all direct postgres.query() calls (2 calls - low priority)
 - [ ] Map to existing repository methods
-- [ ] Create new repository methods if needed
-- [ ] Replace direct calls with repository methods
-- [ ] Test affected commands
+- **NOTE:** command-handler.js has complex booking queries - defer to Phase 2.5
 
-### 2.2 data-loader.js Migration
-- [ ] Identify direct postgres.query() calls
-- [ ] Use StaffScheduleRepository.findSchedules()
-- [ ] Use StaffRepository.findByCompany()
-- [ ] Test data loading
+### 2.2 data-loader.js Migration ✅ COMPLETE
+- [x] Identify direct postgres.query() calls (was 9 calls)
+- [x] Migrate loadClient → ClientRepository.findByRawPhone()
+- [x] Migrate loadBookings → BookingRepository.findByClientYclientsId()
+- [x] Migrate loadConversation → DialogContextRepository.findByUserIdAndCompany()
+- [x] Migrate loadStaffSchedules → StaffRepository.findActiveIds() + StaffScheduleRepository.findByStaffIdsAndDateRange()
+- [x] Migrate getStaffNamesByIds → StaffRepository.findNamesByYclientsIds()
+- [x] Migrate getServiceNamesByIds → ServiceRepository.findTitlesByYclientsIds()
+- [x] Migrate saveContext → DialogContextRepository.upsertWithMessages()
+- [x] loadBusinessStats - KEPT (appointments_cache is read-only cache, no repo needed)
+- [x] Test: All 73 integration tests passing
 
-### 2.3 Sync Scripts Migration
-- [ ] `schedules-sync.js` - uses StaffScheduleRepository ✓
-- [ ] `staff-sync.js` - uses StaffRepository ✓
-- [ ] `services-sync.js` - uses ServiceRepository ✓
-- [ ] `clients-sync.js` - verify repository usage
-- [ ] `clients-sync-optimized.js` - verify repository usage
-- [ ] `bookings-sync.js` - verify repository usage
-- [ ] `visits-sync.js` - audit and migrate
-- [ ] `goods-transactions-sync.js` - audit and migrate
-- [ ] `company-info-sync.js` - verify repository usage
+### 2.3 Sync Scripts Migration ✅ MOSTLY COMPLETE
+**Core Sync (✅ Fully migrated):**
+- [x] `schedules-sync.js` - uses StaffScheduleRepository ✓ + deleteOlderThan()
+- [x] `staff-sync.js` - uses StaffRepository ✓ + deactivateAll()
+- [x] `services-sync.js` - uses ServiceRepository ✓
+- [x] `clients-sync.js` - uses ClientRepository ✓
+- [x] `bookings-sync.js` - uses BookingRepository ✓ + deleteOlderThan()
+- [x] `company-info-sync.js` - uses CompanyRepository ✓
 
-### 2.4 postgres-data-layer.js Deprecation
+**Secondary Sync (⏸️ Low priority - complex queries):**
+- [ ] `clients-sync-optimized.js` - 3 direct queries (batch insert, visit history)
+- [ ] `visits-sync.js` - 3 direct queries (visit upsert, statistics)
+- [ ] `client-records-sync.js` - 3 direct queries (visit history sync)
+- [ ] `goods-transactions-sync.js` - 2 direct queries (rarely used)
+
+### 2.4 postgres-data-layer.js Deprecation ⏸️ DEFERRED
 - [ ] List all methods in postgres-data-layer.js
 - [ ] Map each method to repository equivalent
 - [ ] Find all callers
 - [ ] Migrate callers to repositories
 - [ ] Mark file as deprecated
 - [ ] (Future) Delete file
+- **NOTE:** This file is barely used - only 1 postgres.query call for health check
 
 ---
 
@@ -230,11 +239,14 @@ RUN_INTEGRATION_TESTS=true npx jest tests/repositories/integration/ --no-coverag
 | Phase 1.3 | ✅ COMPLETE | 4/4 | 4 |
 | Phase 1.4 | ✅ COMPLETE | 4/4 | 4 |
 | Phase 1.5 | ✅ COMPLETE | 3/3 | 3 |
-| Phase 1.6 | ⏳ Pending | 0/2 | 2 |
-| Phase 2 | ⏳ Pending | 0/18 | 18 |
+| Phase 1.6 | ✅ COMPLETE | 2/2 | 2 |
+| Phase 2.1 | ⏸️ Deferred | 0/2 | 2 |
+| Phase 2.2 | ✅ COMPLETE | 9/9 | 9 |
+| Phase 2.3 | ✅ MOSTLY | 6/10 | 10 |
+| Phase 2.4 | ⏸️ Deferred | 0/6 | 6 |
 | Phase 3 | ⏳ Pending | 0/18 | 18 |
 | Phase 4 | ⏳ Pending | 0/9 | 9 |
-| **TOTAL** | **In Progress** | **33/80** | **80** |
+| **TOTAL** | **In Progress** | **50/89** | **89** |
 
 ### Blockers Status
 - ✅ **Phase 0.5 (Schema Verification)** - COMPLETE (2025-12-01)

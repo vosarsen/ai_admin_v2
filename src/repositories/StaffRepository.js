@@ -83,6 +83,70 @@ class StaffRepository extends BaseRepository {
       { batchSize: options.batchSize || 50 }
     );
   }
+
+  /**
+   * Find active staff YClients IDs for a company
+   * Used by data-loader.js for schedule loading
+   *
+   * @param {number} companyId - Company ID
+   * @returns {Promise<Array<number>>} Array of YClients staff IDs
+   *
+   * @example
+   * const ids = await staffRepo.findActiveIds(962302);
+   * // [2895125, 2895126, ...]
+   */
+  async findActiveIds(companyId) {
+    const sql = `
+      SELECT yclients_id FROM staff
+      WHERE company_id = $1 AND is_active = true
+    `;
+    const result = await this.db.query(sql, [companyId]);
+    return result.rows.map(row => row.yclients_id);
+  }
+
+  /**
+   * Find staff names by YClients IDs
+   * Used by data-loader.js for favorite staff display
+   *
+   * @param {Array<number>} yclientsIds - Array of YClients staff IDs
+   * @param {number} companyId - Company ID
+   * @returns {Promise<Array<string>>} Array of staff names
+   *
+   * @example
+   * const names = await staffRepo.findNamesByYclientsIds([2895125, 2895126], 962302);
+   * // ['Бари', 'Дмитрий']
+   */
+  async findNamesByYclientsIds(yclientsIds, companyId) {
+    if (!yclientsIds || yclientsIds.length === 0) {
+      return [];
+    }
+
+    const sql = `
+      SELECT yclients_id, name FROM staff
+      WHERE company_id = $1 AND yclients_id = ANY($2)
+    `;
+    const result = await this.db.query(sql, [companyId, yclientsIds]);
+    return result.rows.map(row => row.name);
+  }
+
+  /**
+   * Deactivate all staff for a company (before sync)
+   * Used by staff-sync.js before bulk upsert
+   *
+   * @param {number} companyId - Company ID
+   * @returns {Promise<void>}
+   *
+   * @example
+   * await staffRepo.deactivateAll(962302);
+   */
+  async deactivateAll(companyId) {
+    const sql = `
+      UPDATE staff
+      SET is_active = false, last_sync_at = NOW()
+      WHERE company_id = $1
+    `;
+    await this.db.query(sql, [companyId]);
+  }
 }
 
 module.exports = StaffRepository;

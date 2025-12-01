@@ -195,6 +195,24 @@ class ClientRepository extends BaseRepository {
       { batchSize: options.batchSize || 100 }
     );
   }
+
+  /**
+   * Find client by raw phone number (with + prefix)
+   * Used by data-loader.js for client lookup
+   *
+   * @param {string} rawPhone - Raw phone with + prefix (e.g., '+79686484488')
+   * @param {number} companyId - Company ID
+   * @returns {Promise<Object|null>} Client record or null
+   *
+   * @example
+   * const client = await clientRepo.findByRawPhone('+79686484488', 962302);
+   */
+  async findByRawPhone(rawPhone, companyId) {
+    return this.findOne('clients', {
+      raw_phone: rawPhone,
+      company_id: companyId
+    });
+  }
 }
 
 module.exports = ClientRepository;

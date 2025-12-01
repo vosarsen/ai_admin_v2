@@ -1,8 +1,8 @@
 # Database Code Review - Context
 
-**Last Updated:** 2025-12-01 20:15 MSK
-**Session Status:** Phase 1 (1.1-1.5) COMPLETE, Ready for Phase 1.6 or Phase 2
-**Next Action:** Continue with Phase 1.6 (companies) or Phase 2 (Repository Pattern Enforcement)
+**Last Updated:** 2025-12-01 21:45 MSK
+**Session Status:** Phase 2 MOSTLY COMPLETE ✅ (Core migrations done)
+**Next Action:** Commit changes, then Phase 3 (Error Handling) or Phase 4 (Legacy Cleanup)
 
 ---
 
@@ -233,7 +233,14 @@ if (typeof this.db.getClient === 'function') {
 
 ## HANDOFF NOTES FOR NEXT SESSION
 
-### What Was Completed This Session (Session 5)
+### Current State
+- **Phase 1: COMPLETE** ✅ (All column name audits done)
+- **Next: Phase 2** - Repository Pattern Enforcement
+- **Progress:** 35/80 tasks (44%)
+
+---
+
+### What Was Completed This Session (Session 5 - data-loader fixes)
 
 1. **Fixed StaffScheduleRepository Tests** (3 failing → 0 failing)
    - Root cause: PostgreSQL DATE timezone conversion
@@ -260,11 +267,59 @@ if (typeof this.db.getClient === 'function') {
 ### Commits Made
 - `52d86cd`: fix(db): use yclients_id for staff/service lookups in data-loader
 
-### Progress: 33/80 tasks (41%)
+### Progress: 50/89 tasks (56%)
 
 ---
 
-### What Was Completed Session 4
+### What Was Completed Session 7 (Current)
+
+1. **Phase 2.2: data-loader.js Migration** ✅ COMPLETE
+   - Migrated 8 of 9 postgres.query() calls to repository pattern
+   - Added 8 new repository methods:
+     - `ClientRepository.findByRawPhone()`
+     - `BookingRepository.findByClientYclientsId()`
+     - `BookingRepository.deleteOlderThan()`
+     - `DialogContextRepository.findByUserIdAndCompany()`
+     - `DialogContextRepository.upsertWithMessages()`
+     - `StaffRepository.findActiveIds()`
+     - `StaffRepository.findNamesByYclientsIds()`
+     - `StaffRepository.deactivateAll()`
+     - `ServiceRepository.findTitlesByYclientsIds()`
+     - `StaffScheduleRepository.findByStaffIdsAndDateRange()`
+     - `StaffScheduleRepository.deleteOlderThan()`
+   - 1 query KEPT: loadBusinessStats (appointments_cache is read-only cache)
+
+2. **Phase 2.3: Sync Scripts Migration** ✅ MOSTLY COMPLETE
+   - Core sync scripts fully migrated: schedules, staff, services, clients, bookings, company
+   - Secondary sync scripts deferred (clients-sync-optimized, visits, client-records, goods-transactions)
+
+3. **All tests passing:** 73/73 integration tests ✅
+
+**Progress:** 50/89 tasks (56%) - up from 35/80 (44%)
+
+---
+
+### What Was Completed Session 6
+
+1. **Phase 1.6: companies table queries** ✅ COMPLETE
+   - `company-info-sync.js` - **VERIFIED CORRECT** (uses `yclients_id: companyData.id`)
+   - `CompanyRepository.js` - **VERIFIED CORRECT** (uses `yclients_id` for all lookups)
+
+**🎉 Phase 1 COMPLETE! Summary:**
+- Phase 1.1: staff_schedules ✅
+- Phase 1.2: staff ✅ (1 bug fixed in data-loader.js)
+- Phase 1.3: bookings ✅
+- Phase 1.4: clients ✅
+- Phase 1.5: services ✅ (1 bug fixed in data-loader.js)
+- Phase 1.6: companies ✅
+
+**Total Phase 1 bugs found and fixed: 2**
+- `getStaffNamesByIds()`: id → yclients_id
+- `getServiceNamesByIds()`: id → yclients_id
+
+---
+
+### What Was Completed Session 4 (Integration Tests)
 
 1. **Phase 0.7: Integration Tests** - ✅ COMPLETE
    - All 4 integration test files exist and pass:

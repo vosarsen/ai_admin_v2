@@ -183,15 +183,8 @@ class DataLoader {
 
       logger.info(`Searching for client with raw_phone: ${phoneWithPlus} in company: ${safeCompanyId}`);
 
-      // Use direct query for raw_phone search
-      const result = await postgres.query(
-        `SELECT * FROM clients
-         WHERE raw_phone = $1 AND company_id = $2
-         LIMIT 1`,
-        [phoneWithPlus, safeCompanyId]
-      );
-
-      const data = result.rows[0] || null;
+      // Use repository pattern for client lookup
+      const data = await this.repos?.client?.findByRawPhone(phoneWithPlus, safeCompanyId);
 
       if (data) {
         logger.info(`Client found: ${data.name} (${data.phone})`, {
@@ -286,6 +279,8 @@ class DataLoader {
 
   /**
    * Load client bookings
+   * NOTE: This method is rarely used - client bookings are typically loaded via loadClient
+   * The bookings table doesn't have client_id column, it uses client_phone
    */
   async loadBookings(clientId, companyId) {
     try {
@@ -294,22 +289,11 @@ class DataLoader {
         return [];
       }
 
-      const result = await postgres.query(
-        `SELECT * FROM bookings
-         WHERE client_id = $1 AND company_id = $2
-         AND appointment_datetime >= NOW()
-         ORDER BY appointment_datetime ASC
-         LIMIT 10`,
-        [clientId, companyId]
-      );
-
-      return result.rows || [];
+      // Use repository pattern - find by client_yclients_id
+      const data = await this.repos?.booking?.findByClientYclientsId(clientId, companyId);
+      return data || [];
     } catch (error) {
-      if (error.code === '42P01') {
-        logger.debug('Bookings table does not exist yet');
-      } else {
-        logger.error('Error loading bookings:', error);
-      }
+      logger.error('Error loading bookings:', error);
       return [];
     }
   }
@@ -334,15 +318,9 @@ class DataLoader {
     try {
       const cleanPhone = InternationalPhone.normalize(phone) || phone.replace('@c.us', '');
 
-      const result = await postgres.query(
-        `SELECT messages FROM dialog_contexts
-         WHERE user_id = $1 AND company_id = $2
-         ORDER BY updated_at DESC
-         LIMIT 1`,
-        [cleanPhone, companyId]
-      );
-
-      return result.rows[0]?.messages || [];
+      // Use repository pattern for dialog context lookup
+      const context = await this.repos?.context?.findByUserIdAndCompany(cleanPhone, companyId);
+      return context?.messages || [];
     } catch (error) {
       logger.error('Error loading conversation:', error);
       return [];
@@ -351,11 +329,15 @@ class DataLoader {
 
   /**
    * Load business statistics
+   * NOTE: Uses direct postgres.query for appointments_cache table
+   * appointments_cache is a read-only cache populated by booking-monitor
+   * No repository exists for it - intentional to keep it simple
    */
   async loadBusinessStats(companyId) {
     try {
       const today = new Date().toISOString().split('T')[0];
 
+      // Direct query for appointments_cache (no repository needed for read-only cache)
       const result = await postgres.query(
         `SELECT COUNT(*) as count FROM appointments_cache
          WHERE company_id = $1
@@ -383,33 +365,22 @@ class DataLoader {
     const weekLater = new Date();
     weekLater.setDate(today.getDate() + 30);
 
-    logger.info(`Loading staff schedules from ${today.toISOString().split('T')[0]} to ${weekLater.toISOString().split('T')[0]}`);
+    const startDate = today.toISOString().split('T')[0];
+    const endDate = weekLater.toISOString().split('T')[0];
+
+    logger.info(`Loading staff schedules from ${startDate} to ${endDate}`);
 
     try {
-      // Get staff IDs for this company
-      const staffResult = await postgres.query(
-        `SELECT yclients_id FROM staff
-         WHERE company_id = $1 AND is_active = true`,
-        [companyId]
-      );
+      // Get staff IDs for this company using repository
+      const staffIds = await this.repos?.staff?.findActiveIds(companyId);
 
-      const staffIds = staffResult.rows?.map(s => s.yclients_id) || [];
-
-      if (staffIds.length === 0) {
+      if (!staffIds || staffIds.length === 0) {
         logger.warn('No active staff found for company', companyId);
         return {};
       }
 
-      // Get schedules filtered by yclients_staff_id
-      const scheduleResult = await postgres.query(
-        `SELECT * FROM staff_schedules
-         WHERE yclients_staff_id = ANY($1)
-         AND date >= $2 AND date <= $3
-         ORDER BY date ASC`,
-        [staffIds, today.toISOString().split('T')[0], weekLater.toISOString().split('T')[0]]
-      );
-
-      const data = scheduleResult.rows || [];
+      // Get schedules filtered by yclients_staff_id using repository
+      const data = await this.repos?.schedule?.findByStaffIdsAndDateRange(staffIds, startDate, endDate) || [];
 
       logger.info(`Loaded ${data.length} schedule records`);
 
@@ -444,15 +415,8 @@ class DataLoader {
    */
   async getStaffNamesByIds(staffIds, companyId) {
     try {
-      // staffIds are YClients external IDs (e.g., 2895125), not internal DB IDs
-      // Must use yclients_id column, not id
-      const result = await postgres.query(
-        `SELECT yclients_id, name FROM staff
-         WHERE company_id = $1 AND yclients_id = ANY($2)`,
-        [companyId, staffIds]
-      );
-
-      return result.rows?.map(staff => staff.name) || [];
+      // Use repository pattern for staff name lookup
+      return await this.repos?.staff?.findNamesByYclientsIds(staffIds, companyId) || [];
     } catch (error) {
       logger.error('Error in getStaffNamesByIds:', error);
       return [];
@@ -464,15 +428,8 @@ class DataLoader {
    */
   async getServiceNamesByIds(serviceIds, companyId) {
     try {
-      // serviceIds are YClients external IDs (e.g., 18356010), not internal DB IDs
-      // Must use yclients_id column, not id
-      const result = await postgres.query(
-        `SELECT yclients_id, title FROM services
-         WHERE company_id = $1 AND yclients_id = ANY($2)`,
-        [companyId, serviceIds]
-      );
-
-      return result.rows?.map(service => service.title) || [];
+      // Use repository pattern for service title lookup
+      return await this.repos?.service?.findTitlesByYclientsIds(serviceIds, companyId) || [];
     } catch (error) {
       logger.error('Error in getServiceNamesByIds:', error);
       return [];
@@ -590,18 +547,12 @@ class DataLoader {
 
       const recentMessages = messages.slice(-20);
 
-      // Save to PostgreSQL
-      await postgres.query(
-        `INSERT INTO dialog_contexts (user_id, company_id, messages, last_command, updated_at)
-         VALUES ($1, $2, $3, $4, NOW())
-         ON CONFLICT (user_id, company_id)
-         DO UPDATE SET messages = $3, last_command = $4, updated_at = NOW()`,
-        [
-          cleanPhone,
-          companyId,
-          JSON.stringify(recentMessages),
-          result.executedCommands?.[0]?.command || null
-        ]
+      // Save to PostgreSQL using repository pattern
+      await this.repos?.context?.upsertWithMessages(
+        cleanPhone,
+        companyId,
+        recentMessages,
+        result.executedCommands?.[0]?.command || null
       );
 
       // Also save to Redis for fast access

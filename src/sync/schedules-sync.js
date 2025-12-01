@@ -246,11 +246,8 @@ class SchedulesSync {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-      const query = `
-        DELETE FROM staff_schedules
-        WHERE date < $1
-      `;
-      await postgres.query(query, [formatDateForAPI(sevenDaysAgo)]);
+      // Use repository pattern for schedule cleanup
+      await this.scheduleRepo.deleteOlderThan(formatDateForAPI(sevenDaysAgo));
       logger.debug('Old schedules cleaned up');
 
     } catch (error) {

@@ -124,6 +124,51 @@ class StaffScheduleRepository extends BaseRepository {
       { batchSize: options.batchSize || 200 }
     );
   }
+
+  /**
+   * Find schedules by staff YClients IDs and date range
+   * Used by data-loader.js for loadStaffSchedules
+   *
+   * @param {Array<number>} staffIds - Array of YClients staff IDs
+   * @param {string} startDate - Start date (YYYY-MM-DD)
+   * @param {string} endDate - End date (YYYY-MM-DD)
+   * @returns {Promise<Array>} Array of schedule records
+   *
+   * @example
+   * const schedules = await scheduleRepo.findByStaffIdsAndDateRange(
+   *   [2895125, 2895126], '2025-12-01', '2025-12-31'
+   * );
+   */
+  async findByStaffIdsAndDateRange(staffIds, startDate, endDate) {
+    if (!staffIds || staffIds.length === 0) {
+      return [];
+    }
+
+    const sql = `
+      SELECT * FROM staff_schedules
+      WHERE yclients_staff_id = ANY($1)
+      AND date >= $2 AND date <= $3
+      ORDER BY date ASC
+    `;
+    const result = await this.db.query(sql, [staffIds, startDate, endDate]);
+    return result.rows;
+  }
+
+  /**
+   * Delete schedules older than specified date
+   * Used by schedules-sync.js for cleanup
+   *
+   * @param {string} beforeDate - Delete schedules before this date (YYYY-MM-DD)
+   * @returns {Promise<number>} Number of deleted rows
+   *
+   * @example
+   * const deleted = await scheduleRepo.deleteOlderThan('2025-11-24');
+   */
+  async deleteOlderThan(beforeDate) {
+    const sql = `DELETE FROM staff_schedules WHERE date < $1`;
+    const result = await this.db.query(sql, [beforeDate]);
+    return result.rowCount;
+  }
 }
 
 module.exports = StaffScheduleRepository;

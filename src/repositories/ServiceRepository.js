@@ -113,6 +113,31 @@ class ServiceRepository extends BaseRepository {
       { batchSize: options.batchSize || 100 }
     );
   }
+
+  /**
+   * Find service titles by YClients IDs
+   * Used by data-loader.js for favorite services display
+   *
+   * @param {Array<number>} yclientsIds - Array of YClients service IDs
+   * @param {number} companyId - Company ID
+   * @returns {Promise<Array<string>>} Array of service titles
+   *
+   * @example
+   * const titles = await serviceRepo.findTitlesByYclientsIds([18356010, 18356011], 962302);
+   * // ['Стрижка модельная', 'Окрашивание']
+   */
+  async findTitlesByYclientsIds(yclientsIds, companyId) {
+    if (!yclientsIds || yclientsIds.length === 0) {
+      return [];
+    }
+
+    const sql = `
+      SELECT yclients_id, title FROM services
+      WHERE company_id = $1 AND yclients_id = ANY($2)
+    `;
+    const result = await this.db.query(sql, [companyId, yclientsIds]);
+    return result.rows.map(row => row.title);
+  }
 }
 
 module.exports = ServiceRepository;

@@ -194,6 +194,47 @@ class BookingRepository extends BaseRepository {
       { batchSize: options.batchSize || 100 }
     );
   }
+
+  /**
+   * Find upcoming bookings by client YClients ID
+   * Used by data-loader.js for loadBookings
+   *
+   * @param {number} clientYclientsId - Client YClients ID
+   * @param {number} companyId - Company ID
+   * @returns {Promise<Array>} Array of upcoming booking records
+   *
+   * @example
+   * const bookings = await bookingRepo.findByClientYclientsId(123456, 962302);
+   */
+  async findByClientYclientsId(clientYclientsId, companyId) {
+    const now = new Date().toISOString();
+
+    const sql = `
+      SELECT * FROM bookings
+      WHERE client_yclients_id = $1 AND company_id = $2
+      AND datetime >= $3
+      ORDER BY datetime ASC
+      LIMIT 10
+    `;
+    const result = await this.db.query(sql, [clientYclientsId, companyId, now]);
+    return result.rows;
+  }
+
+  /**
+   * Delete bookings older than specified date
+   * Used by bookings-sync.js for cleanup
+   *
+   * @param {string} beforeDate - Delete bookings before this date (YYYY-MM-DD)
+   * @returns {Promise<number>} Number of deleted rows
+   *
+   * @example
+   * const deleted = await bookingRepo.deleteOlderThan('2025-11-24');
+   */
+  async deleteOlderThan(beforeDate) {
+    const sql = `DELETE FROM bookings WHERE date < $1`;
+    const result = await this.db.query(sql, [beforeDate]);
+    return result.rowCount;
+  }
 }
 
 module.exports = BookingRepository;

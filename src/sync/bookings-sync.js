@@ -223,13 +223,11 @@ class BookingsSync {
     try {
       const cutoffDate = format(addDays(new Date(), -7), 'yyyy-MM-dd');
 
-      const result = await postgres.query(
-        `DELETE FROM bookings WHERE date < $1 RETURNING id`,
-        [cutoffDate]
-      );
+      // Use repository pattern for booking cleanup
+      const deletedCount = await this.bookingRepo.deleteOlderThan(cutoffDate);
 
-      if (result.rowCount > 0) {
-        logger.info(`Cleaned up ${result.rowCount} old bookings`);
+      if (deletedCount > 0) {
+        logger.info(`Cleaned up ${deletedCount} old bookings`);
       }
 
     } catch (error) {

@@ -215,12 +215,8 @@ class StaffSync {
    */
   async deactivateAllStaff() {
     try {
-      const query = `
-        UPDATE staff
-        SET is_active = false, last_sync_at = NOW()
-        WHERE company_id = $1
-      `;
-      await postgres.query(query, [this.config.COMPANY_ID]);
+      // Use repository pattern for staff deactivation
+      await this.staffRepo.deactivateAll(this.config.COMPANY_ID);
       logger.debug('All staff deactivated before sync');
     } catch (error) {
       logger.error('Error deactivating staff', { error: error.message });
