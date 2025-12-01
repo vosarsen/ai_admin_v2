@@ -18,6 +18,8 @@ const telegramManager = require('../../integrations/telegram/telegram-manager');
 const rateLimiter = require('../../middlewares/rate-limiter');
 const { validateApiKey } = require('../../middlewares/webhook-auth');
 const Sentry = require('@sentry/node');
+const postgres = require('../../database/postgres');
+const { TelegramLinkingRepository, TelegramConnectionRepository, CompanyRepository } = require('../../repositories');
 
 /**
  * Validation middleware - extracts validation errors and returns 400
@@ -312,6 +314,256 @@ router.post('/send',
       logger.error('Error sending Telegram message:', error);
       Sentry.captureException(error, {
         tags: { component: 'telegram-api', operation: 'sendMessage' }
+      });
+
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+);
+
+// ============================================
+// COMPANY LINKING ENDPOINTS
+// ============================================
+
+/**
+ * POST /api/telegram/linking-codes
+ * Generate a new deep link code for company linking
+ *
+ * Body: { companyId: number }
+ * Returns: { deepLink, code, expiresAt, companyName, instructions }
+ */
+router.post('/linking-codes',
+  rateLimiter,
+  validateApiKey,
+  checkTelegramEnabled,
+  [
+    body('companyId')
+      .isInt({ min: 1 })
+      .withMessage('companyId must be a positive integer')
+  ],
+  validate,
+  async (req, res) => {
+    try {
+      const { companyId } = req.body;
+
+      // Initialize repositories
+      const linkingRepo = new TelegramLinkingRepository(postgres);
+      const companyRepo = new CompanyRepository(postgres);
+
+      // Verify company exists
+      const company = await companyRepo.findById(companyId);
+      if (!company) {
+        return res.status(404).json({
+          success: false,
+          error: 'Company not found'
+        });
+      }
+
+      // Check rate limit (max 10 codes per company per day)
+      const todayCount = await linkingRepo.countTodayCodes(companyId);
+      if (todayCount >= 10) {
+        return res.status(429).json({
+          success: false,
+          error: 'Rate limit exceeded. Maximum 10 codes per company per day.',
+          retryAfter: 'tomorrow'
+        });
+      }
+
+      // Generate code
+      const companyName = company.title || `Company ${companyId}`;
+      const result = await linkingRepo.generateCode(companyId, companyName, 'api');
+
+      logger.info('Linking code generated:', {
+        companyId,
+        companyName,
+        code: result.code.substring(0, 5) + '...'
+      });
+
+      res.json({
+        success: true,
+        deepLink: result.deepLink,
+        code: result.code,
+        expiresAt: result.expiresAt,
+        companyName: result.companyName,
+        instructions: 'Отправьте эту ссылку владельцу салона. Ссылка действительна 15 минут.'
+      });
+
+    } catch (error) {
+      logger.error('Error generating linking code:', error);
+      Sentry.captureException(error, {
+        tags: { component: 'telegram-api', operation: 'generateLinkingCode' }
+      });
+
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/telegram/linking-codes
+ * List pending codes for a company
+ *
+ * Query: ?companyId=123
+ */
+router.get('/linking-codes',
+  rateLimiter,
+  validateApiKey,
+  checkTelegramEnabled,
+  async (req, res) => {
+    try {
+      const companyId = parseInt(req.query.companyId);
+
+      if (!companyId || isNaN(companyId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'companyId query parameter is required'
+        });
+      }
+
+      const linkingRepo = new TelegramLinkingRepository(postgres);
+      const codes = await linkingRepo.getPendingCodes(companyId);
+
+      res.json({
+        success: true,
+        companyId,
+        codes: codes.map(c => ({
+          code: c.code,
+          expiresAt: c.expires_at,
+          createdAt: c.created_at,
+          createdBy: c.created_by
+        }))
+      });
+
+    } catch (error) {
+      logger.error('Error listing linking codes:', error);
+      Sentry.captureException(error, {
+        tags: { component: 'telegram-api', operation: 'listLinkingCodes' }
+      });
+
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+);
+
+/**
+ * DELETE /api/telegram/linking-codes/:code
+ * Revoke a linking code
+ */
+router.delete('/linking-codes/:code',
+  rateLimiter,
+  validateApiKey,
+  checkTelegramEnabled,
+  async (req, res) => {
+    try {
+      const { code } = req.params;
+
+      if (!code || code.length < 5) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid code'
+        });
+      }
+
+      const linkingRepo = new TelegramLinkingRepository(postgres);
+      const revoked = await linkingRepo.revokeCode(code);
+
+      logger.info('Linking code revoked:', {
+        code: code.substring(0, 5) + '...',
+        revoked
+      });
+
+      res.json({
+        success: true,
+        revoked,
+        message: revoked ? 'Code revoked' : 'Code not found or already used'
+      });
+
+    } catch (error) {
+      logger.error('Error revoking linking code:', error);
+      Sentry.captureException(error, {
+        tags: { component: 'telegram-api', operation: 'revokeLinkingCode' }
+      });
+
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/telegram/linking-status/:companyId
+ * Check if company has linked Telegram account
+ *
+ * Returns linking info + business connection status
+ */
+router.get('/linking-status/:companyId',
+  rateLimiter,
+  validateApiKey,
+  checkTelegramEnabled,
+  async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+
+      if (!companyId || isNaN(companyId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid company ID'
+        });
+      }
+
+      const linkingRepo = new TelegramLinkingRepository(postgres);
+      const connectionRepo = new TelegramConnectionRepository(postgres);
+
+      // Get linking info
+      const link = await linkingRepo.findLinkByCompany(companyId);
+
+      if (!link) {
+        return res.json({
+          success: true,
+          companyId,
+          linked: false,
+          telegramUser: null,
+          businessConnection: null
+        });
+      }
+
+      // Get business connection status
+      const connection = await connectionRepo.findByCompanyId(companyId);
+
+      res.json({
+        success: true,
+        companyId,
+        linked: true,
+        telegramUser: {
+          id: link.telegram_user_id,
+          username: link.telegram_username
+        },
+        linkedAt: link.linked_at,
+        businessConnection: connection ? {
+          connected: true,
+          canReply: connection.can_reply,
+          connectedAt: connection.connected_at
+        } : {
+          connected: false,
+          message: 'User linked but Business Bot not connected yet'
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error getting linking status:', error);
+      Sentry.captureException(error, {
+        tags: { component: 'telegram-api', operation: 'getLinkingStatus' }
       });
 
       res.status(500).json({

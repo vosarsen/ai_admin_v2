@@ -30,6 +30,7 @@ const DemoChatAnalyticsRepository = require('./DemoChatAnalyticsRepository');
 
 // Telegram integration (2025-11-29)
 const TelegramConnectionRepository = require('./TelegramConnectionRepository');
+const TelegramLinkingRepository = require('./TelegramLinkingRepository');
 
 module.exports = {
   BaseRepository,
@@ -48,5 +49,6 @@ module.exports = {
   MessageRepository,
   DemoChatAnalyticsRepository,
   // Telegram integration
-  TelegramConnectionRepository
+  TelegramConnectionRepository,
+  TelegramLinkingRepository
 };

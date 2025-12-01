@@ -19,6 +19,8 @@ const {
   TelegramConfigError,
   TelegramErrorHandler
 } = require('../../utils/telegram-errors');
+const postgres = require('../../database/postgres');
+const { TelegramLinkingRepository, TelegramConnectionRepository } = require('../../repositories');
 
 class TelegramBot extends EventEmitter {
   constructor() {
@@ -36,6 +38,32 @@ class TelegramBot extends EventEmitter {
       errors: 0,
       startTime: Date.now()
     };
+
+    // Repositories (initialized lazily)
+    this.linkingRepository = null;
+    this.connectionRepository = null;
+  }
+
+  /**
+   * Get or create TelegramLinkingRepository
+   * @private
+   */
+  _getLinkingRepository() {
+    if (!this.linkingRepository) {
+      this.linkingRepository = new TelegramLinkingRepository(postgres);
+    }
+    return this.linkingRepository;
+  }
+
+  /**
+   * Get or create TelegramConnectionRepository
+   * @private
+   */
+  _getConnectionRepository() {
+    if (!this.connectionRepository) {
+      this.connectionRepository = new TelegramConnectionRepository(postgres);
+    }
+    return this.connectionRepository;
   }
 
   /**
@@ -66,6 +94,7 @@ class TelegramBot extends EventEmitter {
       this.setupErrorHandler();
       this.setupBusinessHandlers();
       this.setupCommandHandlers();
+      this.setupCallbackHandlers();
 
       // Create webhook handler for Express
       this.webhookHandler = webhookCallback(this.bot, 'express', {
@@ -241,14 +270,34 @@ class TelegramBot extends EventEmitter {
    * Setup bot command handlers (for direct bot interactions, not business)
    */
   setupCommandHandlers() {
-    // /start command - when someone starts the bot directly
+    // /start command - when someone starts the bot directly or via deep link
     this.bot.command('start', async (ctx) => {
-      await ctx.reply(
-        'Привет! Я AI Admin Bot для салонов красоты.\n\n' +
-        'Если вы владелец салона, подключите меня через:\n' +
-        'Настройки -> Telegram Business -> Чат-бот\n\n' +
-        'После подключения я смогу отвечать вашим клиентам от вашего имени!'
-      );
+      try {
+        const args = ctx.message.text.split(' ')[1]; // "link_Ab3kL9mX2p4K"
+
+        // Check if this is a deep link for company linking
+        if (args?.startsWith('link_')) {
+          const code = args.replace('link_', '');
+          await this.handleLinkingRequest(ctx, code);
+          return;
+        }
+
+        // Default /start message
+        await ctx.reply(
+          '🏠 Привет! Я AI Admin Bot для салонов красоты.\n\n' +
+          'Если вы владелец салона, подключите меня через:\n' +
+          'Настройки → Telegram Business → Чат-бот\n\n' +
+          'После подключения я смогу отвечать вашим клиентам от вашего имени!\n\n' +
+          'Если вы получили ссылку для привязки, просто кликните по ней.'
+        );
+      } catch (error) {
+        logger.error('Error handling /start command:', error);
+        Sentry.captureException(error, {
+          tags: { component: 'telegram-bot', command: 'start' },
+          extra: { userId: ctx.from?.id }
+        });
+        await ctx.reply('❌ Произошла ошибка. Попробуйте позже.');
+      }
     });
 
     // /help command
@@ -257,23 +306,242 @@ class TelegramBot extends EventEmitter {
         'Я помогаю салонам красоты отвечать клиентам автоматически.\n\n' +
         'Для владельцев салонов:\n' +
         '1. Убедитесь что у вас Telegram Premium\n' +
-        '2. Перейдите в Настройки -> Telegram Business\n' +
-        '3. В разделе "Чат-бот" подключите этого бота\n' +
-        '4. Готово! Я буду отвечать клиентам от вашего имени'
+        '2. Получите ссылку для привязки от администратора\n' +
+        '3. Кликните ссылку и подтвердите привязку\n' +
+        '4. Перейдите в Настройки → Telegram Business\n' +
+        '5. В разделе "Чат-бот" подключите этого бота\n' +
+        '6. Готово! Я буду отвечать клиентам от вашего имени\n\n' +
+        'Команды:\n' +
+        '/status - проверить статус подключения\n' +
+        '/help - справка'
       );
     });
 
-    // /status command - check connection status
+    // /status command - check connection status for salon owner
     this.bot.command('status', async (ctx) => {
-      const stats = this.getMetrics();
-      await ctx.reply(
-        `Статус бота:\n` +
-        `Активных подключений: ${stats.connectionsActive}\n` +
-        `Обработано сообщений: ${stats.messagesReceived}\n` +
-        `Отправлено ответов: ${stats.messagesSent}\n` +
-        `Время работы: ${Math.floor(stats.uptimeHours)}ч`
-      );
+      try {
+        await this.handleStatusCommand(ctx);
+      } catch (error) {
+        logger.error('Error handling /status command:', error);
+        Sentry.captureException(error, {
+          tags: { component: 'telegram-bot', command: 'status' },
+          extra: { userId: ctx.from?.id }
+        });
+        await ctx.reply('❌ Не удалось получить статус. Попробуйте позже.');
+      }
     });
+  }
+
+  /**
+   * Handle deep link for company linking
+   * @param {Context} ctx - grammY context
+   * @param {string} code - Linking code from deep link
+   */
+  async handleLinkingRequest(ctx, code) {
+    const linkingRepo = this._getLinkingRepository();
+
+    try {
+      const data = await linkingRepo.getCodeData(code);
+
+      if (!data) {
+        logger.info('Invalid or expired linking code attempted:', {
+          code: code.substring(0, 5) + '...',
+          userId: ctx.from.id
+        });
+
+        await ctx.reply(
+          '❌ Ссылка недействительна или истекла.\n\n' +
+          'Запросите новую ссылку у администратора.'
+        );
+        return;
+      }
+
+      logger.info('Linking request received:', {
+        code: code.substring(0, 5) + '...',
+        companyId: data.company_id,
+        companyName: data.company_name,
+        userId: ctx.from.id
+      });
+
+      // Show confirmation with inline buttons
+      await ctx.reply(
+        `🔗 Привязать аккаунт к салону:\n\n` +
+        `🏢 ${data.company_name}\n\n` +
+        `После привязки вы сможете:\n` +
+        `✅ Получать сообщения от клиентов\n` +
+        `✅ Автоматические ответы бота`,
+        {
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '✅ Подтвердить', callback_data: `link_confirm_${code}` },
+              { text: '❌ Отмена', callback_data: 'link_cancel' }
+            ]]
+          }
+        }
+      );
+
+    } catch (error) {
+      logger.error('Error handling linking request:', error);
+      Sentry.captureException(error, {
+        tags: { component: 'telegram-bot', operation: 'handleLinkingRequest' },
+        extra: { code: code.substring(0, 5) + '...', userId: ctx.from?.id }
+      });
+      await ctx.reply('❌ Произошла ошибка при проверке ссылки. Попробуйте позже.');
+    }
+  }
+
+  /**
+   * Handle /status command - show linking and connection status
+   * @param {Context} ctx - grammY context
+   */
+  async handleStatusCommand(ctx) {
+    const linkingRepo = this._getLinkingRepository();
+    const connectionRepo = this._getConnectionRepository();
+
+    // Check if user has a link
+    const link = await linkingRepo.findLinkByTelegramUser(ctx.from.id);
+
+    if (!link) {
+      await ctx.reply(
+        '❓ Ваш аккаунт не привязан к салону.\n\n' +
+        'Запросите ссылку для привязки у администратора.'
+      );
+      return;
+    }
+
+    // Check business connection status
+    const connection = await connectionRepo.findByCompanyId(link.company_id);
+
+    let businessStatus = '❌ Не подключен';
+    let canReplyStatus = '❌ Нет';
+
+    if (connection) {
+      businessStatus = '✅ Подключен';
+      canReplyStatus = connection.can_reply ? '✅ Да' : '❌ Нет';
+    }
+
+    await ctx.reply(
+      `📊 Статус подключения:\n\n` +
+      `🏢 Салон: ${link.company_name || 'ID ' + link.company_id}\n` +
+      `📱 Telegram Business: ${businessStatus}\n` +
+      `💬 Бот может отвечать: ${canReplyStatus}\n` +
+      `📅 Привязан: ${new Date(link.linked_at).toLocaleDateString('ru-RU')}`
+    );
+  }
+
+  /**
+   * Setup inline button callback handlers
+   */
+  setupCallbackHandlers() {
+    this.bot.on('callback_query:data', async (ctx) => {
+      const data = ctx.callbackQuery.data;
+
+      try {
+        // Handle link confirmation
+        if (data.startsWith('link_confirm_')) {
+          const code = data.replace('link_confirm_', '');
+          await this.completeLinking(ctx, code);
+          return;
+        }
+
+        // Handle link cancellation
+        if (data === 'link_cancel') {
+          await ctx.answerCallbackQuery('Отменено');
+          await ctx.editMessageText('❌ Привязка отменена');
+          return;
+        }
+
+        // Unknown callback
+        await ctx.answerCallbackQuery('Неизвестная команда');
+
+      } catch (error) {
+        logger.error('Error handling callback query:', error);
+        Sentry.captureException(error, {
+          tags: { component: 'telegram-bot', operation: 'callback_query' },
+          extra: { callbackData: data, userId: ctx.from?.id }
+        });
+
+        try {
+          await ctx.answerCallbackQuery('Произошла ошибка');
+        } catch {
+          // Ignore if we can't answer callback
+        }
+      }
+    });
+  }
+
+  /**
+   * Complete the linking process after user confirms
+   * @param {Context} ctx - grammY context
+   * @param {string} code - Linking code
+   */
+  async completeLinking(ctx, code) {
+    const linkingRepo = this._getLinkingRepository();
+
+    // Re-validate code (it might have expired since confirmation screen)
+    const codeData = await linkingRepo.getCodeData(code);
+
+    if (!codeData) {
+      await ctx.answerCallbackQuery('❌ Ссылка истекла');
+      await ctx.editMessageText(
+        '❌ Ссылка истекла.\n\n' +
+        'Запросите новую ссылку у администратора.'
+      );
+      return;
+    }
+
+    try {
+      // Create permanent link
+      await linkingRepo.createLink(
+        ctx.from.id,
+        ctx.from.username,
+        codeData.company_id,
+        code
+      );
+
+      // Consume code (delete from Redis, update DB)
+      await linkingRepo.consumeCode(code, ctx.from.id, ctx.from.username);
+
+      logger.info('Company linking completed:', {
+        telegramUserId: ctx.from.id,
+        telegramUsername: ctx.from.username,
+        companyId: codeData.company_id,
+        companyName: codeData.company_name
+      });
+
+      // Emit event for TelegramManager to update cache
+      this.emit('user_linked', {
+        telegramUserId: ctx.from.id,
+        companyId: codeData.company_id
+      });
+
+      await ctx.answerCallbackQuery('✅ Успешно!');
+      await ctx.editMessageText(
+        `✅ Аккаунт привязан!\n\n` +
+        `Ваш Telegram подключен к:\n` +
+        `🏢 ${codeData.company_name}\n\n` +
+        `Теперь подключите бота через:\n` +
+        `📱 Настройки → Telegram Business → Чат-бот\n\n` +
+        `После этого бот сможет отвечать вашим клиентам!`
+      );
+
+    } catch (error) {
+      logger.error('Error completing linking:', error);
+      Sentry.captureException(error, {
+        tags: { component: 'telegram-bot', operation: 'completeLinking' },
+        extra: {
+          code: code.substring(0, 5) + '...',
+          companyId: codeData.company_id,
+          userId: ctx.from?.id
+        }
+      });
+
+      await ctx.answerCallbackQuery('Ошибка');
+      await ctx.editMessageText(
+        '❌ Произошла ошибка при привязке.\n\n' +
+        'Попробуйте ещё раз или обратитесь к администратору.'
+      );
+    }
   }
 
   /**

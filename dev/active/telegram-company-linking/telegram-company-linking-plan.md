@@ -1,330 +1,538 @@
 # Telegram Company Linking - Implementation Plan
 
-**Project:** AI Admin v2 - Multi-tenant Telegram Business Connection
-**Status:** Planning
-**Created:** 2025-11-29
-**Last Updated:** 2025-11-29
-**Estimated:** 8-12 hours
-
----
+**Last Updated:** 2025-11-30
 
 ## Executive Summary
 
-Реализация связки Telegram Business Connection с Company ID через систему кодов подключения. Это позволит масштабировать Telegram интеграцию с одного салона (MVP) на множество салонов (multi-tenant).
+Реализация механизма связывания Telegram аккаунта владельца салона с `company_id` в системе AI Admin. Это позволит поддерживать множество салонов (multi-tenant) через один Telegram бот `@AdmiAI_bot`.
 
-### Проблема
+**Problem:** Текущая реализация использует hardcoded `TELEGRAM_DEFAULT_COMPANY_ID` (строка 134 в `telegram-manager.js`), что ограничивает систему одним салоном.
 
-Сейчас при подключении Telegram Business Bot мы не знаем какому салону (company_id) принадлежит подключение. Используется костыль `TELEGRAM_DEFAULT_COMPANY_ID`.
-
-### Решение
-
-Система кодов подключения:
-1. Админ генерирует уникальный код для салона (например: `ABC123`)
-2. Салон подключает бота в Telegram Settings
-3. Бот просит ввести код
-4. Код связывает `business_connection_id` → `company_id`
+**Solution:** Deep Link система - админ генерирует ссылку, владелец кликает → подтверждает в боте.
 
 ---
 
 ## Current State Analysis
 
-### Текущий flow (MVP - один салон)
+### Что уже есть:
+- **Telegram Bot** (`telegram-bot.js`) - работающий grammY клиент
+- **Telegram Manager** (`telegram-manager.js`) - оркестратор с кэшированием
+- **TelegramConnectionRepository** - CRUD для `telegram_business_connections`
+- **API Routes** (`telegram-management.js`) - 7 endpoints управления
+- **Database** - таблица `telegram_business_connections` с `company_id`
 
-```
-1. Салон подключает @AdmiAI_bot в Telegram Business Settings
-2. Telegram отправляет business_connection event
-3. telegram-manager.js использует config.telegram.defaultCompanyId (962302)
-4. Все подключения идут к одному салону
-```
-
-### Проблемные места в коде
-
+### Проблема в коде:
 ```javascript
 // telegram-manager.js:134
-const companyId = config.telegram.defaultCompanyId;
-
-if (!companyId) {
-  logger.error('TELEGRAM_DEFAULT_COMPANY_ID not configured');
-  return;
-}
+const companyId = config.telegram.defaultCompanyId;  // HARDCODED!
 ```
 
-### Существующие таблицы
-
-- `telegram_business_connections` - уже создана, содержит `company_id`
-- `companies` - содержит `telegram_enabled`, `telegram_premium_until`
+Когда Telegram присылает `business_connection` event, мы не знаем какому салону он принадлежит.
 
 ---
 
 ## Proposed Future State
 
-### Новый flow (Multi-tenant)
+### User Flow (Deep Link):
+```
+1. Админ → POST /api/telegram/linking-codes { companyId: 962302 }
+   → Получает deep link: https://t.me/AdmiAI_bot?start=link_Ab3kL9mX2p
 
-```
-1. Админ в нашей админке создаёт "код подключения" для салона
-2. Код: ABC123 (6 символов, expires in 10 min)
-3. Салон подключает бота в Telegram Business Settings
-4. Бот получает business_connection event
-5. Бот определяет что это новое подключение без company_id
-6. Бот сохраняет telegram_user_id + business_connection_id как "pending"
-7. Когда пользователь пишет боту напрямую (не через business) — просим код
-8. Пользователь вводит ABC123
-9. Система связывает business_connection_id → company_id
-10. Подключение активировано!
+2. Админ отправляет ссылку владельцу салона (WhatsApp/email/Telegram)
+
+3. Владелец кликает ссылку → Telegram открывается → нажимает START
+
+4. Бот показывает:
+   "Привязать аккаунт к салону 'Студия Красоты'?"
+   [✅ Подтвердить] [❌ Отмена]
+
+5. Владелец нажимает "Подтвердить" → Линк создан
+
+6. Владелец подключает бота через Telegram Business Settings
+
+7. Telegram → business_connection event
+   → Manager смотрит telegram_user_company_links по user_id
+   → Находит company_id = 962302
 ```
 
-### Архитектура
+### Architecture:
+```
+┌─────────────────┐     ┌──────────────────────┐
+│  Admin API      │────▶│ TelegramLinking      │
+│  /linking-codes │     │ Repository           │
+└─────────────────┘     └──────────┬───────────┘
+                                   │
+                                   ▼
+┌─────────────────┐     ┌──────────────────────┐
+│  Salon Owner    │     │ telegram_linking_    │
+│  clicks deep    │────▶│ codes (Redis/DB)     │
+│  link + confirm │     └──────────┬───────────┘
+└─────────────────┘                │ consume
+                                   ▼
+┌─────────────────┐     ┌──────────────────────┐
+│  Telegram Bot   │────▶│ telegram_user_       │
+│  business_conn  │     │ company_links        │
+└─────────────────┘     └──────────────────────┘
+```
 
+### Deep Link Format:
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     АДМИНКА (наша)                               │
-│                                                                  │
-│   POST /api/telegram/generate-code                              │
-│   { companyId: 962302 }                                          │
-│   → { code: "ABC123", expiresAt: "..." }                        │
-└─────────────────────────────────────┬───────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     БАЗА ДАННЫХ                                  │
-│                                                                  │
-│   telegram_connection_codes:                                     │
-│   - company_id: 962302                                          │
-│   - code: "ABC123"                                              │
-│   - expires_at: NOW() + 10 min                                  │
-│   - used_at: NULL                                               │
-└─────────────────────────────────────┬───────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     TELEGRAM BOT                                 │
-│                                                                  │
-│   1. business_connection event                                   │
-│      → сохраняем как pending (telegram_user_id)                 │
-│                                                                  │
-│   2. /start или direct message от owner                         │
-│      → "Введите код подключения"                                │
-│                                                                  │
-│   3. Получаем "ABC123"                                          │
-│      → ищем в telegram_connection_codes                         │
-│      → находим company_id = 962302                              │
-│      → обновляем telegram_business_connections                  │
-│      → "✅ Подключено!"                                         │
-└─────────────────────────────────────────────────────────────────┘
+https://t.me/AdmiAI_bot?start=link_<base64url_code>
+
+Example: https://t.me/AdmiAI_bot?start=link_Ab3kL9mX2p4K5m
 ```
+
+### Why Deep Links (not manual codes):
+| Aspect | Deep Link | Manual /link ABC-123 |
+|--------|-----------|---------------------|
+| UX | 1 клик + START + Confirm | Копировать → вставить → отправить |
+| Безопасность | Код скрыт в URL | Код виден в чате |
+| Ошибки ввода | Невозможны | Возможны |
+| Rate limiting | Только на генерацию | Нужен ещё на ввод |
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: Database Schema (1h)
-- Создать таблицу `telegram_connection_codes`
-- Добавить поле `status` в `telegram_business_connections`
+### Phase 1: Database & Repository (3h)
+Create database schema, Redis storage, and data access layer.
 
-### Phase 2: Connection Code API (2h)
-- POST `/api/telegram/connection-codes` - генерация кода
-- GET `/api/telegram/connection-codes/:companyId` - активные коды
-- DELETE `/api/telegram/connection-codes/:code` - отмена кода
+### Phase 2: Bot Commands (3h)
+Handle `/start link_CODE` deep links and inline confirmation buttons.
 
-### Phase 3: Bot Logic Update (3h)
-- Обработка business_connection как "pending"
-- Команда /start для ввода кода
-- Валидация и активация кода
-- Сообщения пользователю
+### Phase 3: Manager Integration (2h)
+Modify telegram-manager.js to use linking for company resolution.
 
-### Phase 4: Manager Multi-tenant (2h)
-- Удалить зависимость от defaultCompanyId
-- Обновить resolveConnection для pending connections
-- Добавить activateConnection метод
+### Phase 4: Admin API (2h)
+Add endpoints for deep link generation and management.
 
-### Phase 5: Testing & Documentation (2h)
-- Unit тесты для кодов
-- Integration тест для flow
-- Обновить документацию
+### Phase 5: Testing (3h)
+Unit, integration, and E2E tests.
+
+### Phase 6: Documentation (1h)
+Update guides and create onboarding docs.
+
+**Total: 14 hours** (reduced from 20h due to simpler deep link approach)
 
 ---
 
-## Database Schema
+## Phase 1: Database & Repository
 
-### New Table: telegram_connection_codes
+### Task 1.1: Create Migration File (S - 30min)
+**File:** `migrations/20251130_create_telegram_linking_tables.sql`
 
 ```sql
-CREATE TABLE telegram_connection_codes (
+-- Linking codes (audit table - primary storage is Redis)
+CREATE TABLE telegram_linking_codes (
   id SERIAL PRIMARY KEY,
-  company_id INTEGER NOT NULL REFERENCES companies(id),
-  code VARCHAR(10) UNIQUE NOT NULL,
-  expires_at TIMESTAMP NOT NULL,
-  used_at TIMESTAMP,
-  used_by_telegram_user_id BIGINT,
-  created_by VARCHAR(255),  -- admin username
-  created_at TIMESTAMP DEFAULT NOW()
+  code VARCHAR(20) UNIQUE NOT NULL,  -- base64url (14 chars)
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  status VARCHAR(20) DEFAULT 'pending',  -- pending, used, expired, revoked
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
+  used_by_telegram_id BIGINT,
+  used_by_username VARCHAR(255),
+  created_by VARCHAR(255),
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_tg_codes_company ON telegram_connection_codes(company_id);
-CREATE INDEX idx_tg_codes_code ON telegram_connection_codes(code);
-CREATE INDEX idx_tg_codes_expires ON telegram_connection_codes(expires_at);
+-- User-to-company links (permanent)
+CREATE TABLE telegram_user_company_links (
+  id SERIAL PRIMARY KEY,
+  telegram_user_id BIGINT UNIQUE NOT NULL,
+  telegram_username VARCHAR(255),
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  linked_at TIMESTAMPTZ DEFAULT NOW(),
+  linked_via_code VARCHAR(20),
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_linking_codes_code ON telegram_linking_codes(code);
+CREATE INDEX idx_linking_codes_company_pending ON telegram_linking_codes(company_id) WHERE status = 'pending';
+CREATE UNIQUE INDEX idx_user_links_telegram_id ON telegram_user_company_links(telegram_user_id);
+CREATE INDEX idx_user_links_company ON telegram_user_company_links(company_id);
 ```
 
-### Modified: telegram_business_connections
-
-```sql
-ALTER TABLE telegram_business_connections
-ADD COLUMN status VARCHAR(20) DEFAULT 'active'
-CHECK (status IN ('pending', 'active', 'expired', 'disconnected'));
-
--- pending = business_connection получен, но код ещё не введён
--- active = полноценное подключение
--- expired = pending истёк (24h)
--- disconnected = салон отключил бота
+### Redis Storage (Primary):
 ```
+Key: telegram_linking:{code}
+TTL: 900 seconds (15 minutes)
+Value: {
+  "company_id": 962302,
+  "company_name": "Студия Красоты Анна",
+  "created_by": "admin",
+  "created_at": 1732975200000
+}
+```
+
+**Acceptance Criteria:**
+- [ ] Migration file created
+- [ ] Tables created on production
+- [ ] Redis key pattern documented
+- [ ] Indexes verified
+
+### Task 1.2: Create TelegramLinkingRepository (M - 2h)
+**File:** `src/repositories/TelegramLinkingRepository.js`
+
+**Methods:**
+- `generateCode(companyId, companyName, createdBy)` - crypto.randomBytes → base64url
+- `getCodeData(code)` - Redis lookup with fallback to DB
+- `consumeCode(code, telegramUserId, username)` - atomic Redis DEL + DB update
+- `findLinkByTelegramUser(telegramUserId)` - поиск company по telegram user
+- `createLink(telegramUserId, username, companyId, code)` - create permanent link
+- `deactivateLinkForCompany(companyId)` - for re-linking
+- `revokeCode(code)` - отзыв кода
+
+**Acceptance Criteria:**
+- [ ] Extends BaseRepository
+- [ ] Uses withTransaction for atomic operations
+- [ ] Sentry error tracking
+- [ ] JSDoc documentation
+- [ ] Code generation uses crypto.randomBytes
+
+### Task 1.3: Register Repository in index.js (S - 15min)
+**File:** `src/repositories/index.js`
+
+**Acceptance Criteria:**
+- [ ] TelegramLinkingRepository exported
+- [ ] Can be imported throughout codebase
 
 ---
 
-## API Endpoints
+## Phase 2: Bot Commands (Deep Link + Inline Buttons)
 
-### POST /api/telegram/connection-codes
-
-```javascript
-// Request
-{
-  "companyId": 962302
-}
-
-// Response
-{
-  "success": true,
-  "code": "ABC123",
-  "expiresAt": "2025-11-29T12:10:00Z",
-  "expiresInMinutes": 10
-}
-```
-
-### GET /api/telegram/connection-codes/:companyId
+### Task 2.1: Handle Deep Link in /start (M - 1.5h)
+**File:** `src/integrations/telegram/telegram-bot.js`
+**Location:** `setupCommandHandlers()` method (~line 243)
 
 ```javascript
-// Response
-{
-  "success": true,
-  "codes": [
+// Modify existing /start handler
+this.bot.command('start', async (ctx) => {
+  const args = ctx.message.text.split(' ')[1]; // "link_Ab3kL9mX2p"
+
+  if (args?.startsWith('link_')) {
+    const code = args.replace('link_', '');
+    await this.handleLinkingRequest(ctx, code);
+    return;
+  }
+
+  // Default /start message
+  await ctx.reply('🏠 Привет! Я AI Admin Bot...');
+});
+
+async handleLinkingRequest(ctx, code) {
+  const data = await linkingRepository.getCodeData(code);
+
+  if (!data) {
+    return ctx.reply('❌ Ссылка недействительна или истекла.\n\nЗапросите новую ссылку у администратора.');
+  }
+
+  // Show confirmation with inline buttons
+  await ctx.reply(
+    `🔗 Привязать аккаунт к салону:\n\n` +
+    `🏢 ${data.company_name}\n\n` +
+    `Вы будете получать:\n` +
+    `✅ Сообщения от клиентов\n` +
+    `✅ Уведомления о записях`,
     {
-      "code": "ABC123",
-      "expiresAt": "2025-11-29T12:10:00Z",
-      "used": false
+      reply_markup: {
+        inline_keyboard: [[
+          { text: '✅ Подтвердить', callback_data: `link_confirm_${code}` },
+          { text: '❌ Отмена', callback_data: 'link_cancel' }
+        ]]
+      }
     }
-  ],
-  "activeConnection": {
-    "telegramUsername": "@salon_owner",
-    "connectedAt": "2025-11-28T10:00:00Z"
-  }
+  );
 }
 ```
 
+**Acceptance Criteria:**
+- [ ] Parses deep link code from /start
+- [ ] Validates code in Redis
+- [ ] Shows company name for confirmation
+- [ ] Displays inline buttons
+- [ ] Logs to Sentry on errors
+
+### Task 2.2: Handle Inline Button Callbacks (M - 1h)
+**File:** `src/integrations/telegram/telegram-bot.js`
+
+```javascript
+// Add callback query handler
+this.bot.on('callback_query', async (ctx) => {
+  const data = ctx.callbackQuery.data;
+
+  if (data.startsWith('link_confirm_')) {
+    const code = data.replace('link_confirm_', '');
+    await this.completeLinking(ctx, code);
+  }
+
+  if (data === 'link_cancel') {
+    await ctx.answerCbQuery('Отменено');
+    await ctx.editMessageText('❌ Привязка отменена');
+  }
+});
+
+async completeLinking(ctx, code) {
+  const codeData = await linkingRepository.getCodeData(code);
+
+  if (!codeData) {
+    await ctx.answerCbQuery('❌ Ссылка истекла');
+    return;
+  }
+
+  // Create permanent link
+  await linkingRepository.createLink(
+    ctx.from.id,
+    ctx.from.username,
+    codeData.company_id,
+    code
+  );
+
+  // Consume code (delete from Redis, update DB)
+  await linkingRepository.consumeCode(code, ctx.from.id, ctx.from.username);
+
+  // Invalidate cache
+  this.manager.invalidateUserCache(ctx.from.id);
+
+  await ctx.answerCbQuery('✅ Успешно!');
+  await ctx.editMessageText(
+    `✅ Аккаунт привязан!\n\n` +
+    `Ваш Telegram подключен к:\n` +
+    `🏢 ${codeData.company_name}\n\n` +
+    `Теперь подключите бота через:\n` +
+    `Настройки → Telegram Business → Чат-бот`
+  );
+}
+```
+
+**Acceptance Criteria:**
+- [ ] Handles confirm/cancel callbacks
+- [ ] Creates permanent link in DB
+- [ ] Consumes code (single-use)
+- [ ] Invalidates cache
+- [ ] Shows success message with next steps
+
+### Task 2.3: Add /status Command (S - 30min)
+**File:** `src/integrations/telegram/telegram-bot.js`
+
+Show connection status for salon owner.
+
+**Acceptance Criteria:**
+- [ ] Shows linked salon name
+- [ ] Shows business connection status
+- [ ] Handle not-linked case
+
 ---
 
-## Bot Flow Changes
+## Phase 3: Manager Integration
 
-### Current Flow
-
-```javascript
-bot.on('business_connection', async (ctx) => {
-  // Сразу сохраняем с defaultCompanyId
-  await saveConnection(defaultCompanyId, data);
-});
-```
-
-### New Flow
+### Task 3.1: Add resolveCompanyId Method (M - 1h)
+**File:** `src/integrations/telegram/telegram-manager.js`
 
 ```javascript
-bot.on('business_connection', async (ctx) => {
-  if (data.isEnabled) {
-    // 1. Сохраняем как pending (без company_id)
-    await savePendingConnection(data);
+async resolveCompanyId(telegramUserId) {
+  // 1. Check linking repository
+  const link = await this.linkingRepository.findLinkByTelegramUser(telegramUserId);
+  if (link?.company_id) return link.company_id;
 
-    // 2. Отправляем сообщение напрямую пользователю
-    await ctx.api.sendMessage(data.userId,
-      'Для завершения подключения введите код из админ-панели AI Admin:'
-    );
+  // 2. Fallback to default (backward compat)
+  if (config.telegram.defaultCompanyId) {
+    return config.telegram.defaultCompanyId;
   }
-});
 
-bot.on('message:text', async (ctx) => {
-  // Проверяем, есть ли pending connection для этого user
-  const pending = await getPendingConnection(ctx.from.id);
-
-  if (pending) {
-    const code = ctx.message.text.trim().toUpperCase();
-    const connectionCode = await validateCode(code);
-
-    if (connectionCode) {
-      // Активируем подключение!
-      await activateConnection(pending.businessConnectionId, connectionCode.companyId);
-      await ctx.reply('✅ Подключено! Бот теперь будет отвечать вашим клиентам.');
-    } else {
-      await ctx.reply('❌ Неверный или истёкший код. Попробуйте ещё раз.');
-    }
-  }
-});
+  return null;
+}
 ```
+
+**Acceptance Criteria:**
+- [ ] Method added to TelegramManager
+- [ ] Caching implemented (5 min TTL)
+- [ ] Fallback to defaultCompanyId works
+- [ ] Returns null if no link found
+
+### Task 3.2: Modify handleBusinessConnection (M - 1h)
+**File:** `src/integrations/telegram/telegram-manager.js`
+**Location:** Line 124-150
+
+Replace hardcoded `config.telegram.defaultCompanyId` with `resolveCompanyId()`.
+
+**Acceptance Criteria:**
+- [ ] Uses resolveCompanyId instead of hardcoded value
+- [ ] Handles case when no company found (log warning)
+- [ ] Updates connection cache on successful resolution
+- [ ] Existing single-company setup still works
+
+---
+
+## Phase 4: Admin API
+
+### Task 4.1: POST /api/telegram/linking-codes (M - 1h)
+**File:** `src/api/routes/telegram-management.js`
+
+Generate new linking code for company.
+
+**Request:**
+```json
+{ "companyId": 962302, "expiresInHours": 24 }
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "code": "XKP-829",
+  "expiresAt": "2025-12-01T12:00:00Z",
+  "instructions": "Отправьте боту @AdmiAI_bot команду: /link XKP-829"
+}
+```
+
+**Acceptance Criteria:**
+- [ ] Requires API key authentication
+- [ ] Validates companyId exists
+- [ ] Rate limited (3 codes/company/day)
+- [ ] Returns formatted instructions
+
+### Task 4.2: GET /api/telegram/linking-codes (S - 30min)
+List active codes for company.
+
+**Acceptance Criteria:**
+- [ ] Returns only pending codes
+- [ ] Includes expiration time
+- [ ] Admin only
+
+### Task 4.3: DELETE /api/telegram/linking-codes/:code (S - 30min)
+Revoke a code.
+
+**Acceptance Criteria:**
+- [ ] Marks code as revoked
+- [ ] Returns success even if already used
+
+### Task 4.4: GET /api/telegram/linking-status/:companyId (S - 30min)
+Check if company has linked Telegram.
+
+**Acceptance Criteria:**
+- [ ] Returns linked user info
+- [ ] Returns business connection status
+
+---
+
+## Phase 5: Testing
+
+### Task 5.1: Unit Tests for TelegramLinkingRepository (M - 2h)
+**File:** `tests/unit/telegram-linking-repository.test.js`
+
+- Code generation randomness
+- Code format validation
+- Atomic consumption (race condition test)
+- Expiration handling
+- Brute force protection
+
+**Acceptance Criteria:**
+- [ ] 80%+ coverage
+- [ ] Tests transaction isolation
+- [ ] Tests edge cases
+
+### Task 5.2: Integration Tests for /link Command (M - 1.5h)
+**File:** `tests/integration/telegram-link-command.test.js`
+
+- Success flow
+- Invalid code
+- Expired code
+- Already linked user
+- Rate limiting
+
+**Acceptance Criteria:**
+- [ ] All flows tested
+- [ ] Mock Telegram context
+
+### Task 5.3: E2E Test via Production (S - 30min)
+Manual test on production:
+
+1. Generate code via API
+2. Send /link to bot
+3. Verify in database
+
+**Acceptance Criteria:**
+- [ ] Full flow works
+- [ ] Messages display correctly
+
+---
+
+## Phase 6: Documentation
+
+### Task 6.1: Update TELEGRAM_BUSINESS_BOT_GUIDE.md (S - 30min)
+Add company linking section.
+
+**Acceptance Criteria:**
+- [ ] Section on linking codes
+- [ ] API endpoint documentation
+- [ ] Troubleshooting tips
+
+### Task 6.2: Create TELEGRAM_SALON_ONBOARDING.md (S - 30min)
+Step-by-step guide for salon owners (Russian).
+
+**Acceptance Criteria:**
+- [ ] Clear instructions with screenshots descriptions
+- [ ] FAQ section
+- [ ] Support contact
 
 ---
 
 ## Risk Assessment
 
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| Код истёк до ввода | Medium | Low | Увеличить TTL до 30 минут |
-| Салон не понимает что делать | Medium | Medium | Подробные инструкции в UI |
-| Business connection без direct message | Low | High | Fallback: показать код в business chat |
-| Брутфорс кодов | Low | Medium | Rate limit + 6+ символов + expiry |
+| Risk | Impact | Probability | Mitigation |
+|------|--------|-------------|------------|
+| Code brute force | High | Low | Max 5 attempts per code |
+| Race condition on code use | High | Low | Transaction с FOR UPDATE |
+| Breaking existing salon | High | Medium | Backward compat fallback |
+| Telegram API changes | Medium | Low | grammY abstraction |
 
 ---
 
 ## Success Metrics
 
-1. **Функциональные:**
-   - [ ] Код генерируется и истекает корректно
-   - [ ] Business connection сохраняется как pending
-   - [ ] Код активирует подключение
-   - [ ] Multi-tenant работает (разные салоны)
-
-2. **Нефункциональные:**
-   - [ ] Активация < 5 секунд
-   - [ ] 0% потерянных business_connection
-   - [ ] Логи достаточны для дебага
+- [ ] Multiple salons can connect independently
+- [ ] No messages routed to wrong company
+- [ ] Current salon continues working (backward compat)
+- [ ] Code generation under 100ms
+- [ ] Link resolution under 50ms (with cache)
 
 ---
 
-## Dependencies
+## Required Resources
 
-- Существующая Telegram интеграция (Phase 1-3 complete)
-- Таблица `telegram_business_connections`
-- Таблица `companies`
-- grammY библиотека
+### Files to Create:
+- `migrations/20251130_create_telegram_linking_tables.sql`
+- `src/repositories/TelegramLinkingRepository.js`
+- `tests/unit/telegram-linking-repository.test.js`
+- `tests/integration/telegram-link-command.test.js`
+- `docs/02-guides/telegram/TELEGRAM_SALON_ONBOARDING.md`
+
+### Files to Modify:
+- `src/repositories/index.js` - export new repository
+- `src/integrations/telegram/telegram-bot.js` - add /link, /status commands
+- `src/integrations/telegram/telegram-manager.js` - resolveCompanyId
+- `src/api/routes/telegram-management.js` - linking endpoints
+- `docs/02-guides/telegram/TELEGRAM_BUSINESS_BOT_GUIDE.md` - update docs
+
+### Dependencies:
+- crypto (Node.js built-in)
+- No new npm packages needed
 
 ---
 
 ## Timeline
 
-| Phase | Estimated | Description |
-|-------|-----------|-------------|
-| Phase 1 | 1h | Database migration |
-| Phase 2 | 2h | API endpoints |
-| Phase 3 | 3h | Bot logic |
-| Phase 4 | 2h | Manager update |
-| Phase 5 | 2h | Testing & docs |
-| **Total** | **10h** | |
+| Phase | Duration | Dependencies |
+|-------|----------|--------------|
+| Phase 1: Database | 3h | None |
+| Phase 2: Bot Commands | 3h | Phase 1 |
+| Phase 3: Manager | 2h | Phase 1, 2 |
+| Phase 4: Admin API | 3h | Phase 1 |
+| Phase 5: Testing | 4h | Phase 1-4 |
+| Phase 6: Docs | 1h | Phase 1-4 |
+| **Total** | **16h** | |
 
----
-
-## Files to Create/Modify
-
-### Create:
-- `migrations/20251130_telegram_connection_codes.sql`
-- `src/repositories/TelegramConnectionCodeRepository.js`
-- `src/api/routes/telegram-connection-codes.js`
-
-### Modify:
-- `src/integrations/telegram/telegram-bot.js` - add code verification
-- `src/integrations/telegram/telegram-manager.js` - multi-tenant logic
-- `src/repositories/TelegramConnectionRepository.js` - add status field
-- `docs/02-guides/telegram/TELEGRAM_SALON_SETUP_RU.md` - update instructions
+**Estimated completion:** 2-3 days with buffer

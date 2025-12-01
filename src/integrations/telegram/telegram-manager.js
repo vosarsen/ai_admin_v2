@@ -19,7 +19,7 @@ const config = require('../../config');
 const logger = require('../../utils/logger').child({ module: 'telegram-manager' });
 const messageQueue = require('../../queue/message-queue');
 const postgres = require('../../database/postgres');
-const { TelegramConnectionRepository } = require('../../repositories');
+const { TelegramConnectionRepository, TelegramLinkingRepository } = require('../../repositories');
 const Sentry = require('@sentry/node');
 const {
   TelegramConfigError,
@@ -32,11 +32,16 @@ class TelegramManager {
   constructor() {
     this.isInitialized = false;
     this.connectionRepository = null;
+    this.linkingRepository = null;
 
     // Cache for business_connection_id → company_id mapping
     // Reduces database lookups for high-frequency operations
     this.connectionCache = new Map();
     this.cacheTTL = 5 * 60 * 1000; // 5 minutes
+
+    // Cache for telegram_user_id → company_id mapping (for linking resolution)
+    this.userLinkCache = new Map();
+    this.userLinkCacheTTL = 5 * 60 * 1000; // 5 minutes
 
     // Metrics
     this.metrics = {
@@ -73,8 +78,9 @@ class TelegramManager {
     try {
       logger.info('🚀 Initializing Telegram Manager...');
 
-      // Initialize repository
+      // Initialize repositories
       this.connectionRepository = new TelegramConnectionRepository(postgres);
+      this.linkingRepository = new TelegramLinkingRepository(postgres);
 
       // Initialize bot
       const botInitialized = await telegramBot.initialize();
@@ -116,6 +122,15 @@ class TelegramManager {
     telegramBot.on('incoming_message', async (data) => {
       await this.handleIncomingMessage(data);
     });
+
+    // Handle user linking complete (from deep link flow)
+    telegramBot.on('user_linked', async (data) => {
+      this.invalidateUserCache(data.telegramUserId);
+      logger.info('User link cache invalidated:', {
+        telegramUserId: data.telegramUserId,
+        companyId: data.companyId
+      });
+    });
   }
 
   /**
@@ -130,11 +145,15 @@ class TelegramManager {
       });
 
       if (data.isEnabled) {
-        // New connection - save to database
-        const companyId = config.telegram.defaultCompanyId;
+        // New connection - resolve company ID from user link
+        const companyId = await this.resolveCompanyId(data.userId);
 
         if (!companyId) {
-          logger.error('TELEGRAM_DEFAULT_COMPANY_ID not configured');
+          logger.warn('No company linked for Telegram user, cannot save connection:', {
+            telegramUserId: data.userId,
+            username: data.username
+          });
+          // Optionally send message to user to link first
           return;
         }
 
@@ -180,6 +199,56 @@ class TelegramManager {
         extra: { connectionId: data.connectionId }
       });
     }
+  }
+
+  /**
+   * Resolve company ID for a Telegram user
+   *
+   * Lookup order:
+   * 1. User link cache
+   * 2. telegram_user_company_links table
+   * 3. Fallback to TELEGRAM_DEFAULT_COMPANY_ID (backward compatibility)
+   *
+   * @param {number} telegramUserId - Telegram user ID
+   * @returns {Promise<number|null>} Company ID or null if not found
+   */
+  async resolveCompanyId(telegramUserId) {
+    // 1. Check user link cache
+    const cached = this.userLinkCache.get(telegramUserId);
+    if (cached && (Date.now() - cached.cachedAt) < this.userLinkCacheTTL) {
+      return cached.companyId;
+    }
+
+    // 2. Lookup in telegram_user_company_links
+    const link = await this.linkingRepository.findLinkByTelegramUser(telegramUserId);
+    if (link?.company_id) {
+      // Update cache
+      this.userLinkCache.set(telegramUserId, {
+        companyId: link.company_id,
+        cachedAt: Date.now()
+      });
+      return link.company_id;
+    }
+
+    // 3. Fallback to default (backward compatibility for existing setup)
+    if (config.telegram.defaultCompanyId) {
+      logger.debug('Using default company ID (fallback):', {
+        telegramUserId,
+        defaultCompanyId: config.telegram.defaultCompanyId
+      });
+      return config.telegram.defaultCompanyId;
+    }
+
+    return null;
+  }
+
+  /**
+   * Invalidate user link cache for a specific Telegram user
+   * @param {number} telegramUserId - Telegram user ID
+   */
+  invalidateUserCache(telegramUserId) {
+    this.userLinkCache.delete(telegramUserId);
+    logger.debug('User link cache invalidated:', { telegramUserId });
   }
 
   /**
