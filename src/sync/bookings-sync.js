@@ -6,6 +6,7 @@
 
 const axios = require('axios');
 const postgres = require('../database/postgres');
+const Sentry = require('@sentry/node');
 const BookingRepository = require('../repositories/BookingRepository');
 const logger = require('../utils/logger').child({ module: 'bookings-sync' });
 const { format, addDays } = require('date-fns');
@@ -81,6 +82,12 @@ class BookingsSync {
       
     } catch (error) {
       logger.error('Bookings sync failed:', error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'sync',
+          sync_type: 'bookings'
+        }
+      });
       throw error;
     }
   }

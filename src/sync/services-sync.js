@@ -4,6 +4,7 @@
  */
 
 const postgres = require('../database/postgres');
+const Sentry = require('@sentry/node');
 const ServiceRepository = require('../repositories/ServiceRepository');
 const logger = require('../utils/logger').child({ module: 'services-sync' });
 const { YCLIENTS_CONFIG, createYclientsHeaders, delay } = require('./sync-utils');
@@ -121,7 +122,17 @@ class ServicesSync {
         error: error.message,
         stack: error.stack
       });
-      
+
+      Sentry.captureException(error, {
+        tags: {
+          component: 'sync',
+          sync_type: 'services'
+        },
+        extra: {
+          duration: `${Date.now() - startTime}ms`
+        }
+      });
+
       return {
         success: false,
         error: error.message,

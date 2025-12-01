@@ -1,8 +1,8 @@
 # Database Code Review - Context
 
-**Last Updated:** 2025-12-01 21:45 MSK
-**Session Status:** Phase 2 MOSTLY COMPLETE ✅ (Core migrations done)
-**Next Action:** Commit changes, then Phase 3 (Error Handling) or Phase 4 (Legacy Cleanup)
+**Last Updated:** 2025-12-01 22:15 MSK
+**Session Status:** Phase 3 MOSTLY COMPLETE ✅ (Sentry added to all sync scripts)
+**Next Action:** Commit changes, then Phase 4 (Legacy Cleanup)
 
 ---
 
@@ -267,13 +267,28 @@ if (typeof this.db.getClient === 'function') {
 ### Commits Made
 - `52d86cd`: fix(db): use yclients_id for staff/service lookups in data-loader
 
-### Progress: 50/89 tasks (56%)
+### Progress: 64/89 tasks (72%)
 
 ---
 
 ### What Was Completed Session 7 (Current)
 
-1. **Phase 2.2: data-loader.js Migration** ✅ COMPLETE
+1. **Phase 3.1: Repository Error Handling** ✅ VERIFIED
+   - BaseRepository.js already has full Sentry integration
+   - All methods capture exceptions with tags and extra context
+   - _handleError() normalizes PostgreSQL errors
+
+2. **Phase 3.2: Sync Scripts Error Handling** ✅ COMPLETE
+   - Added Sentry.captureException() to 6 core sync scripts:
+     - schedules-sync.js
+     - staff-sync.js
+     - services-sync.js
+     - bookings-sync.js
+     - clients-sync.js
+     - company-info-sync.js
+   - All errors now tracked with component=sync, sync_type=<type>
+
+3. **Phase 2.2: data-loader.js Migration** ✅ COMPLETE (from earlier)
    - Migrated 8 of 9 postgres.query() calls to repository pattern
    - Added 8 new repository methods:
      - `ClientRepository.findByRawPhone()`

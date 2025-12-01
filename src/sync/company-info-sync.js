@@ -4,6 +4,7 @@
  */
 
 const logger = require('../utils/logger').child({ module: 'company-info-sync' });
+const Sentry = require('@sentry/node');
 const postgres = require('../database/postgres');
 const CompanyRepository = require('../repositories/CompanyRepository');
 const { YclientsClient } = require('../integrations/yclients/client');
@@ -70,6 +71,13 @@ class CompanyInfoSync {
       return result;
     } catch (error) {
       logger.error(`Error syncing company info for ${companyId}:`, error);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'sync',
+          sync_type: 'company_info'
+        },
+        extra: { companyId }
+      });
       throw error;
     }
   }

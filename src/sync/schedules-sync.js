@@ -4,6 +4,7 @@
  */
 
 const postgres = require('../database/postgres');
+const Sentry = require('@sentry/node');
 const StaffScheduleRepository = require('../repositories/StaffScheduleRepository');
 const logger = require('../utils/logger').child({ module: 'schedules-sync' });
 const { YCLIENTS_CONFIG, createYclientsHeaders, delay, formatDateForAPI } = require('./sync-utils');
@@ -67,7 +68,17 @@ class SchedulesSync {
         error: error.message,
         stack: error.stack
       });
-      
+
+      Sentry.captureException(error, {
+        tags: {
+          component: 'sync',
+          sync_type: 'schedules'
+        },
+        extra: {
+          duration: `${Date.now() - startTime}ms`
+        }
+      });
+
       return {
         success: false,
         error: error.message,

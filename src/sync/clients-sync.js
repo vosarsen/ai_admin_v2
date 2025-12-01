@@ -4,6 +4,7 @@
  */
 
 const postgres = require('../database/postgres');
+const Sentry = require('@sentry/node');
 const ClientRepository = require('../repositories/ClientRepository');
 const logger = require('../utils/logger').child({ module: 'clients-sync' });
 const {
@@ -81,7 +82,17 @@ class ClientsSync {
         error: error.message,
         stack: error.stack
       });
-      
+
+      Sentry.captureException(error, {
+        tags: {
+          component: 'sync',
+          sync_type: 'clients'
+        },
+        extra: {
+          duration: `${Date.now() - startTime}ms`
+        }
+      });
+
       return {
         success: false,
         error: error.message,

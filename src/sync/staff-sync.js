@@ -4,6 +4,7 @@
  */
 
 const postgres = require('../database/postgres');
+const Sentry = require('@sentry/node');
 const StaffRepository = require('../repositories/StaffRepository');
 const logger = require('../utils/logger').child({ module: 'staff-sync' });
 const { YCLIENTS_CONFIG, createYclientsHeaders, delay } = require('./sync-utils');
@@ -107,7 +108,17 @@ class StaffSync {
         error: error.message,
         stack: error.stack
       });
-      
+
+      Sentry.captureException(error, {
+        tags: {
+          component: 'sync',
+          sync_type: 'staff'
+        },
+        extra: {
+          duration: `${Date.now() - startTime}ms`
+        }
+      });
+
       return {
         success: false,
         error: error.message,
