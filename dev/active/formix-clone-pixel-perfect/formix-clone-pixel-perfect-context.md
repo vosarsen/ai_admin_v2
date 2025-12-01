@@ -1,499 +1,474 @@
 # Formix Clone - Context & Key Decisions
 
-**Last Updated:** 2025-12-01
+**Last Updated:** 2025-12-01 (Session: Phase 2.1 Navigation Redesign Complete)
 
 ---
 
-## 🔥 CRITICAL SESSION STATE (Session Started: 2025-12-01 15:11)
+## 🔥 CRITICAL SESSION STATE (Updated: 2025-12-01 - Phase 2.1 Complete)
 
 ### Current Implementation Status
-- **Phase:** Phase 0 (Project Setup) - STARTED BUT INCOMPLETE
-- **Progress:** 5% complete (directory created, npm init done, core packages installed)
-- **Blocker:** Tailwind CSS initialization failed (binary not found in node_modules)
-- **Next Immediate Step:** Manually create Tailwind config files OR use alternative approach
+- **Phase:** Phase 2.1 (Navigation Redesign) - ✅ **COMPLETE**
+- **Progress:** 2.1/18 phases complete (11.7% overall progress)
+- **Status:** ⚠️ **Ready to commit** - All changes complete, uncommitted in working directory
+- **Next Immediate Step:** Commit Phase 2.1 changes, then start Phase 3 (Hero Section)
+- **Dev Server:** Running at http://localhost:3000 (shell: 6346e6)
+- **Branch:** feature/formix-redesign
 
-### What Just Happened (This Session)
-1. **User Request:** Continue from previous session where plan was approved
-2. **Action Taken:**
-   - Created `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/` directory
-   - Ran `npm init -y` (✅ Success)
-   - Installed `next@latest react@latest react-dom@latest` (✅ Success - 21 packages)
-   - Installed TypeScript + Tailwind dev dependencies (✅ Success - 348 packages total)
-   - Attempted `npx tailwindcss init -p` (❌ Failed - binary not found)
-   - Attempted direct binary path (❌ Failed - file not found)
+### What Just Happened (This Session - Phase 2.1)
 
-3. **Current State:**
-   - Directory: `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/`
-   - Files Created:
-     - `package.json` (✅ Exists)
-     - `node_modules/` (✅ Exists with 348 packages)
-   - Files Missing:
-     - `tailwind.config.js` (❌ Not created yet)
-     - `postcss.config.js` (❌ Not created yet)
-     - `tsconfig.json` (❌ Not created yet)
-     - `next.config.js` (❌ Not created yet)
-     - `src/` directory structure (❌ Not created yet)
+**Phase 2.1: Navigation Redesign (60 minutes)**
 
-4. **Why It Failed:**
-   - `npx tailwindcss` couldn't find the binary
-   - Likely issue: npm/npx PATH resolution
-   - Need to either create configs manually OR find tailwindcss binary
+User requested iterative improvements to navigation component to match exact design requirements:
 
-### Immediate Recovery Actions (Next 10 Minutes)
-1. **Option A (Manual Config):** Create `tailwind.config.js` and `postcss.config.js` manually
-2. **Option B (Verify Binary):** Check if `tailwindcss` is actually installed in `node_modules/.bin/`
-3. **Then:** Continue with creating project structure (tsconfig, next.config, src/ dirs)
-4. **Then:** Install Framer Motion
-5. **Finally:** Test with `npm run dev`
+#### Changes Made:
 
-### Files Modified This Session
-- None yet (only package installations)
+1. **Light Theme Implementation**
+   - Changed from dark frosted glass (`bg-dark/80`) to light theme (`bg-gray-300/60`)
+   - Updated to match user's screenshot reference
 
-### Commands Run This Session
-```bash
-mkdir -p /Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs
-cd /Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs
-npm init -y                                                          # ✅ Success
-npm install next@latest react@latest react-dom@latest               # ✅ Success (21 packages)
-npm install -D typescript @types/react @types/node @types/react-dom tailwindcss postcss autoprefixer eslint eslint-config-next  # ✅ Success (348 total)
-npx tailwindcss init -p                                              # ❌ Failed
-./node_modules/.bin/tailwindcss init -p                              # ❌ Failed
-```
+2. **3-Part Grid Layout**
+   - Restructured navigation using CSS Grid: `grid-cols-[1fr_auto_1fr]`
+   - Left: Logo + "ADMIN AI." text (changed from "Formix")
+   - Center: Navigation pill with 7 links
+   - Right: "Book Free Call" CTA button
+   - Perfect centering achieved with auto-sized center column
 
-### Context for Next Continuation
-**If this session ends, next session should:**
-1. Read this context file (you're reading it now!)
-2. Check project state: `cd /Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs && ls -la`
-3. Manually create missing config files (tailwind.config.js, postcss.config.js, tsconfig.json, next.config.js)
-4. Create src/ directory structure
-5. Install Framer Motion: `npm install framer-motion clsx tailwind-merge`
-6. Create basic page: `src/app/page.tsx`
-7. Test dev server: `npm run dev`
-8. Initialize Git repository
-9. Mark Phase 0 Task 1.1-1.3 as complete ✅
+3. **Updated Navigation Links**
+   - Changed to match original Formix: Services, Why Us, Benefits, Projects, Pricing, Clients, FAQs
+   - Removed: Home, Work, About, Reviews, Contact
 
-### Key Learnings This Session
-1. **Lesson:** `npx tailwindcss init` fails with Next.js manual setup
-   - **Solution:** Always create config files manually when not using create-next-app
-   - **Why Important:** Saves 10-15 minutes of troubleshooting
+4. **Bug Fixes**
+   - **Rolling Text Overflow:** Added `overflow-hidden`, `h-6`, and `whitespace-nowrap` to prevent duplicate text visibility
+   - **Active Section on Hero:** Fixed scroll tracking to clear active state when returning to hero section
 
-2. **Lesson:** User has different reference material in two places
-   - **Location 1:** `public/landing-formix-v2/` (Framer export from user, failed attempt to edit)
-   - **Location 2:** `public/landing-formix/` (analysis docs from previous session)
-   - **Why Important:** Reference both locations for complete picture
+5. **Always-Visible Navigation**
+   - Removed scroll hide/show behavior (`useMotionValueEvent`)
+   - Changed from `motion.nav` to regular `nav` element
+   - Navigation now permanently visible
 
-3. **Lesson:** User wants 100% visual accuracy, especially animations
-   - **User Quote:** "Мне очень важно сохранить анимации, визальный функционал, поведение кнопок, цвета, прозрачности"
-   - **Why Important:** Don't take shortcuts - every detail matters
+6. **Active Section Tracking**
+   - Implemented scroll listener with `getBoundingClientRect()` for section detection
+   - Active section highlights with Material Design elevation: `bg-white shadow-md`
+   - Hero section shows no active menu items (fixed with priority check)
 
-### Blockers & Solutions
-| Blocker | Impact | Solution | Status |
-|---------|--------|----------|--------|
-| Tailwind config creation | HIGH | Manual creation with proper Next.js content paths | ⏸️ Paused |
-| No tsconfig.json | HIGH | Create with Next.js + TypeScript strict settings | ⏸️ Paused |
-| No next.config.js | MEDIUM | Create with image optimization config | ⏸️ Paused |
-| No src/ structure | MEDIUM | Create app/, components/, lib/, styles/ dirs | ⏸️ Paused |
+7. **Smooth Scrolling**
+   - Added `onClick` handlers with `preventDefault()`
+   - Implemented native `scrollIntoView({ behavior: "smooth" })`
+   - Applied to both desktop and mobile menus
 
-### Dependencies Installed ✅
-```json
-{
-  "dependencies": {
-    "next": "^16.0.x",
-    "react": "^19.0.x",
-    "react-dom": "^19.0.x"
-  },
-  "devDependencies": {
-    "typescript": "^5.x.x",
-    "@types/react": "^19.x.x",
-    "@types/node": "^22.x.x",
-    "@types/react-dom": "^19.x.x",
-    "tailwindcss": "^4.x.x",
-    "postcss": "^8.x.x",
-    "autoprefixer": "^10.x.x",
-    "eslint": "^9.x.x",
-    "eslint-config-next": "^16.x.x"
+8. **Sizing & Spacing Adjustments**
+   - Navigation pill: `py-[6px]` (height: 52px total)
+   - All nav links: uniform `h-10` (40px) - no size change on active state
+   - Link padding: Active `px-[18px]`, Inactive `px-[14px]`
+   - Content width: Changed from 1400px to 1280px consistently
+   - Section padding: Changed from `p-8` to `px-4`
+
+9. **Book Free Call Button Redesign**
+   - Style: Black background (`bg-black`), toggle-like design
+   - Height: 52px (matches navigation pill exactly)
+   - Orange circle: `w-[40px] h-[40px]` with original Formix color `#ff3700`
+   - Padding: `pl-6 pr-[6px] py-[6px]` for toggle appearance
+   - Shadow: `shadow-[0_8px_24px_rgba(0,0,0,0.4)]` for depth
+
+10. **Typography Refinements**
+    - Font size: `text-[15px]` (both navigation and button)
+    - Letter spacing: `tracking-tight` for tighter text
+    - Font weight: `font-semibold` (Inter 600)
+    - Color: Pure black (`text-black`) for navigation links
+
+11. **Material Design Active State**
+    - Active buttons have elevation with `shadow-md`
+    - Pure white background (`bg-white`) vs transparent for inactive
+    - Slightly larger padding (`px-[18px]` vs `px-[14px]`)
+
+#### Files Modified:
+- `src/components/Navigation/Navigation.tsx` (283 lines)
+  - Complete navigation restructure
+  - Added hero section detection in scroll handler
+  - Updated NavLink component with new sizing
+  - Redesigned CTA button
+- `src/app/page.tsx`
+  - Changed first section id from "services" to "hero"
+  - Added separate "Services" section after hero
+- `src/app/globals.css`
+  - Background color: `bg-gray-100` (from gray-300)
+
+#### Key Technical Details:
+
+**Navigation Pill Dimensions:**
+- Height: 6px (padding top) + 40px (content) + 6px (padding bottom) = **52px**
+- Width: Auto-sized based on content
+- Padding: `px-[11px]` (reduced from 3 to make pill 10% smaller)
+- Gap between links: `gap-1` (4px)
+
+**Active Section Detection Logic:**
+```typescript
+// Priority check: Hero section first (clears active state)
+const heroElement = document.getElementById("hero");
+if (heroElement) {
+  const heroRect = heroElement.getBoundingClientRect();
+  if (heroRect.top <= 100 && heroRect.bottom >= 100) {
+    setActiveSection(""); // Clear active when on hero
+    return; // Early exit prevents other sections from activating
   }
 }
-```
-*(Exact versions may vary - using latest as of 2025-12-01)*
 
-### Still Need to Install
-- `framer-motion` (animation library)
-- `clsx` (className utility)
-- `tailwind-merge` (Tailwind className merging)
-- `@sanity/client` and `next-sanity` (Phase 4 - CMS integration)
+// Then check navigation sections
+const current = sections.find((section) => {
+  if (!section.element) return false;
+  const rect = section.element.getBoundingClientRect();
+  return rect.top <= 100 && rect.bottom >= 100;
+});
+```
+
+**Text Container Fix:**
+```typescript
+<div className="relative overflow-hidden h-6"> {/* Increased from h-5 to h-6 for 15px text */}
+  <motion.span className="block font-inter font-semibold text-[15px] text-black whitespace-nowrap tracking-tight">
+    {children}
+  </motion.span>
+  <motion.span className="absolute top-full left-0 font-inter font-semibold text-[15px] text-black whitespace-nowrap tracking-tight">
+    {children}
+  </motion.span>
+</div>
+```
+
+#### User Feedback Throughout Session:
+- "Сначала давай с формой меню разберемся" - Initial request to fix navigation form
+- "Проверь, чтобы оно было идеально оцентровано" - Request for perfect centering
+- "Убери повторяющийся текст в меню" - Bug report: duplicate text visible
+- "Убери cursor-pointer. В остальном все красиво." - UI polish feedback
+- "Когда мы на hero секции - в меню хедера не должно быть выбрано services" - Bug report: active state persisting
+- "Сделай эту саму кнопку чуть больше" - Size adjustments
+- Multiple precise sizing requests (52px height, 15px text, etc.)
+
+### Previous Sessions Summary
+
+**Phase 0: Project Setup (25 minutes) - COMPLETE ✅**
+- Created Next.js 15 project manually
+- Installed all dependencies (353 packages)
+- Set up Tailwind CSS v3.4.17 configuration
+- Created initial project structure
+- Git commit: `356fde8`
+
+**Phase 1: Foundation (15 minutes) - COMPLETE ✅**
+- Installed Geist font package
+- Created animation system (`src/lib/animations.ts`)
+- Created utility functions (`src/lib/utils.ts`)
+- Git commit: `2de96a0`
+
+**Phase 2: Navigation (45 minutes) - COMPLETE ✅**
+- Created Navigation component with frosted glass
+- Implemented rolling text hover animation
+- Added scroll hide/show behavior
+- Built mobile hamburger menu
+- Downgraded Tailwind v4 → v3 (compatibility issues)
+- Git commit: `b4212ad`
+
+**Phase 2.1: Navigation Redesign (60 minutes) - COMPLETE ✅**
+- Complete navigation redesign (all changes above)
+- Ready for commit
+
+### Time Invested Summary
+- Phase 0: 25 min
+- Phase 1: 15 min
+- Phase 2: 45 min
+- Phase 2.1: 60 min
+- **Total:** 145 minutes (~2.4 hours)
 
 ---
 
 ## 📂 KEY FILES & LOCATIONS
 
-### Source Analysis
-- **`public/landing-formix/FORMIX_COMPLETE_ANALYSIS.md`** - Complete 37,228-line extraction
-  - All HTML structure
-  - CSS specifications
-  - Animation details
-  - Component breakdowns
+### Project Location
+**Main Directory:** `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/`
 
-### Reference Documentation
-- **`public/landing-formix/FORMIX_DESIGN_SPECS.md`** - Design system specs
-- **`public/landing-formix/ANIMATION_IMPLEMENTATION.md`** - Animation patterns
-- **`public/landing-formix/QUICK_REFERENCE.md`** - Copy-paste cheat sheet
-- **`public/landing-formix/VISUAL_SPECS.md`** - Visual diagrams
+### Modified Files (Phase 2.1)
+1. **`src/components/Navigation/Navigation.tsx`** (283 lines)
+   - Complete component restructure
+   - Hero section detection in scroll handler
+   - Material Design active states
+   - Toggle-style CTA button
 
-### Original Source
-- **`/Users/arbakvoskanyan/Desktop/Код Formix.rtf`** - 37,228 lines of Formix HTML/CSS source code
+2. **`src/app/page.tsx`**
+   - Hero section separated from navigation tracking
+   - Services section added after hero
 
-### Project Location (To Be Created)
-- **`public/formix-clone/`** - New clean implementation
-  - OR **`formix-clone/`** as separate React project
+3. **`src/app/globals.css`**
+   - Background color adjustment
 
----
-
-## 🎯 PROJECT DECISIONS
-
-### ⚠️ CRITICAL ARCHITECTURAL CHANGE (2025-12-01)
-**Decision:** Use Next.js 15 + App Router instead of Vite + React
-**Reasoning:**
-- User approved comprehensive 8-phase plan using Next.js
-- Next.js provides better structure for production deployment
-- App Router (src/app/) is modern approach
-- Better for SEO and performance
-- Built-in TypeScript support
-- User wants to deploy to their server (46.149.70.219)
-
-**Previous Plan:** Vite + React + CSS Modules
-**New Plan:** Next.js 15 + App Router + Tailwind CSS + Framer Motion
-
-**Location Changed:**
-- OLD: `/Users/arbakvoskanyan/Documents/GitHub/ai_admin_v2/formix-clone/`
-- NEW: `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/`
-
-**Impact:**
-- Phase 0 added for Next.js setup
-- Phase 1-17 adjusted for Next.js patterns
-- Tailwind CSS instead of CSS Modules (user-approved)
-- TypeScript instead of JavaScript
-
-**Decision Date:** 2025-12-01 (approved by user in previous session)
+### Reference Files
+- **`public/landing-formix/FORMIX_COMPLETE_ANALYSIS.md`** - Original Formix extraction
+- **`public/landing-formix/QUICK_REFERENCE.md`** - Quick reference
+- **`public/landing-formix/FORMIX_DESIGN_SPECS.md`** - Design specifications
 
 ---
 
-### Technology Choice: React + Framer Motion
-**Decision:** Use React with Framer Motion library
-**Reasoning:**
-- Formix uses Framer-generated code
-- Framer Motion provides exact animation APIs
-- Component-based architecture easier to maintain
-- Better performance than vanilla JS for complex animations
-- Official Framer Motion library matches original behavior
+## 🎯 CRITICAL DESIGN SPECIFICATIONS (Phase 2.1)
 
-**Alternative Considered:** Vanilla JS + GSAP
-- **Pros:** No build step, lighter bundle
-- **Cons:** Harder to replicate Framer-specific animations, less maintainable
+### Navigation Component Specs
 
-**Decision Date:** 2025-11-29
+**Overall Dimensions:**
+- Height: 52px (6px padding + 40px content + 6px padding)
+- Width: Auto (based on content)
+- Background: `bg-gray-300/60 backdrop-blur-sm`
+- Border radius: `rounded-50` (50px)
+- Position: `fixed top-0` with `z-50`
 
----
+**Nav Links:**
+- Height: 40px (uniform for all states)
+- Active padding: 18px horizontal
+- Inactive padding: 14px horizontal
+- Font: Inter 600 (semibold), 15px
+- Letter spacing: `tracking-tight` (-0.025em)
+- Active state: White background + Material Design shadow
+- Hover state: `bg-white/40`
 
-### Build Tool: Next.js (UPDATED 2025-12-01)
-**Decision:** Use Next.js 15 with App Router
-**Reasoning:**
-- User wants Sanity CMS integration (Next.js has great support)
-- Better for production deployment
-- Built-in TypeScript support
-- Image optimization out of the box
-- Better for hosting on user's server
-- Modern App Router approach
+**Book Free Call Button:**
+- Height: 52px (matches navigation pill)
+- Background: Pure black (`bg-black`)
+- Text: White, Inter 600, 15px, tracking-tight
+- Circle: 40px diameter, `#ff3700` (Formix orange)
+- Shadow: `0_8px_24px_rgba(0,0,0,0.4)`
+- Padding: `pl-6 pr-[6px] py-[6px]` (toggle-like design)
 
-**Previous Decision (2025-11-29):** Use Vite instead of Create React App
-- **Reason for Change:** User requested CMS integration and approved Next.js plan
+**Logo:**
+- Text: "ADMIN AI." (changed from "Formix")
+- Font: Geist Bold, 20px, black
+- Icon: 40px black square with white geometric shapes
 
----
-
-### Project Structure: Separate Next.js Project
-**Decision:** Create separate `formix-landing-nextjs/` project outside ai_admin_v2
-**Reasoning:**
-- Clean slate without existing code interference
-- Easier to deploy independently to user's server
-- Can later integrate or keep separate
-- npm/build tooling separate from main AI Admin project
-- User approved this in previous session
-
-**Location:** `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/`
-
-**Decision Date:** 2025-12-01
+### Color Values
+- Navigation background: `rgb(229, 229, 229)` at 60% opacity
+- Active link background: `rgb(255, 255, 255)` (pure white)
+- Text color: `rgb(0, 0, 0)` (pure black)
+- Button background: `rgb(0, 0, 0)` (pure black)
+- Circle color: `rgb(255, 55, 0)` (Formix accent)
+- Page background: `rgb(243, 243, 243)` (gray-100)
 
 ---
 
-### Styling Approach: Tailwind CSS (CHANGED 2025-12-01)
-**Decision:** Use Tailwind CSS instead of CSS Modules
-**Reasoning:**
-- User approved the 8-phase plan which includes Tailwind
-- Faster development with utility classes
-- Better integration with Next.js
-- Easier responsive design
-- Still allows custom CSS variables for Formix tokens
-- Modern approach
+## ⚠️ CRITICAL TECHNICAL DECISIONS
 
-**Previous Decision (2025-11-29):** CSS Modules
-- **Reason for Change:** User approved Next.js + Tailwind plan in previous session
+### 1. Hero Section Priority in Scroll Detection
+**Problem:** When scrolling back to hero, active navigation state wasn't clearing
 
-**Decision Date:** 2025-12-01
+**Solution:** Check hero section FIRST before checking navigation sections
+```typescript
+// This order is critical
+1. Check if on hero section → clear active state + return early
+2. If not on hero, check navigation sections
+3. Update active state only if section found
+```
+
+**Impact:** Hero section now correctly shows no active navigation items
+
+### 2. Material Design Active States
+**Decision:** Use elevated white background instead of subtle transparency
+
+**Implementation:**
+- Active: `bg-white shadow-md` (Material Design elevation)
+- Inactive: `bg-white/40` on hover, `bg-white/20` default hover
+- Larger padding for active state creates visual emphasis
+
+**Reasoning:** User specifically requested Material Design-style button
+
+### 3. Uniform Link Heights
+**Decision:** Remove height change between active/inactive states
+
+**Before:** Active links were `h-10`, inactive were `h-9`
+**After:** All links are `h-10` (40px) regardless of state
+
+**Reasoning:** Prevents layout shift when clicking different links
+
+### 4. Toggle-Style CTA Button
+**Decision:** Design button as toggle with circle flush to right edge
+
+**Implementation:**
+- Minimal right padding (`pr-[6px]`)
+- Circle sits at edge like toggle indicator
+- Same height as navigation pill (52px)
+
+**Reasoning:** User provided screenshots showing toggle-like design
+
+### 5. Content Width Consistency
+**Decision:** Apply 1280px max-width to all major containers
+
+**Changed:**
+- Navigation wrapper: `max-w-[1280px]`
+- All page sections: `max-w-[1280px]`
+
+**Reasoning:** Creates consistent content boundaries across entire page
 
 ---
 
-## 🔑 KEY TECHNICAL SPECIFICATIONS
+## 🚀 NEXT STEPS
 
-### Color Palette (20 colors extracted)
+### Immediate Actions (When Resuming)
+
+1. **Commit Phase 2.1 Changes**
+   ```bash
+   cd /Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs
+   git add -A
+   git commit -m "feat(navigation): Phase 2.1 complete redesign - light theme, Material Design, toggle button
+
+   - Restructured to 3-part grid layout (logo, nav pill, CTA button)
+   - Changed from dark to light theme (bg-gray-300/60)
+   - Implemented active section tracking with hero priority
+   - Added smooth scrolling to all navigation links
+   - Fixed rolling text overflow bug (h-6 container)
+   - Removed scroll hide/show behavior - always visible
+   - Material Design elevation for active states
+   - Toggle-style CTA button with Formix orange (#ff3700)
+   - Adjusted all sizing: 52px height, 15px text, tight tracking
+   - Changed logo to 'ADMIN AI.'
+   - Reduced content width to 1280px
+
+   All navigation functionality working correctly:
+   - Smooth scroll to sections
+   - Active section highlighting (with hero priority)
+   - Rolling text hover animation
+   - Mobile hamburger menu
+   - Perfect center alignment"
+   ```
+
+2. **Start Phase 3: Hero Section**
+   - Create Hero component structure
+   - Implement badge with pulsing dot
+   - Add two-layer button components
+   - Build avatar stack
+   - Apply Formix animation timing
+
+### Dev Server Status
+- **Running:** Yes (shell ID: 6346e6)
+- **URL:** http://localhost:3000
+- **Status:** Clean build, no errors
+- **Branch:** feature/formix-redesign
+
+---
+
+## 📊 PROGRESS TRACKING
+
+### Completed Phases
+- ✅ Phase 0: Project Setup (25 min)
+- ✅ Phase 1: Foundation (15 min)
+- ✅ Phase 2: Navigation Initial (45 min)
+- ✅ Phase 2.1: Navigation Redesign (60 min)
+
+### Next Phase
+- ⬜ Phase 3: Hero Section (estimated 5-7 hours)
+
+### Overall Progress
+- **Phases Complete:** 2.1 / 18
+- **Percentage:** 11.7%
+- **Time Invested:** 145 minutes (~2.4 hours)
+- **Estimated Remaining:** ~50-60 hours
+
+---
+
+## 🔑 KEY LEARNINGS & PATTERNS
+
+### 1. Scroll Detection Pattern
+When implementing scroll-based UI changes, always check "special" sections (hero, etc.) FIRST before checking regular sections. Use early returns to prevent fallthrough.
+
+### 2. Fixed Height Containers for Text
+When animating text with translateY, the container MUST have:
+- Fixed height matching text line height
+- `overflow-hidden` to clip rolled text
+- `whitespace-nowrap` to prevent wrapping
+
+### 3. CSS Grid for Perfect Centering
+`grid-cols-[1fr_auto_1fr]` creates perfect centering:
+- Left/Right columns take equal space
+- Center column sizes to content
+- Center element stays centered regardless of side content
+
+### 4. Material Design Elevation
+For active states, combine:
+- Pure color (no opacity): `bg-white`
+- Shadow: `shadow-md`
+- Smooth transition: `transition-all duration-200`
+
+### 5. Toggle-Like Button Design
+To create toggle appearance:
+- Minimize padding on circle side
+- Make circle same height as container minus small padding
+- Use contrasting background and circle colors
+
+---
+
+## 📝 UNCOMMITTED CHANGES
+
+**Status:** All changes in working directory, NOT committed
+
+**Files Changed:**
+- `src/components/Navigation/Navigation.tsx`
+- `src/app/page.tsx`
+- `src/app/globals.css`
+
+**Next Action:** Commit with comprehensive message (see Next Steps above)
+
+---
+
+## 🎨 DESIGN TOKENS (Updated)
+
+### Colors Used
 ```javascript
-// Primary
---color-accent: rgb(255, 55, 0)      // Red/Orange
---color-dark: rgb(21, 22, 25)        // Almost black
---color-white: rgb(255, 255, 255)
---color-black: rgb(0, 0, 0)
+// Navigation
+--nav-bg: rgb(229, 229, 229) @ 60%        // Light gray with transparency
+--nav-active-bg: rgb(255, 255, 255)       // Pure white
+--nav-text: rgb(0, 0, 0)                  // Pure black
 
-// Grays
---color-gray-300: rgb(229, 229, 229) // Background
---color-gray-400: rgb(161, 161, 161)
---color-gray-500: rgb(112, 112, 112)
---color-gray-600: rgb(79, 79, 79)
---color-gray-700: rgb(33, 33, 33)
+// Button
+--button-bg: rgb(0, 0, 0)                 // Pure black
+--button-text: rgb(255, 255, 255)         // Pure white
+--button-circle: rgb(255, 55, 0)          // Formix orange
+
+// Background
+--page-bg: rgb(243, 243, 243)             // gray-100
 ```
 
 ### Typography
 ```javascript
-// Fonts
-Geist: 600 (SemiBold), 700 (Bold), 900 (Black) // Headings
-Inter: 400 (Regular), 500 (Medium), 600 (SemiBold), 700 (Bold) // Body
+// Navigation Links
+Font: Inter
+Weight: 600 (semibold)
+Size: 15px
+Letter spacing: -0.025em (tracking-tight)
+Color: black
 
-// Sizes
-72px - Hero heading
-48px - Section headings
-24px - Subheadings
-16px - Body text
-14px - Small text
+// Button Text
+Font: Inter
+Weight: 600 (semibold)
+Size: 15px
+Letter spacing: -0.025em
+Color: white
+
+// Logo
+Font: Geist
+Weight: 700 (bold)
+Size: 20px
+Color: black
 ```
 
-### Animation Timing
+### Spacing
 ```javascript
-// Duration
-0.6s - 0.8s per element
+// Navigation Pill
+Padding: 11px horizontal, 6px vertical
+Height: 52px total
 
-// Stagger
-0.1s - 0.15s delay between items
+// Nav Links
+Height: 40px
+Padding: 14px (inactive), 18px (active)
 
-// Easing
-cubic-bezier(0, 0, 0.2, 1) // Ease-out
-
-// Example: Hero sequence
-Badge:       delay 0ms,   duration 600ms
-Heading:     delay 100ms, duration 800ms
-Description: delay 200ms, duration 800ms
-Buttons:     delay 300ms, duration 800ms
-```
-
-### Responsive Breakpoints
-```javascript
-Mobile:  < 810px
-Tablet:  810px - 1199px
-Desktop: >= 1200px
-```
-
----
-
-## 📊 COMPONENT INVENTORY
-
-### Core Components (extracted from Formix)
-1. **Navigation** - Frosted glass pill, 7 links, rolling text
-2. **Badge** - "Available For Projects" with pulsing dot
-3. **Button** - Two variants (primary/secondary), two-layer text
-4. **Card** - Service cards, pricing cards, testimonial cards
-5. **Avatar Stack** - Overlapping avatars with rotation
-6. **Accordion** - FAQ expand/collapse
-7. **Form** - Contact form inputs
-
-### Section Components (11 total)
-1. Navigation (sticky header)
-2. Hero (badge, heading, buttons)
-3. Services (3-column grid)
-4. Why Us (two-column layout)
-5. Benefits (list with icons)
-6. Work (portfolio grid)
-7. Pricing (3 pricing cards)
-8. Logos (client logo grid)
-9. Reviews (testimonial cards)
-10. FAQs (accordion list)
-11. Contact/Footer (form + links)
-
----
-
-## 🎨 DESIGN SYSTEM TOKENS
-
-### Spacing (23 unique values)
-```javascript
-0, 7, 8, 10, 12, 14, 15, 16, 18, 20, 22, 24, 28, 30, 32, 40, 48, 50, 60, 80, 90, 100, 120px
-```
-
-### Border Radius (16 values)
-```javascript
-8px  - Small cards
-10px - Dots
-16px - Medium cards
-20px - Large cards
-30px - Badges
-50px - Pills (buttons, navigation)
-```
-
-### Shadows (6 types)
-```javascript
 // Button
-0px 7px 20px 0.5px rgba(0,0,0,0.5)
+Height: 52px
+Padding: 24px left, 6px right, 6px top/bottom
+Circle: 40px diameter
 
-// Card (multi-layer)
-0px 0.607695px 2.43078px -0.625px rgba(0,0,0,0.1),
-0px 2px 8px -0.625px rgba(0,0,0,0.12),
-0px 5px 20px -0.625px rgba(0,0,0,0.14)
-
-// Glow (red dot)
-0px 0px 60px 30px rgb(255, 55, 0)
+// Content Width
+Max width: 1280px
+Horizontal padding: 16px (px-4)
 ```
-
----
-
-## 🚀 IMPLEMENTATION STRATEGY
-
-### Phase Approach
-**Sequential by section:**
-Foundation → Navigation → Hero → Services → ... → Deployment
-
-**Why:** Each section builds on design system, animations added after layout perfect
-
-### Testing Strategy
-**Test after each phase:**
-- Visual comparison with Formix
-- Animation smoothness (60fps)
-- Responsive behavior
-- Cross-browser check
-
-### Version Control
-**Git workflow:**
-- Main branch: `main`
-- Feature branches: `feat/navigation`, `feat/hero`, etc.
-- Commit after each completed phase
-- Tag releases: `v0.1-foundation`, `v0.2-navigation`, etc.
-
----
-
-## 📝 DEPENDENCIES
-
-### External Libraries
-```json
-{
-  "react": "^18.2.0",
-  "react-dom": "^18.2.0",
-  "framer-motion": "^10.16.0",
-  "vite": "^5.0.0"
-}
-```
-
-### Font Resources
-- **Geist:** Google Fonts or local files
-- **Inter:** Google Fonts (already available)
-
-### Image Resources
-- **Placeholder images:** Unsplash
-- **Icons:** SVG (custom or similar)
-- **Client logos:** Generic placeholder logos
-
----
-
-## ⚠️ KNOWN CHALLENGES
-
-### 1. Framer Motion API Differences
-**Challenge:** Formix uses Framer-generated code with specific IDs
-**Solution:** Map Framer patterns to Framer Motion API
-**Example:**
-```javascript
-// Formix: data-framer-appear-id="1abc"
-// Solution: Use <motion.div> with variants
-<motion.div
-  initial="hidden"
-  animate="visible"
-  variants={{
-    hidden: { opacity: 0, y: 30 },
-    visible: { opacity: 1, y: 0 }
-  }}
-/>
-```
-
-### 2. Pulsing Dot Animation
-**Challenge:** Red dot has glow + pulse effect
-**Solution:** CSS keyframes with box-shadow
-```css
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 0 60px 30px rgb(255, 55, 0);
-  }
-  50% {
-    transform: scale(1.1);
-    box-shadow: 0 0 80px 40px rgb(255, 55, 0);
-  }
-}
-```
-
-### 3. Two-Layer Button Text
-**Challenge:** Button text has two layers for hover animation
-**Solution:** Duplicate text with absolute positioning
-```jsx
-<button>
-  <span className="text-layer-1">Contact Us</span>
-  <span className="text-layer-2">Contact Us</span>
-</button>
-```
-
-### 4. Backdrop Blur Browser Support
-**Challenge:** Safari requires `-webkit-backdrop-filter`
-**Solution:** Use both prefixed and standard properties
-```css
-backdrop-filter: blur(10px);
--webkit-backdrop-filter: blur(10px);
-```
-
----
-
-## 🔄 ONGOING DECISIONS LOG
-
-### 2025-11-29: Initial Planning
-- ✅ Chose React + Framer Motion
-- ✅ Chose Vite over CRA
-- ✅ Decided on separate project structure
-- ✅ Chose CSS Modules over Tailwind
-
-### Future Decisions Needed
-- [ ] Hosting provider (Vercel vs Netlify)
-- [ ] Domain name (if custom domain)
-- [ ] Analytics tool (if needed)
-- [ ] Image CDN (if needed for performance)
-
----
-
-## 📚 REFERENCE LINKS
-
-### Official Docs
-- Framer Motion: https://www.framer.com/motion/
-- React: https://react.dev
-- Vite: https://vitejs.dev
-
-### Tools
-- Formix Site: https://formix.framer.website
-- Google Fonts: https://fonts.google.com
-- Unsplash: https://unsplash.com
-
-### Internal Resources
-- Design System Analysis: `public/landing-formix/FORMIX_COMPLETE_ANALYSIS.md`
-- Animation Guide: `public/landing-formix/ANIMATION_IMPLEMENTATION.md`
-- Quick Reference: `public/landing-formix/QUICK_REFERENCE.md`
 
 ---
 
