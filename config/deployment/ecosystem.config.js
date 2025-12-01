@@ -228,6 +228,39 @@ module.exports = {
       out_file: './logs/glitchtip-link-runbooks-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       max_memory_restart: '50M'
+    },
+    // === SCHEDULES SYNC CRON JOBS ===
+    {
+      name: 'schedules-sync-full',
+      script: './scripts/run-schedules-sync.js',
+      args: '--mode=full',
+      instances: 1,
+      exec_mode: 'fork',
+      cron_restart: '0 5 * * *', // Daily at 5 AM UTC (8 AM MSK) - 30 days sync
+      autorestart: false,
+      env: {
+        NODE_ENV: 'production'
+      },
+      error_file: './logs/schedules-sync-full-error.log',
+      out_file: './logs/schedules-sync-full-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      max_memory_restart: '150M'
+    },
+    {
+      name: 'schedules-sync-today',
+      script: './scripts/run-schedules-sync.js',
+      args: '--mode=today',
+      instances: 1,
+      exec_mode: 'fork',
+      cron_restart: '0 8-23 * * *', // Hourly from 8 AM to 11 PM UTC - today+tomorrow sync
+      autorestart: false,
+      env: {
+        NODE_ENV: 'production'
+      },
+      error_file: './logs/schedules-sync-today-error.log',
+      out_file: './logs/schedules-sync-today-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      max_memory_restart: '100M'
     }
   ]
 };
