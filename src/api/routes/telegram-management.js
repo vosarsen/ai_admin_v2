@@ -353,7 +353,7 @@ router.post('/linking-codes',
       const linkingRepo = new TelegramLinkingRepository(postgres);
       const companyRepo = new CompanyRepository(postgres);
 
-      // Verify company exists
+      // Verify company exists (findById searches by yclients_id)
       const company = await companyRepo.findById(companyId);
       if (!company) {
         return res.status(404).json({
@@ -362,8 +362,11 @@ router.post('/linking-codes',
         });
       }
 
+      // Use internal company.id for database FK, not the yclients_id from request
+      const internalCompanyId = company.id;
+
       // Check rate limit (max 10 codes per company per day)
-      const todayCount = await linkingRepo.countTodayCodes(companyId);
+      const todayCount = await linkingRepo.countTodayCodes(internalCompanyId);
       if (todayCount >= 10) {
         return res.status(429).json({
           success: false,
@@ -372,12 +375,13 @@ router.post('/linking-codes',
         });
       }
 
-      // Generate code
+      // Generate code using internal company ID (for FK constraint)
       const companyName = company.title || `Company ${companyId}`;
-      const result = await linkingRepo.generateCode(companyId, companyName, 'api');
+      const result = await linkingRepo.generateCode(internalCompanyId, companyName, 'api');
 
       logger.info('Linking code generated:', {
-        companyId,
+        yclientsId: companyId,
+        internalId: internalCompanyId,
         companyName,
         code: result.code.substring(0, 5) + '...'
       });
@@ -409,7 +413,7 @@ router.post('/linking-codes',
  * GET /api/telegram/linking-codes
  * List pending codes for a company
  *
- * Query: ?companyId=123
+ * Query: ?companyId=123 (yclients_id)
  */
 router.get('/linking-codes',
   rateLimiter,
@@ -417,9 +421,9 @@ router.get('/linking-codes',
   checkTelegramEnabled,
   async (req, res) => {
     try {
-      const companyId = parseInt(req.query.companyId);
+      const yclientsId = parseInt(req.query.companyId);
 
-      if (!companyId || isNaN(companyId)) {
+      if (!yclientsId || isNaN(yclientsId)) {
         return res.status(400).json({
           success: false,
           error: 'companyId query parameter is required'
@@ -427,11 +431,22 @@ router.get('/linking-codes',
       }
 
       const linkingRepo = new TelegramLinkingRepository(postgres);
-      const codes = await linkingRepo.getPendingCodes(companyId);
+      const companyRepo = new CompanyRepository(postgres);
+
+      // Find company by yclients_id to get internal id
+      const company = await companyRepo.findById(yclientsId);
+      if (!company) {
+        return res.status(404).json({
+          success: false,
+          error: 'Company not found'
+        });
+      }
+
+      const codes = await linkingRepo.getPendingCodes(company.id);
 
       res.json({
         success: true,
-        companyId,
+        companyId: yclientsId,
         codes: codes.map(c => ({
           code: c.code,
           expiresAt: c.expires_at,
@@ -505,6 +520,7 @@ router.delete('/linking-codes/:code',
  * GET /api/telegram/linking-status/:companyId
  * Check if company has linked Telegram account
  *
+ * Note: companyId param is yclients_id, we convert to internal id
  * Returns linking info + business connection status
  */
 router.get('/linking-status/:companyId',
@@ -513,9 +529,9 @@ router.get('/linking-status/:companyId',
   checkTelegramEnabled,
   async (req, res) => {
     try {
-      const companyId = parseInt(req.params.companyId);
+      const yclientsId = parseInt(req.params.companyId);
 
-      if (!companyId || isNaN(companyId)) {
+      if (!yclientsId || isNaN(yclientsId)) {
         return res.status(400).json({
           success: false,
           error: 'Invalid company ID'
@@ -524,26 +540,38 @@ router.get('/linking-status/:companyId',
 
       const linkingRepo = new TelegramLinkingRepository(postgres);
       const connectionRepo = new TelegramConnectionRepository(postgres);
+      const companyRepo = new CompanyRepository(postgres);
 
-      // Get linking info
-      const link = await linkingRepo.findLinkByCompany(companyId);
+      // Find company by yclients_id to get internal id
+      const company = await companyRepo.findById(yclientsId);
+      if (!company) {
+        return res.status(404).json({
+          success: false,
+          error: 'Company not found'
+        });
+      }
+
+      const internalCompanyId = company.id;
+
+      // Get linking info using internal id
+      const link = await linkingRepo.findLinkByCompany(internalCompanyId);
 
       if (!link) {
         return res.json({
           success: true,
-          companyId,
+          companyId: yclientsId,
           linked: false,
           telegramUser: null,
           businessConnection: null
         });
       }
 
-      // Get business connection status
-      const connection = await connectionRepo.findByCompanyId(companyId);
+      // Get business connection status using internal id
+      const connection = await connectionRepo.findByCompanyId(internalCompanyId);
 
       res.json({
         success: true,
-        companyId,
+        companyId: yclientsId,
         linked: true,
         telegramUser: {
           id: link.telegram_user_id,
