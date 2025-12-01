@@ -305,28 +305,53 @@ TELEGRAM_REQUIRE_LINKING=false  # Set true to disable fallback
 - Chose backward-compatible approach with fallback
 - Estimated 16 hours total
 
-### Session 2 (2025-12-01) - IMPLEMENTATION:
-- ✅ Created migration file: `20251201_create_telegram_linking_tables.sql`
-- ✅ Created `TelegramLinkingRepository.js` with all methods
-- ✅ Modified `telegram-bot.js`:
-  - Deep link handling in /start
-  - Callback handlers for confirm/cancel
-  - /status command with link + connection info
-- ✅ Modified `telegram-manager.js`:
-  - Added `TelegramLinkingRepository`
-  - Added `resolveCompanyId()` with caching
-  - Modified `handleBusinessConnection()` to use linking
-  - Added `user_linked` event handling
-  - Added `userLinkCache` with 5 min TTL
-- ✅ Added API endpoints to `telegram-management.js`:
-  - POST `/linking-codes` - generate deep link
-  - GET `/linking-codes` - list pending codes
-  - DELETE `/linking-codes/:code` - revoke code
-  - GET `/linking-status/:companyId` - check link + connection
-- Actual time: ~4 hours (vs 14h estimated)
+### Session 2 (2025-12-01) - IMPLEMENTATION & DEPLOY:
+
+**Phase 1: Implementation (~3h)**
+- ✅ Created migration: `migrations/20251201_create_telegram_linking_tables.sql`
+- ✅ Created `TelegramLinkingRepository.js` (507 lines)
+- ✅ Modified `telegram-bot.js`: deep link + callbacks + /status
+- ✅ Modified `telegram-manager.js`: resolveCompanyId + caching
+- ✅ Added 4 API endpoints to `telegram-management.js`
+
+**Phase 2: Deploy & Bug Fixes (~1h)**
+- ✅ Deployed to production, migration applied
+- ✅ Fixed FK bug: was using `yclients_id`, needed `company.id`
+- ✅ Test API: all endpoints working
+
+**Phase 3: Code Review & Fixes (~30min)**
+- ✅ Architecture review: **Grade A- (92/100)**
+- ✅ Fixed cache invalidation gap on re-linking
+- ✅ Added retry logic for race condition (2 retries, 2s delay)
+- ✅ Created cleanup cron: `scripts/cron/cleanup-expired-telegram-codes.js`
+- ✅ All fixes deployed (commit 24b447d)
+
+**Total actual time: ~4.5 hours (vs 14h estimated = 68% faster!)**
+
+### Key Decisions:
+1. **Deep links** - `t.me/bot?start=link_CODE` instead of manual `/link CODE`
+2. **Hybrid storage** - Redis (15 min TTL) + PostgreSQL (audit)
+3. **Internal ID for FK** - Use `companies.id` not `yclients_id`
+4. **Backward compatible** - Falls back to `TELEGRAM_DEFAULT_COMPANY_ID`
+5. **Retry logic** - Handle business_connection race condition
+
+### Production URLs:
+```bash
+# Generate deep link
+POST https://adminai.tech/api/telegram/linking-codes
+  -H "x-api-key: ai_admin_v2_api_key_2024_secure"
+  -d '{"companyId": 962302}'
+
+# Check status
+GET https://adminai.tech/api/telegram/linking-status/962302
+```
+
+### Commits:
+- `f90fc08` - feat(telegram): implement company linking via deep links
+- `ec74898` - fix(telegram): use internal company.id for FK constraints
+- `24b447d` - fix(telegram): address code review findings
 
 ### Next Steps:
-- [ ] Deploy to production (git push + PM2 restart)
-- [ ] Apply migration on server
-- [ ] E2E test with test company
+- [ ] E2E test with real Telegram (user will test later)
 - [ ] Update TELEGRAM_BUSINESS_BOT_GUIDE.md
+- [ ] Optionally add cleanup job to PM2 cron
