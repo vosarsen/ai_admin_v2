@@ -1,6 +1,46 @@
 # Database Code Review - Task Checklist
 
-**Last Updated:** 2025-12-01
+**Last Updated:** 2025-12-01 18:50 MSK
+**Plan Review Status:** B+ (Conditional Go)
+**Current Progress:** 11/79 tasks (14%)
+**Next Action:** Execute Phase 0.7 Integration Tests
+
+---
+
+## Phase 0.5: Schema Verification (BLOCKER) ✅ COMPLETE
+
+### Tasks
+- [x] Create `scripts/verify-db-schema.js`
+- [x] Run against production Timeweb PostgreSQL
+- [x] Document all 20 tables with actual column names
+- [x] Compare with plan documentation
+- [x] Save schema dump to `docs/database/schema-snapshot-2025-12-01.sql`
+
+**Result:** ✅ SCHEMA VERIFICATION: PASS
+**Files Created:**
+- `docs/database/schema-snapshot-2025-12-01.sql`
+- `docs/database/schema-snapshot-2025-12-01.json`
+- `docs/database/schema-verification-report-2025-12-01.json`
+
+**Verified Critical Columns:**
+- staff_schedules: `yclients_staff_id`, `company_id`, `date` ✅
+- staff: `yclients_id`, `company_id`, `name` ✅
+- bookings: `yclients_record_id`, `company_id`, `staff_id` ✅
+- clients: `yclients_id`, `company_id`, `phone` ✅
+- services: `yclients_id`, `company_id`, `title` ✅
+- companies: `yclients_id`, `company_id` ✅
+
+---
+
+## Phase 0.7: Integration Tests (BLOCKER)
+
+### Tasks
+- [ ] Create `StaffScheduleRepository.integration.test.js`
+- [ ] Create `BookingRepository.integration.test.js`
+- [ ] Create `StaffRepository.integration.test.js`
+- [ ] Run baseline tests
+- [ ] Document current pass/fail state
+- [ ] Create regression test for CHECK_STAFF_SCHEDULE command
 
 ---
 
@@ -10,9 +50,9 @@
 - [x] `src/services/ai-admin-v2/modules/command-handler.js` - staff_id → yclients_staff_id (6 places)
 - [x] `src/services/ai-admin-v2/modules/data-loader.js` - staff_id → yclients_staff_id (1 place)
 - [x] `src/services/ai-admin-v2/modules/formatter.js` - staff_id → yclients_staff_id (3 places)
-- [ ] `src/integrations/yclients/data/postgres-data-layer.js` - audit for staff_id usage
-- [ ] `src/sync/schedules-sync.js` - verify uses yclients_staff_id
-- [ ] `src/repositories/StaffScheduleRepository.js` - verify column names correct
+- [x] `src/integrations/yclients/data/postgres-data-layer.js` - **VERIFIED CORRECT** (input validation uses API names)
+- [x] `src/sync/schedules-sync.js` - **VERIFIED CORRECT** (API→staff_id, DB→yclients_staff_id)
+- [x] `src/repositories/StaffScheduleRepository.js` - **VERIFIED CORRECT**
 
 ### 1.2 staff Table Queries
 - [ ] `src/sync/staff-sync.js` - audit column names
@@ -148,7 +188,9 @@
 
 | Phase | Status | Tasks Done | Tasks Total |
 |-------|--------|------------|-------------|
-| Phase 1.1 | ✅ Done | 3/6 | 6 |
+| **Phase 0.5** | ✅ COMPLETE | 5/5 | 5 |
+| **Phase 0.7** | ⛔ BLOCKER | 0/6 | 6 |
+| Phase 1.1 | ✅ Done | 6/6 | 6 |
 | Phase 1.2 | ⏳ Pending | 0/4 | 4 |
 | Phase 1.3 | ⏳ Pending | 0/4 | 4 |
 | Phase 1.4 | ⏳ Pending | 0/4 | 4 |
@@ -157,7 +199,16 @@
 | Phase 2 | ⏳ Pending | 0/18 | 18 |
 | Phase 3 | ⏳ Pending | 0/18 | 18 |
 | Phase 4 | ⏳ Pending | 0/9 | 9 |
-| **TOTAL** | **In Progress** | **3/68** | **68** |
+| **TOTAL** | **In Progress** | **11/79** | **79** |
+
+### Blockers Status
+- ✅ **Phase 0.5 (Schema Verification)** - COMPLETE (2025-12-01)
+- ⛔ **Phase 0.7 (Integration Tests)** - Must complete before Phase 1
+
+### Files Verified Correct (No Changes Needed)
+- ✅ `StaffScheduleRepository.js` - uses correct `yclients_staff_id`
+- ✅ `schedules-sync.js` - correctly maps API to DB names
+- ✅ `postgres-data-layer.js` - input validation is correct (uses API field names)
 
 ---
 

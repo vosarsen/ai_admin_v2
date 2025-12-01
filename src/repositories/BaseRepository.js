@@ -311,7 +311,17 @@ class BaseRepository {
     const startTime = Date.now();
 
     // Get a dedicated client from the pool for this transaction
-    const client = await this.db.getClient();
+    // Support both: db.getClient() (if db is postgres module) and db.pool.connect() (if db is pool)
+    let client;
+    if (typeof this.db.getClient === 'function') {
+      client = await this.db.getClient();
+    } else if (this.db.pool && typeof this.db.pool.connect === 'function') {
+      client = await this.db.pool.connect();
+    } else if (typeof this.db.connect === 'function') {
+      client = await this.db.connect();
+    } else {
+      throw new Error('Database connection does not support getClient() or connect()');
+    }
 
     try {
       // Start transaction

@@ -1,0 +1,94 @@
+{
+  "timestamp": "2025-12-01T15:44:44.561Z",
+  "status": "PASS",
+  "tablesFound": 20,
+  "issues": [],
+  "warnings": [],
+  "verified": [
+    {
+      "table": "staff_schedules",
+      "column": "yclients_staff_id",
+      "status": "OK"
+    },
+    {
+      "table": "staff_schedules",
+      "column": "company_id",
+      "status": "OK"
+    },
+    {
+      "table": "staff_schedules",
+      "column": "date",
+      "status": "OK"
+    },
+    {
+      "table": "staff",
+      "column": "yclients_id",
+      "status": "OK"
+    },
+    {
+      "table": "staff",
+      "column": "company_id",
+      "status": "OK"
+    },
+    {
+      "table": "staff",
+      "column": "name",
+      "status": "OK"
+    },
+    {
+      "table": "bookings",
+      "column": "yclients_record_id",
+      "status": "OK"
+    },
+    {
+      "table": "bookings",
+      "column": "company_id",
+      "status": "OK"
+    },
+    {
+      "table": "bookings",
+      "column": "staff_id",
+      "status": "OK"
+    },
+    {
+      "table": "clients",
+      "column": "yclients_id",
+      "status": "OK"
+    },
+    {
+      "table": "clients",
+      "column": "company_id",
+      "status": "OK"
+    },
+    {
+      "table": "clients",
+      "column": "phone",
+      "status": "OK"
+    },
+    {
+      "table": "services",
+      "column": "yclients_id",
+      "status": "OK"
+    },
+    {
+      "table": "services",
+      "column": "company_id",
+      "status": "OK"
+    },
+    {
+      "table": "services",
+      "column": "title",
+      "status": "OK"
+    },
+    {
+      "table": "companies",
+      "column": "yclients_id",
+      "status": "OK"
+    },
+    {
+      "table": "companies",
+      "column": "company_id",
+      "status": "OK"
+    }
+  ]
+}

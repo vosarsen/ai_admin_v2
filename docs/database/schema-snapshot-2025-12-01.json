@@ -1,0 +1,2962 @@
+{
+  "timestamp": "2025-12-01T15:44:44.016Z",
+  "database": "default_db",
+  "tables": {
+    "actions": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "maxLength": null
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "client_phone",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "action_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 100
+        },
+        {
+          "name": "action_data",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "executed_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "actions_pkey",
+          "definition": "CREATE UNIQUE INDEX actions_pkey ON public.actions USING btree (id)"
+        },
+        {
+          "name": "idx_actions_client_phone",
+          "definition": "CREATE INDEX idx_actions_client_phone ON public.actions USING btree (client_phone)"
+        },
+        {
+          "name": "idx_actions_company_id",
+          "definition": "CREATE INDEX idx_actions_company_id ON public.actions USING btree (company_id)"
+        },
+        {
+          "name": "idx_actions_status",
+          "definition": "CREATE INDEX idx_actions_status ON public.actions USING btree (status)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "company_id",
+        "client_phone",
+        "action_type",
+        "action_data",
+        "status",
+        "created_at",
+        "executed_at"
+      ]
+    },
+    "appointments_cache": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('appointments_cache_id_seq'::regclass)",
+          "maxLength": null
+        },
+        {
+          "name": "yclients_record_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "client_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "client_phone",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 20
+        },
+        {
+          "name": "service_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "staff_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "appointment_datetime",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "cost",
+          "type": "numeric",
+          "nullable": true,
+          "default": "0",
+          "maxLength": null
+        },
+        {
+          "name": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": "'confirmed'::character varying",
+          "maxLength": 20
+        },
+        {
+          "name": "is_cancelled",
+          "type": "boolean",
+          "nullable": true,
+          "default": "false",
+          "maxLength": null
+        },
+        {
+          "name": "deleted",
+          "type": "boolean",
+          "nullable": true,
+          "default": "false",
+          "maxLength": null
+        },
+        {
+          "name": "cancellation_reason",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "raw_data",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "appointments_cache_pkey",
+          "definition": "CREATE UNIQUE INDEX appointments_cache_pkey ON public.appointments_cache USING btree (id)"
+        },
+        {
+          "name": "appointments_cache_yclients_record_id_key",
+          "definition": "CREATE UNIQUE INDEX appointments_cache_yclients_record_id_key ON public.appointments_cache USING btree (yclients_record_id)"
+        },
+        {
+          "name": "idx_appointments_cache_company",
+          "definition": "CREATE INDEX idx_appointments_cache_company ON public.appointments_cache USING btree (company_id)"
+        },
+        {
+          "name": "idx_appointments_cache_datetime",
+          "definition": "CREATE INDEX idx_appointments_cache_datetime ON public.appointments_cache USING btree (appointment_datetime)"
+        },
+        {
+          "name": "idx_appointments_cache_record_id",
+          "definition": "CREATE INDEX idx_appointments_cache_record_id ON public.appointments_cache USING btree (yclients_record_id)"
+        },
+        {
+          "name": "idx_appointments_cache_status",
+          "definition": "CREATE INDEX idx_appointments_cache_status ON public.appointments_cache USING btree (status)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "yclients_record_id",
+        "company_id",
+        "client_id",
+        "client_phone",
+        "service_id",
+        "staff_id",
+        "appointment_datetime",
+        "cost",
+        "status",
+        "is_cancelled",
+        "deleted",
+        "cancellation_reason",
+        "raw_data",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "booking_notifications": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('booking_notifications_id_seq'::regclass)",
+          "maxLength": null
+        },
+        {
+          "name": "yclients_record_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "phone",
+          "type": "character varying",
+          "nullable": false,
+          "default": null,
+          "maxLength": 20
+        },
+        {
+          "name": "notification_type",
+          "type": "character varying",
+          "nullable": false,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "message",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()",
+          "maxLength": null
+        },
+        {
+          "name": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": "'sent'::character varying",
+          "maxLength": 20
+        },
+        {
+          "name": "error_message",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        },
+        {
+          "name": "notification_date",
+          "type": "date",
+          "nullable": true,
+          "default": "CURRENT_DATE",
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "booking_notifications_pkey",
+          "definition": "CREATE UNIQUE INDEX booking_notifications_pkey ON public.booking_notifications USING btree (id)"
+        },
+        {
+          "name": "idx_bn_company",
+          "definition": "CREATE INDEX idx_bn_company ON public.booking_notifications USING btree (company_id)"
+        },
+        {
+          "name": "idx_bn_duplicate_check",
+          "definition": "CREATE INDEX idx_bn_duplicate_check ON public.booking_notifications USING btree (yclients_record_id, notification_type, sent_at DESC)"
+        },
+        {
+          "name": "idx_bn_phone",
+          "definition": "CREATE INDEX idx_bn_phone ON public.booking_notifications USING btree (phone)"
+        },
+        {
+          "name": "idx_bn_sent_at",
+          "definition": "CREATE INDEX idx_bn_sent_at ON public.booking_notifications USING btree (sent_at DESC)"
+        },
+        {
+          "name": "idx_bn_unique_notification",
+          "definition": "CREATE UNIQUE INDEX idx_bn_unique_notification ON public.booking_notifications USING btree (yclients_record_id, notification_type, company_id, notification_date)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "yclients_record_id",
+        "company_id",
+        "phone",
+        "notification_type",
+        "message",
+        "sent_at",
+        "status",
+        "error_message",
+        "created_at",
+        "notification_date"
+      ]
+    },
+    "bookings": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "maxLength": null
+        },
+        {
+          "name": "yclients_record_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "client_phone",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "client_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "client_yclients_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "staff_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "staff_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "services",
+          "type": "ARRAY",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "service_ids",
+          "type": "ARRAY",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "datetime",
+          "type": "timestamp without time zone",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "duration",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "cost",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "prepaid",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "visit_attendance",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "comment",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "online",
+          "type": "boolean",
+          "nullable": true,
+          "default": "false",
+          "maxLength": null
+        },
+        {
+          "name": "record_hash",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "synced_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "created_by_bot",
+          "type": "boolean",
+          "nullable": true,
+          "default": "false",
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "bookings_pkey",
+          "definition": "CREATE UNIQUE INDEX bookings_pkey ON public.bookings USING btree (id)"
+        },
+        {
+          "name": "bookings_yclients_company_unique",
+          "definition": "CREATE UNIQUE INDEX bookings_yclients_company_unique ON public.bookings USING btree (yclients_record_id, company_id)"
+        },
+        {
+          "name": "idx_bookings_client_phone",
+          "definition": "CREATE INDEX idx_bookings_client_phone ON public.bookings USING btree (client_phone)"
+        },
+        {
+          "name": "idx_bookings_company_id",
+          "definition": "CREATE INDEX idx_bookings_company_id ON public.bookings USING btree (company_id)"
+        },
+        {
+          "name": "idx_bookings_date",
+          "definition": "CREATE INDEX idx_bookings_date ON public.bookings USING btree (date)"
+        },
+        {
+          "name": "idx_bookings_datetime",
+          "definition": "CREATE INDEX idx_bookings_datetime ON public.bookings USING btree (datetime)"
+        },
+        {
+          "name": "idx_bookings_yclients_record_id",
+          "definition": "CREATE INDEX idx_bookings_yclients_record_id ON public.bookings USING btree (yclients_record_id)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "yclients_record_id",
+        "company_id",
+        "client_phone",
+        "client_name",
+        "client_yclients_id",
+        "staff_id",
+        "staff_name",
+        "services",
+        "service_ids",
+        "datetime",
+        "date",
+        "duration",
+        "cost",
+        "prepaid",
+        "status",
+        "visit_attendance",
+        "comment",
+        "online",
+        "record_hash",
+        "created_at",
+        "updated_at",
+        "synced_at",
+        "created_by_bot"
+      ]
+    },
+    "clients": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('clients_id_seq'::regclass)",
+          "maxLength": null
+        },
+        {
+          "name": "yclients_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "phone",
+          "type": "character varying",
+          "nullable": false,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "raw_phone",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "email",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "discount",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "branch_ids",
+          "type": "ARRAY",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "tags",
+          "type": "ARRAY",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "source",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 100
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "visit_count",
+          "type": "integer",
+          "nullable": true,
+          "default": "0",
+          "maxLength": null
+        },
+        {
+          "name": "total_spent",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "first_visit_date",
+          "type": "date",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "last_visit_date",
+          "type": "date",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "last_services",
+          "type": "ARRAY",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "visit_history",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "preferences",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "last_sync_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "loyalty_level",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "client_segment",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "average_bill",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "last_service_ids",
+          "type": "ARRAY",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "favorite_staff_ids",
+          "type": "ARRAY",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "preferred_time_slots",
+          "type": "ARRAY",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "blacklisted",
+          "type": "boolean",
+          "nullable": true,
+          "default": "false",
+          "maxLength": null
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "created_by_ai",
+          "type": "boolean",
+          "nullable": true,
+          "default": "false",
+          "maxLength": null
+        },
+        {
+          "name": "last_ai_interaction",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "ai_context",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "ai_messages_count",
+          "type": "integer",
+          "nullable": true,
+          "default": "0",
+          "maxLength": null
+        },
+        {
+          "name": "ai_satisfaction_score",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "services_amount",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "goods_amount",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "goods_purchases",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "goods_count",
+          "type": "integer",
+          "nullable": true,
+          "default": "0",
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "clients_pkey",
+          "definition": "CREATE UNIQUE INDEX clients_pkey ON public.clients USING btree (id)"
+        },
+        {
+          "name": "clients_yclients_company_unique",
+          "definition": "CREATE UNIQUE INDEX clients_yclients_company_unique ON public.clients USING btree (yclients_id, company_id)"
+        },
+        {
+          "name": "idx_clients_company_id",
+          "definition": "CREATE INDEX idx_clients_company_id ON public.clients USING btree (company_id)"
+        },
+        {
+          "name": "idx_clients_last_visit_date",
+          "definition": "CREATE INDEX idx_clients_last_visit_date ON public.clients USING btree (last_visit_date)"
+        },
+        {
+          "name": "idx_clients_phone",
+          "definition": "CREATE INDEX idx_clients_phone ON public.clients USING btree (phone)"
+        },
+        {
+          "name": "idx_clients_yclients_id",
+          "definition": "CREATE UNIQUE INDEX idx_clients_yclients_id ON public.clients USING btree (yclients_id)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "yclients_id",
+        "name",
+        "phone",
+        "raw_phone",
+        "email",
+        "discount",
+        "company_id",
+        "branch_ids",
+        "tags",
+        "status",
+        "source",
+        "created_at",
+        "updated_at",
+        "visit_count",
+        "total_spent",
+        "first_visit_date",
+        "last_visit_date",
+        "last_services",
+        "visit_history",
+        "preferences",
+        "last_sync_at",
+        "loyalty_level",
+        "client_segment",
+        "average_bill",
+        "last_service_ids",
+        "favorite_staff_ids",
+        "preferred_time_slots",
+        "blacklisted",
+        "notes",
+        "created_by_ai",
+        "last_ai_interaction",
+        "ai_context",
+        "ai_messages_count",
+        "ai_satisfaction_score",
+        "services_amount",
+        "goods_amount",
+        "goods_purchases",
+        "goods_count"
+      ]
+    },
+    "companies": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('companies_id_seq'::regclass)",
+          "maxLength": null
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "yclients_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "title",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "address",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 500
+        },
+        {
+          "name": "phone",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "email",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "website",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "timezone",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 100
+        },
+        {
+          "name": "working_hours",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "coordinate_lat",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "coordinate_lon",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "currency",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 10
+        },
+        {
+          "name": "ai_enabled",
+          "type": "boolean",
+          "nullable": true,
+          "default": "false",
+          "maxLength": null
+        },
+        {
+          "name": "sync_enabled",
+          "type": "boolean",
+          "nullable": true,
+          "default": "true",
+          "maxLength": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "last_sync_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "raw_data",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "whatsapp_enabled",
+          "type": "boolean",
+          "nullable": true,
+          "default": "false",
+          "maxLength": null
+        },
+        {
+          "name": "whatsapp_config",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "whatsapp_connected",
+          "type": "boolean",
+          "nullable": true,
+          "default": "false",
+          "maxLength": null
+        },
+        {
+          "name": "whatsapp_phone",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "whatsapp_connected_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "integration_status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 100
+        },
+        {
+          "name": "connected_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "marketplace_user_id",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "marketplace_user_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "marketplace_user_phone",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "marketplace_user_email",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "whatsapp_session_data",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "api_key",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "webhook_secret",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "last_payment_date",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "subscription_expires_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "whatsapp_channel_enabled",
+          "type": "boolean",
+          "nullable": true,
+          "default": "true",
+          "maxLength": null
+        },
+        {
+          "name": "sms_channel_enabled",
+          "type": "boolean",
+          "nullable": true,
+          "default": "false",
+          "maxLength": null
+        },
+        {
+          "name": "sms_short_names",
+          "type": "ARRAY",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "disconnected_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "telegram_enabled",
+          "type": "boolean",
+          "nullable": true,
+          "default": "false",
+          "maxLength": null
+        },
+        {
+          "name": "telegram_premium_until",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "companies_pkey",
+          "definition": "CREATE UNIQUE INDEX companies_pkey ON public.companies USING btree (id)"
+        },
+        {
+          "name": "idx_companies_company_id",
+          "definition": "CREATE INDEX idx_companies_company_id ON public.companies USING btree (company_id)"
+        },
+        {
+          "name": "idx_companies_status",
+          "definition": "CREATE INDEX idx_companies_status ON public.companies USING btree (status)"
+        },
+        {
+          "name": "idx_companies_subscription_expires",
+          "definition": "CREATE INDEX idx_companies_subscription_expires ON public.companies USING btree (subscription_expires_at)"
+        },
+        {
+          "name": "idx_companies_yclients_id",
+          "definition": "CREATE INDEX idx_companies_yclients_id ON public.companies USING btree (yclients_id)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "company_id",
+        "yclients_id",
+        "title",
+        "address",
+        "phone",
+        "email",
+        "website",
+        "timezone",
+        "working_hours",
+        "coordinate_lat",
+        "coordinate_lon",
+        "currency",
+        "ai_enabled",
+        "sync_enabled",
+        "created_at",
+        "updated_at",
+        "last_sync_at",
+        "raw_data",
+        "whatsapp_enabled",
+        "whatsapp_config",
+        "whatsapp_connected",
+        "whatsapp_phone",
+        "whatsapp_connected_at",
+        "integration_status",
+        "connected_at",
+        "marketplace_user_id",
+        "marketplace_user_name",
+        "marketplace_user_phone",
+        "marketplace_user_email",
+        "whatsapp_session_data",
+        "api_key",
+        "webhook_secret",
+        "last_payment_date",
+        "subscription_expires_at",
+        "whatsapp_channel_enabled",
+        "sms_channel_enabled",
+        "sms_short_names",
+        "disconnected_at",
+        "status",
+        "telegram_enabled",
+        "telegram_premium_until"
+      ]
+    },
+    "company_sync_status": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('company_sync_status_id_seq'::regclass)",
+          "maxLength": null
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "last_sync_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "last_sync_success",
+          "type": "boolean",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "last_sync_error",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "clients_synced",
+          "type": "integer",
+          "nullable": true,
+          "default": "0",
+          "maxLength": null
+        },
+        {
+          "name": "services_synced",
+          "type": "integer",
+          "nullable": true,
+          "default": "0",
+          "maxLength": null
+        },
+        {
+          "name": "staff_synced",
+          "type": "integer",
+          "nullable": true,
+          "default": "0",
+          "maxLength": null
+        },
+        {
+          "name": "bookings_synced",
+          "type": "integer",
+          "nullable": true,
+          "default": "0",
+          "maxLength": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "company_sync_status_pkey",
+          "definition": "CREATE UNIQUE INDEX company_sync_status_pkey ON public.company_sync_status USING btree (id)"
+        },
+        {
+          "name": "idx_company_sync_status_company_id",
+          "definition": "CREATE INDEX idx_company_sync_status_company_id ON public.company_sync_status USING btree (company_id)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "company_id",
+        "last_sync_at",
+        "last_sync_success",
+        "last_sync_error",
+        "clients_synced",
+        "services_synced",
+        "staff_synced",
+        "bookings_synced",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "demo_chat_events": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "default": "nextval('demo_chat_events_id_seq'::regclass)",
+          "maxLength": null
+        },
+        {
+          "name": "session_id",
+          "type": "uuid",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "event_type",
+          "type": "character varying",
+          "nullable": false,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "message",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "response",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "user_ip",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 45
+        },
+        {
+          "name": "processing_time_ms",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "ai_provider",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "error_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 100
+        },
+        {
+          "name": "error_message",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "event_data",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "demo_chat_events_pkey",
+          "definition": "CREATE UNIQUE INDEX demo_chat_events_pkey ON public.demo_chat_events USING btree (id)"
+        },
+        {
+          "name": "idx_demo_chat_events_ai_provider",
+          "definition": "CREATE INDEX idx_demo_chat_events_ai_provider ON public.demo_chat_events USING btree (ai_provider)"
+        },
+        {
+          "name": "idx_demo_chat_events_created_at",
+          "definition": "CREATE INDEX idx_demo_chat_events_created_at ON public.demo_chat_events USING btree (created_at DESC)"
+        },
+        {
+          "name": "idx_demo_chat_events_event_type",
+          "definition": "CREATE INDEX idx_demo_chat_events_event_type ON public.demo_chat_events USING btree (event_type)"
+        },
+        {
+          "name": "idx_demo_chat_events_session_created",
+          "definition": "CREATE INDEX idx_demo_chat_events_session_created ON public.demo_chat_events USING btree (session_id, created_at DESC)"
+        },
+        {
+          "name": "idx_demo_chat_events_session_id",
+          "definition": "CREATE INDEX idx_demo_chat_events_session_id ON public.demo_chat_events USING btree (session_id)"
+        },
+        {
+          "name": "idx_demo_chat_events_user_ip",
+          "definition": "CREATE INDEX idx_demo_chat_events_user_ip ON public.demo_chat_events USING btree (user_ip)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "session_id",
+        "event_type",
+        "message",
+        "response",
+        "user_ip",
+        "processing_time_ms",
+        "ai_provider",
+        "error_type",
+        "error_message",
+        "event_data",
+        "created_at"
+      ]
+    },
+    "dialog_contexts": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "maxLength": null
+        },
+        {
+          "name": "user_id",
+          "type": "character varying",
+          "nullable": false,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "state",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 100
+        },
+        {
+          "name": "data",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "messages",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "client_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "last_activity",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "message_count",
+          "type": "integer",
+          "nullable": true,
+          "default": "0",
+          "maxLength": null
+        },
+        {
+          "name": "last_booking_id",
+          "type": "uuid",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "session_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "context_metadata",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "dialog_contexts_pkey",
+          "definition": "CREATE UNIQUE INDEX dialog_contexts_pkey ON public.dialog_contexts USING btree (id)"
+        },
+        {
+          "name": "idx_dialog_contexts_company_id",
+          "definition": "CREATE INDEX idx_dialog_contexts_company_id ON public.dialog_contexts USING btree (company_id)"
+        },
+        {
+          "name": "idx_dialog_contexts_last_activity",
+          "definition": "CREATE INDEX idx_dialog_contexts_last_activity ON public.dialog_contexts USING btree (last_activity)"
+        },
+        {
+          "name": "idx_dialog_contexts_user_id",
+          "definition": "CREATE INDEX idx_dialog_contexts_user_id ON public.dialog_contexts USING btree (user_id)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "user_id",
+        "state",
+        "data",
+        "messages",
+        "created_at",
+        "updated_at",
+        "client_id",
+        "last_activity",
+        "message_count",
+        "last_booking_id",
+        "session_type",
+        "context_metadata",
+        "company_id"
+      ]
+    },
+    "marketplace_events": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "default": "nextval('marketplace_events_id_seq'::regclass)",
+          "maxLength": null
+        },
+        {
+          "name": "company_id",
+          "type": "bigint",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "salon_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "event_type",
+          "type": "character varying",
+          "nullable": false,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "event_data",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_marketplace_events_company_id",
+          "definition": "CREATE INDEX idx_marketplace_events_company_id ON public.marketplace_events USING btree (company_id)"
+        },
+        {
+          "name": "idx_marketplace_events_salon_id",
+          "definition": "CREATE INDEX idx_marketplace_events_salon_id ON public.marketplace_events USING btree (salon_id)"
+        },
+        {
+          "name": "idx_marketplace_events_type",
+          "definition": "CREATE INDEX idx_marketplace_events_type ON public.marketplace_events USING btree (event_type)"
+        },
+        {
+          "name": "marketplace_events_pkey",
+          "definition": "CREATE UNIQUE INDEX marketplace_events_pkey ON public.marketplace_events USING btree (id)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "company_id",
+        "salon_id",
+        "event_type",
+        "event_data",
+        "created_at"
+      ]
+    },
+    "messages": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "maxLength": null
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "client_phone",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "direction",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 20
+        },
+        {
+          "name": "content",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "message_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "metadata",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "platform",
+          "type": "character varying",
+          "nullable": true,
+          "default": "'whatsapp'::character varying",
+          "maxLength": 20
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_messages_client_phone",
+          "definition": "CREATE INDEX idx_messages_client_phone ON public.messages USING btree (client_phone)"
+        },
+        {
+          "name": "idx_messages_company_id",
+          "definition": "CREATE INDEX idx_messages_company_id ON public.messages USING btree (company_id)"
+        },
+        {
+          "name": "idx_messages_created_at",
+          "definition": "CREATE INDEX idx_messages_created_at ON public.messages USING btree (created_at)"
+        },
+        {
+          "name": "idx_messages_platform",
+          "definition": "CREATE INDEX idx_messages_platform ON public.messages USING btree (platform)"
+        },
+        {
+          "name": "messages_pkey",
+          "definition": "CREATE UNIQUE INDEX messages_pkey ON public.messages USING btree (id)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "company_id",
+        "client_phone",
+        "direction",
+        "content",
+        "message_type",
+        "status",
+        "created_at",
+        "metadata",
+        "platform"
+      ]
+    },
+    "services": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('services_id_seq'::regclass)",
+          "maxLength": null
+        },
+        {
+          "name": "yclients_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "title",
+          "type": "character varying",
+          "nullable": false,
+          "default": null,
+          "maxLength": 500
+        },
+        {
+          "name": "category_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "category_title",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "price_min",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "price_max",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "discount",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "duration",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "seance_length",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "nullable": true,
+          "default": "true",
+          "maxLength": null
+        },
+        {
+          "name": "is_bookable",
+          "type": "boolean",
+          "nullable": true,
+          "default": "true",
+          "maxLength": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "weight",
+          "type": "integer",
+          "nullable": true,
+          "default": "0",
+          "maxLength": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "last_sync_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "raw_data",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "image_url",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 500
+        },
+        {
+          "name": "declensions",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_services_company_id",
+          "definition": "CREATE INDEX idx_services_company_id ON public.services USING btree (company_id)"
+        },
+        {
+          "name": "idx_services_is_active",
+          "definition": "CREATE INDEX idx_services_is_active ON public.services USING btree (is_active)"
+        },
+        {
+          "name": "idx_services_yclients_id",
+          "definition": "CREATE INDEX idx_services_yclients_id ON public.services USING btree (yclients_id)"
+        },
+        {
+          "name": "services_pkey",
+          "definition": "CREATE UNIQUE INDEX services_pkey ON public.services USING btree (id)"
+        },
+        {
+          "name": "services_yclients_company_unique",
+          "definition": "CREATE UNIQUE INDEX services_yclients_company_unique ON public.services USING btree (yclients_id, company_id)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "yclients_id",
+        "company_id",
+        "title",
+        "category_id",
+        "category_title",
+        "price_min",
+        "price_max",
+        "discount",
+        "duration",
+        "seance_length",
+        "is_active",
+        "is_bookable",
+        "description",
+        "weight",
+        "created_at",
+        "updated_at",
+        "last_sync_at",
+        "raw_data",
+        "image_url",
+        "declensions"
+      ]
+    },
+    "staff": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('staff_id_seq'::regclass)",
+          "maxLength": null
+        },
+        {
+          "name": "yclients_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "name",
+          "type": "character varying",
+          "nullable": false,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "specialization",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "position",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 100
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "nullable": true,
+          "default": "true",
+          "maxLength": null
+        },
+        {
+          "name": "is_bookable",
+          "type": "boolean",
+          "nullable": true,
+          "default": "true",
+          "maxLength": null
+        },
+        {
+          "name": "rating",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "votes_count",
+          "type": "integer",
+          "nullable": true,
+          "default": "0",
+          "maxLength": null
+        },
+        {
+          "name": "comments_count",
+          "type": "integer",
+          "nullable": true,
+          "default": "0",
+          "maxLength": null
+        },
+        {
+          "name": "avatar_url",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "information",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "service_ids",
+          "type": "ARRAY",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "email",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "phone",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "telegram",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 100
+        },
+        {
+          "name": "experience_years",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "level_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 100
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "last_sync_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "raw_data",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "declensions",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_staff_company_id",
+          "definition": "CREATE INDEX idx_staff_company_id ON public.staff USING btree (company_id)"
+        },
+        {
+          "name": "idx_staff_is_active",
+          "definition": "CREATE INDEX idx_staff_is_active ON public.staff USING btree (is_active)"
+        },
+        {
+          "name": "idx_staff_yclients_id",
+          "definition": "CREATE INDEX idx_staff_yclients_id ON public.staff USING btree (yclients_id)"
+        },
+        {
+          "name": "staff_pkey",
+          "definition": "CREATE UNIQUE INDEX staff_pkey ON public.staff USING btree (id)"
+        },
+        {
+          "name": "staff_yclients_company_unique",
+          "definition": "CREATE UNIQUE INDEX staff_yclients_company_unique ON public.staff USING btree (yclients_id, company_id)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "yclients_id",
+        "company_id",
+        "name",
+        "specialization",
+        "position",
+        "is_active",
+        "is_bookable",
+        "rating",
+        "votes_count",
+        "comments_count",
+        "avatar_url",
+        "information",
+        "service_ids",
+        "email",
+        "phone",
+        "telegram",
+        "experience_years",
+        "level_name",
+        "created_at",
+        "updated_at",
+        "last_sync_at",
+        "raw_data",
+        "declensions"
+      ]
+    },
+    "staff_schedules": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "default": "nextval('staff_schedules_id_seq'::regclass)",
+          "maxLength": null
+        },
+        {
+          "name": "yclients_staff_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "staff_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "is_working",
+          "type": "boolean",
+          "nullable": true,
+          "default": "true",
+          "maxLength": null
+        },
+        {
+          "name": "work_start",
+          "type": "time without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "work_end",
+          "type": "time without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "working_hours",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "last_updated",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "CURRENT_TIMESTAMP",
+          "maxLength": null
+        },
+        {
+          "name": "has_booking_slots",
+          "type": "boolean",
+          "nullable": true,
+          "default": "true",
+          "maxLength": null
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_staff_schedules_date",
+          "definition": "CREATE INDEX idx_staff_schedules_date ON public.staff_schedules USING btree (date)"
+        },
+        {
+          "name": "idx_staff_schedules_staff_date",
+          "definition": "CREATE INDEX idx_staff_schedules_staff_date ON public.staff_schedules USING btree (yclients_staff_id, date)"
+        },
+        {
+          "name": "idx_staff_schedules_staff_id",
+          "definition": "CREATE INDEX idx_staff_schedules_staff_id ON public.staff_schedules USING btree (yclients_staff_id)"
+        },
+        {
+          "name": "staff_schedules_pkey",
+          "definition": "CREATE UNIQUE INDEX staff_schedules_pkey ON public.staff_schedules USING btree (id)"
+        },
+        {
+          "name": "staff_schedules_unique_key",
+          "definition": "CREATE UNIQUE INDEX staff_schedules_unique_key ON public.staff_schedules USING btree (yclients_staff_id, date, company_id)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "yclients_staff_id",
+        "staff_name",
+        "date",
+        "is_working",
+        "work_start",
+        "work_end",
+        "working_hours",
+        "last_updated",
+        "has_booking_slots",
+        "company_id"
+      ]
+    },
+    "telegram_business_connections": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('telegram_business_connections_id_seq'::regclass)",
+          "maxLength": null
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "business_connection_id",
+          "type": "character varying",
+          "nullable": false,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "telegram_user_id",
+          "type": "bigint",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "telegram_username",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "telegram_first_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "can_reply",
+          "type": "boolean",
+          "nullable": true,
+          "default": "false",
+          "maxLength": null
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "nullable": true,
+          "default": "true",
+          "maxLength": null
+        },
+        {
+          "name": "connected_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        },
+        {
+          "name": "disconnected_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_telegram_active",
+          "definition": "CREATE INDEX idx_telegram_active ON public.telegram_business_connections USING btree (is_active) WHERE (is_active = true)"
+        },
+        {
+          "name": "idx_telegram_business_connection",
+          "definition": "CREATE INDEX idx_telegram_business_connection ON public.telegram_business_connections USING btree (business_connection_id)"
+        },
+        {
+          "name": "idx_telegram_company_active",
+          "definition": "CREATE INDEX idx_telegram_company_active ON public.telegram_business_connections USING btree (company_id, is_active) WHERE (is_active = true)"
+        },
+        {
+          "name": "idx_telegram_company_id",
+          "definition": "CREATE INDEX idx_telegram_company_id ON public.telegram_business_connections USING btree (company_id)"
+        },
+        {
+          "name": "idx_telegram_user_id",
+          "definition": "CREATE INDEX idx_telegram_user_id ON public.telegram_business_connections USING btree (telegram_user_id)"
+        },
+        {
+          "name": "telegram_business_connections_business_connection_id_key",
+          "definition": "CREATE UNIQUE INDEX telegram_business_connections_business_connection_id_key ON public.telegram_business_connections USING btree (business_connection_id)"
+        },
+        {
+          "name": "telegram_business_connections_pkey",
+          "definition": "CREATE UNIQUE INDEX telegram_business_connections_pkey ON public.telegram_business_connections USING btree (id)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "company_id",
+        "business_connection_id",
+        "telegram_user_id",
+        "telegram_username",
+        "telegram_first_name",
+        "can_reply",
+        "is_active",
+        "connected_at",
+        "disconnected_at",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "telegram_linking_codes": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('telegram_linking_codes_id_seq'::regclass)",
+          "maxLength": null
+        },
+        {
+          "name": "code",
+          "type": "character varying",
+          "nullable": false,
+          "default": null,
+          "maxLength": 20
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": "'pending'::character varying",
+          "maxLength": 20
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "used_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "used_by_telegram_id",
+          "type": "bigint",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "used_by_username",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "created_by",
+          "type": "character varying",
+          "nullable": true,
+          "default": "'system'::character varying",
+          "maxLength": 255
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_linking_codes_code",
+          "definition": "CREATE INDEX idx_linking_codes_code ON public.telegram_linking_codes USING btree (code)"
+        },
+        {
+          "name": "idx_linking_codes_company",
+          "definition": "CREATE INDEX idx_linking_codes_company ON public.telegram_linking_codes USING btree (company_id)"
+        },
+        {
+          "name": "idx_linking_codes_company_pending",
+          "definition": "CREATE INDEX idx_linking_codes_company_pending ON public.telegram_linking_codes USING btree (company_id) WHERE ((status)::text = 'pending'::text)"
+        },
+        {
+          "name": "telegram_linking_codes_code_key",
+          "definition": "CREATE UNIQUE INDEX telegram_linking_codes_code_key ON public.telegram_linking_codes USING btree (code)"
+        },
+        {
+          "name": "telegram_linking_codes_pkey",
+          "definition": "CREATE UNIQUE INDEX telegram_linking_codes_pkey ON public.telegram_linking_codes USING btree (id)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "code",
+        "company_id",
+        "status",
+        "expires_at",
+        "used_at",
+        "used_by_telegram_id",
+        "used_by_username",
+        "created_by",
+        "created_at"
+      ]
+    },
+    "telegram_user_company_links": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('telegram_user_company_links_id_seq'::regclass)",
+          "maxLength": null
+        },
+        {
+          "name": "telegram_user_id",
+          "type": "bigint",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "telegram_username",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "linked_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        },
+        {
+          "name": "linked_via_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null,
+          "maxLength": 20
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "nullable": true,
+          "default": "true",
+          "maxLength": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_user_links_active",
+          "definition": "CREATE INDEX idx_user_links_active ON public.telegram_user_company_links USING btree (is_active) WHERE (is_active = true)"
+        },
+        {
+          "name": "idx_user_links_company",
+          "definition": "CREATE INDEX idx_user_links_company ON public.telegram_user_company_links USING btree (company_id)"
+        },
+        {
+          "name": "idx_user_links_telegram_id",
+          "definition": "CREATE UNIQUE INDEX idx_user_links_telegram_id ON public.telegram_user_company_links USING btree (telegram_user_id)"
+        },
+        {
+          "name": "telegram_user_company_links_pkey",
+          "definition": "CREATE UNIQUE INDEX telegram_user_company_links_pkey ON public.telegram_user_company_links USING btree (id)"
+        },
+        {
+          "name": "telegram_user_company_links_telegram_user_id_key",
+          "definition": "CREATE UNIQUE INDEX telegram_user_company_links_telegram_user_id_key ON public.telegram_user_company_links USING btree (telegram_user_id)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "telegram_user_id",
+        "telegram_username",
+        "company_id",
+        "linked_at",
+        "linked_via_code",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "webhook_events": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "maxLength": null
+        },
+        {
+          "name": "event_id",
+          "type": "character varying",
+          "nullable": false,
+          "default": null,
+          "maxLength": 255
+        },
+        {
+          "name": "event_type",
+          "type": "character varying",
+          "nullable": false,
+          "default": null,
+          "maxLength": 50
+        },
+        {
+          "name": "company_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "record_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "payload",
+          "type": "jsonb",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "processed_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_webhook_events_company_id",
+          "definition": "CREATE INDEX idx_webhook_events_company_id ON public.webhook_events USING btree (company_id)"
+        },
+        {
+          "name": "idx_webhook_events_created_at",
+          "definition": "CREATE INDEX idx_webhook_events_created_at ON public.webhook_events USING btree (created_at)"
+        },
+        {
+          "name": "idx_webhook_events_event_id",
+          "definition": "CREATE INDEX idx_webhook_events_event_id ON public.webhook_events USING btree (event_id)"
+        },
+        {
+          "name": "webhook_events_event_id_key",
+          "definition": "CREATE UNIQUE INDEX webhook_events_event_id_key ON public.webhook_events USING btree (event_id)"
+        },
+        {
+          "name": "webhook_events_pkey",
+          "definition": "CREATE UNIQUE INDEX webhook_events_pkey ON public.webhook_events USING btree (id)"
+        }
+      ],
+      "columnNames": [
+        "id",
+        "event_id",
+        "event_type",
+        "company_id",
+        "record_id",
+        "payload",
+        "processed_at",
+        "created_at"
+      ]
+    },
+    "whatsapp_auth": {
+      "columns": [
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "creds",
+          "type": "jsonb",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_whatsapp_auth_company",
+          "definition": "CREATE INDEX idx_whatsapp_auth_company ON public.whatsapp_auth USING btree (company_id)"
+        },
+        {
+          "name": "whatsapp_auth_pkey",
+          "definition": "CREATE UNIQUE INDEX whatsapp_auth_pkey ON public.whatsapp_auth USING btree (company_id)"
+        }
+      ],
+      "columnNames": [
+        "company_id",
+        "creds",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "whatsapp_keys": {
+      "columns": [
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "key_type",
+          "type": "text",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "key_id",
+          "type": "text",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "value",
+          "type": "jsonb",
+          "nullable": false,
+          "default": null,
+          "maxLength": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_whatsapp_keys_company",
+          "definition": "CREATE INDEX idx_whatsapp_keys_company ON public.whatsapp_keys USING btree (company_id)"
+        },
+        {
+          "name": "idx_whatsapp_keys_expires",
+          "definition": "CREATE INDEX idx_whatsapp_keys_expires ON public.whatsapp_keys USING btree (expires_at) WHERE (expires_at IS NOT NULL)"
+        },
+        {
+          "name": "idx_whatsapp_keys_expires_cleanup",
+          "definition": "CREATE INDEX idx_whatsapp_keys_expires_cleanup ON public.whatsapp_keys USING btree (expires_at) WHERE (expires_at IS NOT NULL)"
+        },
+        {
+          "name": "idx_whatsapp_keys_type",
+          "definition": "CREATE INDEX idx_whatsapp_keys_type ON public.whatsapp_keys USING btree (key_type)"
+        },
+        {
+          "name": "idx_whatsapp_keys_type_company",
+          "definition": "CREATE INDEX idx_whatsapp_keys_type_company ON public.whatsapp_keys USING btree (key_type, company_id)"
+        },
+        {
+          "name": "whatsapp_keys_pkey",
+          "definition": "CREATE UNIQUE INDEX whatsapp_keys_pkey ON public.whatsapp_keys USING btree (company_id, key_type, key_id)"
+        }
+      ],
+      "columnNames": [
+        "company_id",
+        "key_type",
+        "key_id",
+        "value",
+        "created_at",
+        "updated_at",
+        "expires_at"
+      ]
+    }
+  }
+}

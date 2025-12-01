@@ -1,9 +1,11 @@
 # Database Code Review - Comprehensive Plan
 
-**Last Updated:** 2025-12-01
-**Status:** Active
+**Last Updated:** 2025-12-01 18:50 MSK
+**Status:** Active - Phase 0.5 COMPLETE, Phase 0.7 NEXT
 **Priority:** CRITICAL
-**Estimated Effort:** 16-24 hours
+**Estimated Effort:** 22-32 hours (revised after plan review)
+**Plan Review:** B+ (Conditional Go) - see review notes below
+**Progress:** 11/79 tasks (14%) - Phase 0.5 done, schedules-sync bug fixed
 
 ---
 
@@ -21,6 +23,18 @@ During investigation of "Бари работает сегодня?" bug, we disc
 2. **Consistent Repository Usage** - All DB access through repositories
 3. **Proper Error Handling** - All DB operations have Sentry tracking
 4. **Clean Migration** - Remove all Supabase legacy code
+
+### Plan Review Notes (2025-12-01)
+
+**Reviewer verdict: CONDITIONAL GO** - Proceed after addressing blockers.
+
+**Key findings from review:**
+1. ✅ `StaffScheduleRepository.js` - Already correct, no changes needed
+2. ✅ `schedules-sync.js` - Already correct (uses `staff_id` for API, `yclients_staff_id` for DB)
+3. ✅ `postgres-data-layer.js` - Already correct (input validation uses API field names)
+4. ⚠️ Need Phase 0.5 (Schema Verification) before starting
+5. ⚠️ Need Phase 0.7 (Integration Tests) before starting
+6. ⚠️ 38 files reference Supabase (not 10 as initially estimated)
 
 ---
 
@@ -107,10 +121,47 @@ Timeweb PostgreSQL
 
 ## Implementation Phases
 
+### Phase 0.5: Schema Verification (BLOCKER - NEW)
+**Effort: S (2-3 hours)**
+
+Verify actual production schema matches documentation before any fixes.
+
+**Tasks:**
+- [ ] Create `scripts/verify-db-schema.js` to dump all column names
+- [ ] Run against production Timeweb PostgreSQL
+- [ ] Compare with documented schema in this plan
+- [ ] Update documentation with any discrepancies
+
+**Acceptance Criteria:**
+- All 20 tables documented with actual column names
+- Schema dump saved to `docs/database/schema-snapshot-YYYY-MM-DD.sql`
+
+### Phase 0.7: Integration Tests (BLOCKER - NEW)
+**Effort: M (4-6 hours)**
+
+Create integration tests BEFORE fixing code to establish baseline.
+
+**Tasks:**
+- [ ] Create `StaffScheduleRepository.integration.test.js`
+- [ ] Create `BookingRepository.integration.test.js`
+- [ ] Create `StaffRepository.integration.test.js`
+- [ ] Run baseline tests, document current pass/fail state
+- [ ] Create regression test for CHECK_STAFF_SCHEDULE command
+
+**Acceptance Criteria:**
+- All critical repositories have integration tests
+- Tests run against test database (not production)
+- Baseline documented before Phase 1 starts
+
 ### Phase 1: Critical Column Name Audit (PRIORITY 1)
-**Effort: L (8-10 hours)**
+**Effort: M (6-8 hours)** *(revised down - some files already correct)*
 
 Audit all SQL queries and fix column name mismatches.
+
+**Note from review:** Several files already use correct column names:
+- ✅ `StaffScheduleRepository.js` - no changes needed
+- ✅ `schedules-sync.js` - no changes needed
+- ✅ `postgres-data-layer.js` - no changes needed (see explanation below)
 
 ### Phase 2: Repository Pattern Enforcement
 **Effort: M (4-6 hours)**
@@ -122,10 +173,12 @@ Migrate direct postgres.query() calls to use repositories.
 
 Add consistent Sentry error tracking to all DB operations.
 
-### Phase 4: Legacy Code Cleanup
-**Effort: S (2-3 hours)**
+### Phase 4: Legacy Code Cleanup & Deprecation
+**Effort: M (4-6 hours)** *(revised up - 38 files, not 10)*
 
-Remove all Supabase references and unused feature flags.
+Deprecate (NOT remove) Supabase references and feature flags.
+
+**Important:** Keep feature flags until 1 week after Phase 3 completion for safe rollback.
 
 ---
 
@@ -140,9 +193,20 @@ Files to audit:
 - [x] `src/services/ai-admin-v2/modules/command-handler.js` - FIXED
 - [x] `src/services/ai-admin-v2/modules/data-loader.js` - FIXED
 - [x] `src/services/ai-admin-v2/modules/formatter.js` - FIXED
-- [ ] `src/integrations/yclients/data/postgres-data-layer.js`
-- [ ] `src/sync/schedules-sync.js`
-- [ ] `src/repositories/StaffScheduleRepository.js` - verify
+- [x] `src/integrations/yclients/data/postgres-data-layer.js` - **VERIFIED CORRECT** (see note below)
+- [x] `src/sync/schedules-sync.js` - **VERIFIED CORRECT** (uses API names for input, DB names for output)
+- [x] `src/repositories/StaffScheduleRepository.js` - **VERIFIED CORRECT**
+
+> **Important clarification on postgres-data-layer.js:**
+> Lines 427-428 validate INPUT data from YClients API which uses `staff_id`.
+> The repository then maps this to `yclients_staff_id` when writing to DB.
+> This is CORRECT behavior - do NOT change it.
+> ```javascript
+> // This is INPUT validation (YClients API field names) - CORRECT
+> if (!schedule.staff_id || !Number.isInteger(Number(schedule.staff_id))) {
+>   throw new Error(`Invalid staff_id at index ${index}`);
+> }
+> ```
 
 **Correct Column Names:**
 - `yclients_staff_id` (NOT staff_id)
@@ -345,7 +409,7 @@ Simplify config/database-flags.js:
 
 1. **Query Failures in Production**
    - Mitigation: Test each fix in staging first
-   - Rollback: Immediate deploy of previous version
+   - Rollback: See detailed rollback strategy below
 
 2. **Data Integrity Issues**
    - Mitigation: Add validation in repositories
@@ -361,11 +425,100 @@ Simplify config/database-flags.js:
    - Mitigation: Comprehensive grep searches
    - Testing: Manual test each feature
 
+3. **Incorrect grep pattern matches**
+   - Risk: Grep finds `staff_id` in variable names, not SQL queries
+   - Mitigation: Use AST-based search or manual review of SQL strings only
+
 ### Low Risks
 
 1. **Breaking Tests**
    - Mitigation: Update tests with code
    - CI: Run test suite before deploy
+
+---
+
+## Rollback Strategy
+
+### Pre-Implementation Safeguards
+
+1. **Git Tags Before Each Phase:**
+   ```bash
+   git tag pre-db-review-phase0.5
+   git tag pre-db-review-phase0.7
+   git tag pre-db-review-phase1
+   # etc.
+   ```
+
+2. **Keep Feature Flags Active:**
+   - DO NOT remove `USE_LEGACY_SUPABASE` or `USE_REPOSITORY_PATTERN` until 1 week after Phase 3
+   - These provide instant rollback capability
+
+3. **Database Backup Before Phase 1:**
+   ```sql
+   -- Create backup tables before any schema-affecting changes
+   CREATE TABLE _backup_staff_schedules_20251201 AS SELECT * FROM staff_schedules;
+   ```
+
+### Rollback Procedures
+
+**Level 1 - Code Rollback (< 5 min):**
+```bash
+git checkout pre-db-review-phase1
+pm2 restart all
+```
+
+**Level 2 - Feature Flag Rollback (< 1 min):**
+```bash
+# In .env
+USE_REPOSITORY_PATTERN=false
+USE_LEGACY_SUPABASE=true
+pm2 restart all
+```
+
+**Level 3 - Data Rollback (< 10 min):**
+```sql
+-- Only if data corruption occurred
+DROP TABLE staff_schedules;
+ALTER TABLE _backup_staff_schedules_20251201 RENAME TO staff_schedules;
+```
+
+### Monitoring for Rollback Triggers
+
+Rollback immediately if:
+- Sentry error rate > 10 errors/minute for DB operations
+- Error code `42703` (column does not exist) appears
+- Any critical command fails (CHECK_STAFF_SCHEDULE, CREATE_BOOKING)
+
+---
+
+## Monitoring Plan
+
+### Before Starting (Setup Phase)
+
+1. **Sentry Alert for Column Errors:**
+   - Create filter for PostgreSQL error code `42703`
+   - Set up Telegram notification on trigger
+
+2. **PM2 Log Monitoring:**
+   ```bash
+   pm2 logs ai-admin-worker-v2 --err | grep -E "(column|does not exist|42703)"
+   ```
+
+3. **Baseline Metrics:**
+   - Current DB error rate: ~5-10/day (document exact number)
+   - Current response times for DB operations
+
+### During Implementation
+
+- Check Sentry after each file change
+- Run affected commands manually after each fix
+- Document any new errors discovered
+
+### Post-Implementation
+
+- Monitor for 48 hours after Phase 3 completion
+- Compare error rates to baseline
+- Sign-off checklist before removing feature flags
 
 ---
 
@@ -381,36 +534,87 @@ Simplify config/database-flags.js:
 
 ## Required Resources
 
-- Developer time: 16-24 hours
+- Developer time: 22-32 hours (revised)
 - Production DB access: Yes
 - Staging environment: Recommended
-- Monitoring: Sentry, PM2 logs
+- Monitoring: Sentry, PM2 logs, Telegram alerts
 
 ---
 
 ## Dependencies
 
+```
+Phase 0.5 (Schema Verification) ──┐
+                                  ├──► Phase 1 (Column Audit) ──► Phase 2 (Repository) ──► Phase 4 (Cleanup)
+Phase 0.7 (Integration Tests) ────┘                         ↘
+                                                             Phase 3 (Error Handling) ─────────────────────┘
+```
+
+- **Phase 0.5 and 0.7 are BLOCKERS** - must complete before Phase 1
 - Phase 1 must complete before Phase 2
 - Phase 3 can run in parallel with Phase 2
-- Phase 4 depends on Phase 2 completion
+- Phase 4 depends on Phase 2 AND Phase 3 completion
+- Feature flags removal: 1 week after Phase 4
 
 ---
 
-## Timeline Estimate
+## Timeline Estimate (Revised)
 
-| Phase | Duration | Dependencies |
-|-------|----------|--------------|
-| Phase 1 | 8-10 hours | None |
-| Phase 2 | 4-6 hours | Phase 1 |
-| Phase 3 | 2-3 hours | None |
-| Phase 4 | 2-3 hours | Phase 2 |
-| **Total** | **16-24 hours** | |
+| Phase | Duration | Dependencies | Status |
+|-------|----------|--------------|--------|
+| Phase 0.5 | 2-3 hours | None | **BLOCKER** |
+| Phase 0.7 | 4-6 hours | None | **BLOCKER** |
+| Phase 1 | 6-8 hours | Phase 0.5, 0.7 | Pending |
+| Phase 2 | 4-6 hours | Phase 1 | Pending |
+| Phase 3 | 2-3 hours | None (parallel) | Pending |
+| Phase 4 | 4-6 hours | Phase 2, 3 | Pending |
+| **Total** | **22-32 hours** | | |
+
+---
+
+## Schema Naming Inconsistency (Acknowledged Technical Debt)
+
+The database schema has an inconsistency that we are NOT fixing (too risky):
+
+| Table | Column for Staff Reference | Notes |
+|-------|---------------------------|-------|
+| `staff_schedules` | `yclients_staff_id` | References staff by YClients ID |
+| `bookings` | `staff_id` | Also references staff by YClients ID, but different name |
+
+**Decision:** We are fixing CODE to match SCHEMA, not changing the schema.
+
+**Rationale:**
+- Schema changes require migration across all dependent systems
+- Current schema works correctly, just has naming inconsistency
+- Code-level fix is safer and can be tested incrementally
+
+**Future consideration:** When doing major database refactoring, consider standardizing all `yclients_*` prefixes.
+
+---
+
+## Field Name Mapping Reference
+
+Understanding the difference between API fields and DB columns is critical:
+
+| Layer | Field Name | Example |
+|-------|------------|---------|
+| **YClients API** | `staff_id` | `{ staff_id: 123, name: "Бари" }` |
+| **Input Validation** | `staff_id` | Check API response validity |
+| **DB Column** | `yclients_staff_id` | `INSERT INTO staff_schedules (yclients_staff_id, ...)` |
+| **Repository** | `yclients_staff_id` | `findByStaffId(yclientsStaffId)` |
+| **Application Code** | `staffId` / `yclientsStaffId` | Variable naming varies |
+
+**Rule:**
+- When validating INPUT from YClients API → use `staff_id`
+- When writing SQL queries → use `yclients_staff_id`
+- Repository methods handle the mapping
 
 ---
 
 ## Next Steps
 
-1. Start Phase 1.1 (staff_schedules) - IN PROGRESS
-2. Create automated grep scripts for pattern detection
-3. Set up Sentry dashboard for DB errors
-4. Schedule deployment windows for fixes
+1. **BLOCKER:** Complete Phase 0.5 (Schema Verification)
+2. **BLOCKER:** Complete Phase 0.7 (Integration Tests)
+3. Set up Sentry alert for error code `42703`
+4. Create git tag `pre-db-review-phase0.5`
+5. Then proceed with Phase 1.1 (staff_schedules audit)
