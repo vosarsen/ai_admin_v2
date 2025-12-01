@@ -14,12 +14,20 @@ const INTERNAL_COMPANY_ID = 15;
 async function syncStaff() {
   console.log('🔄 Starting manual staff sync...');
 
-  // Fetch from YClients
+  // Fetch from YClients (need API_KEY + USER_TOKEN for staff endpoint)
+  const apiKey = process.env.YCLIENTS_API_KEY;
+  const userToken = process.env.YCLIENTS_USER_TOKEN;
+
+  if (!apiKey || !userToken) {
+    console.error('❌ Missing YCLIENTS_API_KEY or YCLIENTS_USER_TOKEN');
+    process.exit(1);
+  }
+
   const response = await axios.get(
     `https://api.yclients.com/api/v1/company/${COMPANY_ID}/staff`,
     {
       headers: {
-        'Authorization': `Bearer ${process.env.YCLIENTS_PARTNER_TOKEN}`,
+        'Authorization': `Bearer ${apiKey}, User ${userToken}`,
         'Accept': 'application/vnd.yclients.v2+json'
       }
     }
