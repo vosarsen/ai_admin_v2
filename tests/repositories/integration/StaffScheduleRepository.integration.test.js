@@ -19,20 +19,21 @@ const StaffScheduleRepository = require('../../../src/repositories/StaffSchedule
 const postgres = require('../../../src/database/postgres');
 
 /**
- * Helper to normalize PostgreSQL DATE to string
+ * Helper to normalize DATE value to string
  *
- * PostgreSQL stores DATE as midnight in server timezone (Moscow UTC+3).
- * When retrieved, it comes as UTC timestamp (e.g., 2025-11-30T21:00:00Z for 2025-12-01 MSK).
- * We need to convert back to Moscow timezone to get the original date.
+ * With the pg type parser fix in postgres.js, DATE columns are now returned as
+ * strings 'YYYY-MM-DD' instead of Date objects with timezone issues.
+ *
+ * This helper handles both formats for backward compatibility:
+ * - String: return as-is
+ * - Date object: extract date string (legacy/fallback)
  */
 const getDateStr = (d) => {
   if (typeof d === 'string') return d;
-  // Add 3 hours to UTC to get Moscow time, then extract date
-  const mskOffset = 3 * 60 * 60 * 1000; // UTC+3
-  const mskDate = new Date(d.getTime() + mskOffset);
-  const year = mskDate.getUTCFullYear();
-  const month = String(mskDate.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(mskDate.getUTCDate()).padStart(2, '0');
+  // Fallback for Date objects (shouldn't happen with the type parser fix)
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 

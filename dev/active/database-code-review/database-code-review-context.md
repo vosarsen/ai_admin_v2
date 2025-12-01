@@ -1,8 +1,8 @@
 # Database Code Review - Context
 
-**Last Updated:** 2025-12-01 19:30 MSK
-**Session Status:** Phase 0.5 + 0.7 COMPLETE, READY FOR Phase 1
-**Next Action:** Continue with Phase 1.2 (staff table queries audit)
+**Last Updated:** 2025-12-01 20:15 MSK
+**Session Status:** Phase 1 (1.1-1.5) COMPLETE, Ready for Phase 1.6 or Phase 2
+**Next Action:** Continue with Phase 1.6 (companies) or Phase 2 (Repository Pattern Enforcement)
 
 ---
 
@@ -233,7 +233,38 @@ if (typeof this.db.getClient === 'function') {
 
 ## HANDOFF NOTES FOR NEXT SESSION
 
-### What Was Completed This Session (Session 4)
+### What Was Completed This Session (Session 5)
+
+1. **Fixed StaffScheduleRepository Tests** (3 failing → 0 failing)
+   - Root cause: PostgreSQL DATE timezone conversion
+   - PostgreSQL server in Moscow (UTC+3), stores DATE as midnight MSK
+   - When retrieved, comes as UTC timestamp (e.g., `2025-11-30T21:00:00Z` for `2025-12-01 MSK`)
+   - Fix: Add MSK offset (+3h) before extracting date string
+
+2. **Phase 1.2: staff table queries** ✅
+   - `staff-sync.js` - VERIFIED CORRECT
+   - `StaffRepository.js` - VERIFIED CORRECT
+   - **BUG FOUND & FIXED**: `data-loader.js::getStaffNamesByIds()` used `id` instead of `yclients_id`
+
+3. **Phase 1.3: bookings table queries** ✅
+   - All files VERIFIED CORRECT
+   - Note: `bookings.staff_id` IS correct (not yclients_staff_id)
+
+4. **Phase 1.4: clients table queries** ✅
+   - All files VERIFIED CORRECT
+
+5. **Phase 1.5: services table queries** ✅
+   - `services-sync.js` - VERIFIED CORRECT
+   - **BUG FOUND & FIXED**: `data-loader.js::getServiceNamesByIds()` used `id` instead of `yclients_id`
+
+### Commits Made
+- `52d86cd`: fix(db): use yclients_id for staff/service lookups in data-loader
+
+### Progress: 33/80 tasks (41%)
+
+---
+
+### What Was Completed Session 4
 
 1. **Phase 0.7: Integration Tests** - ✅ COMPLETE
    - All 4 integration test files exist and pass:

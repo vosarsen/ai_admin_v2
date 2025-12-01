@@ -1,10 +1,27 @@
 // src/database/postgres.js
 // Timeweb PostgreSQL connection pool
 
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 const config = require('../config');
 const logger = require('../utils/logger');
 const Sentry = require('@sentry/node');
+
+// ====================================================================================
+// PostgreSQL Type Parsers - Fix DATE timezone issues
+// ====================================================================================
+
+/**
+ * Override DATE type parser to return string instead of Date object
+ *
+ * Problem: node-postgres parses DATE as JS Date in UTC, causing timezone shifts.
+ * Example: '2025-12-01' stored in Moscow becomes 2025-11-30T21:00:00.000Z in JS
+ *
+ * Solution: Return DATE as string 'YYYY-MM-DD' - no timezone conversion needed.
+ *
+ * Type OID 1082 = DATE in PostgreSQL
+ * See: https://github.com/brianc/node-pg-types
+ */
+types.setTypeParser(1082, (val) => val); // Return DATE as-is (string)
 
 // ====================================================================================
 // Connection Pool Health Monitoring

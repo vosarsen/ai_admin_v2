@@ -81,28 +81,36 @@ RUN_INTEGRATION_TESTS=true npx jest tests/repositories/integration/ --no-coverag
 - [x] `src/sync/schedules-sync.js` - **VERIFIED CORRECT** (API→staff_id, DB→yclients_staff_id)
 - [x] `src/repositories/StaffScheduleRepository.js` - **VERIFIED CORRECT**
 
-### 1.2 staff Table Queries
-- [ ] `src/sync/staff-sync.js` - audit column names
-- [ ] `src/services/ai-admin-v2/modules/data-loader.js` - verify staff.yclients_id usage
-- [ ] `src/repositories/StaffRepository.js` - verify column names correct
-- [ ] Search for `staff.id` usage (should be `staff.yclients_id`)
+### 1.2 staff Table Queries ✅ COMPLETE
+- [x] `src/sync/staff-sync.js` - **VERIFIED CORRECT** (uses yclients_id for DB, staff.id for API)
+- [x] `src/services/ai-admin-v2/modules/data-loader.js` - **FIXED** (id → yclients_id)
+- [x] `src/repositories/StaffRepository.js` - **VERIFIED CORRECT**
+- [x] Search for `staff.id` usage - **VERIFIED**: All uses are for API data, not DB queries
 
-### 1.3 bookings Table Queries
-- [ ] `src/sync/bookings-sync.js` - audit column names
-- [ ] `src/repositories/BookingRepository.js` - verify column names
-- [ ] `src/services/booking-monitor/index.js` - audit queries
-- [ ] NOTE: bookings.staff_id IS correct (not yclients_staff_id)
+**Bug Fixed in Session 5:**
+- `getStaffNamesByIds()` was using `id = ANY($2)` instead of `yclients_id = ANY($2)`
+- `favorite_staff_ids` contains YClients IDs (e.g., 2895125), not internal DB IDs (e.g., 16)
 
-### 1.4 clients Table Queries
-- [ ] `src/sync/clients-sync.js` - audit column names
-- [ ] `src/sync/clients-sync-optimized.js` - audit column names
-- [ ] `src/repositories/ClientRepository.js` - verify uses yclients_id
-- [ ] Search for `client_id` usage (should be `yclients_id` or `client_yclients_id`)
+### 1.3 bookings Table Queries ✅ COMPLETE
+- [x] `src/sync/bookings-sync.js` - **VERIFIED CORRECT** (yclients_record_id, staff_id)
+- [x] `src/repositories/BookingRepository.js` - **VERIFIED CORRECT**
+- [x] `src/services/booking-monitor/index.js` - **VERIFIED CORRECT**
+- [x] NOTE: bookings.staff_id IS correct (not yclients_staff_id)
 
-### 1.5 services Table Queries
-- [ ] `src/sync/services-sync.js` - audit column names
-- [ ] `src/repositories/ServiceRepository.js` - verify uses yclients_id
-- [ ] Search for `service_id` vs `yclients_id`
+### 1.4 clients Table Queries ✅ COMPLETE
+- [x] `src/sync/clients-sync.js` - **VERIFIED CORRECT** (yclients_id: client.id)
+- [x] `src/sync/clients-sync-optimized.js` - **VERIFIED CORRECT**
+- [x] `src/repositories/ClientRepository.js` - **VERIFIED CORRECT**
+- [x] Search for `client_id` usage - **VERIFIED**: Uses yclients_id consistently
+
+### 1.5 services Table Queries ✅ COMPLETE
+- [x] `src/sync/services-sync.js` - **VERIFIED CORRECT** (yclients_id: service.id)
+- [x] `src/repositories/ServiceRepository.js` - **VERIFIED CORRECT**
+- [x] Search for `service_id` vs `yclients_id` - **VERIFIED**
+
+**Bug Fixed in Session 5:**
+- `getServiceNamesByIds()` was using `id = ANY($2)` instead of `yclients_id = ANY($2)`
+- `last_service_ids` contains YClients IDs (e.g., 18356010), not internal DB IDs
 
 ### 1.6 companies Table Queries
 - [ ] `src/sync/company-info-sync.js` - audit column names
@@ -218,15 +226,15 @@ RUN_INTEGRATION_TESTS=true npx jest tests/repositories/integration/ --no-coverag
 | **Phase 0.5** | ✅ COMPLETE | 5/5 | 5 |
 | **Phase 0.7** | ✅ COMPLETE | 7/7 | 7 |
 | Phase 1.1 | ✅ Done | 6/6 | 6 |
-| Phase 1.2 | ⏳ Pending | 0/4 | 4 |
-| Phase 1.3 | ⏳ Pending | 0/4 | 4 |
-| Phase 1.4 | ⏳ Pending | 0/4 | 4 |
-| Phase 1.5 | ⏳ Pending | 0/3 | 3 |
+| Phase 1.2 | ✅ COMPLETE | 4/4 | 4 |
+| Phase 1.3 | ✅ COMPLETE | 4/4 | 4 |
+| Phase 1.4 | ✅ COMPLETE | 4/4 | 4 |
+| Phase 1.5 | ✅ COMPLETE | 3/3 | 3 |
 | Phase 1.6 | ⏳ Pending | 0/2 | 2 |
 | Phase 2 | ⏳ Pending | 0/18 | 18 |
 | Phase 3 | ⏳ Pending | 0/18 | 18 |
 | Phase 4 | ⏳ Pending | 0/9 | 9 |
-| **TOTAL** | **In Progress** | **18/80** | **80** |
+| **TOTAL** | **In Progress** | **33/80** | **80** |
 
 ### Blockers Status
 - ✅ **Phase 0.5 (Schema Verification)** - COMPLETE (2025-12-01)
