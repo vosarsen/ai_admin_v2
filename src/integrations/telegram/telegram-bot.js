@@ -214,7 +214,7 @@ class TelegramBot extends EventEmitter {
         const chatId = message.chat.id;
         const from = message.from;
 
-        // Handle contact sharing (user sent their phone number)
+        // Handle contact sharing (user sent their phone number via contact)
         if (message.contact) {
           const contact = message.contact;
           logger.info('Contact received:', {
@@ -225,6 +225,7 @@ class TelegramBot extends EventEmitter {
 
           // Save phone number to Redis
           await this.saveUserPhone(chatId, contact.phone_number, contact.first_name);
+          await this.setWaitingForPhone(chatId, false);
 
           // Confirm receipt and continue conversation
           await this.sendBusinessMessage(businessConnectionId, chatId,
@@ -253,7 +254,35 @@ class TelegramBot extends EventEmitter {
         const savedPhone = await this.getUserPhone(chatId);
 
         if (!savedPhone) {
-          // Request phone number via contact sharing button
+          // Check if we're waiting for phone number input
+          const waitingForPhone = await this.isWaitingForPhone(chatId);
+
+          if (waitingForPhone) {
+            // Try to extract phone number from message
+            const phone = this.extractPhoneNumber(message.text);
+
+            if (phone) {
+              // Valid phone number, save it
+              await this.saveUserPhone(chatId, phone, from.first_name);
+              await this.setWaitingForPhone(chatId, false);
+
+              logger.info('Phone number extracted and saved:', { chatId, phone });
+
+              // Confirm and ask for their question
+              await this.sendBusinessMessage(businessConnectionId, chatId,
+                `✅ Отлично! Номер ${this.formatPhone(phone)} сохранён.\n\nТеперь напишите, чем могу помочь?`
+              );
+              return;
+            } else {
+              // Invalid phone format, ask again
+              await this.sendBusinessMessage(businessConnectionId, chatId,
+                `❌ Не удалось распознать номер телефона.\n\nПожалуйста, введите номер в формате:\n+7 900 123-45-67 или 89001234567`
+              );
+              return;
+            }
+          }
+
+          // Request phone number
           logger.info('Requesting phone number from user:', { chatId });
           await this.requestPhoneNumber(businessConnectionId, chatId, from.first_name);
           return;
@@ -875,7 +904,8 @@ class TelegramBot extends EventEmitter {
   }
 
   /**
-   * Request phone number from user via contact sharing button
+   * Request phone number from user
+   * Note: Business Bot doesn't support request_contact keyboard, so we ask to type it
    * @param {string} businessConnectionId - Business connection ID
    * @param {number} chatId - Telegram chat ID
    * @param {string} [firstName] - User's first name for personalization
@@ -884,22 +914,20 @@ class TelegramBot extends EventEmitter {
     try {
       const greeting = firstName ? `Привет, ${firstName}!` : 'Привет!';
 
+      // Business Bot doesn't support request_contact, ask to type manually
       await this.bot.api.sendMessage(
         chatId,
         `${greeting} 👋\n\n` +
-        `Я помогу записаться в салон. Для этого мне нужен ваш номер телефона.\n\n` +
-        `Нажмите кнопку ниже, чтобы поделиться контактом:`,
+        `Я помогу записаться в салон.\n\n` +
+        `Для начала, пожалуйста, напишите ваш номер телефона:\n` +
+        `Например: +7 900 123-45-67`,
         {
-          business_connection_id: businessConnectionId,
-          reply_markup: {
-            keyboard: [
-              [{ text: '📱 Поделиться контактом', request_contact: true }]
-            ],
-            resize_keyboard: true,
-            one_time_keyboard: true
-          }
+          business_connection_id: businessConnectionId
         }
       );
+
+      // Mark that we're waiting for phone number
+      await this.setWaitingForPhone(chatId, true);
 
       logger.info('Phone number request sent:', { chatId });
     } catch (error) {
@@ -909,6 +937,66 @@ class TelegramBot extends EventEmitter {
         extra: { chatId, businessConnectionId }
       });
     }
+  }
+
+  /**
+   * Set/get waiting for phone state in Redis
+   */
+  async setWaitingForPhone(chatId, waiting) {
+    const redis = this._getRedisClient();
+    const key = `telegram_waiting_phone:${chatId}`;
+    if (waiting) {
+      await redis.set(key, '1', 'EX', 3600); // Expire in 1 hour
+    } else {
+      await redis.del(key);
+    }
+  }
+
+  async isWaitingForPhone(chatId) {
+    const redis = this._getRedisClient();
+    const key = `telegram_waiting_phone:${chatId}`;
+    const result = await redis.get(key);
+    return result === '1';
+  }
+
+  /**
+   * Extract phone number from text message
+   * Supports various Russian phone formats
+   * @param {string} text - Text message
+   * @returns {string|null} Normalized phone number or null
+   */
+  extractPhoneNumber(text) {
+    // Remove all non-digits except +
+    const cleaned = text.replace(/[^\d+]/g, '');
+
+    // Try to match Russian phone patterns
+    // +7XXXXXXXXXX, 8XXXXXXXXXX, 7XXXXXXXXXX
+    const patterns = [
+      /^\+7(\d{10})$/,      // +79001234567
+      /^8(\d{10})$/,        // 89001234567
+      /^7(\d{10})$/,        // 79001234567
+      /^(\d{10})$/          // 9001234567 (without country code)
+    ];
+
+    for (const pattern of patterns) {
+      const match = cleaned.match(pattern);
+      if (match) {
+        // Return in format 79001234567
+        return '7' + (match[1] || cleaned.slice(-10));
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Format phone number for display
+   * @param {string} phone - Phone number (79001234567)
+   * @returns {string} Formatted phone (+7 900 123-45-67)
+   */
+  formatPhone(phone) {
+    if (!phone || phone.length !== 11) return phone;
+    return `+${phone[0]} ${phone.slice(1, 4)} ${phone.slice(4, 7)}-${phone.slice(7, 9)}-${phone.slice(9)}`;
   }
 
   /**
