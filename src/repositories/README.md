@@ -146,6 +146,26 @@ Sentry.captureException(error, {
 });
 ```
 
+## Slow Query Detection
+
+Queries exceeding the threshold are logged and sent to Sentry:
+
+```bash
+# Default threshold: 500ms
+# Configure via environment variable:
+export DB_QUERY_LATENCY_THRESHOLD_MS=1000  # 1 second
+```
+
+Console output for slow queries:
+```
+[DB SLOW] findMany clients took 750ms (threshold: 500ms)
+```
+
+Sentry receives a warning with:
+- `alert_type: 'slow_query'`
+- Query details (table, operation, duration)
+- Context (filters, row count)
+
 ## Troubleshooting
 
 ### Connection Issues
