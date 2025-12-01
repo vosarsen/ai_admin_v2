@@ -14,7 +14,7 @@ class StaffSync {
   constructor() {
     this.config = YCLIENTS_CONFIG;
     this.tableName = 'staff';
-    this.staffRepo = new StaffRepository(postgres.pool);
+    this.staffRepo = new StaffRepository(postgres);
   }
 
   /**

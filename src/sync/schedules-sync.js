@@ -13,7 +13,7 @@ class SchedulesSync {
   constructor() {
     this.config = YCLIENTS_CONFIG;
     this.tableName = 'staff_schedules';
-    this.scheduleRepo = new StaffScheduleRepository(postgres.pool);
+    this.scheduleRepo = new StaffScheduleRepository(postgres);
   }
 
   /**

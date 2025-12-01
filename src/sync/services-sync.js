@@ -14,7 +14,7 @@ class ServicesSync {
   constructor() {
     this.config = YCLIENTS_CONFIG;
     this.tableName = 'services';
-    this.serviceRepo = new ServiceRepository(postgres.pool);
+    this.serviceRepo = new ServiceRepository(postgres);
   }
 
   /**
