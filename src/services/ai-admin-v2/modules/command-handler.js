@@ -2683,7 +2683,7 @@ class CommandHandler {
       let params = [dateStr];
 
       if (staff) {
-        queryText += ' AND staff_id = $2';
+        queryText += ' AND yclients_staff_id = $2';
         params.push(staff.yclients_id);
       }
 
@@ -2707,7 +2707,7 @@ class CommandHandler {
       try {
         const futureResult = await postgres.query(
           `SELECT date, is_working, has_booking_slots FROM staff_schedules
-           WHERE staff_id = $1 AND date >= $2 AND date <= $3
+           WHERE yclients_staff_id = $1 AND date >= $2 AND date <= $3
            AND is_working = true AND has_booking_slots = true
            ORDER BY date ASC`,
           [staff.yclients_id, dateStr, futureDateStr]
@@ -2742,26 +2742,26 @@ class CommandHandler {
     if (schedules && schedules.length > 0) {
       schedules.forEach(schedule => {
         const staffInfo = {
-          id: schedule.staff_id,
+          id: schedule.yclients_staff_id,
           name: schedule.staff_name,
           isWorking: schedule.is_working,
           hasSlots: schedule.has_booking_slots,
           workStart: schedule.work_start,
           workEnd: schedule.work_end
         };
-        
+
         result.staff.push(staffInfo);
-        
+
         if (schedule.is_working && schedule.has_booking_slots) {
           result.working.push(schedule.staff_name);
-          workingStaffIds.add(schedule.staff_id);
+          workingStaffIds.add(schedule.yclients_staff_id);
         }
       });
     }
     
     // Находим всех кто НЕ работает из тех, кто есть в расписании
     // Если мастера нет в расписании на эту дату - считаем что он не работает
-    const scheduledStaffIds = new Set(schedules.map(s => s.staff_id));
+    const scheduledStaffIds = new Set(schedules.map(s => s.yclients_staff_id));
     
     context.staff.forEach(staffMember => {
       if (!scheduledStaffIds.has(staffMember.yclients_id) || !workingStaffIds.has(staffMember.yclients_id)) {
@@ -2771,7 +2771,7 @@ class CommandHandler {
     
     // Если искали конкретного мастера
     if (staff_name && staff) {
-      const staffSchedule = schedules.find(s => s.staff_id === staff.yclients_id);
+      const staffSchedule = schedules.find(s => s.yclients_staff_id === staff.yclients_id);
       result.targetStaff = {
         name: staff.name,
         found: !!staffSchedule,

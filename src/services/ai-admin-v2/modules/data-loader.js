@@ -400,10 +400,10 @@ class DataLoader {
         return {};
       }
 
-      // Get schedules filtered by staff_id
+      // Get schedules filtered by yclients_staff_id
       const scheduleResult = await postgres.query(
         `SELECT * FROM staff_schedules
-         WHERE staff_id = ANY($1)
+         WHERE yclients_staff_id = ANY($1)
          AND date >= $2 AND date <= $3
          ORDER BY date ASC`,
         [staffIds, today.toISOString().split('T')[0], weekLater.toISOString().split('T')[0]]

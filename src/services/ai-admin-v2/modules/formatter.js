@@ -48,7 +48,7 @@ class Formatter {
       return "Сегодня никто не работает";
     }
     
-    const workingStaffIds = workingSchedules.map(s => s.staff_id);
+    const workingStaffIds = workingSchedules.map(s => s.yclients_staff_id);
     
     logger.info(`Staff IDs from schedule:`, workingStaffIds);
     logger.info(`Staff list IDs:`, staffList.map(s => ({ id: s.yclients_id, name: s.name })));
@@ -90,7 +90,7 @@ class Formatter {
     }
     
     return workingStaff.map(staff => {
-      const schedule = todaySchedule.find(s => s.staff_id === staff.yclients_id);
+      const schedule = todaySchedule.find(s => s.yclients_staff_id === staff.yclients_id);
       
       // Получаем слоты мастера из working_hours
       const staffSlots = schedule?.working_hours?.seances || [];
@@ -121,7 +121,7 @@ class Formatter {
       }
       
       const staffNames = this.getStaffNames(
-        workingStaff.map(s => s.staff_id), 
+        workingStaff.map(s => s.yclients_staff_id),
         staffList
       );
       return `${this.formatDateForDisplay(date)}: ${staffNames}`;
