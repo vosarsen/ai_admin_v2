@@ -1,46 +1,49 @@
-# Repository Pattern - Phase 1 Complete
+# Repository Pattern - Database Layer
 
 ## Overview
 
-Lightweight database abstraction layer providing a clean API for both Supabase and Timeweb PostgreSQL.
+Database abstraction layer for Timeweb PostgreSQL using Repository Pattern.
 
-**Status:** ✅ Phase 1 Complete (Repository Pattern Foundation)
+**Status:** ✅ Production (Migration complete November 2025)
 
 ## Architecture
 
 ```
-BaseRepository (350 lines)
-  ├── Core CRUD: findOne, findMany, upsert, bulkUpsert
+BaseRepository (750+ lines)
+  ├── Core CRUD: findOne, findMany, upsert, bulkUpsert, syncBulkUpsert
   ├── Query building: WHERE, ORDER BY, LIMIT, OFFSET
   ├── Operators: eq, neq, gte, lte, ilike, in, null
+  ├── Sentry error tracking
   └── Error handling & sanitization
 
-Domain Repositories (6 classes, ~400 lines total)
-  ├── ClientRepository (7 methods)
-  ├── ServiceRepository (4 methods)
-  ├── StaffRepository (2 methods)
-  ├── StaffScheduleRepository (3 methods)
-  ├── DialogContextRepository (2 methods)
-  └── CompanyRepository (2 methods)
+Domain Repositories (7 classes, ~1,200 lines total)
+  ├── ClientRepository (9 methods)
+  ├── ServiceRepository (5 methods)
+  ├── StaffRepository (5 methods)
+  ├── StaffScheduleRepository (5 methods)
+  ├── DialogContextRepository (4 methods)
+  ├── CompanyRepository (2 methods)
+  └── BookingRepository (5 methods)
 
-Total: 21 methods mapping to SupabaseDataLayer
+Total: 35+ methods with full Sentry integration
 ```
 
-## Files Created
+## Files
 
-**Production Code (~750 lines):**
-- `BaseRepository.js` - Core abstraction (350 lines)
-- `ClientRepository.js` - Client methods (7)
-- `ServiceRepository.js` - Service methods (4)
-- `StaffRepository.js` - Staff methods (2)
-- `StaffScheduleRepository.js` - Schedule methods (3)
-- `DialogContextRepository.js` - Context methods (2)
-- `CompanyRepository.js` - Company methods (2)
+**Production Code:**
+- `BaseRepository.js` - Core abstraction with Sentry
+- `ClientRepository.js` - Client methods
+- `ServiceRepository.js` - Service methods
+- `StaffRepository.js` - Staff methods
+- `StaffScheduleRepository.js` - Schedule methods
+- `DialogContextRepository.js` - Context methods
+- `CompanyRepository.js` - Company methods
+- `BookingRepository.js` - Booking methods
 - `index.js` - Exports
 
-**Test Code (~600 lines):**
+**Test Code:**
 - `tests/repositories/unit/BaseRepository.test.js` - Unit tests
-- `tests/repositories/integration/ClientRepository.integration.test.js` - Integration tests
+- `tests/repositories/integration/*.test.js` - Integration tests (73 tests)
 
 ## Usage
 
@@ -52,8 +55,11 @@ const postgres = require('./database/postgres');
 
 const clientRepo = new ClientRepository(postgres);
 
-// Find client
+// Find client by phone
 const client = await clientRepo.findByPhone('89686484488');
+
+// Find by raw phone (with +)
+const client2 = await clientRepo.findByRawPhone('+79686484488', 962302);
 
 // Search clients
 const results = await clientRepo.searchByName(962302, 'Иван', 10);
@@ -90,105 +96,66 @@ const schedules = await scheduleRepo.findMany('staff_schedules', {
 
 ## Testing
 
-### Run Unit Tests (Fast, No DB Required)
+### Run Unit Tests
 
 ```bash
-# Run all unit tests
 npm test tests/repositories/unit/
-
-# Run specific test
-npm test tests/repositories/unit/BaseRepository.test.js
-
-# With coverage
-npm test tests/repositories/unit/ -- --coverage
 ```
 
-### Run Integration Tests (Requires Timeweb PostgreSQL)
+### Run Integration Tests
 
 ```bash
-# Prerequisites:
-# 1. Timeweb PostgreSQL must be accessible
-# 2. Schema created (Phase 0.8)
-# 3. Connection configured in src/database/postgres.js
-
-# Run integration tests
-npm test tests/repositories/integration/
-
-# Run specific integration test
-npm test tests/repositories/integration/ClientRepository.integration.test.js
+# Requires connection to Timeweb PostgreSQL
+RUN_INTEGRATION_TESTS=true npx jest tests/repositories/integration/ --no-coverage --forceExit
 ```
 
-### Test Coverage Goals
+### Test Coverage
 
-- **Unit Tests:** 100% coverage for BaseRepository ✅
-- **Integration Tests:** All CRUD operations validated ✅
-- **Edge Cases:** NULL handling, Russian characters, empty results ✅
+- **Unit Tests:** 100% coverage for BaseRepository
+- **Integration Tests:** 73 passing tests (all CRUD operations)
+- **Edge Cases:** NULL handling, Russian characters, empty results
 
-## Query Translation Reference
+## Operator Reference
 
-### Supabase → Repository Mapping
-
-| Supabase Method | Repository Method | Example |
-|----------------|-------------------|---------|
-| `.from('clients').select('*').eq('phone', val)` | `findOne('clients', { phone: val })` | Simple find |
-| `.from('clients').select('*').eq('company_id', id)` | `findMany('clients', { company_id: id })` | Find many |
-| `.from('clients').select('*').ilike('name', '%test%')` | `searchByName(companyId, 'test')` | Search |
-| `.from('clients').upsert(data, {onConflict})` | `upsert(data)` | Insert/Update |
-| `.from('clients').upsert(array, {onConflict})` | `bulkUpsert(array)` | Bulk upsert |
-
-### Operator Translation
-
-| Supabase | PostgreSQL | Repository Filter |
+| Operator | PostgreSQL | Repository Filter |
 |----------|-----------|-------------------|
-| `.eq('col', val)` | `WHERE col = $1` | `{ col: val }` |
-| `.neq('col', val)` | `WHERE col != $1` | `{ col: { neq: val } }` |
-| `.gte('col', val)` | `WHERE col >= $1` | `{ col: { gte: val } }` |
-| `.lte('col', val)` | `WHERE col <= $1` | `{ col: { lte: val } }` |
-| `.ilike('col', pattern)` | `WHERE col ILIKE $1` | `{ col: { ilike: pattern } }` |
-| `.in('col', [1,2,3])` | `WHERE col IN ($1, $2, $3)` | `{ col: { in: [1,2,3] } }` |
-| `.is('col', null)` | `WHERE col IS NULL` | `{ col: null }` |
+| Equal | `WHERE col = $1` | `{ col: val }` |
+| Not Equal | `WHERE col != $1` | `{ col: { neq: val } }` |
+| Greater/Equal | `WHERE col >= $1` | `{ col: { gte: val } }` |
+| Less/Equal | `WHERE col <= $1` | `{ col: { lte: val } }` |
+| ILIKE | `WHERE col ILIKE $1` | `{ col: { ilike: pattern } }` |
+| IN | `WHERE col IN (...)` | `{ col: { in: [...] } }` |
+| NULL | `WHERE col IS NULL` | `{ col: null }` |
 
-## Performance
+## Sentry Integration
 
-**Expected Improvements (vs Supabase):**
-- Internal services: **4-10x faster** (< 1ms network vs 20-50ms)
-- Sync scripts: **2-3x faster**
-- Average query time: **6-11ms** (vs 25-60ms with Supabase)
+All repositories have built-in Sentry error tracking:
 
-## Next Steps
-
-**Phase 2: Code Integration (5-7 days)**
-- Update SupabaseDataLayer to use repositories
-- Implement feature flags
-- Comparison testing (Supabase vs Repository results)
-- Deploy to production (disabled initially)
-
-See: `dev/active/database-migration-revised/database-migration-revised-tasks.md`
+```javascript
+// Errors are automatically captured with:
+Sentry.captureException(error, {
+  tags: {
+    component: 'repository',
+    table: 'clients',
+    operation: 'findOne'
+  },
+  extra: {
+    filters: { phone: '...' },
+    duration: '15ms'
+  }
+});
+```
 
 ## Troubleshooting
 
-### Unit Tests Failing
+### Connection Issues
 
 ```bash
-# Ensure Jest is installed
-npm install --save-dev jest
-
-# Check Jest configuration
-cat package.json | grep jest
-```
-
-### Integration Tests Failing
-
-```bash
-# 1. Check Timeweb connection
+# Test connection
 node -e "const p = require('./src/database/postgres'); p.query('SELECT 1').then(console.log)"
 
-# 2. Verify schema exists
+# Verify schema
 node -e "const p = require('./src/database/postgres'); p.query('SELECT table_name FROM information_schema.tables WHERE table_schema = \\'public\\'').then(r => console.log(r.rows))"
-
-# 3. Check environment variables
-echo $USE_LEGACY_SUPABASE  # Should be true or unset
-echo $USE_REPOSITORY_PATTERN  # Should be false or unset (Phase 1)
 ```
 
 ### Common Issues
@@ -196,22 +163,20 @@ echo $USE_REPOSITORY_PATTERN  # Should be false or unset (Phase 1)
 **Issue:** "Database connection pool is required"
 **Fix:** Always pass postgres pool to repository constructor
 
-**Issue:** "Invalid identifier: clients; DROP TABLE"
-**Fix:** This is intentional! Sanitization is working. Don't use SQL injection patterns.
+**Issue:** "Invalid identifier"
+**Fix:** Sanitization is working correctly - don't use SQL injection patterns
 
 **Issue:** "IN operator requires non-empty array"
 **Fix:** Check filter values before calling repository methods
 
 ## Documentation
 
-- **Plan:** `dev/active/database-migration-revised/database-migration-revised-plan.md`
-- **Context:** `dev/active/database-migration-revised/database-migration-revised-context.md`
-- **Tasks:** `dev/active/database-migration-revised/database-migration-revised-tasks.md`
+- **Database:** `docs/01-architecture/database/TIMEWEB_POSTGRES_SUMMARY.md`
+- **Migration:** `dev/completed/database-migration-supabase-timeweb/`
+- **Code Review:** `dev/active/database-code-review/`
 
 ---
 
-**Phase 1 Status:** ✅ Complete
-**Date Completed:** 2025-11-10
-**Lines of Code:** ~1,350 (production + tests)
-**Test Coverage:** 100% for BaseRepository
-**Ready for Phase 2:** ✅ Yes
+**Status:** ✅ Production
+**Migration Completed:** November 2025
+**Test Coverage:** 73 integration tests passing

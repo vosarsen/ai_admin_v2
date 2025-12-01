@@ -99,7 +99,7 @@ class BookingService {
 
   async getServices(filters = {}, companyId = config.yclients.companyId) {
     try {
-      // Сначала пробуем получить из Supabase
+      // Сначала пробуем получить из PostgreSQL (кэш)
       // Важно: dataLayer.getServices ожидает companyId первым параметром
       const result = await this.dataLayer.getServices(companyId, false);
 
@@ -116,13 +116,13 @@ class BookingService {
         }
 
         if (filteredData.length > 0) {
-          logger.info(`✅ Services loaded from Supabase: ${filteredData.length}`);
+          logger.info(`✅ Services loaded from PostgreSQL: ${filteredData.length}`);
           return { success: true, data: filteredData };
         }
       }
 
-      // Если в Supabase пусто, получаем из YClients
-      logger.info('📱 Services not found in Supabase, fetching from YClients...');
+      // Если в PostgreSQL пусто, получаем из YClients
+      logger.info('📱 Services not found in PostgreSQL, fetching from YClients...');
       return await this.getYclientsClient().getServices(filters, companyId);
     } catch (error) {
       logger.error('Error getting services:', error);

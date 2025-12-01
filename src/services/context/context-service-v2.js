@@ -20,7 +20,7 @@ const TTL_CONFIG = {
     pendingAction: redisTTL.dialog,
   },
   
-  // Кэш данных из Supabase
+  // Кэш данных клиента из PostgreSQL
   clientCache: redisTTL.client,
   
   // Персональные предпочтения
@@ -37,7 +37,7 @@ class ContextServiceV2 {
     // Префиксы для разных типов данных
     this.prefixes = {
       dialog: 'dialog:',           // Текущий диалог
-      client: 'client:',           // Кэш клиента из Supabase
+      client: 'client:',           // Кэш клиента из PostgreSQL
       preferences: 'preferences:',  // Долгосрочные предпочтения
       messages: 'messages:',       // История сообщений
       fullContext: 'full_ctx:',    // Кэш полного контекста
@@ -392,7 +392,7 @@ class ContextServiceV2 {
   }
 
   /**
-   * Сохранить кэш клиента из Supabase
+   * Сохранить кэш клиента из PostgreSQL
    * @param {string} phone - Номер телефона клиента или Telegram user ID
    * @param {number} companyId - ID компании
    * @param {Object} clientData - Данные клиента для кэширования

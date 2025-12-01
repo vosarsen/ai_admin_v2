@@ -1,50 +1,20 @@
 /**
- * Database Feature Flags Configuration
+ * Database Configuration
  *
- * Controls the database backend selection for AI Admin v2.
+ * AI Admin v2 uses Timeweb PostgreSQL via Repository Pattern.
+ * Supabase migration completed November 2025.
  *
- * USE_REPOSITORY_PATTERN=true: Uses Timeweb PostgreSQL (via Repository Pattern)
- * USE_LEGACY_SUPABASE=true: Uses Supabase PostgreSQL (legacy SDK)
- *
- * Migration from Supabase to Timeweb PostgreSQL is complete.
- * Repository Pattern is production-ready and tested.
+ * @see docs/01-architecture/database/TIMEWEB_POSTGRES_SUMMARY.md
  */
 
 module.exports = {
   /**
-   * Enable Repository Pattern abstraction layer
-   *
-   * When false: Uses Supabase SDK directly (legacy behavior)
-   * When true: Uses Repository Pattern with Timeweb PostgreSQL
-   *
-   * Default: false (safe - uses existing Supabase)
-   *
-   * Rollback: Set to false to instantly revert to Supabase
-   */
-  USE_REPOSITORY_PATTERN: process.env.USE_REPOSITORY_PATTERN === 'true',
-
-  /**
-   * Continue using legacy Supabase SDK
-   *
-   * When true: SupabaseDataLayer uses Supabase SDK
-   * When false: SupabaseDataLayer uses repositories only
-   *
-   * Default: true (backward compatible)
-   *
-   * Note: This flag exists for clarity and future deprecation.
-   * In production, USE_REPOSITORY_PATTERN takes precedence.
-   */
-  USE_LEGACY_SUPABASE: process.env.USE_LEGACY_SUPABASE !== 'false',
-
-  /**
    * Log database operations for debugging
    *
-   * When true: Logs all SQL queries and Supabase calls
+   * When true: Logs SQL queries and timings
    * When false: Silent operation
    *
    * Default: false (performance)
-   *
-   * Use for: Debugging performance issues, query analysis
    */
   LOG_DATABASE_CALLS: process.env.LOG_DATABASE_CALLS === 'true',
 
@@ -54,44 +24,15 @@ module.exports = {
    * @returns {string} Human-readable description
    */
   getCurrentBackend() {
-    if (this.USE_REPOSITORY_PATTERN) {
-      return 'Timeweb PostgreSQL (via Repository Pattern)';
-    }
-    return 'Supabase PostgreSQL (legacy SDK)';
+    return 'Timeweb PostgreSQL (via Repository Pattern)';
   },
 
   /**
-   * Check if Supabase is still active
+   * Check if repositories are active (always true post-migration)
    *
-   * @returns {boolean} True if Supabase is being used
-   */
-  isSupabaseActive() {
-    return !this.USE_REPOSITORY_PATTERN;
-  },
-
-  /**
-   * Check if repositories are active
-   *
-   * @returns {boolean} True if repositories are being used
+   * @returns {boolean} Always true
    */
   isRepositoryActive() {
-    return this.USE_REPOSITORY_PATTERN;
-  },
-
-  /**
-   * Validate configuration sanity
-   *
-   * @throws {Error} If configuration is invalid
-   */
-  validate() {
-    // Warn if both are disabled (should never happen)
-    if (!this.USE_REPOSITORY_PATTERN && !this.USE_LEGACY_SUPABASE) {
-      throw new Error(
-        'Invalid config: Both USE_REPOSITORY_PATTERN and USE_LEGACY_SUPABASE are false. At least one must be true.'
-      );
-    }
+    return true;
   }
 };
-
-// Validate configuration on load
-module.exports.validate();
