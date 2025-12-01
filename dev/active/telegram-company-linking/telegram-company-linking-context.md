@@ -351,7 +351,24 @@ GET https://adminai.tech/api/telegram/linking-status/962302
 - `ec74898` - fix(telegram): use internal company.id for FK constraints
 - `24b447d` - fix(telegram): address code review findings
 
+### Session 3 (2025-12-01) - DOCUMENTATION:
+
+**Documentation Update (~30min)**
+- ✅ Updated `TELEGRAM_BUSINESS_BOT_GUIDE.md` to v1.1
+- ✅ Added "Company Linking (Multi-tenant)" section with:
+  - Overview and flow diagram
+  - Database tables description
+  - All 4 API endpoints with examples
+  - Bot commands table
+  - Onboarding message template
+  - Security section
+  - Backward compatibility notes
+- ✅ Added troubleshooting for linking issues
+- ✅ Added database schema section at end
+
+**Total actual time: ~5 hours (vs 14h estimated = 64% faster!)**
+
 ### Next Steps:
 - [ ] E2E test with real Telegram (user will test later)
-- [ ] Update TELEGRAM_BUSINESS_BOT_GUIDE.md
 - [ ] Optionally add cleanup job to PM2 cron
+- [ ] Move project to `dev/completed/` after E2E test passes

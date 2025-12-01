@@ -1,7 +1,7 @@
 # Telegram Business Bot Integration Guide
 
-**Version:** 1.0
-**Last Updated:** 2025-11-29
+**Version:** 1.1
+**Last Updated:** 2025-12-01
 **Status:** Production Ready
 
 ## Overview
@@ -30,7 +30,8 @@ AI Admin v2 → Telegram Business Bot API → Salon's Telegram Account → Custo
 | TelegramBot | `src/integrations/telegram/telegram-bot.js` | grammY client for Telegram API |
 | TelegramManager | `src/integrations/telegram/telegram-manager.js` | Business logic orchestrator |
 | TelegramAPIClient | `src/integrations/telegram/telegram-api-client.js` | HTTP client for workers |
-| TelegramConnectionRepository | `src/repositories/TelegramConnectionRepository.js` | Database access |
+| TelegramConnectionRepository | `src/repositories/TelegramConnectionRepository.js` | Business connections DB |
+| TelegramLinkingRepository | `src/repositories/TelegramLinkingRepository.js` | Company linking DB |
 | Error Classes | `src/utils/telegram-errors.js` | Standardized error handling |
 
 ## Setup
@@ -151,6 +152,130 @@ curl https://your-domain.com/api/telegram/status/962302
   "connectedAt": "2025-11-29T12:00:00Z"
 }
 ```
+
+## Company Linking (Multi-tenant)
+
+### Overview
+
+Company linking allows multiple salons to use the same bot. Each salon owner links their Telegram account to their company via a unique deep link.
+
+**Flow:**
+```
+Admin generates deep link → Sends to salon owner → Owner clicks link → Confirms in bot → Done!
+```
+
+### Database Tables
+
+| Table | Purpose |
+|-------|---------|
+| `telegram_linking_codes` | Temporary codes for linking (audit) |
+| `telegram_user_company_links` | Permanent user-company mappings |
+
+### API Endpoints
+
+#### Generate Deep Link
+
+```bash
+curl -X POST https://adminai.tech/api/telegram/linking-codes \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"companyId": 962302}'
+```
+
+Response:
+```json
+{
+  "success": true,
+  "deepLink": "https://t.me/AdmiAI_bot?start=link_Ab3kL9mX2p",
+  "code": "Ab3kL9mX2p",
+  "expiresAt": "2025-12-01T12:15:00Z",
+  "companyName": "Студия Красоты Анна",
+  "instructions": "Отправьте эту ссылку владельцу салона"
+}
+```
+
+#### Check Linking Status
+
+```bash
+curl https://adminai.tech/api/telegram/linking-status/962302 \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+```json
+{
+  "success": true,
+  "linked": true,
+  "telegramUser": {
+    "id": 123456789,
+    "username": "salon_owner"
+  },
+  "linkedAt": "2025-11-30T14:00:00Z",
+  "businessConnection": {
+    "connected": true,
+    "canReply": true
+  }
+}
+```
+
+#### List Pending Codes
+
+```bash
+curl "https://adminai.tech/api/telegram/linking-codes?companyId=962302" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+#### Revoke Code
+
+```bash
+curl -X DELETE https://adminai.tech/api/telegram/linking-codes/Ab3kL9mX2p \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+### Bot Commands
+
+| Command | Description |
+|---------|-------------|
+| `/start link_CODE` | Link account via deep link |
+| `/status` | Show current linking and connection status |
+
+### Onboarding Message Template
+
+Send this to salon owners (via WhatsApp, email, etc.):
+
+```
+🎉 Привяжите Telegram к AI Admin!
+
+Нажмите на ссылку и подтвердите привязку:
+👉 {DEEP_LINK}
+
+После привязки:
+1. Откройте Настройки в Telegram
+2. Перейдите в Telegram Business
+3. Выберите Чат-бот → @AdmiAI_bot
+
+Готово! Бот будет отвечать вашим клиентам.
+
+Вопросы? support@adminai.tech
+```
+
+### Security
+
+- **Code expiration:** 15 minutes (Redis TTL)
+- **Single use:** Code consumed after successful linking
+- **Rate limit:** Max 10 codes per company per day
+- **Audit trail:** All codes logged in PostgreSQL
+
+### Backward Compatibility
+
+For single-company deployments, set `TELEGRAM_DEFAULT_COMPANY_ID` as fallback:
+
+```bash
+# .env
+TELEGRAM_DEFAULT_COMPANY_ID=962302  # Fallback if not linked
+```
+
+When `TELEGRAM_REQUIRE_LINKING=true`, fallback is disabled.
 
 ## Message Flow
 
@@ -310,6 +435,35 @@ pm2 logs ai-admin-api | grep "telegram-bot"
 
 **Solution:** grammY handles this automatically with exponential backoff. If persistent, review message frequency.
 
+### Linking Code Invalid/Expired
+
+**Cause:** Code expired (15 min TTL) or already used.
+
+**Solution:**
+1. Generate a new code via API
+2. Send fresh deep link to salon owner
+3. Codes are single-use - cannot reuse
+
+### Messages Routing to Wrong Company
+
+**Cause:** Cache not invalidated after re-linking.
+
+**Solution:** Cache auto-invalidates on re-link. If persistent:
+```bash
+# Restart API to clear caches
+pm2 restart ai-admin-api
+```
+
+### Business Connection Before Linking
+
+**Cause:** Owner connected bot before clicking deep link.
+
+**Solution:** System has retry logic (2 retries, 2s delay). If still failing:
+1. Ask owner to disconnect bot in Telegram Business settings
+2. Send new deep link
+3. Wait for confirmation
+4. Reconnect bot
+
 ## Security
 
 ### Webhook Verification
@@ -359,3 +513,38 @@ psql -c "INSERT INTO telegram_business_connections
 - [TELEGRAM_BOT_QUICK_REFERENCE.md](./TELEGRAM_BOT_QUICK_REFERENCE.md) - Admin alerts bot
 - [TELEGRAM_SETUP.md](./TELEGRAM_SETUP.md) - Initial setup guide
 - [TELEGRAM_ALERTS_TROUBLESHOOTING.md](./TELEGRAM_ALERTS_TROUBLESHOOTING.md) - Alert troubleshooting
+
+## Database Schema
+
+### telegram_user_company_links
+
+```sql
+CREATE TABLE telegram_user_company_links (
+  id SERIAL PRIMARY KEY,
+  telegram_user_id BIGINT UNIQUE NOT NULL,
+  telegram_username VARCHAR(255),
+  company_id INTEGER NOT NULL REFERENCES companies(id),
+  linked_at TIMESTAMPTZ DEFAULT NOW(),
+  linked_via_code VARCHAR(20),
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### telegram_linking_codes
+
+```sql
+CREATE TABLE telegram_linking_codes (
+  id SERIAL PRIMARY KEY,
+  code VARCHAR(20) UNIQUE NOT NULL,
+  company_id INTEGER NOT NULL REFERENCES companies(id),
+  status VARCHAR(20) DEFAULT 'pending',  -- pending/used/expired/revoked
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
+  used_by_telegram_id BIGINT,
+  used_by_username VARCHAR(255),
+  created_by VARCHAR(255),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
