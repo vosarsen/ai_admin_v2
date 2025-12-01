@@ -17,19 +17,23 @@ const Sentry = require('@sentry/node');
 
 class TelegramConnectionRepository extends BaseRepository {
   /**
-   * Find active connection by company ID
+   * Find active connection by YClients company ID
    *
-   * @param {number} companyId - Internal company ID (companies.id)
+   * @param {number} companyId - YClients company ID (companies.yclients_id)
    * @returns {Promise<Object|null>} Connection record or null
    *
    * @example
-   * const connection = await telegramRepo.findByCompanyId(1);
+   * const connection = await telegramRepo.findByCompanyId(962302);
    */
   async findByCompanyId(companyId) {
-    return this.findOne('telegram_business_connections', {
-      company_id: companyId,
-      is_active: true
-    });
+    const sql = `
+      SELECT tbc.*
+      FROM telegram_business_connections tbc
+      JOIN companies c ON c.id = tbc.company_id
+      WHERE c.yclients_id = $1 AND tbc.is_active = true
+    `;
+    const result = await this.db.query(sql, [companyId]);
+    return result.rows[0] || null;
   }
 
   /**
