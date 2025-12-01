@@ -366,9 +366,67 @@ GET https://adminai.tech/api/telegram/linking-status/962302
 - ✅ Added troubleshooting for linking issues
 - ✅ Added database schema section at end
 
-**Total actual time: ~5 hours (vs 14h estimated = 64% faster!)**
+### Session 4 (2025-12-01) - E2E TESTING & BUG FIXES:
+
+**E2E Test Execution:**
+1. ✅ Generated deep link via API
+2. ✅ Clicked link, confirmed in bot
+3. ✅ Enabled Business Mode in BotFather
+4. ✅ Connected @AdmiAI_bot in Telegram Business settings
+5. ✅ Fixed webhook (was reset after PM2 restart)
+6. ✅ Messages received and routed correctly
+
+**Bug Fixes During Testing (~1.5h):**
+1. **Webhook Reset Bug**: Webhook was cleared after PM2 restart
+   - Fixed: Manually set webhook after each deploy
+   - TODO: Auto-set webhook on bot initialization
+
+2. **businessConnectionId in metadata**: Data structure mismatch
+   - `telegram-bot.js` was nesting `businessConnectionId` in `metadata`
+   - `telegram-manager.js` expected it at top level
+   - Fixed: Extract from `metadata?.businessConnectionId || data.businessConnectionId`
+
+3. **YClients ID vs Internal ID Mismatch**: Queue routing issue
+   - Worker subscribes to `company-962302-messages` (yclients_id)
+   - But `telegram_business_connections.company_id` stored internal ID (15)
+   - Fixed: `findByBusinessConnectionId()` and `findByCompanyId()` now JOIN with `companies` table to return `yclients_id`
+
+4. **Phone Number Collection**: Business Bot doesn't support `request_contact` keyboard
+   - Fixed: Ask user to type phone number manually
+   - Added `extractPhoneNumber()` to parse various Russian phone formats
+   - Store phone in Redis: `telegram_phone:{chatId}`
+   - State tracking: `telegram_waiting_phone:{chatId}` with 1h TTL
+
+5. **Staff Data Empty**: AI was hallucinating staff names
+   - Fixed: Created `scripts/sync-staff-manual.js`
+   - Synced 10 staff members including Бари
+
+**Commits:**
+- `3b005a6` - debug: add logging to resolveConnection
+- `3165420` - fix(telegram): extract businessConnectionId from metadata
+- `e0951f2` - fix(telegram): use yclients_id for queue compatibility
+- `25e79d8` - fix(telegram): findByCompanyId uses yclients_id
+- `62a8869` - feat(telegram): add contact sharing button for phone collection
+- `fabf2e7` - fix(telegram): use text input for phone instead of keyboard (Business Bot limitation)
+- `7c70283` - add: manual staff sync script
+- `e0b4bdb` - fix: remove avatar column from staff sync
+
+**Total actual time: ~7 hours (vs 14h estimated = 50% faster!)**
+
+### Final Status:
+- ✅ Company linking working
+- ✅ Deep links working
+- ✅ Message routing working
+- ✅ Phone collection working
+- ✅ AI responses working (with correct staff data)
+- ✅ Full E2E flow tested
+
+### Known Limitations:
+1. Business Bot doesn't support `request_contact` keyboard - users type phone manually
+2. Webhook needs manual set after PM2 restart (should auto-set on init)
+3. Staff sync is manual - should be automated
 
 ### Next Steps:
-- [ ] E2E test with real Telegram (user will test later)
-- [ ] Optionally add cleanup job to PM2 cron
-- [ ] Move project to `dev/completed/` after E2E test passes
+- [ ] Auto-set webhook on bot initialization
+- [ ] Add PM2 cron for staff sync
+- [ ] Move project to `dev/completed/`

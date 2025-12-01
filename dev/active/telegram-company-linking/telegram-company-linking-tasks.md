@@ -1,10 +1,10 @@
 # Telegram Company Linking - Task Tracker
 
-**Last Updated:** 2025-12-01 16:00 UTC
-**Status:** ✅ COMPLETE (Documentation Updated)
+**Last Updated:** 2025-12-01 18:20 UTC
+**Status:** ✅ E2E TESTED & WORKING
 **Estimated:** 14 hours (Deep Link approach)
-**Actual:** ~5 hours (64% faster!)
-**Progress:** 19/19 tasks (100%)
+**Actual:** ~7 hours (50% faster!)
+**Progress:** 20/20 tasks (100%)
 **Code Review:** A- (92/100)
 
 ## Approach: Deep Links + Inline Buttons
@@ -142,11 +142,15 @@ Instead of manual `/link ABC-123` codes, we use Telegram deep links:
 - [ ] Test expired code handling
 - [ ] Mock grammY context
 
-### Task 5.3: E2E Test on Production [S - 30min] ⏳ Pending User Test
-- [x] Generate code via API ✅ (working)
-- [ ] Click deep link on phone (user will test later)
-- [ ] Confirm in bot
-- [ ] Verify in database
+### Task 5.3: E2E Test on Production [S - 30min] ✅ COMPLETE
+- [x] Generate code via API ✅
+- [x] Click deep link on phone ✅
+- [x] Confirm in bot ✅
+- [x] Enable Business Mode in BotFather ✅
+- [x] Connect bot in Telegram Business settings ✅
+- [x] Verify messages received and routed ✅
+- [x] Phone collection working ✅
+- [x] AI responses working ✅
 
 ---
 
@@ -221,8 +225,42 @@ npm test -- --grep "TelegramLinking"
 
 ---
 
+## Phase 8: E2E Bug Fixes (1.5h) ✅ COMPLETE
+
+### Task 8.1: Fix businessConnectionId Data Structure [S - 15min] ✅
+- [x] Extract `businessConnectionId` from `metadata` in `telegram-manager.js`
+- [x] Commit: `3165420`
+
+### Task 8.2: Fix YClients ID vs Internal ID [M - 30min] ✅
+- [x] Update `findByBusinessConnectionId()` to JOIN with companies
+- [x] Update `findByCompanyId()` to use yclients_id
+- [x] Update `getAllActive()` to return yclients_id
+- [x] Commits: `e0951f2`, `25e79d8`
+
+### Task 8.3: Add Phone Collection Flow [M - 45min] ✅
+- [x] Add `requestPhoneNumber()` - asks user to type phone
+- [x] Add `extractPhoneNumber()` - parses various formats
+- [x] Add `saveUserPhone()` / `getUserPhone()` - Redis storage
+- [x] Add `isWaitingForPhone()` / `setWaitingForPhone()` - state tracking
+- [x] Update `business_message` handler to check for phone
+- [x] Commits: `62a8869`, `fabf2e7`
+
+### Task 8.4: Sync Staff Data [S - 15min] ✅
+- [x] Create `scripts/sync-staff-manual.js`
+- [x] Fix auth: use BEARER_TOKEN + USER_TOKEN
+- [x] Remove avatar column (not in schema)
+- [x] Sync 10 staff members
+- [x] Commits: `7c70283`, `a1f7cec`, `ea1965d`, `e0b4bdb`
+
+---
+
 ## Notes
 
 - **Blocking issue:** None
 - **Decisions made:** Deep links instead of manual codes
-- **Time saved:** ~6 hours (no bot rate limiting, simpler flow)
+- **Time saved:** ~7 hours vs 14h estimate (50% faster)
+- **Key learnings:**
+  1. Business Bot doesn't support `request_contact` keyboard
+  2. Webhook resets after PM2 restart - needs auto-set
+  3. FK should reference internal company.id, but queues use yclients_id
+  4. Staff sync needs BEARER_TOKEN + USER_TOKEN, not just PARTNER_TOKEN
