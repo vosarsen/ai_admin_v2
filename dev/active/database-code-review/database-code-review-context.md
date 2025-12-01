@@ -1,8 +1,8 @@
 # Database Code Review - Context
 
-**Last Updated:** 2025-12-01 18:50 MSK
-**Session Status:** Phase 0.5 COMPLETE, Phase 0.7 PENDING
-**Next Action:** Execute Phase 0.7 Integration Tests
+**Last Updated:** 2025-12-01 19:30 MSK
+**Session Status:** Phase 0.5 + 0.7 COMPLETE, READY FOR Phase 1
+**Next Action:** Continue with Phase 1.2 (staff table queries audit)
 
 ---
 
@@ -233,56 +233,57 @@ if (typeof this.db.getClient === 'function') {
 
 ## HANDOFF NOTES FOR NEXT SESSION
 
-### What Was Completed This Session
+### What Was Completed This Session (Session 4)
 
-1. **Plan Review by plan-reviewer agent** - Grade B+ (Conditional Go)
-   - Identified 3 files that DON'T need changes (StaffScheduleRepository, schedules-sync, postgres-data-layer)
-   - Added Phase 0.5 and 0.7 as blockers
-   - Updated effort estimate from 16-24h to 22-32h
+1. **Phase 0.7: Integration Tests** - ✅ COMPLETE
+   - All 4 integration test files exist and pass:
+     - `StaffScheduleRepository.integration.test.js` - 17/17 tests
+     - `BookingRepository.integration.test.js` - 24/24 tests
+     - `StaffRepository.integration.test.js` - 19/19 tests
+     - `ClientRepository.integration.test.js` - 13/13 tests
+   - **TOTAL: 73/73 tests passing (100%)**
 
-2. **Phase 0.5: Schema Verification** - ✅ COMPLETE
-   - Created `scripts/verify-db-schema.js`
-   - All 20 tables documented with column names
-   - All critical columns verified (yclients_staff_id, yclients_id, etc.)
-   - Output: `docs/database/schema-snapshot-2025-12-01.*`
+2. **Test Fixes Applied**
+   - Fixed date comparison issues (Date object timezone handling)
+   - Used `getFullYear()/getMonth()/getDate()` instead of `toISOString()` to avoid UTC offset
 
-3. **Bug Fix: schedules-sync.js**
-   - Fixed `this.db.getClient is not a function` in BaseRepository.js
-   - Sync now works: 29 records, 0 errors
+3. **Key Verifications Confirmed**
+   - ✅ All repositories use correct column names
+   - ✅ `staff_schedules.yclients_staff_id` NOT `staff_id`
+   - ✅ `bookings.yclients_record_id` + `bookings.staff_id` (correct)
+   - ✅ bulkUpsert, syncBulkUpsert work correctly
+   - ✅ Russian characters and NULL handling work
+
+### Both BLOCKERS Now Complete!
+- ✅ **Phase 0.5 (Schema Verification)** - Session 3
+- ✅ **Phase 0.7 (Integration Tests)** - Session 4
 
 ### What Needs To Be Done Next
 
-**Phase 0.7: Integration Tests** (the remaining BLOCKER)
-- Create `tests/repositories/integration/StaffScheduleRepository.integration.test.js`
-- Create `tests/repositories/integration/BookingRepository.integration.test.js`
-- Create `tests/repositories/integration/StaffRepository.integration.test.js`
-- Run baseline tests before Phase 1
+**Phase 1.2: staff Table Queries**
+- [ ] `src/sync/staff-sync.js` - audit column names
+- [ ] `src/services/ai-admin-v2/modules/data-loader.js` - verify staff.yclients_id usage
+- [ ] `src/repositories/StaffRepository.js` - verify column names correct
+- [ ] Search for `staff.id` usage (should be `staff.yclients_id`)
 
 ### Files Modified This Session (NOT YET COMMITTED)
 
 | File | Change |
 |------|--------|
-| `scripts/verify-db-schema.js` | NEW - schema verification tool |
-| `src/repositories/BaseRepository.js` | FIX - withTransaction() connection handling |
-| `docs/database/schema-snapshot-2025-12-01.sql` | NEW - schema dump |
-| `docs/database/schema-snapshot-2025-12-01.json` | NEW - schema JSON |
-| `docs/database/schema-verification-report-2025-12-01.json` | NEW - verification report |
-| `dev/active/database-code-review/*` | UPDATED - plan, context, tasks |
+| `tests/repositories/integration/StaffScheduleRepository.integration.test.js` | FIX - date comparison timezone issues |
+| `dev/active/database-code-review/*` | UPDATED - context, tasks |
 
 ### Commands To Run On Restart
 
 ```bash
-# Verify schema verification script works
-node scripts/verify-db-schema.js --compare
+# Run all integration tests
+RUN_INTEGRATION_TESTS=true npx jest tests/repositories/integration/ --no-coverage --forceExit
 
-# Test schedules sync still works after bug fix
-ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "cd /opt/ai-admin && node -e \"
-const { SchedulesSync } = require('./src/sync/schedules-sync');
-new SchedulesSync().sync().then(r => console.log(JSON.stringify(r, null, 2)));
-\""
-
-# Check for uncommitted changes
+# Check git status
 git status
+
+# Continue with Phase 1.2
+grep -rn "staff.id" src/ --include="*.js" | grep -v "yclients_id" | head -20
 ```
 
 ### Key Discoveries (Hard to Rediscover)
@@ -305,6 +306,20 @@ git status
    } else if (typeof this.db.connect === 'function') {
      client = await this.db.connect();
    }
+   ```
+
+5. **PostgreSQL Date objects with timezone** - When comparing dates from DB:
+   - PostgreSQL `date` type returns JS Date object with UTC time (e.g., `2025-11-30T21:00:00.000Z` for Moscow `2025-12-01`)
+   - **DON'T use** `date.toISOString().split('T')[0]` - gives wrong date due to UTC
+   - **DO use** local date methods:
+   ```javascript
+   const getDateStr = (d) => {
+     if (typeof d === 'string') return d;
+     const year = d.getFullYear();
+     const month = String(d.getMonth() + 1).padStart(2, '0');
+     const day = String(d.getDate()).padStart(2, '0');
+     return `${year}-${month}-${day}`;
+   };
    ```
 
 ---

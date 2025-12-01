@@ -186,6 +186,71 @@ class BaseRepository {
   }
 
   /**
+   * Update records matching filters
+   * @param {string} table - Table name
+   * @param {Object} filters - WHERE conditions to match records
+   * @param {Object} data - Fields to update
+   * @returns {Promise<Object|null>} Updated record or null if not found
+   *
+   * @example
+   * const updated = await repo.update(
+   *   'bookings',
+   *   { yclients_record_id: 123456 },
+   *   { status: 'cancelled', updated_at: new Date().toISOString() }
+   * );
+   */
+  async update(table, filters, data) {
+    const startTime = Date.now();
+
+    try {
+      if (!data || Object.keys(data).length === 0) {
+        throw new Error('Data object cannot be empty');
+      }
+
+      // Build SET clause
+      const setColumns = Object.keys(data);
+      const setClause = setColumns.map((col, i) => `${col} = $${i + 1}`).join(', ');
+      const setValues = Object.values(data);
+
+      // Build WHERE clause (parameters continue from SET)
+      const { where, params: whereParams } = this._buildWhere(filters);
+      const adjustedWhere = where.replace(/\$(\d+)/g, (_, num) => `$${parseInt(num) + setValues.length}`);
+
+      const sql = `
+        UPDATE ${this._sanitize(table)}
+        SET ${setClause}
+        WHERE ${adjustedWhere}
+        RETURNING *
+      `;
+
+      const allParams = [...setValues, ...whereParams];
+      const result = await this.db.query(sql, allParams);
+
+      const duration = Date.now() - startTime;
+      if (process.env.LOG_DATABASE_CALLS === 'true') {
+        console.log(`[DB] update ${table} - ${result.rowCount} rows - ${duration}ms`);
+      }
+
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error(`[DB Error] update ${table}:`, error.message);
+      Sentry.captureException(error, {
+        tags: {
+          component: 'repository',
+          table,
+          operation: 'update'
+        },
+        extra: {
+          filters,
+          dataKeys: Object.keys(data),
+          duration: `${Date.now() - startTime}ms`
+        }
+      });
+      throw this._handleError(error);
+    }
+  }
+
+  /**
    * Bulk insert or update multiple records
    * @param {string} table - Table name
    * @param {Array<Object>} dataArray - Array of records
