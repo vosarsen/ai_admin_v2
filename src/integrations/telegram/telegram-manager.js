@@ -297,7 +297,9 @@ class TelegramManager {
     try {
       this.metrics.messagesReceived++;
 
-      const { businessConnectionId, chatId, from, message, messageId } = data;
+      const { chatId, from, message, messageId, metadata } = data;
+      // businessConnectionId is nested in metadata from telegram-bot.js
+      const businessConnectionId = metadata?.businessConnectionId || data.businessConnectionId;
 
       // Resolve company ID from business connection
       const connectionInfo = await this.resolveConnection(businessConnectionId);
@@ -350,20 +352,15 @@ class TelegramManager {
   async resolveConnection(businessConnectionId) {
     this.metrics.connectionLookups++;
 
-    logger.debug('resolveConnection called:', { businessConnectionId, cacheSize: this.connectionCache.size });
-
     // Check cache first
     const cached = this.connectionCache.get(businessConnectionId);
     if (cached && (Date.now() - cached.cachedAt) < this.cacheTTL) {
       this.metrics.cacheHits++;
-      logger.debug('Cache hit:', { businessConnectionId, companyId: cached.companyId });
       return cached;
     }
 
     // Lookup in database
-    logger.debug('Cache miss, querying database:', { businessConnectionId });
     const connection = await this.connectionRepository.findByBusinessConnectionId(businessConnectionId);
-    logger.debug('Database result:', { businessConnectionId, found: !!connection, connection });
 
     if (!connection) {
       return null;
