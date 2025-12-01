@@ -125,7 +125,27 @@ class TelegramManager {
 
     // Handle user linking complete (from deep link flow)
     telegramBot.on('user_linked', async (data) => {
+      // Invalidate user link cache
       this.invalidateUserCache(data.telegramUserId);
+
+      // CRITICAL: Also invalidate connection cache for old company
+      // This prevents routing messages to wrong company on re-linking
+      try {
+        const oldConnection = await this.connectionRepository.findByTelegramUserId(data.telegramUserId);
+        if (oldConnection && oldConnection.company_id !== data.companyId) {
+          this.invalidateConnectionCache(oldConnection.business_connection_id);
+          logger.info('Old connection cache invalidated for re-linked user:', {
+            telegramUserId: data.telegramUserId,
+            oldCompanyId: oldConnection.company_id,
+            newCompanyId: data.companyId,
+            businessConnectionId: oldConnection.business_connection_id
+          });
+        }
+      } catch (error) {
+        // Non-critical - log and continue
+        logger.warn('Failed to check old connection for cache invalidation:', error.message);
+      }
+
       logger.info('User link cache invalidated:', {
         telegramUserId: data.telegramUserId,
         companyId: data.companyId
@@ -135,13 +155,19 @@ class TelegramManager {
 
   /**
    * Handle business connection event (salon connects/disconnects)
+   * @param {Object} data - Connection event data
+   * @param {number} [retryCount=0] - Retry attempt (for race condition handling)
    */
-  async handleBusinessConnection(data) {
+  async handleBusinessConnection(data, retryCount = 0) {
+    const MAX_RETRIES = 2;
+    const RETRY_DELAY_MS = 2000;
+
     try {
       logger.info('Processing business connection:', {
         connectionId: data.connectionId,
         userId: data.userId,
-        isEnabled: data.isEnabled
+        isEnabled: data.isEnabled,
+        retryCount
       });
 
       if (data.isEnabled) {
@@ -149,11 +175,24 @@ class TelegramManager {
         const companyId = await this.resolveCompanyId(data.userId);
 
         if (!companyId) {
-          logger.warn('No company linked for Telegram user, cannot save connection:', {
+          // Race condition: user might be completing deep link confirmation right now
+          // Retry after a short delay to handle this edge case
+          if (retryCount < MAX_RETRIES) {
+            logger.info('No company linked yet, will retry in 2s (race condition handling):', {
+              telegramUserId: data.userId,
+              retryCount: retryCount + 1
+            });
+            setTimeout(() => {
+              this.handleBusinessConnection(data, retryCount + 1);
+            }, RETRY_DELAY_MS);
+            return;
+          }
+
+          logger.warn('No company linked for Telegram user after retries, cannot save connection:', {
             telegramUserId: data.userId,
-            username: data.username
+            username: data.username,
+            retriesExhausted: true
           });
-          // Optionally send message to user to link first
           return;
         }
 
