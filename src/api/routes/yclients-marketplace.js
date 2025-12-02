@@ -664,7 +664,99 @@ router.post('/marketplace/activate', async (req, res) => {
 });
 
 // ============================
-// 6. WEBHOOK CALLBACK - Прием webhook событий от YClients
+// 6. UNIVERSAL WEBHOOK COLLECTOR - Общий сборщик всех уведомлений
+// URL: POST /webhook/yclients/collector
+// Логирует ВСЕ входящие события для мониторинга
+// ============================
+router.post('/webhook/yclients/collector', async (req, res) => {
+  try {
+    const receivedAt = new Date().toISOString();
+
+    logger.info('📥 [COLLECTOR] Webhook received:', {
+      body_keys: Object.keys(req.body),
+      content_type: req.headers['content-type'],
+      ip: req.ip
+    });
+
+    // Сохраняем ВСЁ что пришло в базу данных
+    const eventRecord = await marketplaceEventsRepository.insert({
+      salon_id: req.body.salon_id ? parseInt(req.body.salon_id) : null,
+      event_type: 'collector_' + (req.body.event_type || req.body.event || 'raw'),
+      event_data: {
+        raw_body: req.body,
+        raw_headers: {
+          'content-type': req.headers['content-type'],
+          'user-agent': req.headers['user-agent'],
+          'x-forwarded-for': req.headers['x-forwarded-for'],
+          'x-real-ip': req.headers['x-real-ip']
+        },
+        ip: req.ip,
+        received_at: receivedAt
+      }
+    });
+
+    logger.info('✅ [COLLECTOR] Event saved:', { event_id: eventRecord?.id });
+
+    res.status(200).json({
+      success: true,
+      message: 'Event received and logged',
+      event_id: eventRecord?.id,
+      received_at: receivedAt
+    });
+
+  } catch (error) {
+    logger.error('❌ [COLLECTOR] Error:', error);
+    Sentry.captureException(error, {
+      tags: { component: 'webhook_collector' }
+    });
+    res.status(200).json({ success: false, error: error.message });
+  }
+});
+
+// GET endpoint для просмотра собранных событий
+router.get('/webhook/yclients/collector/events', adminRateLimiter, adminAuth, async (req, res) => {
+  try {
+    const { limit = 50, salon_id, event_type } = req.query;
+
+    let sql = `
+      SELECT id, salon_id, event_type, event_data, created_at
+      FROM marketplace_events
+      WHERE event_type LIKE 'collector_%'
+    `;
+    const params = [];
+    let paramIndex = 1;
+
+    if (salon_id) {
+      sql += ` AND salon_id = $${paramIndex}`;
+      params.push(parseInt(salon_id));
+      paramIndex++;
+    }
+
+    if (event_type) {
+      sql += ` AND event_type LIKE $${paramIndex}`;
+      params.push(`%${event_type}%`);
+      paramIndex++;
+    }
+
+    sql += ` ORDER BY created_at DESC LIMIT $${paramIndex}`;
+    params.push(parseInt(limit));
+
+    const result = await postgres.query(sql, params);
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      events: result.rows
+    });
+
+  } catch (error) {
+    logger.error('❌ [COLLECTOR] Failed to get events:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================
+// 7. WEBHOOK CALLBACK - Прием webhook событий от YClients (основной обработчик)
 // URL: POST /webhook/yclients
 // Phase 4: Added partner_token validation
 // ============================
