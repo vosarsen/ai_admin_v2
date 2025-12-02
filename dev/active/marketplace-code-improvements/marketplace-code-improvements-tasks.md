@@ -1,195 +1,268 @@
-# YClients Marketplace Code Improvements - Tasks
+# YClients Marketplace Code Improvements - Tasks (REVISED)
 
 **Last Updated:** 2025-12-02
 **Status:** READY TO START
+**Review Status:** APPROVED WITH CHANGES (applied)
 
 ---
 
 ## Phase 1: Critical Fixes (5h)
 
 ### Task 1.1: Transaction Rollback for Activation Flow
-**Priority:** CRITICAL | **Time:** 2h | **Status:** ⬜ Not Started
+**Priority:** CRITICAL | **Time:** 3-4h | **Status:** ⬜ Not Started
 
 **File:** `src/api/routes/yclients-marketplace.js:500-664`
 
-**Problem:** API key может утечь при ошибке YClients API
+**Problems:**
+1. API key может утечь при ошибке YClients API
+2. **[NEW]** Variable scope bug: `company_id` и `salon_id` могут быть undefined в catch block
 
 **Subtasks:**
-- [ ] Изучить текущий activation flow (lines 500-664)
-- [ ] Создать withTransaction wrapper для activation
-- [ ] Перенести все DB операции внутрь транзакции
-- [ ] Добавить SELECT FOR UPDATE для company record
-- [ ] Тест: Simulate YClients API failure → verify rollback
-- [ ] Тест: Verify api_key NOT saved on failure
-- [ ] Update Sentry tags for transaction errors
-- [ ] Deploy and verify in production logs
+
+**Step 1: Fix variable scope (30min)**
+- [ ] Объявить `let salon_id, company_id;` в начале функции
+- [ ] Присваивать после jwt.verify: `salon_id = decoded.salon_id;`
+- [ ] Проверить все места где используются в catch block
+
+**Step 2: Wrap in transaction (1.5h)**
+- [ ] Импортировать `companyRepository.withTransaction`
+- [ ] Обернуть весь activation flow в транзакцию
+- [ ] Использовать `txClient.query()` для всех DB операций внутри
+- [ ] Добавить advisory lock (Task 1.2) внутрь транзакции
+
+**Step 3: Move event logging outside (30min)**
+- [ ] Вынести `marketplaceEventsRepository.insert()` ПОСЛЕ транзакции
+- [ ] Обернуть в try-catch (non-critical)
+- [ ] Логировать ошибку в Sentry но не падать
+
+**Step 4: Add feature flag (15min)**
+- [ ] Добавить `USE_TRANSACTION_ACTIVATION` в .env
+- [ ] Реализовать if/else для старого и нового кода
+- [ ] Документировать в .env.example
+
+**Step 5: Write unit test (45min)**
+- [ ] Тест: YClients API возвращает ошибку → API key НЕ сохранен
+- [ ] Тест: DB rollback срабатывает корректно
+- [ ] Тест: Event logging падает → активация все равно успешна
 
 **Code Location:**
 ```javascript
-// Current (line 540-548): Save API key BEFORE YClients call
-await companyRepository.update(company_id, {
-  api_key: apiKey,  // ❌ Saved even if YClients fails!
-  integration_status: 'activating'
+// Current (buggy):
+router.post('/marketplace/activate', async (req, res) => {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const { salon_id, company_id } = decoded;  // ❌ Scope limited to try block
+    // ...
+  } catch (error) {
+    if (company_id) {  // ❌ company_id undefined here!
+      // ...
+    }
+  }
 });
 
-// Target: Wrap in transaction
-await companyRepository.withTransaction(async (txClient) => {
-  // All operations atomic
+// Fixed:
+router.post('/marketplace/activate', async (req, res) => {
+  let salon_id, company_id;  // ✅ Function scope
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    salon_id = decoded.salon_id;      // ✅ Assign after verification
+    company_id = decoded.company_id;
+    // ...
+  } catch (error) {
+    if (company_id) {  // ✅ Now accessible
+      // ...
+    }
+  }
 });
 ```
 
 ---
 
-### Task 1.2: Concurrent Activation Protection
+### Task 1.2: Concurrent Activation Protection (Advisory Locks)
 **Priority:** HIGH | **Time:** 1h | **Status:** ⬜ Not Started
 
 **File:** `src/api/routes/yclients-marketplace.js:500-664`
 
-**Problem:** Race condition при параллельных активациях
+**Problem:** Race condition при параллельных активациях одного salon_id
 
 **Subtasks:**
-- [ ] Добавить SELECT FOR UPDATE в начало транзакции
-- [ ] Handle deadlock scenario (NOWAIT option)
-- [ ] Return 409 Conflict для concurrent requests
-- [ ] Log concurrent activation attempts to Sentry
-- [ ] Integration test: Send 2 parallel requests
-- [ ] Verify: One succeeds, one fails with 409
 
-**Code Location:**
+**Step 1: Add advisory lock (15min)**
+- [ ] Добавить внутрь транзакции (после BEGIN):
 ```javascript
-// Add inside transaction (Task 1.1)
-await txClient.query(
-  'SELECT id FROM companies WHERE id = $1 FOR UPDATE NOWAIT',
-  [company_id]
+const lockResult = await txClient.query(
+  'SELECT pg_try_advisory_xact_lock($1)',
+  [parseInt(salon_id)]
 );
-// If another transaction holds lock → throws error
+```
+- [ ] Lock автоматически освобождается при COMMIT/ROLLBACK
+
+**Step 2: Handle lock failure (15min)**
+- [ ] Проверить результат: `lockResult.rows[0].pg_try_advisory_xact_lock`
+- [ ] Если false → return 409 Conflict
+- [ ] Добавить retry_after: 5 секунд
+- [ ] Логировать в Sentry как warning (не error)
+
+**Step 3: Integration test (30min)**
+- [ ] Создать тест с двумя параллельными запросами
+- [ ] Проверить: один 200 OK, один 409 Conflict
+- [ ] Проверить: API key сохранен только один раз
+
+**Code:**
+```javascript
+// Inside transaction, FIRST operation
+const lockResult = await txClient.query(
+  'SELECT pg_try_advisory_xact_lock($1)',
+  [parseInt(salon_id)]
+);
+
+if (!lockResult.rows[0].pg_try_advisory_xact_lock) {
+  logger.warn('Concurrent activation attempt blocked', { salon_id });
+  return res.status(409).json({
+    error: 'Activation already in progress',
+    code: 'CONCURRENT_ACTIVATION',
+    retry_after: 5
+  });
+}
 ```
 
 ---
 
-### Task 1.3: QR Generation Circuit Breaker
-**Priority:** MEDIUM-HIGH | **Time:** 2h | **Status:** ⬜ Not Started
+### Task 1.3: QR Generation Circuit Breaker (REUSE EXISTING)
+**Priority:** MEDIUM-HIGH | **Time:** 30min | **Status:** ⬜ Not Started
 
 **File:** `src/api/routes/yclients-marketplace.js:391-433`
 
 **Problem:** 38 секунд блокировки если Baileys недоступен
 
+**ВАЖНО:** CircuitBreaker УЖЕ СУЩЕСТВУЕТ в `src/utils/circuit-breaker.js`!
+
 **Subtasks:**
-- [ ] Создать class QRCircuitBreaker
-- [ ] Implement states: CLOSED, OPEN, HALF_OPEN
-- [ ] Configure: 5 failures → OPEN, 60s cooldown
-- [ ] Wrap QR generation в circuit breaker
-- [ ] Return 503 with retry_after когда OPEN
-- [ ] Add Sentry alert при переходе в OPEN
-- [ ] Manual test: Stop Baileys, verify fast fail
-- [ ] Add health check endpoint for circuit state
 
-**Code Location:**
+**Step 1: Import existing CircuitBreaker (5min)**
+- [ ] Добавить import:
 ```javascript
-// New file: src/utils/circuit-breaker.js
-class CircuitBreaker {
-  constructor(options = {}) {
-    this.failureThreshold = options.failureThreshold || 5;
-    this.cooldownPeriodMs = options.cooldownPeriodMs || 60000;
-    this.state = 'CLOSED';
-    this.failures = 0;
-    this.lastFailureTime = null;
-  }
-
-  async execute(fn) {
-    // Check state, execute, track failures
-  }
-}
-
-// Usage in yclients-marketplace.js
-const qrCircuitBreaker = new CircuitBreaker({ name: 'QR Generation' });
-
-router.post('/marketplace/api/qr', async (req, res) => {
-  await qrCircuitBreaker.execute(async () => {
-    // ... QR generation logic ...
-  });
+const { getCircuitBreaker } = require('../../utils/circuit-breaker');
+```
+- [ ] Создать instance:
+```javascript
+const qrCircuitBreaker = getCircuitBreaker('qr-generation', {
+  failureThreshold: 5,
+  resetTimeout: 60000,
+  timeout: 30000,
+  successThreshold: 2
 });
 ```
 
----
+**Step 2: Configure for QR generation (10min)**
+- [ ] Обернуть QR логику в `qrCircuitBreaker.execute()`
+- [ ] Уменьшить attempts с 10 до 5 (circuit breaker добавляет защиту)
+- [ ] Обработать `error.code === 'CIRCUIT_OPEN'` → 503
 
-## Phase 2: Important Improvements (6h)
+**Step 3: Add to health check (15min)**
+- [ ] Добавить в `/marketplace/health`:
+```javascript
+checks.circuitBreakers = {
+  qrGeneration: qrCircuitBreaker.getState()
+};
+```
+- [ ] Включить: state, failures, nextAttempt
 
-### Task 2.1: Admin Audit Trail
-**Priority:** MEDIUM | **Time:** 3h | **Status:** ⬜ Not Started
+**Existing CircuitBreaker API:**
+```javascript
+// Execute with protection
+await circuitBreaker.execute(async () => { ... });
 
-**Files:** routes, new migration
+// Get current state
+circuitBreaker.getState(); // { state, failures, successes, nextAttempt, lastError }
 
-**Problem:** Admin действия не сохраняются в БД
+// Get statistics
+circuitBreaker.getStats(); // { totalRequests, successRate, recentStateChanges }
 
-**Subtasks:**
-- [ ] Create migration: admin_audit_log table
-- [ ] Add indexes: admin_id, created_at, action
-- [ ] Create helper: logAdminAction(req, res, action, ...)
-- [ ] Add to admin routes: disconnect, payment_link, channel_update
-- [ ] Sanitize request body before logging (remove secrets)
-- [ ] Add endpoint: GET /admin/audit-log (admin only)
-- [ ] Test: Verify logs appear for all admin actions
-- [ ] Add retention policy (90 days auto-cleanup)
+// Manual reset
+circuitBreaker.reset();
 
-**Schema:**
-```sql
-CREATE TABLE admin_audit_log (
-  id SERIAL PRIMARY KEY,
-  admin_id VARCHAR(255),
-  admin_role VARCHAR(50),
-  admin_email VARCHAR(255),
-  auth_method VARCHAR(20),
-  action VARCHAR(100) NOT NULL,
-  resource_type VARCHAR(50),
-  resource_id VARCHAR(255),
-  ip_address VARCHAR(45),
-  user_agent TEXT,
-  request_path VARCHAR(500),
-  request_method VARCHAR(10),
-  request_body JSONB,
-  response_status INTEGER,
-  error_message TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_admin_audit_admin_id ON admin_audit_log (admin_id);
-CREATE INDEX idx_admin_audit_created_at ON admin_audit_log (created_at);
-CREATE INDEX idx_admin_audit_action ON admin_audit_log (action);
+// Check availability
+circuitBreaker.isAvailable(); // boolean
 ```
 
 ---
 
-### Task 2.2: Webhook Idempotency
+## Phase 2: Important Improvements (7h)
+
+### Task 2.1: Admin Audit Trail
+**Priority:** MEDIUM | **Time:** 4h | **Status:** ⬜ Not Started
+
+**Files:** routes, new migration
+
+**Subtasks:**
+
+**Step 1: Create migration (1h)**
+- [ ] Создать файл `migrations/003_admin_audit_log.sql`
+- [ ] Создать таблицу с колонками (см. план)
+- [ ] Добавить composite index для lookup
+- [ ] Добавить index для cleanup job
+- [ ] Добавить rollback SQL в комментариях
+
+**Step 2: Create helper function (1h)**
+- [ ] Создать `logAdminAction(req, res, action, resourceType, resourceId)`
+- [ ] Санитизировать request body (убрать password, token, api_key)
+- [ ] Не падать если логирование не удалось
+- [ ] Добавить в отдельный файл `src/utils/admin-audit.js`
+
+**Step 3: Apply to admin routes (1h)**
+- [ ] `/marketplace/admin/salon/:salonId/disconnect`
+- [ ] `/marketplace/admin/salon/:salonId/payment-link`
+- [ ] `/marketplace/admin/salon/:salonId/channel`
+- [ ] Другие admin endpoints
+
+**Step 4: Add view endpoint (30min)**
+- [ ] `GET /marketplace/admin/audit-log`
+- [ ] Фильтры: admin_id, action, date_from, date_to
+- [ ] Пагинация: limit, offset
+- [ ] Только для superadmin
+
+**Step 5: Retention policy (30min)**
+- [ ] Создать скрипт cleanup в `scripts/`
+- [ ] Удалять записи старше 90 дней
+- [ ] Добавить в PM2 cron (ежедневно в 4:00)
+
+---
+
+### Task 2.2: Webhook Idempotency (REVISED)
 **Priority:** MEDIUM | **Time:** 2h | **Status:** ⬜ Not Started
 
 **File:** `src/api/routes/yclients-marketplace.js:763-836`
 
-**Problem:** Duplicate webhooks обрабатываются дважды
+**ВАЖНО:** Убрать timestamp из hash!
 
 **Subtasks:**
-- [ ] Generate webhook_id from event data + timestamp
-- [ ] Store in Redis with TTL 1 hour
-- [ ] Check before processing (NX flag)
-- [ ] Skip duplicates with logging
-- [ ] On error: Remove key (allow retry)
-- [ ] Integration test: Send same webhook twice
-- [ ] Verify: Only one event processed
-- [ ] Add metrics: duplicate_webhooks_count
 
-**Code Location:**
+**Step 1: Generate deterministic webhook ID (30min)**
+- [ ] Hash БЕЗ timestamp:
 ```javascript
-// In webhook handler
 const webhookId = crypto.createHash('sha256')
   .update(`${eventType}:${salon_id}:${JSON.stringify(data)}`)
   .digest('hex').substring(0, 16);
-
-const isNew = await redis.set(`webhook:processed:${webhookId}`, '1', 'EX', 3600, 'NX');
-if (!isNew) {
-  logger.info('Duplicate webhook skipped', { webhookId });
-  return;
-}
 ```
+- [ ] Логировать webhookId для отладки
+
+**Step 2: Implement Redis check (30min)**
+- [ ] Получить Redis client
+- [ ] `SET key 1 EX 3600 NX` для atomic check-and-set
+- [ ] Если null → duplicate, skip processing
+- [ ] Return 200 OK с `skipped: 'duplicate'`
+
+**Step 3: Handle processing errors (30min)**
+- [ ] Если обработка падает → удалить key из Redis
+- [ ] Это позволит retry от YClients
+- [ ] Логировать retry allowance
+
+**Step 4: Test (30min)**
+- [ ] Отправить webhook дважды
+- [ ] Проверить: только один event в БД
+- [ ] Проверить: Redis key существует 1 час
 
 ---
 
@@ -198,97 +271,69 @@ if (!isNew) {
 
 **File:** `src/utils/validators.js:70-83`
 
-**Problem:** Silent truncation может потерять данные
-
 **Subtasks:**
-- [ ] Add options parameter to sanitizeString
-- [ ] Implement logWarning option (default true)
-- [ ] Log truncation with original/max length
-- [ ] Update usages in marketplace routes
-- [ ] Test: Long string → verify warning logged
-- [ ] Backward compatibility: existing calls work
 
-**Code:**
-```javascript
-function sanitizeString(input, maxLength = 255, options = {}) {
-  const { logWarning = true, throwOnOverflow = false } = options;
+**Step 1: Add options parameter (20min)**
+- [ ] Изменить сигнатуру: `sanitizeString(input, maxLength = 255, options = {})`
+- [ ] Добавить `{ logWarning = true, throwOnOverflow = false }`
+- [ ] Backward compatible: старые вызовы работают
 
-  // ... sanitization ...
+**Step 2: Implement warning logic (20min)**
+- [ ] Проверять length ПОСЛЕ sanitization
+- [ ] Если overflow и throwOnOverflow → throw Error
+- [ ] Если overflow и logWarning → logger.warn
 
-  if (clean.length > maxLength) {
-    if (throwOnOverflow) {
-      throw new Error(`String exceeds ${maxLength} chars`);
-    }
-    if (logWarning) {
-      logger.warn('String truncated', {
-        original: clean.length,
-        max: maxLength
-      });
-    }
-    return clean.substring(0, maxLength);
-  }
-  return clean;
-}
-```
+**Step 3: Update usages (20min)**
+- [ ] Проверить все вызовы sanitizeString в codebase
+- [ ] При необходимости добавить `{ logWarning: false }` где не нужно
 
 ---
 
-## Phase 3: Nice to Have (5h)
+## Phase 3: Nice to Have (6h)
 
 ### Task 3.1: Enhanced Health Check
-**Priority:** LOW | **Time:** 1h | **Status:** ⬜ Not Started
-
-**File:** `src/api/routes/yclients-marketplace.js:842-881`
+**Priority:** LOW | **Time:** 1.5h | **Status:** ⬜ Not Started
 
 **Subtasks:**
-- [ ] Add PostgreSQL connection test
-- [ ] Add Redis ping test
-- [ ] Add Baileys session pool status
-- [ ] Return 503 if any service unhealthy
-- [ ] Include latency metrics
-- [ ] Add circuit breaker state
+- [ ] Добавить timeout wrapper для всех проверок
+- [ ] PostgreSQL connection test с latency
+- [ ] Redis ping test с latency
+- [ ] Circuit breaker states
+- [ ] Return 503 если критические сервисы unhealthy
 
 ---
 
 ### Task 3.2: Standardized Error Handling
 **Priority:** LOW | **Time:** 2h | **Status:** ⬜ Not Started
 
-**File:** `src/services/marketplace/marketplace-service.js`
-
 **Subtasks:**
-- [ ] Define Result type: { success, data, error, code }
-- [ ] Update all service methods
-- [ ] Update route handlers to use Result
-- [ ] Document error codes
-- [ ] Test edge cases
+- [ ] Определить Result type: `{ success, data, error, code }`
+- [ ] Обновить все service методы
+- [ ] Обновить route handlers
+- [ ] Документировать error codes
 
 ---
 
-### Task 3.3: Redis-based Rate Limiter
+### Task 3.3: Rate Limiter per Salon
 **Priority:** LOW | **Time:** 1h | **Status:** ⬜ Not Started
 
-**File:** `src/api/routes/yclients-marketplace.js:44-95`
-
 **Subtasks:**
-- [ ] Replace in-memory Map with Redis
-- [ ] Add per-salon rate limiting for webhooks
-- [ ] Survive server restarts
-- [ ] Work across multiple Node processes
+- [ ] Использовать существующий `bottleneck` из package.json
+- [ ] Создать limiter factory по salon_id
+- [ ] Применить к webhook endpoint
+- [ ] 10 requests per minute per salon
 
 ---
 
 ### Task 3.4: Integration Tests
-**Priority:** LOW | **Time:** 4h | **Status:** ⬜ Not Started
-
-**File:** `tests/integration/marketplace/`
+**Priority:** LOW | **Time:** 1.5h | **Status:** ⬜ Not Started
 
 **Subtasks:**
 - [ ] Test: Full activation flow (happy path)
 - [ ] Test: Activation rollback on YClients failure
-- [ ] Test: Concurrent activation (409 response)
+- [ ] Test: Concurrent activation (409)
 - [ ] Test: Webhook idempotency
-- [ ] Test: Circuit breaker open/close cycle
-- [ ] Test: Admin audit logging
+- [ ] Test: Circuit breaker states
 
 ---
 
@@ -305,22 +350,29 @@ function sanitizeString(input, maxLength = 255, options = {}) {
 
 ## Deployment Checklist
 
-### Phase 1 Deployment
-- [ ] All Phase 1 tasks completed
+### Phase 1 Pre-Deployment
+- [ ] All Phase 1 subtasks completed
 - [ ] Unit tests passing
-- [ ] Manual testing in staging
+- [ ] Feature flag `USE_TRANSACTION_ACTIVATION=false` in .env
 - [ ] Code review approved
 - [ ] Commit with descriptive message
+
+### Phase 1 Deployment
 - [ ] Deploy: `ssh ... && git pull && pm2 restart ai-admin-api`
 - [ ] Verify: Health check passes
-- [ ] Verify: No errors in Sentry
-- [ ] Monitor: 30 min production observation
+- [ ] Verify: No errors in Sentry (5 min observation)
 
-### Phase 2 Deployment
-- [ ] All Phase 2 tasks completed
-- [ ] Migration for admin_audit_log applied
-- [ ] Test admin endpoints logging
-- [ ] Deploy and verify
+### Phase 1 Staged Rollout
+- [ ] Enable flag for test salon 997441 only
+- [ ] Test activation flow manually
+- [ ] Monitor 24 hours
+- [ ] Enable globally: `USE_TRANSACTION_ACTIVATION=true`
+- [ ] Monitor additional 24 hours
+
+### Rollback Triggers
+- [ ] More than 3 activation failures in 1 hour → disable flag
+- [ ] Database connection pool >80% → disable flag
+- [ ] Any ROLLBACK errors in Sentry → disable flag
 
 ---
 
@@ -333,9 +385,17 @@ npm run test:marketplace
 # Production health check
 curl https://adminai.tech/marketplace/health | jq .
 
-# Check logs
+# Check circuit breaker state
+curl https://adminai.tech/marketplace/health | jq '.circuitBreakers'
+
+# Check logs for transaction
 ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 \
-  "pm2 logs ai-admin-api --lines 50 --nostream | grep -E 'circuit|transaction|rollback'"
+  "pm2 logs ai-admin-api --lines 50 --nostream | grep -E 'transaction|advisory|ROLLBACK'"
+
+# Test concurrent activation (run in two terminals)
+curl -X POST https://adminai.tech/marketplace/activate -d '{"token":"..."}' &
+curl -X POST https://adminai.tech/marketplace/activate -d '{"token":"..."}' &
+# One should return 409
 
 # Check Sentry
 open https://glitchtip.adminai.tech
@@ -343,9 +403,23 @@ open https://glitchtip.adminai.tech
 
 ---
 
+## Key Changes from Plan Review
+
+| Original | Revised | Reason |
+|----------|---------|--------|
+| Create new CircuitBreaker | Reuse existing | Already exists in `src/utils/circuit-breaker.js` |
+| FOR UPDATE NOWAIT | Advisory locks | No need for existing row, cleaner |
+| Timestamp in webhook hash | No timestamp | Deterministic duplicate detection |
+| Event logging in transaction | Outside transaction | Non-critical, shouldn't fail activation |
+| Task 1.3: 2h | Task 1.3: 30min | Just integration, not building |
+| Task 1.1: 2h | Task 1.1: 3-4h | Variable scope fix + testing |
+
+---
+
 ## Notes
 
 - Начинаем после прохождения YClients модерации
 - Phase 1 критичен для production stability
-- Circuit breaker особенно важен (38s → instant fail)
-- Audit trail нужен для compliance
+- Feature flag обязателен для Task 1.1
+- Staged rollout: test salon → all salons
+- Circuit breaker уже production-ready, просто интегрируем
