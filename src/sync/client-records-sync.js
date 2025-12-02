@@ -310,7 +310,7 @@ class ClientRecordsSync {
           visit_count = $1,
           first_visit_date = $2,
           last_visit_date = $3,
-          last_services = $4,
+          last_services = $4::text[],
           visit_history = $5,
           services_amount = $6,
           goods_amount = $7,
@@ -320,11 +320,15 @@ class ClientRecordsSync {
         WHERE id = $10
       `;
 
+      // Format array for PostgreSQL: {item1,item2} format
+      // node-pg does NOT auto-convert JS arrays to PostgreSQL arrays in parameterized queries
+      const pgArray = `{${lastServices.map(s => `"${s.replace(/"/g, '\\"')}"`).join(',')}}`;
+
       await postgres.query(updateSql, [
         visits.length,
         firstVisit.date,
         lastVisit.date,
-        lastServices,  // PostgreSQL ARRAY - pass directly, node-pg converts automatically
+        pgArray,  // PostgreSQL ARRAY - must be formatted as {item1,item2}
         JSON.stringify(visitHistory),  // JSONB - needs JSON.stringify
         totalSpent,
         estimatedGoodsAmount > 0 ? estimatedGoodsAmount : 0,

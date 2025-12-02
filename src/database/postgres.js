@@ -37,11 +37,12 @@ const poolMetrics = {
   alertThresholds: {
     highUsage: parseFloat(process.env.DB_POOL_USAGE_THRESHOLD) || 0.8, // From env or default 80% connections in use
     highWaitQueue: 5, // 5+ queries waiting
+    minPoolSizeForAlerts: 5, // Don't alert if pool is smaller (too few connections for meaningful stats)
   },
   alerts: {
     lastHighUsageAlert: 0,
     lastHighWaitQueueAlert: 0,
-    alertCooldown: 5 * 60 * 1000, // 5 minutes between alerts
+    alertCooldown: 30 * 60 * 1000, // 30 minutes between alerts (was 5 min, too noisy for small pools)
   }
 };
 
@@ -80,8 +81,12 @@ function checkPoolHealthAlerts(snapshot) {
 
   const now = Date.now();
 
-  // Alert: High connection usage (>80%)
-  if (snapshot.usage > poolMetrics.alertThresholds.highUsage) {
+  // Skip high usage alerts for small pools (less than minPoolSizeForAlerts connections)
+  // Small pools are expected to hit 100% usage frequently - not actionable
+  const isSmallPool = snapshot.maxConnections < poolMetrics.alertThresholds.minPoolSizeForAlerts;
+
+  // Alert: High connection usage (>80%) - only for larger pools
+  if (!isSmallPool && snapshot.usage > poolMetrics.alertThresholds.highUsage) {
     const timeSinceLastAlert = now - poolMetrics.alerts.lastHighUsageAlert;
 
     if (timeSinceLastAlert > poolMetrics.alerts.alertCooldown) {

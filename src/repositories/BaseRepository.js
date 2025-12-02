@@ -176,7 +176,8 @@ class BaseRepository {
       }
 
       const columns = Object.keys(data);
-      const values = Object.values(data);
+      // Convert arrays to PostgreSQL format
+      const values = Object.values(data).map(v => this._convertValue(v));
       const placeholders = columns.map((_, i) => `$${i + 1}`);
 
       // Build UPDATE SET clause (exclude conflict columns from update)
@@ -323,8 +324,8 @@ class BaseRepository {
         return `(${rowPlaceholders.join(', ')})`;
       }).join(', ');
 
-      // Flatten all values into single array
-      const allValues = dataArray.flatMap(row => columns.map(col => row[col]));
+      // Flatten all values into single array, converting arrays to PostgreSQL format
+      const allValues = dataArray.flatMap(row => columns.map(col => this._convertValue(row[col])));
 
       // Build UPDATE SET clause
       const updateSet = columns
@@ -404,16 +405,22 @@ class BaseRepository {
     const startTime = Date.now();
 
     // Get a dedicated client from the pool for this transaction
-    // Support both: db.getClient() (if db is postgres module) and db.pool.connect() (if db is pool)
+    // Support multiple initialization patterns:
+    // 1. db.connect() - if db is a Pool instance directly (most common in our codebase)
+    // 2. db.getClient() - if db is the postgres module
+    // 3. db.pool.connect() - if db has a nested pool property
     let client;
-    if (typeof this.db.getClient === 'function') {
+    if (typeof this.db.connect === 'function') {
+      // Most common: db is a Pool instance (passed as postgres.pool)
+      client = await this.db.connect();
+    } else if (typeof this.db.getClient === 'function') {
+      // db is the postgres module itself
       client = await this.db.getClient();
     } else if (this.db.pool && typeof this.db.pool.connect === 'function') {
+      // db has a nested pool property
       client = await this.db.pool.connect();
-    } else if (typeof this.db.connect === 'function') {
-      client = await this.db.connect();
     } else {
-      throw new Error('Database connection does not support getClient() or connect()');
+      throw new Error('Database connection does not support connect() or getClient()');
     }
 
     try {
@@ -679,8 +686,8 @@ class BaseRepository {
             return `(${rowPlaceholders.join(', ')})`;
           }).join(', ');
 
-          // Flatten all values into single array
-          const allValues = batch.flatMap(row => columns.map(col => row[col]));
+          // Flatten all values into single array, converting arrays to PostgreSQL format
+          const allValues = batch.flatMap(row => columns.map(col => this._convertValue(row[col])));
 
           // Build UPDATE SET clause
           const updateSet = columns
@@ -744,6 +751,46 @@ class BaseRepository {
       throw new Error(`Invalid identifier: ${identifier}`);
     }
     return identifier;
+  }
+
+  /**
+   * Convert JavaScript array to PostgreSQL array literal format
+   * PostgreSQL expects {item1,item2} format, not JSON ["item1","item2"]
+   * @private
+   * @param {Array} arr - JavaScript array
+   * @returns {string} PostgreSQL array literal string
+   */
+  _toPgArray(arr) {
+    if (!Array.isArray(arr)) {
+      return arr;
+    }
+    if (arr.length === 0) {
+      return '{}';
+    }
+    // Escape double quotes and wrap each element
+    const escaped = arr.map(item => {
+      if (item === null || item === undefined) {
+        return 'NULL';
+      }
+      const str = String(item);
+      // Escape backslashes and double quotes
+      const escapedStr = str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      return `"${escapedStr}"`;
+    });
+    return `{${escaped.join(',')}}`;
+  }
+
+  /**
+   * Convert value for PostgreSQL, handling arrays specially
+   * @private
+   * @param {any} value - Value to convert
+   * @returns {any} Converted value
+   */
+  _convertValue(value) {
+    if (Array.isArray(value)) {
+      return this._toPgArray(value);
+    }
+    return value;
   }
 
   /**
