@@ -374,12 +374,26 @@ function checkMemory() {
   const heapTotalMB = Math.round(usage.heapTotal / 1024 / 1024);
   const rssMB = Math.round(usage.rss / 1024 / 1024);
 
+  // Thresholds for 4GB server
+  const RSS_WARNING_MB = 800;
+  const RSS_CRITICAL_MB = 1500;
+
+  let status = 'ok';
+  if (rssMB > RSS_CRITICAL_MB) {
+    status = 'error';
+  } else if (rssMB > RSS_WARNING_MB) {
+    status = 'warning';
+  }
+
   return {
-    status: rssMB > 500 ? 'warning' : 'ok',
+    status,
     heapUsedMB,
     heapTotalMB,
     rssMB,
-    percentage: Math.round((usage.heapUsed / usage.heapTotal) * 100)
+    // RSS percentage of 4GB total server RAM (more meaningful than heap ratio)
+    rssPercentOfServer: Math.round((rssMB / 4096) * 100),
+    // Keep old field for backwards compatibility, but now based on RSS
+    percentage: Math.round((rssMB / 4096) * 100)
   };
 }
 

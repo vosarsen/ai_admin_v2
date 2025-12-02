@@ -867,7 +867,7 @@ class ProactiveMonitor {
     this.thresholds = {
       queueSize: 100,    // Increased from 50 to 100 to reduce false positives from temporary spikes
       dbKeys: 200,
-      memory: 90,        // percent (было 80%, увеличено до 90% чтобы не спамить)
+      memoryRssMB: 800,  // RSS in MB - real memory usage (for 4GB server)
       noActivityMinutes: 30,
       errorsPerHour: 10
     };
@@ -1139,28 +1139,30 @@ TTL cleanup возможно не работает!
   }
 
   /**
-   * Check memory usage
+   * Check memory usage (based on RSS - real memory consumption)
    */
   async checkMemoryUsage() {
     try {
       const response = await axios.get('http://localhost:3000/health', { timeout: 5000 });
       const memory = response.data?.checks?.memory;
 
-      if (memory && parseFloat(memory.percentage) > this.thresholds.memory) {
+      // Alert based on RSS (real memory usage), not meaningless heap percentage
+      if (memory && memory.rssMB > this.thresholds.memoryRssMB) {
         if (this.shouldAlert('high_memory')) {
+          const serverRamMB = 4096;
+          const rssPercent = Math.round((memory.rssMB / serverRamMB) * 100);
           await this.bot.sendMessage(ADMIN_CHAT_ID, `
 ⚠️ <b>Высокое использование памяти!</b>
 
-Использовано: ${memory.percentage}%
-Порог: ${this.thresholds.memory}%
-Heap: ${memory.heapUsedMB}MB / ${memory.heapTotalMB}MB
-RSS: ${memory.rssMB}MB
+RSS: ${memory.rssMB}MB (${rssPercent}% от 4GB)
+Порог: ${this.thresholds.memoryRssMB}MB
+Heap: ${memory.heapUsedMB}MB
 Время: ${new Date().toLocaleString('ru-RU')}
 
 <b>Действия:</b>
 1. Проверьте статус: /status
-2. Возможно нужен restart
-3. Проверьте memory leaks
+2. Проверьте pm2 monit
+3. Возможен memory leak
 
 <i>Автоматический алерт</i>
 `);
