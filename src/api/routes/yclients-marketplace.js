@@ -129,19 +129,68 @@ router.get('/auth/yclients/redirect', async (req, res) => {
       ));
     }
 
-    const { salon_id, user_id, user_name, user_phone, user_email } = req.query;
+    // YClients sends data in two formats:
+    // 1. salon_ids[0], salon_ids[1], etc. - array of salon IDs
+    // 2. user_data - base64 encoded JSON with user info
+    // 3. user_data_sign - signature for verification
+
+    // Parse salon_id from salon_ids array or direct salon_id param
+    let salon_id = req.query.salon_id;
+    if (!salon_id && req.query['salon_ids[0]']) {
+      salon_id = req.query['salon_ids[0]'];
+    }
+    // Also try parsing from Express array format
+    if (!salon_id && req.query.salon_ids && Array.isArray(req.query.salon_ids)) {
+      salon_id = req.query.salon_ids[0];
+    }
+
+    // Parse user_data from base64 encoded JSON
+    let user_id, user_name, user_phone, user_email, salon_name;
+    const { user_data, user_data_sign } = req.query;
+
+    if (user_data) {
+      try {
+        const decodedData = JSON.parse(Buffer.from(user_data, 'base64').toString('utf-8'));
+        user_id = decodedData.id;
+        user_name = decodedData.name;
+        user_phone = decodedData.phone;
+        user_email = decodedData.email;
+        salon_name = decodedData.salon_name;
+
+        logger.info('📋 Decoded user_data:', {
+          user_id,
+          user_name,
+          user_email,
+          salon_name,
+          is_approved: decodedData.is_approved
+        });
+      } catch (parseError) {
+        logger.warn('⚠️ Failed to parse user_data:', parseError.message);
+      }
+    }
+
+    // Fallback to direct query params if user_data not provided
+    if (!user_id) user_id = req.query.user_id;
+    if (!user_name) user_name = req.query.user_name;
+    if (!user_phone) user_phone = req.query.user_phone;
+    if (!user_email) user_email = req.query.user_email;
 
     logger.info('📍 Registration redirect from YClients Marketplace:', {
       salon_id,
+      salon_name,
       user_id,
       user_name,
       user_phone,
-      user_email
+      user_email,
+      has_user_data: !!user_data,
+      has_signature: !!user_data_sign
     });
 
     // Проверка обязательного параметра
     if (!salon_id) {
-      logger.error('❌ salon_id отсутствует в запросе');
+      logger.error('❌ salon_id отсутствует в запросе', {
+        query_keys: Object.keys(req.query)
+      });
       return res.status(400).send(renderErrorPage(
         'Ошибка подключения',
         'Не получен ID салона от YClients',
@@ -166,7 +215,7 @@ router.get('/auth/yclients/redirect', async (req, res) => {
     try {
       company = await companyRepository.upsertByYclientsId({
         yclients_id: parseInt(salon_id),
-        title: salonInfo?.title || `Салон ${salon_id}`,
+        title: salonInfo?.title || salon_name || `Салон ${salon_id}`,
         phone: salonInfo?.phone || user_phone || '',
         email: salonInfo?.email || user_email || '',
         address: salonInfo?.address || '',

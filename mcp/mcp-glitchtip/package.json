@@ -1,0 +1,15 @@
+{
+  "name": "mcp-glitchtip",
+  "version": "1.0.0",
+  "description": "MCP Server for GlitchTip error tracking integration",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "dotenv": "^16.3.1",
+    "zod": "^3.22.4"
+  }
+}

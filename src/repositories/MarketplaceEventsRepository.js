@@ -28,6 +28,18 @@ class MarketplaceEventsRepository extends BaseRepository {
    */
   async insert(eventData) {
     const startTime = Date.now();
+
+    // Validate required fields
+    if (!eventData.salon_id) {
+      const error = new Error('salon_id is required for marketplace events');
+      Sentry.captureMessage('MarketplaceEventsRepository.insert called without salon_id', {
+        level: 'warning',
+        tags: { component: 'repository', table: this.tableName, operation: 'insert_validation' },
+        extra: { eventType: eventData.event_type, hasCompanyId: !!eventData.company_id }
+      });
+      throw error;
+    }
+
     try {
       const sql = `
         INSERT INTO ${this.tableName} (company_id, salon_id, event_type, event_data)

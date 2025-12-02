@@ -33,6 +33,7 @@ Use MCP servers instead of SSH/scripts for faster access:
 | @supabase | Database | `@supabase query_table table:clients filters:{"phone":"79001234567"}` | ✅ Custom |
 | @yclients | YClients API | `@yclients get_available_slots date:2025-11-15` | ✅ Custom |
 | @notion | Task management | `@notion create_page parent_id:xxxxx title:"New Task"` | ✅ Official |
+| @glitchtip | Error tracking | `@glitchtip get_issues status:unresolved` | ✅ Custom |
 
 ### YClients Marketplace MCP Tools (NEW!)
 
@@ -59,6 +60,28 @@ Use MCP servers instead of SSH/scripts for faster access:
 **Configuration:** All servers configured in `.mcp.json` (see `.mcp.json.example`)
 **Redis tunnel required:** `./scripts/maintain-redis-tunnel.sh start`
 **Notion setup:** See `docs/02-guides/notion/NOTION_MCP_SETUP.md`
+
+### GlitchTip MCP Tools
+
+```bash
+# Check connectivity
+@glitchtip health_check
+
+# Get unresolved errors
+@glitchtip get_issues status:unresolved level:error
+
+# Get issue details with stack trace
+@glitchtip get_issue_details issue_id:"123"
+
+# Resolve/ignore issues
+@glitchtip resolve_issue issue_id:"123"
+@glitchtip ignore_issue issue_id:"123"
+
+# Project health overview
+@glitchtip get_project_summary
+```
+
+**Available tools:** `health_check`, `get_organizations`, `get_projects`, `get_issues`, `get_issue_details`, `get_issue_events`, `resolve_issue`, `ignore_issue`, `unresolve_issue`, `get_project_summary`
 
 ## 🎯 Claude Code Skills System - ✅ ПОЛНОСТЬЮ РАБОТАЕТ
 
