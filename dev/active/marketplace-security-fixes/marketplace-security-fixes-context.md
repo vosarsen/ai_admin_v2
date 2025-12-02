@@ -1,118 +1,74 @@
 # YClients Marketplace Security Fixes - Context
 
-**Last Updated:** 2025-12-02
-**Status:** IN PROGRESS
+**Last Updated:** 2025-12-02 12:15 MSK
+**Status:** IN PROGRESS - Модерация активна
 
 ---
 
-## Current Session Summary
+## ТЕКУЩАЯ СИТУАЦИЯ
 
-### What Happened
-1. YClients moderator (Шигарцов Филипп) connected test salon 997441
-2. Registration failed - `salon_id` not parsed from `salon_ids[0]` array
-3. Fixed parameter parsing for `salon_ids[]` and `user_data` base64
-4. Deployed fix, but discovered more issues in code review
+### Модератор
+- **Имя:** Филипп Щигарцов (f.schigartcov@yclients.tech)
+- **Тестовый салон:** ID 997441 ("Filipp Schigartsov (test!)")
+- **User ID:** 6419632
 
-### Code Review Results
-- **Grade:** C+ (76/100)
-- **2 CRITICAL security issues** blocking moderation
-- **2 IMPORTANT issues** for robustness
-- Full review: `dev/active/marketplace-code-review/marketplace-integration-code-review.md`
+### Что уже сделано сегодня
 
----
+1. ✅ **Исправлен парсинг параметров** - `salon_ids[0]` и `user_data` base64
+2. ✅ **Добавлена санитизация input** - все данные из user_data валидируются
+3. ✅ **Исправлен database rollback** - API key очищается при ошибке
+4. ✅ **QR retry с exponential backoff** - 1s → 5s max
+5. ✅ **Webhook partner_token enforcement** - обязательная проверка
+6. ⚠️ **HMAC верификация ОТКЛЮЧЕНА** - не знаем алгоритм YClients
+7. ✅ **Создан collector endpoint** - `/webhook/yclients/collector`
 
-## Key Files
+### Текущая проблема
 
-| File | Purpose | Lines |
-|------|---------|-------|
-| `src/api/routes/yclients-marketplace.js` | Main integration routes | 1,275 |
-| `src/utils/validators.js` | Input validation helpers | 206 |
-| `src/repositories/CompanyRepository.js` | Company data access | 262 |
-| `src/repositories/MarketplaceEventsRepository.js` | Event logging | ~100 |
-
----
-
-## Environment Configuration
-
-### Production Server
-```bash
-# Server access
-ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219
-
-# Path
-/opt/ai-admin
-
-# Key environment variables (in .env)
-YCLIENTS_PARTNER_TOKEN=***  # Required for HMAC
-YCLIENTS_APP_ID=18289
-JWT_SECRET=***
-BASE_URL=https://adminai.tech  # Fixed today!
-```
-
-### YClients Marketplace Settings
-```
-Callback URL: https://adminai.tech/webhook/yclients
-Registration Redirect URL: https://adminai.tech/auth/yclients/redirect
-```
-
-**NOTE:** Moderator mentioned these were `ai-admin.app` - MUST be changed to `adminai.tech`!
+**HMAC подпись не совпадает!**
+- YClients отправляет `user_data_sign`
+- Мы пробовали `HMAC-SHA256(user_data, PARTNER_TOKEN)` - НЕ СОВПАДАЕТ
+- Временно отключили проверку, добавили debug логирование
+- **НУЖНО:** Спросить у модератора алгоритм подписи
 
 ---
 
-## Key Decisions Made
+## ENDPOINTS
 
-### 1. HMAC Algorithm
-**Decision:** Use HMAC-SHA256 with `PARTNER_TOKEN` as secret
-**Rationale:** YClients documentation specifies this algorithm
-**Implementation:**
-```javascript
-crypto.createHmac('sha256', PARTNER_TOKEN).update(user_data).digest('hex')
-```
+### Основные (для модератора)
 
-### 2. Timing-Safe Comparison
-**Decision:** Use `crypto.timingSafeEqual()` for signature comparison
-**Rationale:** Prevents timing attacks that could leak signature information
+| Endpoint | Назначение |
+|----------|------------|
+| `POST /webhook/yclients/collector` | **НОВЫЙ!** Универсальный сборщик всех уведомлений |
+| `GET /auth/yclients/redirect` | Registration redirect из маркетплейса |
+| `POST /webhook/yclients` | Основной webhook (uninstall, freeze, records) |
+| `GET /marketplace/onboarding` | Страница с QR-кодом |
+| `POST /marketplace/activate` | Активация интеграции |
 
-### 3. Input Sanitization Strategy
-**Decision:** Use existing `src/utils/validators.js` functions
-**Rationale:** Already tested, consistent with codebase patterns
-**Functions:**
-- `sanitizeString()` - removes HTML, control chars
-- `validateEmail()` - RFC-compliant email check
-- `normalizePhone()` - 7xxx format for Russian numbers
-- `validateId()` - positive integer validation
+### Настройки в YClients Marketplace
 
-### 4. Error Response Strategy
-**Decision:** Return 200 OK for webhook validation failures
-**Rationale:** Prevents YClients from retrying and flooding our logs
-**Pattern:** Log error, capture to Sentry, return `{ success: false }`
+**ВАЖНО:** Модератор должен указать наши URL:
+- **Callback URL:** `https://adminai.tech/webhook/yclients`
+- **Registration Redirect URL:** `https://adminai.tech/auth/yclients/redirect`
+- **Collector (новый):** `https://adminai.tech/webhook/yclients/collector`
 
 ---
 
-## Technical Notes
+## ВОПРОСЫ К МОДЕРАТОРУ
 
-### salon_ids[] Parameter Format
-YClients sends:
+1. **Алгоритм user_data_sign** - какой HMAC? SHA256? Какой ключ?
+2. **Тип приложения** - нужно ли менять с "чат-бот" на что-то другое?
+3. **Какие webhooks будут приходить?** - record_created, record_updated?
+
+---
+
+## ТЕСТОВЫЕ ДАННЫЕ
+
+### URL от модератора (рабочий)
 ```
-?salon_ids[0]=997441&user_data=eyJpZCI6NjQxOTYzMiwi...&user_data_sign=bff620a90...
-```
-
-Express parses this as:
-- `req.query['salon_ids[0]']` = '997441' (string key)
-- OR `req.query.salon_ids` = ['997441'] (array, depending on config)
-
-**Current handling (line 137-145):**
-```javascript
-let salon_id = req.query.salon_id;
-if (!salon_id && req.query['salon_ids[0]']) {
-  salon_id = req.query['salon_ids[0]'];
-}
-if (!salon_id && req.query.salon_ids && Array.isArray(req.query.salon_ids)) {
-  salon_id = req.query.salon_ids[0];
-}
+https://adminai.tech/auth/yclients/redirect?salon_id=997441&user_data=eyJpZCI6NjQxOTYzMiwibmFtZSI6ItCo0LjQs9Cw0YDRhtC-0LIg0KTQuNC70LjQv9C_IiwicGhvbmUiOiI3OTAwNjQ2NDI2MyIsImVtYWlsIjoiZi5zaGNoaWdhcnRzb3ZAeWNsaWVudHMudGVjaCIsImlzX2FwcHJvdmVkIjp0cnVlLCJhdmF0YXIiOiJodHRwczovL2Fzc2V0cy55Y2xpZW50cy5jb20vZ2VuZXJhbC9iL2IwL2IwYTY4OTY0YWZiZTQwMV8yMDI0MDIyNTEzMzAwMy5wbmciLCJzYWxvbl9uYW1lIjoiRmlsaXBwIFNjaGlnYXJ0Y292ICh0ZXN0ISkifQ==&user_data_sign=bff620a90b29b491ca3f232103ae65ba2d0cf79b94932b6b2c61adfcd37d282a
 ```
 
-### user_data Base64 Structure
+### Decoded user_data
 ```json
 {
   "id": 6419632,
@@ -125,69 +81,52 @@ if (!salon_id && req.query.salon_ids && Array.isArray(req.query.salon_ids)) {
 }
 ```
 
-### Database Schema - companies table
-Key columns for marketplace:
-- `yclients_id` - YClients salon ID
-- `marketplace_user_id` - YClients user who connected
-- `marketplace_user_name` - User name (needs sanitization!)
-- `marketplace_user_phone` - User phone
-- `marketplace_user_email` - User email
-- `integration_status` - 'pending_whatsapp', 'activating', 'active', 'activation_failed'
-- `api_key` - Generated on activation (must be cleared on rollback!)
-- `whatsapp_connected` - Boolean flag
-
----
-
-## Blockers & Dependencies
-
-### Blocking Moderation
-1. **HMAC not verified** - Security requirement
-2. **Input not sanitized** - Could fail security audit
-
-### Dependencies
-- YClients moderator must change URLs from `ai-admin.app` to `adminai.tech`
-- Moderator must retry connection after fixes deployed
-
----
-
-## Testing Data
-
-### Test Salon
-- **Salon ID:** 997441
-- **Salon Name:** "Filipp Schigartsov (test!)"
-- **Moderator:** Шигарцов Филипп
-- **User ID:** 6419632
-
-### Test URL (from moderator)
+### Полученная подпись
 ```
-https://adminai.tech/auth/yclients/redirect?salon_ids%5B0%5D=997441&user_data=eyJpZCI6NjQxOTYzMiwibmFtZSI6ItCo0LjQs9Cw0YDRhtC%2B0LIg0KTQuNC70LjQv9C%2FIiwicGhvbmUiOiI3OTAwNjQ2NDI2MyIsImVtYWlsIjoiZi5zaGNoaWdhcnRzb3ZAeWNsaWVudHMudGVjaCIsImlzX2FwcHJvdmVkIjp0cnVlLCJhdmF0YXIiOiJodHRwczovL2Fzc2V0cy55Y2xpZW50cy5jb20vZ2VuZXJhbC9iL2IwL2IwYTY4OTY0YWZiZTQwMV8yMDI0MDIyNTEzMzAwMy5wbmciLCJzYWxvbl9uYW1lIjoiRmlsaXBwIFNjaGlnYXJ0Y292ICh0ZXN0ISkifQ%3D%3D&user_data_sign=bff620a90b29b491ca3f232103ae65ba2d0cf79b94932b6b2c61adfcd37d282a
+user_data_sign: bff620a90b29b491ca3f232103ae65ba2d0cf79b94932b6b2c61adfcd37d282a
 ```
 
 ---
 
-## Rollback Plan
+## КОММИТЫ СЕГОДНЯ
 
-If fixes cause issues:
-1. `git revert HEAD` on server
-2. `pm2 restart ai-admin-api`
-3. Notify moderator to wait
-
----
-
-## Next Steps After Fixes
-
-1. Deploy all fixes
-2. Ask moderator to:
-   - Update URLs in YClients settings
-   - Retry "Connect" button
-3. Monitor logs for successful registration
-4. Complete WhatsApp QR scanning
-5. Verify activation callback to YClients
+1. `fix(marketplace): parse salon_ids[] array and user_data from YClients redirect`
+2. `fix(marketplace): critical security fixes for YClients moderation`
+3. `fix(marketplace): temporarily disable HMAC verification for moderation`
+4. `feat(marketplace): add universal webhook collector endpoint`
 
 ---
 
-## Related Documentation
+## КОД ФАЙЛЫ
 
-- Code Review: `dev/active/marketplace-code-review/`
-- YClients Marketplace Docs: https://docs.yclients.com/marketplace
-- Authorization Guide: `docs/marketplace/AUTHORIZATION_QUICK_REFERENCE.md`
+| Файл | Что там |
+|------|---------|
+| `src/api/routes/yclients-marketplace.js` | Все endpoints (~1350 строк) |
+| `src/utils/validators.js` | sanitizeString, validateEmail, normalizePhone |
+| `src/repositories/MarketplaceEventsRepository.js` | Логирование событий |
+| `src/repositories/CompanyRepository.js` | Работа с companies |
+
+---
+
+## СЛЕДУЮЩИЕ ШАГИ
+
+1. [ ] Получить от модератора алгоритм HMAC подписи
+2. [ ] Включить проверку подписи после уточнения
+3. [ ] Протестировать полный flow регистрации
+4. [ ] Протестировать webhooks через collector
+5. [ ] Пройти модерацию
+
+---
+
+## DEBUG КОМАНДЫ
+
+```bash
+# Проверить логи регистрации
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 logs ai-admin-api --lines 50 --nostream | grep -E 'HMAC|signature|redirect|salon'"
+
+# Проверить события в collector
+curl -H "X-API-Key: $ADMIN_API_KEY" https://adminai.tech/webhook/yclients/collector/events?limit=10
+
+# Health check
+curl https://adminai.tech/marketplace/health
+```

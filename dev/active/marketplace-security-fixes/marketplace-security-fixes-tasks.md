@@ -151,16 +151,52 @@ if (partner_token && partner_token !== PARTNER_TOKEN) {
 |-------|-------|-----------|--------|
 | Phase 1 | 3 | 3 | ✅ Complete |
 | Phase 2 | 2 | 2 | ✅ Complete |
-| **Total** | **5** | **5** | **100%** |
+| Phase 3 (Moderation) | 3 | 1 | 🔄 In Progress |
+| **Total** | **8** | **6** | **75%** |
+
+---
+
+## Phase 3: YClients Moderation (Active)
+
+### Task 3.1: Collector Endpoint ✅
+- [x] Created `/webhook/yclients/collector` endpoint
+- [x] Logs ALL incoming webhooks to database
+- [x] Admin endpoint to view collected events
+
+### Task 3.2: HMAC Verification ⏸️ BLOCKED
+- [ ] Determine correct HMAC algorithm from YClients
+- [ ] Implement proper signature verification
+- **BLOCKER:** Unknown algorithm, temporarily disabled
+
+### Task 3.3: Complete Moderation Testing ⬜
+- [ ] Moderator updates URLs in YClients settings
+- [ ] Test full registration flow
+- [ ] Test webhook delivery through collector
+- [ ] Pass moderation review
 
 ---
 
 ## Deployment Log
 
-**Deployed:** 2025-12-02 11:36 MSK
-**Commit:** 450c917
-**Health Check:** ✅ PASS (`https://adminai.tech/marketplace/health`)
+| Time | Commit | Description |
+|------|--------|-------------|
+| 11:36 | 450c917 | Security fixes (HMAC, sanitization, rollback) |
+| 11:45 | 50cfad1 | Disabled HMAC (algorithm unknown) |
+| 12:12 | 94fb1b3 | Added collector endpoint |
 
-**What's Left:**
-- Ask YClients moderator to update URLs from `ai-admin.app` to `adminai.tech`
-- Moderator retry connection with salon 997441
+**Current Status:** API Running ✅
+
+---
+
+## Blockers
+
+1. **HMAC Algorithm Unknown** - Need to ask YClients moderator
+2. **URLs in YClients** - Moderator needs to update from `ai-admin.app` to `adminai.tech`
+
+---
+
+## Questions for Moderator
+
+1. Какой алгоритм используется для `user_data_sign`? (HMAC-SHA256? MD5? Какой ключ?)
+2. Нужно ли менять тип приложения с "чат-бот"?
+3. Какие события будут приходить на webhook?
