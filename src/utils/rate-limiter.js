@@ -183,4 +183,123 @@ class RateLimiter {
     }
 }
 
+// ============================
+// Per-Key Rate Limiter Factory
+// ============================
+
+// Store limiters by namespace -> key -> limiter
+const perKeyLimiters = new Map();
+
+// Default configurations for different use cases
+const DEFAULT_CONFIGS = {
+    webhook: {
+        windowMs: 60000,    // 1 minute
+        maxRequests: 10     // 10 requests per minute per salon
+    },
+    activation: {
+        windowMs: 60000,
+        maxRequests: 3      // 3 activations per minute per salon
+    },
+    api: {
+        windowMs: 60000,
+        maxRequests: 30
+    }
+};
+
+/**
+ * Get or create a rate limiter for a specific namespace and key
+ *
+ * @param {string} namespace - Limiter group (e.g., 'webhook', 'api')
+ * @param {string|number} key - Unique key (e.g., salon_id)
+ * @param {Object} customConfig - Override default config
+ * @returns {RateLimiter} - Rate limiter instance
+ */
+function getPerKeyLimiter(namespace, key, customConfig = {}) {
+    const groupKey = `${namespace}:${key}`;
+
+    // Return existing limiter if found
+    if (perKeyLimiters.has(groupKey)) {
+        return perKeyLimiters.get(groupKey);
+    }
+
+    // Create new limiter with merged config
+    const defaultConfig = DEFAULT_CONFIGS[namespace] || DEFAULT_CONFIGS.webhook;
+    const config = {
+        ...defaultConfig,
+        ...customConfig,
+        keyPrefix: `ratelimit:${namespace}:${key}:`
+    };
+
+    const limiter = new RateLimiter(config);
+    perKeyLimiters.set(groupKey, limiter);
+
+    logger.debug('Created per-key rate limiter', { namespace, key, config });
+
+    return limiter;
+}
+
+/**
+ * Express middleware factory for per-key rate limiting
+ *
+ * @param {string} namespace - Limiter group name
+ * @param {Function} keyExtractor - Function to extract key from request (req) => key
+ * @param {Object} customConfig - Override default config
+ * @returns {Function} - Express middleware
+ */
+function rateLimitMiddleware(namespace, keyExtractor, customConfig = {}) {
+    return async (req, res, next) => {
+        const key = keyExtractor(req);
+
+        if (!key) {
+            // No key to rate limit by, skip
+            return next();
+        }
+
+        const limiter = getPerKeyLimiter(namespace, key, customConfig);
+
+        try {
+            const allowed = await limiter.checkLimit('request');
+
+            if (!allowed) {
+                const remaining = await limiter.getRemaining('request');
+                logger.warn('Rate limit exceeded', { namespace, key, ip: req.ip });
+                return res.status(429).json({
+                    success: false,
+                    error: 'Too many requests',
+                    code: 'RATE_LIMITED',
+                    remaining,
+                    retry_after: Math.ceil((customConfig.windowMs || DEFAULT_CONFIGS[namespace]?.windowMs || 60000) / 1000)
+                });
+            }
+
+            // Add rate limit headers
+            const remaining = await limiter.getRemaining('request');
+            const limit = customConfig.maxRequests || DEFAULT_CONFIGS[namespace]?.maxRequests || 100;
+            res.setHeader('X-RateLimit-Limit', limit);
+            res.setHeader('X-RateLimit-Remaining', remaining);
+
+            next();
+        } catch (error) {
+            // On error, allow the request (fail open)
+            logger.error('Rate limit middleware error:', error);
+            next();
+        }
+    };
+}
+
+/**
+ * Cleanup per-key limiters (call periodically or on shutdown)
+ */
+function cleanupPerKeyLimiters() {
+    for (const [key, limiter] of perKeyLimiters.entries()) {
+        limiter.shutdown();
+    }
+    perKeyLimiters.clear();
+}
+
 module.exports = RateLimiter;
+module.exports.RateLimiter = RateLimiter;
+module.exports.getPerKeyLimiter = getPerKeyLimiter;
+module.exports.rateLimitMiddleware = rateLimitMiddleware;
+module.exports.cleanupPerKeyLimiters = cleanupPerKeyLimiters;
+module.exports.DEFAULT_CONFIGS = DEFAULT_CONFIGS;

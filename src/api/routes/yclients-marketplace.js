@@ -17,6 +17,14 @@ const { CompanyRepository, MarketplaceEventsRepository } = require('../../reposi
 const { getCircuitBreaker } = require('../../utils/circuit-breaker');
 const { logAdminAction, getAuditLogs } = require('../../utils/admin-audit');
 const { createRedisClient } = require('../../utils/redis-factory');
+const { Result, ErrorCodes } = require('../../utils/result');
+const { rateLimitMiddleware } = require('../../utils/rate-limiter');
+
+// Webhook rate limiter middleware (10 requests/minute per salon)
+const webhookRateLimiter = rateLimitMiddleware('webhook', (req) => {
+  // Extract salon_id from request body for rate limiting
+  return req.body?.salon_id || req.body?.company_id || 'unknown';
+});
 
 // Redis client for webhook idempotency (lazy initialization)
 let webhookRedisClient = null;
@@ -1045,8 +1053,9 @@ router.get('/webhook/yclients/collector/events', adminRateLimiter, adminAuth, as
 // URL: POST /webhook/yclients
 // Phase 4: Added partner_token validation
 // Phase 5: Added idempotency (deterministic hash, Redis check)
+// Phase 6: Added per-salon rate limiting (10 req/min)
 // ============================
-router.post('/webhook/yclients', async (req, res) => {
+router.post('/webhook/yclients', webhookRateLimiter, async (req, res) => {
   try {
     const { event_type, event, salon_id, application_id, partner_token, data } = req.body;
 
@@ -1161,7 +1170,32 @@ router.post('/webhook/yclients', async (req, res) => {
 // 7. HEALTH CHECK - Проверка готовности системы
 // URL: GET /marketplace/health
 // ============================
+
+/**
+ * Helper: Execute with timeout
+ * @param {Promise} promise - Promise to execute
+ * @param {number} timeoutMs - Timeout in milliseconds
+ * @param {string} name - Name for error message
+ */
+async function withTimeout(promise, timeoutMs, name) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`${name} timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutId);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
+
 router.get('/marketplace/health', async (req, res) => {
+  const HEALTH_CHECK_TIMEOUT = 5000; // 5 seconds per check
+
   const healthStatus = {
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -1180,7 +1214,8 @@ router.get('/marketplace/health', async (req, res) => {
     },
     services: {
       api_running: true,
-      database_connected: !!postgres,
+      database: { status: 'unknown' },
+      redis: { status: 'unknown' },
       whatsapp_pool_ready: !!sessionPool
     },
     circuitBreakers: {
@@ -1188,7 +1223,8 @@ router.get('/marketplace/health', async (req, res) => {
     },
     featureFlags: {
       USE_TRANSACTION_ACTIVATION
-    }
+    },
+    warnings: []
   };
 
   // Проверяем критические компоненты
@@ -1208,24 +1244,70 @@ router.get('/marketplace/health', async (req, res) => {
   // Database connectivity check with timeout
   try {
     const start = Date.now();
-    await postgres.query('SELECT 1');
-    healthStatus.services.database_latency_ms = Date.now() - start;
-    healthStatus.services.database_connected = true;
+    await withTimeout(postgres.query('SELECT 1'), HEALTH_CHECK_TIMEOUT, 'PostgreSQL');
+    const latency = Date.now() - start;
+    healthStatus.services.database = {
+      status: 'healthy',
+      latency_ms: latency
+    };
+    // Warn if latency is high
+    if (latency > 1000) {
+      healthStatus.warnings.push(`PostgreSQL latency high: ${latency}ms`);
+    }
   } catch (dbError) {
-    healthStatus.services.database_connected = false;
-    healthStatus.services.database_error = dbError.message;
+    healthStatus.services.database = {
+      status: 'unhealthy',
+      error: dbError.message
+    };
     healthStatus.status = 'degraded';
+  }
+
+  // Redis connectivity check with timeout
+  try {
+    const redis = await getWebhookRedisClient();
+    if (redis) {
+      const start = Date.now();
+      await withTimeout(redis.ping(), HEALTH_CHECK_TIMEOUT, 'Redis');
+      const latency = Date.now() - start;
+      healthStatus.services.redis = {
+        status: 'healthy',
+        latency_ms: latency
+      };
+      // Warn if latency is high
+      if (latency > 100) {
+        healthStatus.warnings.push(`Redis latency high: ${latency}ms`);
+      }
+    } else {
+      healthStatus.services.redis = {
+        status: 'not_initialized',
+        message: 'Redis client not yet created'
+      };
+    }
+  } catch (redisError) {
+    healthStatus.services.redis = {
+      status: 'unhealthy',
+      error: redisError.message
+    };
+    // Redis is not critical for marketplace, just warn
+    healthStatus.warnings.push('Redis unhealthy: ' + redisError.message);
   }
 
   // Warn if circuit breaker is OPEN
   if (healthStatus.circuitBreakers.qrGeneration.state === 'open') {
     healthStatus.status = 'degraded';
-    healthStatus.warnings = healthStatus.warnings || [];
     healthStatus.warnings.push('QR generation circuit breaker is OPEN');
   }
 
-  const httpStatus = healthStatus.status === 'ok' ? 200 :
-                     healthStatus.status === 'degraded' ? 200 : 503;
+  // Remove empty warnings array
+  if (healthStatus.warnings.length === 0) {
+    delete healthStatus.warnings;
+  }
+
+  // Determine HTTP status
+  // 503 only if database is unhealthy (critical service)
+  const httpStatus = healthStatus.services.database.status === 'unhealthy' ? 503 :
+                     healthStatus.status === 'ok' ? 200 : 200;
+
   res.status(httpStatus).json(healthStatus);
 });
 
