@@ -148,16 +148,60 @@ router.get('/auth/yclients/redirect', async (req, res) => {
     let user_id, user_name, user_phone, user_email, salon_name;
     const { user_data, user_data_sign } = req.query;
 
+    // Import validators for input sanitization
+    const { sanitizeString, validateEmail, normalizePhone, validateId } = require('../../utils/validators');
+
     if (user_data) {
+      // SECURITY: Verify HMAC signature BEFORE parsing user_data
+      if (user_data_sign) {
+        const expectedSign = crypto
+          .createHmac('sha256', PARTNER_TOKEN)
+          .update(user_data)
+          .digest('hex');
+
+        // Use timing-safe comparison to prevent timing attacks
+        const signatureValid = expectedSign.length === user_data_sign.length &&
+          crypto.timingSafeEqual(
+            Buffer.from(user_data_sign, 'utf8'),
+            Buffer.from(expectedSign, 'utf8')
+          );
+
+        if (!signatureValid) {
+          logger.error('❌ Invalid user_data signature', {
+            salon_id,
+            expected_prefix: expectedSign.substring(0, 8) + '...',
+            received_prefix: user_data_sign.substring(0, 8) + '...'
+          });
+          Sentry.captureMessage('Invalid YClients user_data signature', {
+            level: 'warning',
+            tags: { component: 'marketplace', security: true },
+            extra: { salon_id, has_user_data: true }
+          });
+          return res.status(403).send(renderErrorPage(
+            'Ошибка безопасности',
+            'Неверная подпись данных от YClients. Пожалуйста, попробуйте подключиться заново из маркетплейса.',
+            'https://yclients.com/marketplace'
+          ));
+        }
+
+        logger.info('✅ HMAC signature verified successfully');
+      } else {
+        // No signature provided - log warning but allow (for backwards compatibility)
+        logger.warn('⚠️ user_data provided without signature', { salon_id });
+      }
+
+      // Now safe to parse user_data
       try {
         const decodedData = JSON.parse(Buffer.from(user_data, 'base64').toString('utf-8'));
-        user_id = decodedData.id;
-        user_name = decodedData.name;
-        user_phone = decodedData.phone;
-        user_email = decodedData.email;
-        salon_name = decodedData.salon_name;
 
-        logger.info('📋 Decoded user_data:', {
+        // SECURITY: Sanitize all input data
+        user_id = validateId(decodedData.id);
+        user_name = sanitizeString(decodedData.name, 255);
+        user_phone = decodedData.phone ? normalizePhone(decodedData.phone) : null;
+        user_email = decodedData.email && validateEmail(decodedData.email) ? decodedData.email : null;
+        salon_name = sanitizeString(decodedData.salon_name, 255);
+
+        logger.info('📋 Decoded and sanitized user_data:', {
           user_id,
           user_name,
           user_email,
@@ -166,14 +210,18 @@ router.get('/auth/yclients/redirect', async (req, res) => {
         });
       } catch (parseError) {
         logger.warn('⚠️ Failed to parse user_data:', parseError.message);
+        Sentry.captureException(parseError, {
+          tags: { component: 'marketplace', operation: 'parseUserData' },
+          extra: { salon_id }
+        });
       }
     }
 
-    // Fallback to direct query params if user_data not provided
-    if (!user_id) user_id = req.query.user_id;
-    if (!user_name) user_name = req.query.user_name;
-    if (!user_phone) user_phone = req.query.user_phone;
-    if (!user_email) user_email = req.query.user_email;
+    // Fallback to direct query params if user_data not provided (with sanitization)
+    if (!user_id) user_id = validateId(req.query.user_id);
+    if (!user_name) user_name = sanitizeString(req.query.user_name, 255);
+    if (!user_phone) user_phone = req.query.user_phone ? normalizePhone(req.query.user_phone) : null;
+    if (!user_email) user_email = req.query.user_email && validateEmail(req.query.user_email) ? req.query.user_email : null;
 
     logger.info('📍 Registration redirect from YClients Marketplace:', {
       salon_id,
@@ -355,22 +403,44 @@ router.post('/marketplace/api/qr', async (req, res) => {
     if (!qr) {
       logger.info('🔄 Initializing new WhatsApp session...');
 
-      // Инициализируем новую сессию
-      await sessionPool.createSession(sessionId, {
-        company_id,
-        salon_id
-      });
+      // Initialize new session with error handling
+      try {
+        await sessionPool.createSession(sessionId, {
+          company_id,
+          salon_id
+        });
+      } catch (sessionError) {
+        logger.error('❌ Failed to create WhatsApp session:', sessionError);
+        Sentry.captureException(sessionError, {
+          tags: { component: 'marketplace', operation: 'createSession' },
+          extra: { sessionId, company_id, salon_id }
+        });
+        throw new Error('WhatsApp session creation failed: ' + sessionError.message);
+      }
 
-      // Ждем генерации QR (максимум 10 секунд)
+      // Wait for QR generation with exponential backoff
       let attempts = 0;
-      while (!qr && attempts < 10) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      const maxAttempts = 10;
+
+      while (!qr && attempts < maxAttempts) {
+        // Exponential backoff: 1s, 1.5s, 2.25s, ... max 5s
+        const delay = Math.min(1000 * Math.pow(1.5, attempts), 5000);
+        await new Promise(resolve => setTimeout(resolve, delay));
         qr = await sessionPool.getQR(sessionId);
         attempts++;
+
+        if (attempts % 3 === 0) {
+          logger.info(`⏳ Waiting for QR generation... (${attempts}/${maxAttempts})`);
+        }
       }
 
       if (!qr) {
-        throw new Error('QR code generation timeout');
+        const error = new Error(`QR code generation timeout after ${maxAttempts} attempts`);
+        Sentry.captureException(error, {
+          tags: { component: 'marketplace', operation: 'qrGeneration' },
+          extra: { sessionId, attempts: maxAttempts, company_id, salon_id }
+        });
+        throw error;
       }
     }
 
@@ -563,12 +633,39 @@ router.post('/marketplace/activate', async (req, res) => {
 
   } catch (error) {
     logger.error('❌ Activation error:', error);
+    Sentry.captureException(error, {
+      tags: { component: 'marketplace', operation: 'activate' },
+      extra: { salon_id, company_id }
+    });
 
-    // Откатываем статус в случае ошибки
-    if (error.decoded && error.decoded.company_id) {
-      await companyRepository.update(error.decoded.company_id, {
-        integration_status: 'activation_failed'
-      });
+    // Rollback database changes: clear API key and set failed status
+    if (company_id) {
+      try {
+        await companyRepository.update(company_id, {
+          api_key: null, // Clear leaked API key!
+          integration_status: 'activation_failed'
+        });
+
+        // Log failed activation event
+        await marketplaceEventsRepository.insert({
+          company_id,
+          salon_id: parseInt(salon_id),
+          event_type: 'activation_failed',
+          event_data: {
+            error: error.message,
+            timestamp: new Date().toISOString()
+          }
+        });
+
+        logger.info('✅ Database rolled back after activation failure');
+      } catch (rollbackError) {
+        logger.error('❌ CRITICAL: Failed to rollback after activation error:', rollbackError);
+        Sentry.captureException(rollbackError, {
+          level: 'fatal',
+          tags: { component: 'marketplace', operation: 'rollback' },
+          extra: { salon_id, company_id, originalError: error.message }
+        });
+      }
     }
 
     res.status(500).json({
@@ -598,15 +695,35 @@ router.post('/webhook/yclients', async (req, res) => {
       data_keys: data ? Object.keys(data) : []
     });
 
-    // Phase 4: Validate partner_token for security
+    // Phase 4: Validate partner_token for security (REQUIRED!)
     // YClients sends partner_token in webhook body for verification
-    if (partner_token && partner_token !== PARTNER_TOKEN) {
+    if (!partner_token) {
+      logger.error('❌ Webhook missing partner_token', {
+        salon_id,
+        event_type: eventType,
+        ip: req.ip
+      });
+      Sentry.captureMessage('YClients webhook without partner_token', {
+        level: 'warning',
+        tags: { component: 'webhook', security: true },
+        extra: { salon_id, eventType, ip: req.ip }
+      });
+      // Return 200 OK to prevent retry flooding, but don't process
+      return res.status(200).json({ success: false, error: 'Missing partner_token' });
+    }
+
+    if (partner_token !== PARTNER_TOKEN) {
       logger.error('❌ Webhook validation failed: Invalid partner_token', {
         salon_id,
         event_type: eventType,
-        received_token_prefix: partner_token?.substring(0, 8) + '...'
+        received_token_prefix: partner_token.substring(0, 8) + '...'
       });
-      // Still return 200 OK to prevent retry flooding, but don't process
+      Sentry.captureMessage('YClients webhook with invalid partner_token', {
+        level: 'warning',
+        tags: { component: 'webhook', security: true },
+        extra: { salon_id, eventType }
+      });
+      // Return 200 OK to prevent retry flooding, but don't process
       return res.status(200).json({ success: false, error: 'Invalid partner_token' });
     }
 
