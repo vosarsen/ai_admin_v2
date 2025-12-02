@@ -262,18 +262,18 @@ pool = new Pool({
 
     // Connection pool settings (optimized for 7 services)
     max: MAX_CONNECTIONS_PER_SERVICE, // 3 per service = 21 total (safe)
-    min: 1, // Keep 1 idle connection ready
+    min: 0, // Don't keep idle connections (prevents stale connection issues)
 
-    // Timeouts
-    idleTimeoutMillis: 30000, // 30s - Close idle connections
+    // Timeouts - aligned with server's idle_session_timeout (15min)
+    idleTimeoutMillis: 10 * 60 * 1000, // 10 min - Close before server timeout (15min)
     connectionTimeoutMillis: 10000, // 10s - Increased from 5s for reliability
 
     // Query timeouts
     statement_timeout: 30000, // 30s for normal queries
     query_timeout: 60000, // 60s for heavy queries (migrations, reports)
 
-    // Connection lifetime
-    max_lifetime: 3600000, // 1 hour - Recycle connections periodically
+    // Connection lifetime - recycle before server closes them
+    maxLifetimeSeconds: 600, // 10 min (node-pg v8.13+) - Before server's 15min idle timeout
 
     // SSL (если нужно)
     ssl: process.env.POSTGRES_SSL === 'true' ? { rejectUnauthorized: false } : false,
