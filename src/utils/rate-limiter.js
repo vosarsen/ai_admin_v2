@@ -13,7 +13,10 @@ class RateLimiter {
         this.keyPrefix = options.keyPrefix || 'ratelimit:';
         this.redisClient = null;
         this.inMemoryStore = new Map(); // Fallback for when Redis is unavailable
-        
+        this.maxInMemoryKeys = options.maxInMemoryKeys || 10000; // Prevent unbounded growth
+        this.lastCleanup = 0;
+        this.cleanupInterval = 60000; // Cleanup every 60s, not every request
+
         this.initializeRedis();
     }
 
@@ -76,51 +79,76 @@ class RateLimiter {
 
     /**
      * Check rate limit using in-memory store
+     * With max size limit to prevent unbounded growth
      */
     checkMemoryLimit(key) {
         const now = Date.now();
         const windowStart = now - this.windowMs;
-        
+
         // Get or create entry
         let entry = this.inMemoryStore.get(key);
         if (!entry) {
+            // Check size limit before adding new key
+            if (this.inMemoryStore.size >= this.maxInMemoryKeys) {
+                logger.warn('In-memory rate limiter at capacity', {
+                    size: this.inMemoryStore.size,
+                    limit: this.maxInMemoryKeys
+                });
+                // Evict oldest key (LRU-like behavior using Map iteration order)
+                const firstKey = this.inMemoryStore.keys().next().value;
+                this.inMemoryStore.delete(firstKey);
+            }
+
             entry = [];
             this.inMemoryStore.set(key, entry);
         }
-        
+
         // Filter out old timestamps
         entry = entry.filter(timestamp => timestamp > windowStart);
-        
+
         // Check if under limit
         if (entry.length >= this.maxRequests) {
             this.inMemoryStore.set(key, entry);
             return false;
         }
-        
+
         // Add current timestamp
         entry.push(now);
         this.inMemoryStore.set(key, entry);
-        
-        // Clean up old keys periodically
-        this.cleanupMemoryStore();
-        
+
+        // Periodic cleanup (not on every request - performance optimization)
+        if (now - this.lastCleanup > this.cleanupInterval) {
+            this.cleanupMemoryStore();
+            this.lastCleanup = now;
+        }
+
         return true;
     }
 
     /**
      * Clean up old entries from memory store
+     * Called periodically (every cleanupInterval ms), not on every request
      */
     cleanupMemoryStore() {
         const now = Date.now();
         const windowStart = now - this.windowMs;
-        
+        let cleanedCount = 0;
+
         for (const [key, timestamps] of this.inMemoryStore.entries()) {
             const filtered = timestamps.filter(t => t > windowStart);
             if (filtered.length === 0) {
                 this.inMemoryStore.delete(key);
+                cleanedCount++;
             } else {
                 this.inMemoryStore.set(key, filtered);
             }
+        }
+
+        if (cleanedCount > 0) {
+            logger.debug('Cleaned up in-memory rate limiter entries', {
+                cleanedCount,
+                remaining: this.inMemoryStore.size
+            });
         }
     }
 
@@ -189,6 +217,13 @@ class RateLimiter {
 
 // Store limiters by namespace -> key -> limiter
 const perKeyLimiters = new Map();
+// Track last usage time for TTL-based cleanup
+const limiterLastUsed = new Map();
+
+// TTL-based cleanup configuration
+const PER_KEY_LIMITER_TTL = 3600000; // 1 hour - limiters unused for this duration will be cleaned up
+const CLEANUP_INTERVAL = 600000; // 10 minutes - how often to check for stale limiters
+const MAX_LIMITERS = 10000; // Maximum number of limiters to prevent unbounded growth
 
 // Default configurations for different use cases
 const DEFAULT_CONFIGS = {
@@ -207,6 +242,39 @@ const DEFAULT_CONFIGS = {
 };
 
 /**
+ * Cleanup stale per-key limiters (TTL-based)
+ * Called automatically every CLEANUP_INTERVAL
+ */
+function cleanupStaleLimiters() {
+    const now = Date.now();
+    let cleanedCount = 0;
+
+    for (const [groupKey, lastUsed] of limiterLastUsed.entries()) {
+        if (now - lastUsed > PER_KEY_LIMITER_TTL) {
+            const limiter = perKeyLimiters.get(groupKey);
+            if (limiter) {
+                limiter.shutdown();
+                perKeyLimiters.delete(groupKey);
+                limiterLastUsed.delete(groupKey);
+                cleanedCount++;
+            }
+        }
+    }
+
+    if (cleanedCount > 0) {
+        logger.info('Cleaned up stale rate limiters', {
+            cleanedCount,
+            remaining: perKeyLimiters.size
+        });
+    }
+}
+
+// Start automatic cleanup interval
+const cleanupTimer = setInterval(cleanupStaleLimiters, CLEANUP_INTERVAL);
+// Allow process to exit even if timer is running
+cleanupTimer.unref();
+
+/**
  * Get or create a rate limiter for a specific namespace and key
  *
  * @param {string} namespace - Limiter group (e.g., 'webhook', 'api')
@@ -217,9 +285,38 @@ const DEFAULT_CONFIGS = {
 function getPerKeyLimiter(namespace, key, customConfig = {}) {
     const groupKey = `${namespace}:${key}`;
 
+    // Update last used time
+    limiterLastUsed.set(groupKey, Date.now());
+
     // Return existing limiter if found
     if (perKeyLimiters.has(groupKey)) {
         return perKeyLimiters.get(groupKey);
+    }
+
+    // Check if we're at capacity - evict oldest if needed
+    if (perKeyLimiters.size >= MAX_LIMITERS) {
+        let oldestKey = null;
+        let oldestTime = Infinity;
+
+        for (const [gKey, lastUsed] of limiterLastUsed.entries()) {
+            if (lastUsed < oldestTime) {
+                oldestTime = lastUsed;
+                oldestKey = gKey;
+            }
+        }
+
+        if (oldestKey) {
+            const oldLimiter = perKeyLimiters.get(oldestKey);
+            if (oldLimiter) {
+                oldLimiter.shutdown();
+            }
+            perKeyLimiters.delete(oldestKey);
+            limiterLastUsed.delete(oldestKey);
+            logger.warn('Rate limiter capacity reached, evicted oldest', {
+                evictedKey: oldestKey,
+                size: perKeyLimiters.size
+            });
+        }
     }
 
     // Create new limiter with merged config
@@ -233,7 +330,7 @@ function getPerKeyLimiter(namespace, key, customConfig = {}) {
     const limiter = new RateLimiter(config);
     perKeyLimiters.set(groupKey, limiter);
 
-    logger.debug('Created per-key rate limiter', { namespace, key, config });
+    logger.debug('Created per-key rate limiter', { namespace, key, size: perKeyLimiters.size });
 
     return limiter;
 }

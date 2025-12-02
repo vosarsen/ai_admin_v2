@@ -10,42 +10,65 @@
 const logger = require('./logger');
 const Sentry = require('@sentry/node');
 
-// Sensitive fields to remove from request body before logging
-const SENSITIVE_FIELDS = [
-  'password',
-  'token',
-  'api_key',
-  'apiKey',
-  'secret',
-  'authorization',
-  'bearer',
-  'credentials',
-  'private_key',
-  'privateKey'
+// Sensitive field patterns to remove from request body before logging
+// Uses case-insensitive regex to catch variations like PASSWORD, Api_Key, etc.
+const SENSITIVE_PATTERNS = [
+  /password/i,
+  /token/i,
+  /api[_-]?key/i,
+  /secret/i,
+  /authorization/i,
+  /bearer/i,
+  /credentials?/i,
+  /private[_-]?key/i,
+  /access[_-]?key/i,
+  /session[_-]?id/i,
+  /cookie/i,
+  /jwt/i,
+  /auth/i
 ];
+
+// Maximum recursion depth to prevent stack overflow on deeply nested objects
+const MAX_SANITIZE_DEPTH = 5;
+
+/**
+ * Check if a field name matches any sensitive pattern
+ * @param {string} fieldName - Field name to check
+ * @returns {boolean} True if field is sensitive
+ */
+function isSensitiveField(fieldName) {
+  return SENSITIVE_PATTERNS.some(pattern => pattern.test(fieldName));
+}
 
 /**
  * Sanitize request body by removing sensitive fields
+ * Handles nested objects up to MAX_SANITIZE_DEPTH levels deep
+ * Handles arrays of objects
+ *
  * @param {Object} body - Request body
+ * @param {number} depth - Current recursion depth
  * @returns {Object} Sanitized body
  */
-function sanitizeBody(body) {
-  if (!body || typeof body !== 'object') {
+function sanitizeBody(body, depth = 0) {
+  // Prevent infinite recursion and handle non-objects
+  if (depth > MAX_SANITIZE_DEPTH || !body || typeof body !== 'object') {
     return body;
+  }
+
+  // Handle arrays
+  if (Array.isArray(body)) {
+    return body.map(item => sanitizeBody(item, depth + 1));
   }
 
   const sanitized = { ...body };
 
-  for (const field of SENSITIVE_FIELDS) {
-    if (field in sanitized) {
-      sanitized[field] = '[REDACTED]';
-    }
-  }
-
-  // Also check nested objects (one level deep)
   for (const key of Object.keys(sanitized)) {
-    if (sanitized[key] && typeof sanitized[key] === 'object' && !Array.isArray(sanitized[key])) {
-      sanitized[key] = sanitizeBody(sanitized[key]);
+    // Check if key matches any sensitive pattern (case-insensitive)
+    if (isSensitiveField(key)) {
+      sanitized[key] = '[REDACTED]';
+    } else if (sanitized[key] && typeof sanitized[key] === 'object') {
+      // Recursively sanitize nested objects and arrays
+      sanitized[key] = sanitizeBody(sanitized[key], depth + 1);
     }
   }
 

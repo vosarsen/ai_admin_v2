@@ -19,6 +19,7 @@ const { logAdminAction, getAuditLogs } = require('../../utils/admin-audit');
 const { createRedisClient } = require('../../utils/redis-factory');
 const { Result, ErrorCodes } = require('../../utils/result');
 const { rateLimitMiddleware } = require('../../utils/rate-limiter');
+const { escapeLikePattern } = require('../../utils/validators');
 
 // Webhook rate limiter middleware (10 requests/minute per salon)
 const webhookRateLimiter = rateLimitMiddleware('webhook', (req) => {
@@ -26,23 +27,61 @@ const webhookRateLimiter = rateLimitMiddleware('webhook', (req) => {
   return req.body?.salon_id || req.body?.company_id || 'unknown';
 });
 
-// Redis client for webhook idempotency (lazy initialization)
+// Redis client for webhook idempotency (singleton with race condition protection)
 let webhookRedisClient = null;
-const WEBHOOK_IDEMPOTENCY_TTL = 3600; // 1 hour in seconds
+let isRedisInitializing = false;
+let lastRedisInitAttempt = 0;
+const REDIS_INIT_RETRY_DELAY = 60000; // 1 minute cooldown between retry attempts
+const WEBHOOK_IDEMPOTENCY_TTL = 86400; // 24 hours in seconds (Issue #9: increased from 1h to match YClients retry window)
 
 /**
  * Get or create Redis client for webhook idempotency
+ * Handles race conditions during initialization and implements retry cooldown
  */
 async function getWebhookRedisClient() {
-  if (!webhookRedisClient) {
-    try {
-      webhookRedisClient = await createRedisClient();
-    } catch (error) {
-      logger.error('Failed to create Redis client for webhook idempotency:', error);
-      return null;
-    }
+  // Fast path: already initialized
+  if (webhookRedisClient) {
+    return webhookRedisClient;
   }
-  return webhookRedisClient;
+
+  // Prevent concurrent initialization attempts
+  if (isRedisInitializing) {
+    logger.debug('Redis initialization in progress, waiting...');
+    // Wait for ongoing initialization (with timeout)
+    const startWait = Date.now();
+    while (isRedisInitializing && Date.now() - startWait < 5000) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return webhookRedisClient;
+  }
+
+  // Check retry cooldown to prevent hammering Redis during outages
+  const now = Date.now();
+  if (now - lastRedisInitAttempt < REDIS_INIT_RETRY_DELAY) {
+    logger.debug('Redis initialization cooldown active', {
+      retryIn: Math.ceil((REDIS_INIT_RETRY_DELAY - (now - lastRedisInitAttempt)) / 1000) + 's'
+    });
+    return null;
+  }
+
+  isRedisInitializing = true;
+  lastRedisInitAttempt = now;
+
+  try {
+    logger.info('Initializing webhook Redis client...');
+    webhookRedisClient = await createRedisClient();
+    logger.info('✅ Webhook Redis client initialized');
+    return webhookRedisClient;
+  } catch (error) {
+    logger.error('❌ Failed to initialize Redis client for webhook idempotency:', error);
+    Sentry.captureException(error, {
+      level: 'warning',
+      tags: { component: 'redis', operation: 'webhook_init' }
+    });
+    return null;
+  } finally {
+    isRedisInitializing = false;
+  }
 }
 
 /**
@@ -97,10 +136,11 @@ async function removeWebhookIdempotencyKey(webhookId) {
 }
 
 // Circuit breaker for QR generation to prevent cascading failures
+// Timeout increased to 40s to accommodate QR generation loop (max ~33s with 5 attempts)
 const qrCircuitBreaker = getCircuitBreaker('qr-generation', {
   failureThreshold: 5,      // Open after 5 failures
   resetTimeout: 60000,      // 60s cooldown
-  timeout: 30000,           // 30s operation timeout
+  timeout: 40000,           // 40s operation timeout (increased from 30s to prevent premature timeout)
   successThreshold: 2       // 2 successes to close
 });
 
@@ -676,7 +716,11 @@ router.post('/marketplace/activate', async (req, res) => {
       const apiKey = crypto.randomBytes(32).toString('hex');
 
       // All DB operations in a transaction with advisory lock
+      // Using SERIALIZABLE isolation to prevent phantom reads and ensure data consistency
       await companyRepository.withTransaction(async (txClient) => {
+        // Set SERIALIZABLE isolation level for strongest consistency guarantees
+        await txClient.query('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+
         // 1. Acquire advisory lock by salon_id to prevent concurrent activations
         const lockResult = await txClient.query(
           'SELECT pg_try_advisory_xact_lock($1)',
@@ -1027,7 +1071,7 @@ router.get('/webhook/yclients/collector/events', adminRateLimiter, adminAuth, as
 
     if (event_type) {
       sql += ` AND event_type LIKE $${paramIndex}`;
-      params.push(`%${event_type}%`);
+      params.push(`%${escapeLikePattern(event_type)}%`);  // Escape LIKE wildcards to prevent injection
       paramIndex++;
     }
 
@@ -1196,22 +1240,29 @@ async function withTimeout(promise, timeoutMs, name) {
 router.get('/marketplace/health', async (req, res) => {
   const HEALTH_CHECK_TIMEOUT = 5000; // 5 seconds per check
 
+  // Check if detailed health is requested (requires auth token)
+  const authHeader = req.headers.authorization;
+  const healthToken = process.env.HEALTH_CHECK_TOKEN;
+  const isAuthenticated = healthToken && authHeader === `Bearer ${healthToken}`;
+
+  // Basic health (always available - for load balancers)
+  const basicHealth = {
+    status: 'ok',
+    timestamp: new Date().toISOString()
+  };
+
+  // Detailed health (authenticated only - hides sensitive info from public)
   const healthStatus = {
     status: 'ok',
     timestamp: new Date().toISOString(),
     environment: {
-      partner_token: !!PARTNER_TOKEN,
-      app_id: !!APP_ID,
-      jwt_secret: !!JWT_SECRET,
-      base_url: BASE_URL,
-      node_version: process.version
+      // Only show boolean config status, no URLs or versions
+      partner_token_configured: !!PARTNER_TOKEN,
+      app_id_configured: !!APP_ID,
+      jwt_secret_configured: !!JWT_SECRET
+      // Removed: base_url, node_version (security: prevents fingerprinting)
     },
-    dependencies: {
-      express: !!express,
-      jsonwebtoken: !!jwt,
-      postgres: !!postgres,
-      session_pool: !!sessionPool
-    },
+    // Removed: dependencies (always true, not useful)
     services: {
       api_running: true,
       database: { status: 'unknown' },
@@ -1307,6 +1358,13 @@ router.get('/marketplace/health', async (req, res) => {
   // 503 only if database is unhealthy (critical service)
   const httpStatus = healthStatus.services.database.status === 'unhealthy' ? 503 :
                      healthStatus.status === 'ok' ? 200 : 200;
+
+  // Return basic health for unauthenticated requests (load balancer compatibility)
+  // Return detailed health only for authenticated requests
+  if (!isAuthenticated) {
+    basicHealth.status = healthStatus.status;
+    return res.status(httpStatus).json(basicHealth);
+  }
 
   res.status(httpStatus).json(healthStatus);
 });
@@ -1420,6 +1478,82 @@ async function getMarketplaceService() {
     await marketplaceServiceInstance.init();
   }
   return marketplaceServiceInstance;
+}
+
+// ============================
+// ROLE-BASED ACCESS CONTROL (RBAC)
+// ============================
+
+/**
+ * Role permissions hierarchy
+ * superadmin has all permissions (*)
+ * marketplace_admin can manage salons but not view audit logs
+ * admin is read-only
+ */
+const ROLE_PERMISSIONS = {
+  superadmin: ['*'], // All permissions (includes view_audit_logs)
+  marketplace_admin: [
+    'view_salons',
+    'view_status',
+    'generate_payment_link',
+    'notify_payment',
+    'notify_refund',
+    'add_discounts',
+    'update_channels',
+    'disconnect_salon'
+    // Note: NO 'view_audit_logs' - marketplace_admin cannot view audit logs
+  ],
+  admin: [
+    'view_salons',
+    'view_status'
+    // Note: read-only access, no admin actions
+  ]
+};
+
+/**
+ * Permission check middleware factory
+ * Creates middleware that checks if user has required permission
+ *
+ * @param {string} requiredPermission - Permission name to check
+ * @returns {Function} Express middleware
+ *
+ * @example
+ * router.post('/admin/action', adminAuth, requirePermission('disconnect_salon'), handler);
+ */
+function requirePermission(requiredPermission) {
+  return (req, res, next) => {
+    const userRole = req.adminUser?.role;
+
+    if (!userRole) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authentication required'
+      });
+    }
+
+    const userPermissions = ROLE_PERMISSIONS[userRole] || [];
+
+    // Check for wildcard permission (*) or specific permission
+    const hasPermission = userPermissions.includes('*') ||
+                          userPermissions.includes(requiredPermission);
+
+    if (!hasPermission) {
+      logger.warn('Permission denied', {
+        role: userRole,
+        required: requiredPermission,
+        path: req.path,
+        ip: req.ip
+      });
+
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: `This action requires permission: ${requiredPermission}`,
+        code: 'INSUFFICIENT_PERMISSIONS'
+      });
+    }
+
+    next();
+  };
 }
 
 /**
@@ -1920,18 +2054,11 @@ router.post('/marketplace/admin/salon/:salonId/sms-names', adminRateLimiter, adm
 // ============================
 // 18. ADMIN: GET AUDIT LOG
 // GET /marketplace/admin/audit-log
-// Requires superadmin role
+// Requires superadmin role (view_audit_logs permission)
 // ============================
-router.get('/marketplace/admin/audit-log', adminRateLimiter, adminAuth, async (req, res) => {
+router.get('/marketplace/admin/audit-log', adminRateLimiter, adminAuth, requirePermission('view_audit_logs'), async (req, res) => {
   try {
-    // Only superadmin can view audit logs
-    if (req.adminUser?.role !== 'superadmin') {
-      logger.warn('Audit log access denied - not superadmin', { admin: req.adminUser });
-      return res.status(403).json({
-        error: 'Access denied',
-        message: 'Only superadmin can view audit logs'
-      });
-    }
+    // Permission already checked by requirePermission middleware
 
     const {
       admin_id: adminId,
