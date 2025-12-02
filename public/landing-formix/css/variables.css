@@ -1,0 +1,164 @@
+/**
+ * Design Tokens - Formix Inspired
+ * Based on Formix color palette and typography system
+ */
+
+:root {
+  /* === COLORS === */
+
+  /* Backgrounds */
+  --color-bg-primary: #f0f0f0;
+  --color-bg-secondary: #ebeced;
+
+  /* Text */
+  --color-text-primary: #151619;
+  --color-text-secondary: #4f4f4f;
+  --color-text-muted: #707070;
+
+  /* Accent */
+  --color-accent: #ff3700;
+  --color-accent-hover: #e63300;
+
+  /* Borders */
+  --color-border: #e5e5e5;
+
+  /* Overlays */
+  --overlay-light: rgba(255, 255, 255, 0.08);
+  --overlay-dark: rgba(0, 0, 0, 0.26);
+
+  /* === TYPOGRAPHY === */
+
+  /* Font Families */
+  --font-heading: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+
+  /* Font Sizes (rem-based for accessibility) */
+  --text-xs: 0.75rem;    /* 12px */
+  --text-sm: 0.875rem;   /* 14px */
+  --text-base: 1rem;     /* 16px */
+  --text-lg: 1.125rem;   /* 18px */
+  --text-xl: 1.25rem;    /* 20px */
+  --text-2xl: 1.5rem;    /* 24px */
+  --text-3xl: 1.875rem;  /* 30px */
+  --text-4xl: 2.25rem;   /* 36px */
+  --text-5xl: 3rem;      /* 48px */
+
+  /* Font Weights */
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-extrabold: 800;
+  --weight-black: 900;
+
+  /* Line Heights */
+  --leading-tight: 1.2;
+  --leading-normal: 1.3;
+  --leading-relaxed: 1.5;
+
+  /* Letter Spacing */
+  --tracking-tight: -0.05em;
+  --tracking-normal: -0.035em;
+  --tracking-wide: 0;
+
+  /* === SPACING === */
+
+  /* Base Spacing Scale */
+  --space-xs: 0.625rem;   /* 10px */
+  --space-sm: 1.25rem;    /* 20px */
+  --space-md: 2.188rem;   /* 35px */
+  --space-lg: 3.125rem;   /* 50px */
+  --space-xl: 5rem;       /* 80px */
+
+  /* Component-Specific */
+  --header-height: 80px;
+  --container-max-width: 1270px;
+  --container-padding: var(--space-md);
+
+  /* Responsive Padding */
+  --section-padding-mobile: var(--space-md);
+  --section-padding-desktop: var(--space-xl);
+
+  /* === ANIMATIONS === */
+
+  /* Duration */
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+
+  /* Easing */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* === BREAKPOINTS === */
+
+  --breakpoint-mobile: 810px;
+  --breakpoint-desktop: 1200px;
+
+  /* === Z-INDEX === */
+
+  --z-header: 1000;
+  --z-modal: 2000;
+  --z-cursor: 9999;
+}
+
+/* === FONT FACES === */
+
+/* Geist Font Family */
+@font-face {
+  font-family: 'Geist';
+  src: url('../fonts/geist/Geist-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('../fonts/geist/Geist-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('../fonts/geist/Geist-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-display: swap;
+  font-style: normal;
+}
+
+/* Inter Font Family */
+@font-face {
+  font-family: 'Inter';
+  src: url('../fonts/inter/Inter-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../fonts/inter/Inter-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../fonts/inter/Inter-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../fonts/inter/Inter-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+  font-style: normal;
+}
