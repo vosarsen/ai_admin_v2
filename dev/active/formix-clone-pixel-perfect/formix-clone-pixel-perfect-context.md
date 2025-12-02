@@ -1,385 +1,144 @@
 # Formix Clone - Context & Key Decisions
 
-**Last Updated:** 2025-12-02 23:45 (Session: Viewport Blur + Final Typography Refinements)
+**Last Updated:** 2025-12-02 (Session: Hero Gallery Positioning Fix)
 
 ---
 
-## 🔥 CRITICAL SESSION STATE (Updated: 2025-12-02 - EVENING SESSION)
+## 🔥 CRITICAL SESSION STATE (Updated: 2025-12-02 - HERO GALLERY POSITIONING)
 
 ### Current Implementation Status
-- **Phase:** Phase 5 (Why Us Section) - ✅ COMPLETE with viewport blur feature
+- **Phase:** Phase 5 (Why Us Section) - ✅ COMPLETE
 - **Progress:** 5/18 phases complete (27.8% overall progress)
-- **Status:** ✅ **ALL CHANGES COMMITTED** - Viewport blur + typography refinements
-- **Last Commit:** 1f22422 ("style: viewport blur effect and typography refinements")
-- **Next Immediate Step:** Begin Phase 6 (Benefits/Projects/Pricing/Clients/FAQs)
-- **Dev Server:** Running at http://localhost:3000
+- **Status:** ✅ **CLEAN STATE** - All changes committed
+- **Last Commit:** 26babdd ("fix(hero): adjust gallery positioning to -top-[175px]")
+- **Next Immediate Step:** Begin Phase 6 (Benefits, Projects, Pricing, Clients, or FAQs)
+- **Dev Server:** Running at http://localhost:3000 (multiple instances may be running)
 - **Branch:** main (formix-landing-nextjs)
 - **Project Location:** `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/`
 
 ### ✅ CURRENT WORKING STATE
 
-**All changes committed - Working directory clean**
+**Git Status:** Clean - no uncommitted changes
 
-**Latest Commit Includes:**
-1. `src/components/ViewportBottomBlur.tsx` - NEW: Subtle blur effect anchored to viewport bottom
-2. `src/components/WhyUs/WhyUs.tsx` - Final padding (p-[22px]) and line-height (leading-[0.85])
-3. `src/components/Hero/Hero.tsx` - Line-height refinement (leading-[0.9])
-4. `src/app/page.tsx` - ViewportBottomBlur integration
-
-**Current Phase:** Phase 5 - ✅ COMPLETE
+**Recent Commits:**
+1. `26babdd` - Hero gallery positioning fix (⚠️ CRITICAL VALUE - DO NOT CHANGE)
+2. `225e455` - Content localization (Russian navigation)
+3. `6e9e9d4` - Why Us section implementation
+4. `1f22422` - Viewport blur and typography
+5. `c7489b9` - Color system updates
 
 ---
 
-## 📋 LATEST SESSION WORK (2025-12-02 Evening - Part 2)
+## 📋 LATEST SESSION WORK (2025-12-02 - Hero Gallery Positioning)
 
 ### Session Duration
-**Start:** 22:30 (continued from previous session)
-**End:** 23:45 (1.25 hours)
-**Focus:** Viewport blur effect + final typography fine-tuning
+**Start:** ~18:30
+**End:** ~19:30 (60 minutes)
+**Focus:** Fine-tuning Hero section gallery positioning
 
-### Session Goals Achieved
-✅ Created viewport bottom blur component with subtle distortion
-✅ Finalized WhyUs card padding (iterative refinement to p-[22px])
-✅ Optimized line-height across Hero and WhyUs sections
-✅ Resolved .next cache issues affecting style updates
-✅ Committed all changes with comprehensive commit message
+### Session Goals
+✅ Fixed Hero gallery positioning after user feedback
+✅ Found optimal value through iterative testing
+✅ Committed final value with warning not to change
+✅ Updated documentation
 
----
+### Changes Made This Session
 
-## 📋 PREVIOUS SESSION WORK (2025-12-02 Evening - Part 1)
+#### 1. Hero Gallery Positioning (CRITICAL)
 
-### Session Duration
-**Start:** ~20:00
-**End:** 22:30 (2.5 hours)
-**Focus:** Typography, color system, and layout refinements
+**File:** `src/components/Hero/Hero.tsx`
 
-### Changes Made This Session (Part 2)
-
-#### 1. ViewportBottomBlur Component (NEW FILE)
-**Purpose:** Create subtle blur effect anchored to bottom of viewport
-
-**File:** `src/components/ViewportBottomBlur.tsx` (NEW)
-
-**Component Structure:**
+**Final Values (DO NOT CHANGE):**
 ```tsx
-'use client';
+// Line 36: Gallery container positioning
+className="hidden lg:block w-[584px] h-[849px] absolute -right-[12px] -top-[175px] overflow-hidden"
 
-export function ViewportBottomBlur() {
-  return (
-    <div
-      className="fixed bottom-0 left-0 right-0 h-[20px] pointer-events-none z-50"
-      style={{
-        backdropFilter: 'blur(16px) saturate(1.1) brightness(1.02)',
-        WebkitBackdropFilter: 'blur(16px) saturate(1.1) brightness(1.02)',
-        maskImage: 'linear-gradient(to top, black 0%, transparent 100%)',
-        WebkitMaskImage: 'linear-gradient(to top, black 0%, transparent 100%)'
-      }}
-    />
-  );
-}
+// Line 38: Inner grid positioning
+<div className="grid grid-cols-2 gap-0 relative -top-[144px]">
 ```
 
-**Key Technical Decisions:**
-- **Height:** 20px (tested 40px, user preferred smaller)
-- **Positioning:** `fixed bottom-0` - anchored to viewport, not page content
-- **Z-index:** 50 (above most content but not modals)
-- **Blur:** 16px with distortion effects (saturation 1.1, brightness 1.02)
-- **Transparency:** `maskImage` gradient for invisible transition (not background gradient)
-- **Interaction:** `pointer-events-none` - doesn't interfere with clicks
+**Evolution of Values:**
+- Original: `-top-[160px]` (container)
+- After +6px: `-top-[166px]`
+- After +4px: `-top-[170px]`
+- **Final:** `-top-[175px]` ⚠️ **LOCKED VALUE**
 
-**Integration:** `src/app/page.tsx:70-71`
+**Inner grid remained:** `-top-[144px]` (was `-top-32` = 128px, adjusted +16px earlier)
 
-#### 2. WhyUs Final Padding Iteration
-**Purpose:** Iterative refinement from user feedback
+**User Instruction:** "Сохрани это значение! Никогда его не меняй"
 
-**Progression:**
-- Initial: p-8 (32px)
-- p-6 (24px)
-- p-7 (28px)
-- p-[84px] (too large)
-- p-20 (80px)
-- p-[60px]
-- p-[40px]
-- p-[28px]
-- **Final: p-[22px]** ✅
-
-**File:** `src/components/WhyUs/WhyUs.tsx:114`
-
-#### 3. Line-Height Final Adjustments
-**Purpose:** Tighter inter-line spacing for descriptions
-
-**WhyUs descriptions:**
-- Changed from `leading-[1.15]` → `leading-[1]` → `leading-[0.9]` → **`leading-[0.85]`**
-- File: `src/components/WhyUs/WhyUs.tsx:137`
-
-**Hero description:**
-- Changed to `leading-[0.9]`
-- File: `src/components/Hero/Hero.tsx:100`
-
-**WhyUs stat numbers:**
-- Added `leading-none` to remove invisible spacing above numbers
-- File: `src/components/WhyUs/WhyUs.tsx:119`
-
-#### 4. Cache Management Issues
-**Problem:** CSS changes not appearing in browser despite code updates
-
-**Root Cause:** Multiple dev servers running + corrupted .next cache
-
-**Solution:** Used frontend-error-fixer agent to:
-1. Kill all conflicting dev server processes
-2. Clear .next cache: `rm -rf .next`
-3. Restart single clean dev server
-
-**Frequency:** Occurred 3+ times during session, established workflow
-
----
-
-### Changes Made Previous Session (Part 1)
-
-#### 1. Color System Update (tailwind.config.ts)
-**Purpose:** Change all black elements to softer dark gray RGB(34, 34, 34)
-
-**Changes:**
-```typescript
-colors: {
-  dark: "rgb(34, 34, 34)",    // was: rgb(21, 22, 25)
-  black: "rgb(34, 34, 34)",   // was: rgb(0, 0, 0)
-}
+**Commit Message Notes:**
 ```
-
-**Impact:** All text and UI elements using `text-dark` or `text-black` now render with softer color
-
-**File:** `tailwind.config.ts:13-15`
-
-#### 2. Hero Button Arrow Color (Button.tsx)
-**Purpose:** Make arrow icon orange to match accent color
-
-**Changes:**
-- Line 97: `variant === "primary" ? "text-accent" : "text-white"` (was: "text-white")
-- Line 114: `variant === "primary" ? "text-accent" : "text-white"` (was: "text-white")
-
-**Result:** Arrow in primary button now orange instead of white
-
-**File:** `src/components/Hero/Button.tsx:94-117`
-
-#### 3. Why Us Section - Extensive Refinements (WhyUs.tsx)
-
-**3a. Typography Adjustments:**
-- **Heading sizes reduced by 12px:**
-  - Main heading: 36px / 48px / 60px (was: 48px / 60px / 72px)
-  - Stat numbers: 36px / 48px (was: 48px / 60px)
-  - File: WhyUs.tsx:56, 129
-
-- **Description text formatting:**
-  - Line height: `leading-[1.15]` (tight spacing)
-  - Letter spacing: `tracking-tight`
-  - Multi-line support: `whitespace-pre-line`
-  - File: WhyUs.tsx:137
-
-**3b. Text Content Restructured:**
-```javascript
-benefits = [
-  {
-    stat: '50+',
-    description: 'Digital projects delivered across\nall industries.',
-    dots: 1,
-  },
-  {
-    stat: '3X',
-    description: 'Our model cuts typical delivery\ntimelines by two-thirds.',
-    dots: 2,
-  },
-  {
-    stat: '80k+',
-    description: 'Monthly visitors via SEO\ncontent hub',
-    dots: 3,
-  },
-  {
-    stat: '100%',
-    description: 'Client satisfaction rate across\npaid users',
-    dots: 4,
-  },
-]
-```
-**Note:** Each description now breaks at ~5 words per line using `\n`
-
-**File:** WhyUs.tsx:7-28
-
-**3c. Layout Refinements:**
-
-**Card Height:**
-- Changed from 384px → 480px → 450px (final)
-- Matches Services section card height
-- File: WhyUs.tsx:85, 99
-
-**Dots Positioning:**
-- Moved from absolute positioning to inline with stat
-- Now centered vertically with stat numbers using flexbox
-- Structure: `flex items-center justify-between`
-- Dots size: 8.4px (increased 5% from 8px)
-- File: WhyUs.tsx:117-134
-
-**Vertical Spacing:**
-- Added `mb-4` to stat container (pushes description down)
-- Added `mt-auto` to description (sticks to bottom)
-- Creates visual separation between top and bottom content
-- File: WhyUs.tsx:117, 137
-
----
-
-## 🎨 DESIGN SYSTEM DECISIONS
-
-### Typography Scale (Updated)
-```
-Headings:
-- H1 (Hero): 56px / 72px / 96px
-- H2 (Section): 36px / 48px / 60px ← UPDATED (was 48/60/72)
-- H3 (Stats): 36px / 48px ← UPDATED (was 48/60)
-- Body: 16px / 18px
-- Small: 14px / 15px
-```
-
-### Color System (Updated)
-```
-Primary Text: rgb(34, 34, 34) ← NEW (was rgb(21,22,25))
-Accent: rgb(255, 55, 0) - Orange
-Background Grays:
-- Light: rgb(240, 240, 240)
-- Medium: rgb(229, 229, 229)
-- Pill: rgb(229, 229, 229) at 60% opacity
-```
-
-### Spacing System
-```
-Card padding: 32px (p-8)
-Card gap: 7px
-Section padding: 80px/128px (py-20 md:py-32)
+This value was found through iterative refinement and should NOT be changed.
 ```
 
 ---
 
-## 🎯 WHY US SECTION - FINAL STATE
+## 🎯 CRITICAL VALUES TO PRESERVE
 
-### Component Structure
+### Hero Gallery Positioning
+⚠️ **NEVER CHANGE THESE VALUES:**
+- Gallery container: `-top-[175px]` (line 36 in Hero.tsx)
+- Inner grid: `-top-[144px]` (line 38 in Hero.tsx)
+- Gallery right position: `-right-[12px]`
+- Gallery dimensions: `w-[584px] h-[849px]`
+
+**Rationale:** Found through extensive user testing and iterative refinement over multiple sessions. User explicitly requested these values be locked.
+
+### Other Locked Values
+- Why Us padding: `22px` (found after 9 iterations - see previous sessions)
+- Max width: `1280px` (all sections)
+- Viewport blur: REMOVED (user preference)
+
+---
+
+## 💡 PATTERNS DISCOVERED (Updated)
+
+### Positioning Iteration Pattern
+When user requests positioning adjustments:
+1. Start with small increments (4-6px)
+2. Test each change immediately
+3. User will request multiple adjustments
+4. Final value will be explicitly confirmed ("Сохрани это значение!")
+5. Commit immediately with warning comment
+6. Document in context as "DO NOT CHANGE"
+
+### Gallery Positioning Architecture
 ```
-<section id="why-us">
-  <Badge>Why Us</Badge>
-  <Heading>Proven results for every project</Heading>
-  <Description>We combine strategy, speed...</Description>
-
-  <div className="grid grid-cols-[1fr_2fr] gap-[7px]">
-    <ImageCard /> <!-- 1/3 width, 450px height -->
-    <StatsGrid>   <!-- 2/3 width, 450px height -->
-      <StatCard> × 4
-        <div className="flex justify-between mb-4">
-          <Stat>50+</Stat>
-          <Dots>● ○ ○ ○</Dots>
-        </div>
-        <Description className="mt-auto">...</Description>
-      </StatCard>
-    </StatsGrid>
-  </div>
-</section>
-```
-
-### Key Measurements
-- **Container height:** 450px
-- **Dots size:** 8.4px diameter
-- **Dots gap:** 4px (gap-1)
-- **Stat to description spacing:** Auto (flex justify-between)
-- **Line height:** 1.15
-- **Letter spacing:** -0.025em (tracking-tight)
-
----
-
-## 🐛 ISSUES RESOLVED THIS SESSION
-
-### Issue 1: Line Height Not Applying
-**Problem:** Setting `leading-[0.8]` had no visible effect
-**Root Cause:** Dev server cache
-**Solution:** Killed all servers, cleared `.next` cache, restarted
-**Final Value:** `leading-[1.15]` (balanced readability and compactness)
-
-### Issue 2: Dots Positioning
-**Problem:** User wanted dots horizontally aligned with stat center, not in corner
-**Solution:** Changed from absolute positioning to flex layout
-**Result:** Dots automatically center with stat text
-
----
-
-## 📂 FILE MODIFICATIONS SUMMARY
-
-| File | Lines Changed | Key Changes |
-|------|---------------|-------------|
-| `tailwind.config.ts` | 2 | Color system: dark and black to rgb(34,34,34) |
-| `Button.tsx` | 2 | Arrow color: white → orange (text-accent) |
-| `WhyUs.tsx` | ~25 | Typography, layout, text content restructure |
-| `Navigation.tsx` | N/A | From previous session (not modified this session) |
-
----
-
-## 🔄 NEXT IMMEDIATE STEPS
-
-1. ✅ **DONE:** All changes committed (commit 1f22422)
-
-2. **Proceed to Phase 6:** Begin next section implementation
-   - Options: Benefits, Projects, Pricing, Clients, or FAQs
-   - User will choose which section to tackle next
-
-3. **Before Starting Phase 6:**
-   - Verify dev server is running cleanly
-   - Kill any lingering background dev server processes if needed
-   - Review design specs for next section
-
----
-
-## 💡 PATTERNS DISCOVERED
-
-### Typography Fine-Tuning Pattern
-When user requests font size changes, make changes in 4px increments initially, then refine. For this project:
-- Started: 48/60/72
-- First reduction: 44/56/68 (-4px)
-- Final: 36/48/60 (-8px more = -12px total)
-
-### Line Height for Multi-Line Text
-For tight descriptions with multiple lines:
-- `leading-[1]` = too tight (letters touch)
-- `leading-[1.15]` = balanced ✓
-- `leading-[1.2]` = slightly loose
-- `leading-snug` = 1.375 (too loose for this design)
-
-### Flexbox for Horizontal Alignment
-When aligning dots with stat numbers:
-```tsx
-<div className="flex items-center justify-between">
-  <Stat />
-  <Dots />
-</div>
-```
-This auto-centers dots vertically with stat baseline.
-
-### Viewport-Fixed Blur Effects
-For subtle blur anchored to viewport (not scrolling content):
-```tsx
-<div
-  className="fixed bottom-0 left-0 right-0 h-[20px] pointer-events-none z-50"
-  style={{
-    backdropFilter: 'blur(16px) saturate(1.1) brightness(1.02)',
-    maskImage: 'linear-gradient(to top, black 0%, transparent 100%)'
-  }}
-/>
+Parent Container (motion.div)
+├─ Position: absolute
+├─ Top: -175px (LOCKED)
+├─ Right: -12px
+└─ Child Grid (div)
+   ├─ Position: relative
+   └─ Top: -144px (LOCKED)
 ```
 
-**Key Decisions:**
-- `fixed` positioning (not `absolute`) - stays with viewport
-- `maskImage` for transparency (not `background`) - invisible transition
-- `pointer-events-none` - doesn't block clicks
-- Combine blur with subtle color distortion for depth
-- Keep height small (20px) for subtlety
+Both values work together - changing one without the other breaks alignment.
+
+### Content Localization Pattern
+When localizing content:
+1. **Navigation first** - Sets the tone for the entire site
+2. **Section badges match navigation** - Consistent terminology
+3. **Hero messaging** - Most critical, should be platform-agnostic
+4. **Gradual rollout** - Don't localize everything at once, risk inconsistency
+
+### Gray Accent Consistency
+All gray accent text should use `text-dark/50` not `text-gray-500`:
+- Provides consistent opacity across the site
+- Matches color system in tailwind.config.ts
+- Example: Hero heading, Why Us heading (both use text-dark/50)
+
+### Professional Tone Markers
+Avoid these terms in user-facing content:
+- "Beta" (implies unstable)
+- Platform names in primary heading (too limiting)
+- "24/7" (use "круглосуточно" instead for Russian audience)
+- Problem-focused language (use solution language)
 
 ---
 
-## 🎯 USER PREFERENCES CAPTURED
+## 🎯 USER PREFERENCES CAPTURED (Updated)
 
 1. **Prefers tight line spacing** for descriptions (0.85-0.9 range)
 2. **Wants 5 words per line max** in descriptions
@@ -387,28 +146,164 @@ For subtle blur anchored to viewport (not scrolling content):
 4. **Orange accents** for interactive elements (arrows)
 5. **Balanced spacing** between top and bottom card content
 6. **Iterative refinement workflow** - prefers seeing changes and adjusting incrementally
-7. **Subtle effects** - viewport blur should be "barely noticeable" with invisible transitions
+7. **Subtle effects** - viewport blur should be "barely noticeable" (or removed)
 8. **Precise padding** - went through 9 iterations to find perfect 22px value
+9. **Russian-first navigation** - Primary nav items should be in Russian
+10. **Platform-agnostic messaging** - Don't mention WhatsApp in hero heading
+11. **Professional tone** - Avoid "beta" and other disclaimers
+12. **Action-focused copy** - Lead with what product does, not what it is
+13. **Locks values after finding right one** - Explicitly requests "никогда не меняй"
 
 ---
 
 ## 📊 PROJECT PROGRESS
 
 **Completed Phases:**
-- ✅ Phase 1: Hero Section
-- ✅ Phase 2: Services Section
-- ✅ Phase 3: Navigation (with refinements)
-- ✅ Phase 4: Page Structure
-- ✅ Phase 5: Why Us Section + Viewport Blur (COMPLETE with commit 1f22422)
+- ✅ Phase 0: Project Setup
+- ✅ Phase 1: Foundation (fonts, animations)
+- ✅ Phase 2: Navigation (frosted glass, rolling text)
+- ✅ Phase 2.1: Navigation Redesign (light theme, active tracking)
+- ✅ Phase 3: Hero Section (with carousel gallery)
+- ✅ Phase 4: Services Section (horizontal cards)
+- ✅ Phase 5: Why Us Section (animated counters)
+
+**Content Updates:**
+- ✅ Hero heading and description (Russian, professional)
+- ✅ Navigation localization (partial - 2/7 links: Кейсы, Преимущества)
+- ✅ Section badges (Services: "Кейсы", Why Us: "Преимущества")
+- ✅ Hero gallery positioning (LOCKED VALUES)
+- ⬜ Remaining sections (Benefits, Projects, Pricing, Clients, FAQs)
 
 **Remaining Phases:** 13/18 (72.2%)
 
-**Next Focus:** Phase 6 (TBD - Benefits, Projects, Pricing, Clients, or FAQs)
+**Next Focus:**
+- Choose Phase 6 section to implement (Benefits, Projects, Pricing, Clients, or FAQs)
 
 ---
 
-**Last Context Update:** 2025-12-02 23:45
-**Session State:** All changes committed - Ready for Phase 6
-**Dev Server:** Running (localhost:3000)
+## 🐛 SESSION ISSUES & RESOLUTIONS
+
+### Issue 1: Multiple Background Dev Servers
+**Problem:** Many bash background processes running dev server from previous sessions
+**Impact:** Potential port conflicts, resource usage
+**Solution:** `killall node` before starting new server
+**Status:** ONGOING - Clean up recommended before next phase
+
+### Issue 2: Initial Confusion About Which Section
+**Problem:** Started modifying Services section when Hero was intended
+**Impact:** Had to revert changes, wasted ~5 minutes
+**Solution:** Always confirm which section user is referring to
+**Status:** RESOLVED - Clarified and reverted changes
+
+### Issue 3: Gallery Positioning Iterations
+**Problem:** Took 5 iterations to find correct positioning
+**Impact:** Required careful tracking of each value change
+**Solution:** User tested each change visually, confirmed final value
+**Status:** RESOLVED - Final value committed and documented
+
+---
+
+## 📂 FILE MODIFICATIONS SUMMARY (Current Session)
+
+| File | Change | Status |
+|------|--------|--------|
+| `Hero.tsx` | Gallery positioning: `-top-[175px]` (line 36) | ✅ COMMITTED |
+| `ServiceCard.tsx` | Reverted experimental changes | ✅ CLEAN |
+
+**Total:** 1 file modified, committed in `26babdd`
+
+---
+
+## 🔄 NEXT IMMEDIATE STEPS
+
+1. **Clean Up Background Processes**
+   ```bash
+   killall node
+   cd /Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs
+   npm run dev
+   ```
+
+2. **Choose Next Phase** (User decision)
+   Options:
+   - Phase 6a: Benefits Section (4-5 hours)
+   - Phase 6b: Projects/Portfolio Section (5-6 hours)
+   - Phase 6c: Pricing Section (5-6 hours)
+   - Phase 6d: Clients/Logos Section (2-3 hours)
+   - Phase 6e: FAQs Section (4-5 hours)
+
+3. **Before Starting Next Phase:**
+   - Verify dev server is running clean
+   - Check git status (should be clean)
+   - Review task checklist for chosen phase
+   - Read relevant SESSION_SUMMARY files for patterns
+
+---
+
+## 📝 HANDOFF NOTES FOR NEXT SESSION
+
+### Exact State
+- ✅ All code committed
+- ✅ Dev server may need restart (multiple instances)
+- ✅ Hero gallery positioning FINALIZED (do not touch)
+- ✅ Ready to start Phase 6
+
+### Commands to Run First
+```bash
+# 1. Check git status
+cd /Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs
+git status
+
+# 2. Kill old dev servers
+killall node
+
+# 3. Start clean dev server
+npm run dev
+
+# 4. Verify in browser
+open http://localhost:3000
+```
+
+### What's Working
+- Navigation with Russian labels
+- Hero section with properly positioned gallery
+- Services section with horizontal cards
+- Why Us section with animated counters
+- All animations and transitions
+
+### What's Next
+- Implement one of the remaining sections (Benefits, Projects, Pricing, Clients, FAQs)
+- Continue content localization if needed
+- Test responsive behavior on all sections
+
+### Known State
+- No build errors
+- No TypeScript errors
+- Dev server compiling successfully
+- All animations working
+- Responsive layout intact
+
+---
+
+## 📚 REFERENCE DOCUMENTATION
+
+**Key Files to Review Before Next Phase:**
+- `formix-clone-pixel-perfect-plan.md` - Overall project plan (863 lines)
+- `formix-clone-pixel-perfect-tasks.md` - Detailed task breakdown (1,218 lines)
+- `SESSION_SUMMARY_2025-12-01_PHASE*.md` - Lessons from completed phases
+- `FORMIX_COMPLETE_ANALYSIS.md` - Original Formix analysis (37k lines)
+
+**Session Summaries Available:**
+- Phase 0: Project Setup (25 min)
+- Phase 1: Foundation (15 min)
+- Phase 2: Navigation (45 min + 60 min redesign)
+- Phase 3: Hero Section (multiple sessions)
+- Phase 4: Services Section (75 min + 45 min refinements)
+- Phase 5: Why Us Section (45 min)
+
+---
+
+**Last Context Update:** 2025-12-02 ~19:30
+**Session State:** Clean - All work committed
+**Dev Server:** Running (may need restart)
 **Working Directory:** Clean (no uncommitted changes)
-**Latest Commit:** 1f22422 - Viewport blur + typography refinements
+**Next Action:** Choose and implement Phase 6 section
