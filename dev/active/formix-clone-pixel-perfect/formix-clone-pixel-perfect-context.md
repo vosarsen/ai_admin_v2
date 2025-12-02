@@ -1,748 +1,414 @@
 # Formix Clone - Context & Key Decisions
 
-**Last Updated:** 2025-12-01 (Session: Phase 4 Refinements - Services Section Styling Iterations)
+**Last Updated:** 2025-12-02 23:45 (Session: Viewport Blur + Final Typography Refinements)
 
 ---
 
-## 🔥 CRITICAL SESSION STATE (Updated: 2025-12-01 - Phase 4 Services Refinements)
+## 🔥 CRITICAL SESSION STATE (Updated: 2025-12-02 - EVENING SESSION)
 
 ### Current Implementation Status
-- **Phase:** Phase 4 (Services Section) - ⚠️ **REFINEMENTS IN PROGRESS**
-- **Progress:** 4/18 phases complete (22.2% overall progress)
-- **Status:** ⚠️ **UNCOMMITTED CHANGES** - Minor styling refinements
-- **Last Major Commit:** 82fc34c ("feat: Phase 4 Services Section complete")
-- **Last Doc Commit:** f335944 ("docs(formix): Update tasks and context - Phase 4 Services Section complete")
-- **Next Immediate Step:** Commit refinements, then Phase 5 (Why Us Section)
+- **Phase:** Phase 5 (Why Us Section) - ✅ COMPLETE with viewport blur feature
+- **Progress:** 5/18 phases complete (27.8% overall progress)
+- **Status:** ✅ **ALL CHANGES COMMITTED** - Viewport blur + typography refinements
+- **Last Commit:** 1f22422 ("style: viewport blur effect and typography refinements")
+- **Next Immediate Step:** Begin Phase 6 (Benefits/Projects/Pricing/Clients/FAQs)
 - **Dev Server:** Running at http://localhost:3000
 - **Branch:** main (formix-landing-nextjs)
 - **Project Location:** `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/`
 
-### ⚠️ CURRENT WORKING STATE
+### ✅ CURRENT WORKING STATE
 
-**Files with uncommitted changes:**
-- `src/components/Services/ServiceCard.tsx` - Gradient experiments (reverted)
-- `src/app/page.tsx` - Bottom blur removed
-- `src/components/Services/Services.tsx` - Layout alignment experiments (reverted to original)
+**All changes committed - Working directory clean**
 
-**Current issue being addressed:**
-User requested alignment adjustments for Services section to match Hero section alignment. Multiple approaches were tried:
-1. Gradient border (tried, rejected, reverted)
-2. Two-column grid layout matching Hero (tried, rejected, reverted)
-3. Returned to original full-width layout
+**Latest Commit Includes:**
+1. `src/components/ViewportBottomBlur.tsx` - NEW: Subtle blur effect anchored to viewport bottom
+2. `src/components/WhyUs/WhyUs.tsx` - Final padding (p-[22px]) and line-height (leading-[0.85])
+3. `src/components/Hero/Hero.tsx` - Line-height refinement (leading-[0.9])
+4. `src/app/page.tsx` - ViewportBottomBlur integration
 
-**Latest user feedback:**
-- "Убери вообще эту штуку снизу" - Removed bottom viewport blur effect ✅
-- "Верни, как было" - Reverted Services layout to original ✅
-
-**Current state:** Services section back to original working version with:
-- Badge + horizontal heading/description layout (grid-cols-[1.3fr_1fr])
-- Full-width service cards below
-- No bottom blur effect
-- Original card styling (no gradient)
-
-### What Just Happened (This Session - Phase 4 Services Refinements)
-
-**Session Duration:** ~120 minutes total (75 min initial + 45 min refinements)
-**Date:** December 1, 2025 (continued from previous context)
-
-This session had two parts:
-1. **Initial Implementation** - Services Section with horizontal cards (COMMITTED)
-2. **Refinement Iterations** - Styling and alignment experiments (IN PROGRESS)
-
-#### Phase 4.1 - Initial Implementation (COMMITTED - 82fc34c):
-
-1. **Component Structure**
-   - Created `Services.tsx` with two-tier layout
-   - Created `ServiceCard.tsx` with horizontal split
-   - Created `index.ts` barrel export
-
-2. **Layout Design**
-   - Top section: Badge + horizontal heading/description (1.3fr/1fr grid)
-   - Bottom section: Full-width service cards (single column)
-   - Card split: 45fr (content) / 55fr (image placeholder)
-
-3. **Service Cards (9 total)**
-   - Icon (40px square, bg-dark, rounded-xl)
-   - Title (text-2xl md:text-3xl, bold)
-   - Description (text-base, text-dark/70)
-   - 2x2 tags grid with numbered labels (01-04)
-   - Image placeholder with fallback SVG icon
-   - min-h-[450px] for consistent height
-
-4. **Custom Badge**
-   - Replaced Badge component with inline HTML
-   - Added orange slashes: `<span className="text-accent">//</span> Services <span className="text-accent">//</span>`
-
-5. **Animations**
-   - Framer Motion `whileInView` on all elements
-   - Stagger effect: delay: index * 0.1
-   - Hover: translateY(-4px) + shadow increase
-
-6. **Bottom Blur Effect** (LATER REMOVED)
-   - Initially added: Fixed to viewport bottom (not section-specific)
-   - h-10 with backdrop-blur-2xl
-   - Scrolls with page content
-   - **Status:** Removed in Phase 4.2 per user feedback
-
-**Key Changes Made:**
-- Changed from vertical to horizontal card layout
-- Adjusted grid proportions from default to [45fr_55fr]
-- Increased heading size to text-6xl
-- Changed description color from text-dark/50 to text-dark/60
-- Removed white background to show grid lines
-- Added bottom viewport blur effect (later removed)
-
-**Acceptance Criteria Met:** ✅
-- Horizontal cards with proper proportions
-- Smooth animations on scroll
-- Custom badge with colored slashes
-- Viewport blur effect at bottom (later removed)
+**Current Phase:** Phase 5 - ✅ COMPLETE
 
 ---
 
-#### Phase 4.2 - Refinement Iterations (IN PROGRESS - UNCOMMITTED):
+## 📋 LATEST SESSION WORK (2025-12-02 Evening - Part 2)
 
-**Experiments tried (all reverted):**
+### Session Duration
+**Start:** 22:30 (continued from previous session)
+**End:** 23:45 (1.25 hours)
+**Focus:** Viewport blur effect + final typography fine-tuning
 
-1. **Gradient Border Attempt** (ServiceCard.tsx)
-   - User: "Сделай так, чтобы не было видно границ"
-   - Tried: `bg-gradient-to-br from-[rgb(240,240,240)] via-[rgb(235,235,235)] to-[rgb(229,229,229)]`
-   - User: "Сделай так, чтобы к верху не было видны границы вообще"
-   - Tried: `bg-gradient-to-b from-white via-[rgb(235,235,235)] to-[rgb(229,229,229)]`
-   - User: "ладно, убери вообще это"
-   - **Result:** Reverted to solid color `bg-[rgb(229,229,229)]` ✅
+### Session Goals Achieved
+✅ Created viewport bottom blur component with subtle distortion
+✅ Finalized WhyUs card padding (iterative refinement to p-[22px])
+✅ Optimized line-height across Hero and WhyUs sections
+✅ Resolved .next cache issues affecting style updates
+✅ Committed all changes with comprehensive commit message
 
-2. **Bottom Blur Removal** (page.tsx)
-   - User: "Убери вообще эту штуку снизу"
-   - Removed: `<div className="fixed bottom-0 left-0 right-0 h-10 backdrop-blur-2xl pointer-events-none z-20" />`
-   - **Result:** COMMITTED as final change ✅
+---
 
-3. **Alignment Adjustment Attempts** (Services.tsx)
-   - User: "Соблюдай выравнивание текста. Текст и карточки выровняй по тому же принципу, как и в hero"
-   - **Attempt 1:** Changed to `grid lg:grid-cols-2` layout with badge/heading in left column, cards below
-   - **Issue:** Cards were in left column only (50% width)
-   - **Attempt 2:** Restructured with heading in grid, cards full-width below
-   - User: "Верни, как было"
-   - **Result:** Reverted to original two-tier layout ✅
+## 📋 PREVIOUS SESSION WORK (2025-12-02 Evening - Part 1)
 
-**Current Code State (Services.tsx):**
+### Session Duration
+**Start:** ~20:00
+**End:** 22:30 (2.5 hours)
+**Focus:** Typography, color system, and layout refinements
+
+### Changes Made This Session (Part 2)
+
+#### 1. ViewportBottomBlur Component (NEW FILE)
+**Purpose:** Create subtle blur effect anchored to bottom of viewport
+
+**File:** `src/components/ViewportBottomBlur.tsx` (NEW)
+
+**Component Structure:**
 ```tsx
-<section id="services" className="py-20 md:py-32">
-  <div className="max-w-[1280px] mx-auto px-4">
-    {/* Top Section - Badge, Title and Description */}
-    <motion.div className="mb-16">
-      {/* Badge with orange slashes */}
-      <div className="inline-flex...">// Services //</div>
+'use client';
 
-      {/* Title and Description - Horizontal Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-8 lg:gap-24 items-end">
-        <h2>How We Grow<br />Your Business</h2>
-        <p>We combine strategy...</p>
-      </div>
-    </motion.div>
+export function ViewportBottomBlur() {
+  return (
+    <div
+      className="fixed bottom-0 left-0 right-0 h-[20px] pointer-events-none z-50"
+      style={{
+        backdropFilter: 'blur(16px) saturate(1.1) brightness(1.02)',
+        WebkitBackdropFilter: 'blur(16px) saturate(1.1) brightness(1.02)',
+        maskImage: 'linear-gradient(to top, black 0%, transparent 100%)',
+        WebkitMaskImage: 'linear-gradient(to top, black 0%, transparent 100%)'
+      }}
+    />
+  );
+}
+```
 
-    {/* Bottom Section - Services Cards (Full Width) */}
-    <div className="grid grid-cols-1 gap-6">
-      {services.map(...)}
-    </div>
+**Key Technical Decisions:**
+- **Height:** 20px (tested 40px, user preferred smaller)
+- **Positioning:** `fixed bottom-0` - anchored to viewport, not page content
+- **Z-index:** 50 (above most content but not modals)
+- **Blur:** 16px with distortion effects (saturation 1.1, brightness 1.02)
+- **Transparency:** `maskImage` gradient for invisible transition (not background gradient)
+- **Interaction:** `pointer-events-none` - doesn't interfere with clicks
+
+**Integration:** `src/app/page.tsx:70-71`
+
+#### 2. WhyUs Final Padding Iteration
+**Purpose:** Iterative refinement from user feedback
+
+**Progression:**
+- Initial: p-8 (32px)
+- p-6 (24px)
+- p-7 (28px)
+- p-[84px] (too large)
+- p-20 (80px)
+- p-[60px]
+- p-[40px]
+- p-[28px]
+- **Final: p-[22px]** ✅
+
+**File:** `src/components/WhyUs/WhyUs.tsx:114`
+
+#### 3. Line-Height Final Adjustments
+**Purpose:** Tighter inter-line spacing for descriptions
+
+**WhyUs descriptions:**
+- Changed from `leading-[1.15]` → `leading-[1]` → `leading-[0.9]` → **`leading-[0.85]`**
+- File: `src/components/WhyUs/WhyUs.tsx:137`
+
+**Hero description:**
+- Changed to `leading-[0.9]`
+- File: `src/components/Hero/Hero.tsx:100`
+
+**WhyUs stat numbers:**
+- Added `leading-none` to remove invisible spacing above numbers
+- File: `src/components/WhyUs/WhyUs.tsx:119`
+
+#### 4. Cache Management Issues
+**Problem:** CSS changes not appearing in browser despite code updates
+
+**Root Cause:** Multiple dev servers running + corrupted .next cache
+
+**Solution:** Used frontend-error-fixer agent to:
+1. Kill all conflicting dev server processes
+2. Clear .next cache: `rm -rf .next`
+3. Restart single clean dev server
+
+**Frequency:** Occurred 3+ times during session, established workflow
+
+---
+
+### Changes Made Previous Session (Part 1)
+
+#### 1. Color System Update (tailwind.config.ts)
+**Purpose:** Change all black elements to softer dark gray RGB(34, 34, 34)
+
+**Changes:**
+```typescript
+colors: {
+  dark: "rgb(34, 34, 34)",    // was: rgb(21, 22, 25)
+  black: "rgb(34, 34, 34)",   // was: rgb(0, 0, 0)
+}
+```
+
+**Impact:** All text and UI elements using `text-dark` or `text-black` now render with softer color
+
+**File:** `tailwind.config.ts:13-15`
+
+#### 2. Hero Button Arrow Color (Button.tsx)
+**Purpose:** Make arrow icon orange to match accent color
+
+**Changes:**
+- Line 97: `variant === "primary" ? "text-accent" : "text-white"` (was: "text-white")
+- Line 114: `variant === "primary" ? "text-accent" : "text-white"` (was: "text-white")
+
+**Result:** Arrow in primary button now orange instead of white
+
+**File:** `src/components/Hero/Button.tsx:94-117`
+
+#### 3. Why Us Section - Extensive Refinements (WhyUs.tsx)
+
+**3a. Typography Adjustments:**
+- **Heading sizes reduced by 12px:**
+  - Main heading: 36px / 48px / 60px (was: 48px / 60px / 72px)
+  - Stat numbers: 36px / 48px (was: 48px / 60px)
+  - File: WhyUs.tsx:56, 129
+
+- **Description text formatting:**
+  - Line height: `leading-[1.15]` (tight spacing)
+  - Letter spacing: `tracking-tight`
+  - Multi-line support: `whitespace-pre-line`
+  - File: WhyUs.tsx:137
+
+**3b. Text Content Restructured:**
+```javascript
+benefits = [
+  {
+    stat: '50+',
+    description: 'Digital projects delivered across\nall industries.',
+    dots: 1,
+  },
+  {
+    stat: '3X',
+    description: 'Our model cuts typical delivery\ntimelines by two-thirds.',
+    dots: 2,
+  },
+  {
+    stat: '80k+',
+    description: 'Monthly visitors via SEO\ncontent hub',
+    dots: 3,
+  },
+  {
+    stat: '100%',
+    description: 'Client satisfaction rate across\npaid users',
+    dots: 4,
+  },
+]
+```
+**Note:** Each description now breaks at ~5 words per line using `\n`
+
+**File:** WhyUs.tsx:7-28
+
+**3c. Layout Refinements:**
+
+**Card Height:**
+- Changed from 384px → 480px → 450px (final)
+- Matches Services section card height
+- File: WhyUs.tsx:85, 99
+
+**Dots Positioning:**
+- Moved from absolute positioning to inline with stat
+- Now centered vertically with stat numbers using flexbox
+- Structure: `flex items-center justify-between`
+- Dots size: 8.4px (increased 5% from 8px)
+- File: WhyUs.tsx:117-134
+
+**Vertical Spacing:**
+- Added `mb-4` to stat container (pushes description down)
+- Added `mt-auto` to description (sticks to bottom)
+- Creates visual separation between top and bottom content
+- File: WhyUs.tsx:117, 137
+
+---
+
+## 🎨 DESIGN SYSTEM DECISIONS
+
+### Typography Scale (Updated)
+```
+Headings:
+- H1 (Hero): 56px / 72px / 96px
+- H2 (Section): 36px / 48px / 60px ← UPDATED (was 48/60/72)
+- H3 (Stats): 36px / 48px ← UPDATED (was 48/60)
+- Body: 16px / 18px
+- Small: 14px / 15px
+```
+
+### Color System (Updated)
+```
+Primary Text: rgb(34, 34, 34) ← NEW (was rgb(21,22,25))
+Accent: rgb(255, 55, 0) - Orange
+Background Grays:
+- Light: rgb(240, 240, 240)
+- Medium: rgb(229, 229, 229)
+- Pill: rgb(229, 229, 229) at 60% opacity
+```
+
+### Spacing System
+```
+Card padding: 32px (p-8)
+Card gap: 7px
+Section padding: 80px/128px (py-20 md:py-32)
+```
+
+---
+
+## 🎯 WHY US SECTION - FINAL STATE
+
+### Component Structure
+```
+<section id="why-us">
+  <Badge>Why Us</Badge>
+  <Heading>Proven results for every project</Heading>
+  <Description>We combine strategy, speed...</Description>
+
+  <div className="grid grid-cols-[1fr_2fr] gap-[7px]">
+    <ImageCard /> <!-- 1/3 width, 450px height -->
+    <StatsGrid>   <!-- 2/3 width, 450px height -->
+      <StatCard> × 4
+        <div className="flex justify-between mb-4">
+          <Stat>50+</Stat>
+          <Dots>● ○ ○ ○</Dots>
+        </div>
+        <Description className="mt-auto">...</Description>
+      </StatCard>
+    </StatsGrid>
   </div>
 </section>
 ```
 
-**Pending Issues:**
-- User mentioned alignment should match Hero section
-- Specifically asked to check spacing from edge for "WhatsApp бот который понимает ваших клиентов" text
-- May need to verify padding/margin alignment between Hero and Services sections
-- Current structure seems correct but user may want pixel-perfect alignment verification
+### Key Measurements
+- **Container height:** 450px
+- **Dots size:** 8.4px diameter
+- **Dots gap:** 4px (gap-1)
+- **Stat to description spacing:** Auto (flex justify-between)
+- **Line height:** 1.15
+- **Letter spacing:** -0.025em (tracking-tight)
 
 ---
 
-### Previous Session (Phase 3 Continuation - Button/Navigation Refinements)
+## 🐛 ISSUES RESOLVED THIS SESSION
 
-**Session Duration:** ~2-3 hours
-**Date:** December 1, 2025
+### Issue 1: Line Height Not Applying
+**Problem:** Setting `leading-[0.8]` had no visible effect
+**Root Cause:** Dev server cache
+**Solution:** Killed all servers, cleared `.next` cache, restarted
+**Final Value:** `leading-[1.15]` (balanced readability and compactness)
 
-This session involved **extensive iterative refinements** to buttons, navigation, and layout based on detailed user feedback. Multiple changes were made, tested, and sometimes reverted based on visual feedback.
+### Issue 2: Dots Positioning
+**Problem:** User wanted dots horizontally aligned with stat center, not in corner
+**Solution:** Changed from absolute positioning to flex layout
+**Result:** Dots automatically center with stat text
 
-#### Major Changes Overview:
+---
 
-1. **Button Redesign (Multiple Iterations)**
-   - Removed "View Pricing" button from Hero initially
-   - Removed "Book Free Call" button from navigation
-   - Re-added "Book Free Call" to navigation with new design
-   - Added "Оставить заявку" button to Hero section
-   - Multiple size adjustments to match exact specifications
+## 📂 FILE MODIFICATIONS SUMMARY
 
-2. **Badge Updates**
-   - Reduced glow animation intensity (smaller box-shadow)
-   - Changed text from "Available For Projects" to "Уже доступно"
+| File | Lines Changed | Key Changes |
+|------|---------------|-------------|
+| `tailwind.config.ts` | 2 | Color system: dark and black to rgb(34,34,34) |
+| `Button.tsx` | 2 | Arrow color: white → orange (text-accent) |
+| `WhyUs.tsx` | ~25 | Typography, layout, text content restructure |
+| `Navigation.tsx` | N/A | From previous session (not modified this session) |
 
-3. **Typography Changes**
-   - Changed heading font-weight from `font-black` to `font-bold` (900 → 700)
-   - Added selective gray coloring to words "понимает" and "клиентов" (`text-gray-500`)
-   - Adjusted gray from `text-gray-400` to `text-gray-500` for better contrast
+---
 
-4. **Icon Animations**
-   - Added horizontal rolling animation to arrow icon in Hero button
-   - Added horizontal rolling animation to phone icon in navigation button
-   - Both use two-layer approach with translateX(-200%)
+## 🔄 NEXT IMMEDIATE STEPS
 
-5. **Animation Speed**
-   - Slowed down photo gallery infinite scroll from 45s to 60s
+1. ✅ **DONE:** All changes committed (commit 1f22422)
 
-6. **Large Screen Adaptation (Later Reverted)**
-   - Initially added 2xl breakpoint (1536px+) styling to scale all elements
-   - User requested revert - removed all 2xl classes
-   - Gallery positioning experiments to fix it on larger screens
-   - Final state: Back to original without 2xl classes
+2. **Proceed to Phase 6:** Begin next section implementation
+   - Options: Benefits, Projects, Pricing, Clients, or FAQs
+   - User will choose which section to tackle next
 
-#### Detailed File Changes:
+3. **Before Starting Phase 6:**
+   - Verify dev server is running cleanly
+   - Kill any lingering background dev server processes if needed
+   - Review design specs for next section
 
-**1. `src/components/Navigation/Navigation.tsx` (373 lines)**
+---
 
-Key changes:
-- CTAButton component redesigned multiple times
-- Phone icon with animated pulsing rings (2 rings with staggered delays)
-- Horizontal rolling animation for phone icon (two-layer approach)
-- Icon color changed from black to gray-900 to match heading
-- Button sizing adjusted to exact specifications (52px height total)
-- Multiple iterations on padding, circle size, icon size
+## 💡 PATTERNS DISCOVERED
 
-Final button structure:
-```typescript
-<button className="pl-6 pr-[6px] py-[6px] bg-black rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
-  <div className="relative overflow-hidden h-6 mr-4"> {/* Rolling text */}
-    <motion.span animate={{ y: isHovered ? "-100%" : "0%" }}>Book Free Call</motion.span>
-    <motion.span className="absolute top-full" animate={{ y: isHovered ? "-100%" : "0%" }}>Book Free Call</motion.span>
-  </div>
-  <div className="w-[40px] h-[40px] rounded-full bg-[#ff3700]">
-    {/* 2 animated pulsing rings */}
-    <motion.div animate={{ scale: [1, 1.4, 1], opacity: [0.6, 0, 0.6] }} />
-    <motion.div animate={{ scale: [1, 1.4, 1], opacity: [0.6, 0, 0.6] }} delay={0.5} />
-    {/* Phone icon with horizontal animation */}
-    <div className="relative w-[18px] h-[18px]">
-      <motion.svg animate={{ x: isHovered ? "-200%" : "0%" }} className="text-gray-900" />
-      <motion.svg className="absolute left-[200%]" animate={{ x: isHovered ? "-200%" : "0%" }} />
-    </div>
-  </div>
-</button>
-```
+### Typography Fine-Tuning Pattern
+When user requests font size changes, make changes in 4px increments initially, then refine. For this project:
+- Started: 48/60/72
+- First reduction: 44/56/68 (-4px)
+- Final: 36/48/60 (-8px more = -12px total)
 
-**2. `src/components/Hero/Hero.tsx` (127 lines)**
+### Line Height for Multi-Line Text
+For tight descriptions with multiple lines:
+- `leading-[1]` = too tight (letters touch)
+- `leading-[1.15]` = balanced ✓
+- `leading-[1.2]` = slightly loose
+- `leading-snug` = 1.375 (too loose for this design)
 
-Key changes:
-- Badge text: "Available For Projects" → "Уже доступно"
-- Heading font-weight: `font-black` → `font-bold`
-- Added `<span className="text-gray-500">` to "понимает" and "клиентов"
-- Changed gray color from 400 to 500
-- Added "Оставить заявку" button with primary variant
-- Multiple experiments with gallery positioning (all reverted)
-
-Final heading structure:
+### Flexbox for Horizontal Alignment
+When aligning dots with stat numbers:
 ```tsx
-<h1 className="font-geist font-bold text-5xl md:text-6xl lg:text-[72px] leading-[1.1] tracking-tight">
-  WhatsApp бот который{" "}
-  <span className="text-gray-500">понимает</span> ваших{" "}
-  <span className="text-gray-500">клиентов</span>
-</h1>
-```
-
-**3. `src/components/Hero/Button.tsx` (160 lines)**
-
-Key changes:
-- Created complete button component with multiple variants
-- Primary variant: `bg-[#ff4726]` (orange) with black text
-- Secondary variant: `bg-dark` (black) with white text
-- Phone variant: `bg-[#2d2d2d]` with gray phone icon
-- Two-layer rolling text animation (vertical translateY)
-- Two-layer rolling arrow animation (horizontal translateX)
-- Exact sizing: `pl-6 pr-[6px] py-[6px]` with 40px circle
-- Arrow icon from lucide-react with `strokeWidth={2.5}`
-
-Button animation structure:
-```typescript
-// Text animation (vertical)
-<div className="relative overflow-hidden h-6 mr-4">
-  <motion.span animate={{ y: isHovered ? "-100%" : "0%" }}>{children}</motion.span>
-  <motion.span className="absolute top-full" animate={{ y: isHovered ? "-100%" : "0%" }}>{children}</motion.span>
-</div>
-
-// Arrow animation (horizontal)
-<div className="relative w-4 h-4">
-  <motion.div animate={{ x: isHovered ? "-200%" : "0%" }}>
-    <ArrowRight className="w-4 h-4 text-white" />
-  </motion.div>
-  <motion.div className="absolute left-[200%]" animate={{ x: isHovered ? "-200%" : "0%" }}>
-    <ArrowRight className="w-4 h-4 text-white" />
-  </motion.div>
+<div className="flex items-center justify-between">
+  <Stat />
+  <Dots />
 </div>
 ```
+This auto-centers dots vertically with stat baseline.
 
-**4. `src/components/Hero/Badge.tsx` (34 lines)**
-
-Key changes:
-- Reduced pulse glow intensity in animation
-- Text prop used for customization
-- Simple component, no major structural changes
-
-**5. `src/app/globals.css`**
-
-Key changes to animations:
-```css
-/* Reduced glow intensity */
-@keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 20px 10px rgb(255, 55, 0); }  /* Was 40px 20px */
-  50% { box-shadow: 0 0 30px 15px rgb(255, 55, 0); }       /* Was 60px 30px */
-}
-
-/* Slowed scroll animation */
-.animate-scroll-down { animation: scroll-down 60s linear infinite; }  /* Was 45s */
-.animate-scroll-up { animation: scroll-up 60s linear infinite; }      /* Was 45s */
-```
-
-#### User Feedback Timeline (Chronological):
-
-1. "давай дальше работать над dev/active/formix-clone-pixel-perfect"
-2. "Давай уберем эту кнопку вообще. Вместо этой сделаем вот такую..." (with images)
-3. "ты убрал не ту кнопку" ← Removed wrong button
-4. "Верни кнопку в хедере. В hero убери убе кнопки"
-5. "Сделай цвет серый, как и цвет шрифт 'WhatsApp бот который понимает ваших клиентов'"
-6. "Теперь добавь еще анимацию к иконке телефона, чтобы он так же горизотально анимировался"
-7. "Оцентруй текст с круглым элементом" (with image)
-8. "Сделай серый цвет еще более темным, как тут на сайте https://formix.framer.website/#header. Верни дизайн той кнопки из хедера, что ты убрал"
-9. "Сделай цвет серый, как и цвет шрифт 'WhatsApp бот который понимает ваших клиентов'"
-10. "Уменьши это свечение. Напиши там текст 'Уже доступно'. В херо после текста вставь вот такой вот кнопку..." (with images)
-11. "Слова 'понимает' и 'клиентов' сделай светло серыми" (with image)
-12. "Кружок со стрелкой сделай больше, как тут" (with image)
-13. "Сделай этот текст пенее жирным. Уменьши саму пилюлю, чтобы она была по высоте как вот эта" (with images)
-14. "Какие размеры у этой кнопки?" ← Asked for exact dimensions
-15. "Сделай такой же размер У этой кнопки" (with image)
-16. "Добавь еще анимацию к иконке стрелки, чтобы она так же горизотально переходила"
-17. "Сделай светлый серый более темным"
-18. "Теперь уменьши еще скорость Анимации фотографий"
-19. "Адаптируй на большие экраны этот дизайн" ← Added 2xl breakpoints
-20. "Верни, как было" ← Reverted all 2xl changes
-21. "Положение фотографий закрепи, чтобы оно не менялось при больших экранах" ← Experimented with positioning
-22. "Сделай - absolute right-[96px] -top-[14px]" ← Requested specific positioning
-23. "Зафиксируй ее не меняя absolute right -[96px]" ← Tried calc() approach
-24. "Верни, как было" ← Final revert to original
-
-#### Issues Resolved:
-
-1. **Button centering** - Added `justify-center` and `flex items-center`
-2. **Gray color too light** - Changed from text-gray-400 to text-gray-500
-3. **Button size mismatch** - Adjusted padding from `px-8 py-3` to `pl-6 pr-[6px] py-[6px]`
-4. **Circle size mismatch** - Reduced from 48px to 40px
-5. **Arrow size mismatch** - Reduced from w-6 to w-4
-6. **Icon color mismatch** - Changed phone icon from black to gray-900
-7. **Large screen adaptation** - Multiple attempts, ultimately reverted to original
-
-#### Critical Technical Patterns Discovered:
-
-**1. Two-Layer Rolling Animation (Horizontal)**
-```typescript
-// For horizontal icon rolling (like phone or arrow)
-<div className="relative w-4 h-4">
-  {/* Layer 1: Visible, moves left */}
-  <motion.div
-    animate={{ x: isHovered ? "-200%" : "0%" }}
-    transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
-    className="absolute"
-  >
-    <Icon className="w-4 h-4" />
-  </motion.div>
-
-  {/* Layer 2: Starts off-screen right, rolls in */}
-  <motion.div
-    animate={{ x: isHovered ? "-200%" : "0%" }}
-    transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
-    className="absolute left-[200%]"
-  >
-    <Icon className="w-4 h-4" />
-  </motion.div>
-</div>
-```
-
-**2. Animated Pulsing Rings**
-```typescript
-// For phone icon rings (2 rings with staggered timing)
-<motion.div
-  animate={{
-    scale: [1, 1.4, 1],
-    opacity: [0.6, 0, 0.6],
+### Viewport-Fixed Blur Effects
+For subtle blur anchored to viewport (not scrolling content):
+```tsx
+<div
+  className="fixed bottom-0 left-0 right-0 h-[20px] pointer-events-none z-50"
+  style={{
+    backdropFilter: 'blur(16px) saturate(1.1) brightness(1.02)',
+    maskImage: 'linear-gradient(to top, black 0%, transparent 100%)'
   }}
-  transition={{
-    duration: 2,
-    repeat: Infinity,
-    ease: "easeOut",
-  }}
-  className="absolute inset-0 rounded-full border-2 border-gray-900/30"
-/>
-<motion.div
-  animate={{
-    scale: [1, 1.4, 1],
-    opacity: [0.6, 0, 0.6],
-  }}
-  transition={{
-    duration: 2,
-    repeat: Infinity,
-    ease: "easeOut",
-    delay: 0.5,  // Stagger second ring
-  }}
-  className="absolute inset-0 rounded-full border-2 border-gray-900/30"
 />
 ```
 
-**3. Selective Text Coloring**
-```tsx
-<h1>
-  WhatsApp бот который{" "}
-  <span className="text-gray-500">понимает</span> ваших{" "}
-  <span className="text-gray-500">клиентов</span>
-</h1>
-```
-
-**4. Button Size Calculations**
-```
-Total height: 52px
-= py-[6px] (top)    = 6px
-+ h-6 (content)     = 24px  (text container)
-+ h-[40px] (circle) = 40px  (icon circle, overlaps)
-+ py-[6px] (bottom) = 6px
-
-Horizontal padding:
-- Left: pl-6 = 24px (text padding)
-- Right: pr-[6px] = 6px (minimal, creates toggle look)
-```
+**Key Decisions:**
+- `fixed` positioning (not `absolute`) - stays with viewport
+- `maskImage` for transparency (not `background`) - invisible transition
+- `pointer-events-none` - doesn't block clicks
+- Combine blur with subtle color distortion for depth
+- Keep height small (20px) for subtlety
 
 ---
 
-## 📂 KEY FILES & LOCATIONS
+## 🎯 USER PREFERENCES CAPTURED
 
-### Project Location
-**Main Directory:** `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/`
-
-### Modified Files (This Session - Phase 3 Continuation)
-
-1. **`src/components/Navigation/Navigation.tsx`** (373 lines)
-   - CTAButton with phone icon and pulsing rings
-   - Horizontal rolling animation for phone icon
-   - Multiple sizing iterations
-
-2. **`src/components/Hero/Hero.tsx`** (127 lines)
-   - Badge text change
-   - Heading font-weight and selective gray coloring
-   - Added "Оставить заявку" button
-   - Gallery positioning experiments (all reverted)
-
-3. **`src/components/Hero/Button.tsx`** (160 lines)
-   - Complete button component with variants
-   - Two-layer rolling animations (text + icon)
-   - Exact sizing specifications
-
-4. **`src/components/Hero/Badge.tsx`** (34 lines)
-   - Reduced glow animation intensity
-
-5. **`src/app/globals.css`**
-   - Reduced pulse glow box-shadow values
-   - Slowed infinite scroll from 45s to 60s
-
-### Files Read from formix-landing-nextjs (Different Repo)
-During this session, the assistant mistakenly read files from a different repository:
-- `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/src/app/globals.css`
-- `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/src/components/Hero/Hero.tsx`
-- `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/src/components/Hero/Button.tsx`
-- `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/src/components/Navigation/Navigation.tsx`
-
-**⚠️ CRITICAL NOTE:** This session worked on files in `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/`, NOT the ai_admin_v2 repo. The project is actually located at the formix-landing-nextjs path.
+1. **Prefers tight line spacing** for descriptions (0.85-0.9 range)
+2. **Wants 5 words per line max** in descriptions
+3. **Softer black** (34,34,34) instead of pure black
+4. **Orange accents** for interactive elements (arrows)
+5. **Balanced spacing** between top and bottom card content
+6. **Iterative refinement workflow** - prefers seeing changes and adjusting incrementally
+7. **Subtle effects** - viewport blur should be "barely noticeable" with invisible transitions
+8. **Precise padding** - went through 9 iterations to find perfect 22px value
 
 ---
 
-## 🎯 CRITICAL DESIGN SPECIFICATIONS (Updated)
+## 📊 PROJECT PROGRESS
 
-### Button Specifications (Hero & Navigation)
+**Completed Phases:**
+- ✅ Phase 1: Hero Section
+- ✅ Phase 2: Services Section
+- ✅ Phase 3: Navigation (with refinements)
+- ✅ Phase 4: Page Structure
+- ✅ Phase 5: Why Us Section + Viewport Blur (COMPLETE with commit 1f22422)
 
-**Hero Button ("Оставить заявку"):**
-- Variant: primary
-- Background: `#ff4726` (orange)
-- Text: Black, Inter 600 semibold, 15px
-- Height: 52px total (`py-[6px]` + 40px content + `py-[6px]`)
-- Padding: `pl-6 pr-[6px] py-[6px]`
-- Icon circle: 40px diameter, black background
-- Arrow icon: White, w-4 h-4, strokeWidth 2.5
-- Shadow: `shadow-button-strong`
-- Hover: `scale-105`
+**Remaining Phases:** 13/18 (72.2%)
 
-**Navigation Button ("Book Free Call"):**
-- Background: `bg-black` (pure black)
-- Text: White, Inter 600 semibold, 15px
-- Height: 52px (matches navigation pill)
-- Padding: `pl-6 pr-[6px] py-[6px]`
-- Icon circle: 40px diameter, `#ff3700` (Formix orange)
-- Phone icon: Gray-900 (text-gray-900), w-4 h-4, strokeWidth 2.5
-- Pulsing rings: 2 rings, border-2, border-gray-900/30, staggered 0.5s
-- Shadow: `shadow-[0_8px_24px_rgba(0,0,0,0.4)]`
-- Hover: `scale-105`
-
-### Badge Specifications
-
-**Hero Badge:**
-- Text: "Уже доступно" (was "Available For Projects")
-- Background: Dark with transparency
-- Pulsing red dot animation (reduced intensity)
-- Box-shadow: `0 0 20px 10px rgb(255, 55, 0)` (was 40px 20px)
-
-### Typography Specifications
-
-**Hero Heading:**
-- Font: Geist Bold (700, not 900)
-- Size: 72px on lg screens
-- Leading: 1.1
-- Tracking: tight
-- Colors: Black + gray-500 for "понимает" and "клиентов"
-
-### Animation Specifications
-
-**Infinite Scroll:**
-- Duration: 60s (was 45s)
-- Easing: linear
-- Direction: Column 1 up, Column 2 down
-
-**Horizontal Rolling (Icons):**
-- Duration: 0.2s
-- Easing: [0, 0, 0.2, 1]
-- Transform: translateX(-200%)
-
-**Pulsing Rings:**
-- Duration: 2s
-- Repeat: Infinity
-- Easing: easeOut
-- Scale: 1 → 1.4 → 1
-- Opacity: 0.6 → 0 → 0.6
-- Delay: Second ring +0.5s
+**Next Focus:** Phase 6 (TBD - Benefits, Projects, Pricing, Clients, or FAQs)
 
 ---
 
-## ⚠️ CRITICAL TECHNICAL DECISIONS
-
-### 1. Large Screen Adaptation - Reverted
-**Attempted:** Added 2xl breakpoint (1536px+) with scaled typography, spacing, and component sizes
-**Decision:** User requested revert - removed all 2xl classes
-**Result:** Design remains at original breakpoint structure (sm/md/lg only)
-**Reasoning:** User preferred consistent sizing across all large screens
-
-### 2. Gallery Positioning Experiments
-**Attempts Made:**
-1. Using `calc(50vw - 544px)` for right positioning
-2. Moving gallery outside container to position relative to viewport
-3. Changing from relative to absolute positioning within section
-
-**Final Decision:** Reverted to original `absolute right-[96px] -top-[14px]`
-**Reasoning:** Original positioning works correctly, experiments introduced complications
-
-### 3. Icon Color Consistency
-**Decision:** Use `text-gray-900` for phone icon to match heading text color
-**Previous:** Used `text-black`
-**Reasoning:** User specifically requested icon color to match heading typography
-
-### 4. Font Weight Reduction
-**Decision:** Changed heading from `font-black` (900) to `font-bold` (700)
-**Reasoning:** User requested "less bold" text for better readability
-
-### 5. Animation Speed Reduction
-**Decision:** Slowed infinite scroll from 45s to 60s (33% slower)
-**Reasoning:** User found animation too fast, requested slower speed
-
----
-
-## 🚀 NEXT STEPS
-
-### Immediate Actions (When Resuming)
-
-1. **⚠️ COMMIT ALL CHANGES**
-   ```bash
-   cd /Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs
-   git add -A
-   git status  # Verify what's being committed
-
-   git commit -m "feat(phase3): Extensive button/navigation refinements
-
-   Button Updates:
-   - Added 'Оставить заявку' button to Hero with orange primary variant
-   - Redesigned 'Book Free Call' navigation button with phone icon
-   - Added horizontal rolling animations to arrow and phone icons
-   - Implemented pulsing rings around phone icon (2 rings, staggered)
-   - Adjusted all button sizing to exact specifications (52px height)
-
-   Typography & Content:
-   - Changed heading font-weight from black (900) to bold (700)
-   - Added selective gray coloring to 'понимает' and 'клиентов'
-   - Adjusted gray from 400 to 500 for better contrast
-   - Changed badge text to 'Уже доступно'
-
-   Animations:
-   - Reduced badge glow intensity (smaller box-shadow)
-   - Slowed photo gallery infinite scroll from 45s to 60s
-   - Added two-layer horizontal rolling for icons
-
-   All changes based on detailed user feedback and visual refinements"
-   ```
-
-2. **Verify Dev Server**
-   - Ensure http://localhost:3000 still running
-   - Test all button hover animations
-   - Verify infinite scroll speed
-   - Check badge glow intensity
-
-3. **Start Phase 4: Services Section** (when user requests)
-   - Create Services component structure
-   - Implement ServiceCard component
-   - Build responsive grid layout (3 columns desktop)
-   - Add scroll-triggered animations
-   - Implement stagger effect
-
-### Dev Server Status
-- **Running:** Yes (shell ID: 3f20fe)
-- **URL:** http://localhost:3000
-- **Status:** Clean build, all animations working
-- **Branch:** feature/formix-redesign
-- **Location:** `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/`
-
----
-
-## 📊 PROGRESS TRACKING
-
-### Completed Phases
-- ✅ Phase 0: Project Setup (25 min)
-- ✅ Phase 1: Foundation (15 min)
-- ✅ Phase 2: Navigation Initial (45 min)
-- ✅ Phase 2.1: Navigation Redesign (60 min)
-- ✅ Phase 3: Hero Section Initial (~90 min)
-- ✅ Phase 3 Continuation: Button/Nav Refinements (~2-3 hours)
-
-### Next Phase
-- ⬜ Phase 4: Services Section (estimated 4-5 hours)
-
-### Overall Progress
-- **Phases Complete:** 3 / 18 (with extensive refinements)
-- **Percentage:** 16.7%
-- **Time Invested This Session:** ~2-3 hours
-- **Total Time Invested:** ~6-7 hours
-- **Estimated Remaining:** ~45-55 hours
-
----
-
-## 🔑 KEY LEARNINGS & PATTERNS
-
-### 1. Two-Layer Horizontal Rolling Animation
-When animating icons horizontally (like arrows or phone icons):
-- Container with `relative` and fixed dimensions
-- First layer: `absolute` with translateX from 0% to -200%
-- Second layer: `absolute left-[200%]` with same translateX animation
-- Both layers move together, creating seamless rolling effect
-
-### 2. Pulsing Ring Animation
-For attention-grabbing phone/call button effects:
-- Use multiple `motion.div` elements with `absolute inset-0`
-- Animate scale (1 → 1.4 → 1) and opacity (0.6 → 0 → 0.6)
-- Stagger second ring with `delay: 0.5`
-- Use `repeat: Infinity` for continuous effect
-
-### 3. Selective Text Coloring in Headings
-To emphasize certain words without breaking text flow:
-- Use `<span className="text-gray-500">` inline
-- Maintain spacing with `{" "}` between elements
-- Keeps semantic HTML (still one `<h1>`) while allowing visual variation
-
-### 4. Iterative Design Process
-This session demonstrated importance of:
-- Quick iterations based on visual feedback
-- Willingness to revert changes that don't work
-- Testing multiple approaches when solution isn't obvious
-- Exact measurements matter (52px vs 50px makes difference)
-
-### 5. Repository Path Awareness
-**CRITICAL:** Always verify which repository you're working in:
-- This project is at `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/`
-- NOT in the ai_admin_v2 repository
-- Check file paths carefully when reading/editing
-
----
-
-## 🎨 DESIGN TOKENS (Final Values)
-
-### Colors
-```javascript
-// Buttons
---button-primary-bg: #ff4726          // Orange (Hero button)
---button-primary-text: #000000        // Black
---button-secondary-bg: #000000        // Black (Nav button)
---button-secondary-text: #ffffff      // White
---button-circle-primary: #000000      // Black circle (Hero)
---button-circle-secondary: #ff3700    // Orange circle (Nav)
-
-// Icons
---icon-arrow-color: #ffffff           // White arrow (Hero)
---icon-phone-color: rgb(17, 24, 39)   // Gray-900 phone (Nav)
---ring-color: rgba(17, 24, 39, 0.3)   // Gray-900 at 30% (rings)
-
-// Typography
---heading-primary: #000000            // Black
---heading-accent: rgb(107, 114, 128)  // Gray-500
---text-dark: rgb(75, 85, 99)          // Gray-600
-
-// Badge
---badge-glow-base: 0 0 20px 10px rgb(255, 55, 0)
---badge-glow-peak: 0 0 30px 15px rgb(255, 55, 0)
-```
-
-### Component Dimensions
-```javascript
-// Buttons (both Hero and Nav)
-Height: 52px
-Padding left: 24px (pl-6)
-Padding right: 6px (pr-[6px])
-Padding vertical: 6px (py-[6px])
-
-// Icon Circles
-Diameter: 40px
-Margin from text: 16px (mr-4)
-
-// Icons
-Arrow size: 16px (w-4 h-4)
-Phone size: 16px (w-4 h-4)
-Stroke width: 2.5
-
-// Text Container
-Height: 24px (h-6)
-Font size: 15px
-Font weight: 600 (semibold)
-Letter spacing: -0.025em (tracking-tight)
-```
-
-### Animation Timing
-```javascript
-// Hover Animations
-Duration: 200ms (0.2s)
-Easing: [0, 0, 0.2, 1] (custom cubic-bezier)
-
-// Pulsing Rings
-Duration: 2000ms (2s)
-Delay (ring 2): 500ms (0.5s)
-Repeat: infinite
-Easing: easeOut
-
-// Infinite Scroll
-Duration: 60000ms (60s)
-Easing: linear
-Repeat: infinite
-
-// Badge Glow
-Duration: 2000ms (2s)
-Easing: ease-in-out
-Repeat: infinite
-```
-
----
-
-**END OF CONTEXT**
+**Last Context Update:** 2025-12-02 23:45
+**Session State:** All changes committed - Ready for Phase 6
+**Dev Server:** Running (localhost:3000)
+**Working Directory:** Clean (no uncommitted changes)
+**Latest Commit:** 1f22422 - Viewport blur + typography refinements
