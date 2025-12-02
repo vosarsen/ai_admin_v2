@@ -1307,6 +1307,55 @@
             margin-top: 10px;
         }
 
+        /* Consent checkbox styles */
+        .consent-group {
+            margin: 20px 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .consent-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            min-width: 20px;
+            margin-top: 2px;
+            cursor: pointer;
+            accent-color: #667eea;
+        }
+
+        .consent-group label {
+            font-size: 14px;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            margin: 0;
+        }
+
+        .consent-group label a {
+            color: #A78BFA;
+            text-decoration: none;
+            border-bottom: 1px solid rgba(167, 139, 250, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .consent-group label a:hover {
+            color: #EC4899;
+            border-bottom-color: rgba(236, 72, 153, 0.5);
+        }
+
+        body[data-theme="light"] .consent-group label {
+            color: #334155;
+        }
+
+        body[data-theme="light"] .consent-group label a {
+            color: #7C3AED;
+        }
+
+        body[data-theme="light"] .consent-group label a:hover {
+            color: #EC4899;
+        }
+
         /* Light theme contact section */
         body[data-theme="light"] .contact-section {
             background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
@@ -4747,6 +4796,12 @@
                         <label for="inlineFormMessage">Сообщение (необязательно)</label>
                         <textarea id="inlineFormMessage" name="message" rows="4" placeholder="Расскажите о вашем салоне..."></textarea>
                     </div>
+                    <div class="consent-group">
+                        <input type="checkbox" id="inlineFormConsent" name="consent" required>
+                        <label for="inlineFormConsent">
+                            Нажимая на кнопку Отправить, я даю <a href="privacy-policy.html" target="_blank">согласие на обработку персональных данных</a>
+                        </label>
+                    </div>
                     <button type="submit" class="btn">Отправить</button>
                 </form>
             </div>
@@ -5491,6 +5546,12 @@
                 <div class="form-group">
                     <label for="formMessage">Комментарий (необязательно)</label>
                     <textarea id="formMessage" name="message" placeholder="Расскажите о вашем салоне..."></textarea>
+                </div>
+                <div class="consent-group">
+                    <input type="checkbox" id="formConsent" name="consent" required>
+                    <label for="formConsent">
+                        Нажимая на кнопку Отправить, я даю <a href="privacy-policy.html" target="_blank">согласие на обработку персональных данных</a>
+                    </label>
                 </div>
                 <button type="submit" class="form-submit">Отправить заявку</button>
             </form>
