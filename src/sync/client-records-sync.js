@@ -324,8 +324,8 @@ class ClientRecordsSync {
         visits.length,
         firstVisit.date,
         lastVisit.date,
-        JSON.stringify(lastServices),
-        JSON.stringify(visitHistory),
+        lastServices,  // PostgreSQL ARRAY - pass directly, node-pg converts automatically
+        JSON.stringify(visitHistory),  // JSONB - needs JSON.stringify
         totalSpent,
         estimatedGoodsAmount > 0 ? estimatedGoodsAmount : 0,
         visits.length > 0 ? Math.round(totalSpent / visits.length) : 0,
