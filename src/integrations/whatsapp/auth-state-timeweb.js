@@ -746,12 +746,17 @@ async function removeTimewebAuthState(companyId) {
  */
 async function getAuthStateStats() {
   try {
+    // Optimized: Single query with JOINs instead of 4 subqueries
+    // This reduces network roundtrips to remote Timeweb PostgreSQL
     const result = await queryWithMetrics(`
       SELECT
-        (SELECT COUNT(DISTINCT company_id) FROM whatsapp_auth) as total_companies,
-        (SELECT COUNT(*) FROM whatsapp_auth) as total_auth_records,
-        (SELECT COUNT(*) FROM whatsapp_keys) as total_keys,
-        (SELECT COUNT(*) FROM whatsapp_keys WHERE expires_at < NOW()) as expired_keys
+        a.total_companies,
+        a.total_auth_records,
+        k.total_keys,
+        k.expired_keys
+      FROM
+        (SELECT COUNT(DISTINCT company_id) as total_companies, COUNT(*) as total_auth_records FROM whatsapp_auth) a,
+        (SELECT COUNT(*) as total_keys, COUNT(*) FILTER (WHERE expires_at < NOW()) as expired_keys FROM whatsapp_keys) k
     `);
 
     return result.rows[0];
