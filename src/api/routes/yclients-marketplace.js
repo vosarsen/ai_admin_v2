@@ -14,6 +14,87 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const postgres = require('../../database/postgres');
 const { CompanyRepository, MarketplaceEventsRepository } = require('../../repositories');
+const { getCircuitBreaker } = require('../../utils/circuit-breaker');
+const { logAdminAction, getAuditLogs } = require('../../utils/admin-audit');
+const { createRedisClient } = require('../../utils/redis-factory');
+
+// Redis client for webhook idempotency (lazy initialization)
+let webhookRedisClient = null;
+const WEBHOOK_IDEMPOTENCY_TTL = 3600; // 1 hour in seconds
+
+/**
+ * Get or create Redis client for webhook idempotency
+ */
+async function getWebhookRedisClient() {
+  if (!webhookRedisClient) {
+    try {
+      webhookRedisClient = await createRedisClient();
+    } catch (error) {
+      logger.error('Failed to create Redis client for webhook idempotency:', error);
+      return null;
+    }
+  }
+  return webhookRedisClient;
+}
+
+/**
+ * Generate deterministic webhook ID for idempotency
+ * Does NOT include timestamp - same content = same ID
+ */
+function generateWebhookId(eventType, salonId, data) {
+  // Deterministic: same event content = same hash
+  const content = `webhook:${eventType}:${salonId}:${JSON.stringify(data || {})}`;
+  return crypto.createHash('sha256').update(content).digest('hex').substring(0, 16);
+}
+
+/**
+ * Check if webhook was already processed (idempotency)
+ * @returns {boolean} true if duplicate, false if new
+ */
+async function isWebhookDuplicate(webhookId) {
+  const redis = await getWebhookRedisClient();
+  if (!redis) {
+    // If Redis unavailable, allow processing (fail-open)
+    return false;
+  }
+
+  try {
+    // SET NX = set only if not exists, returns null if key exists
+    const result = await redis.set(
+      `webhook:idempotency:${webhookId}`,
+      '1',
+      'EX',
+      WEBHOOK_IDEMPOTENCY_TTL,
+      'NX'
+    );
+    return result === null; // null means key existed = duplicate
+  } catch (error) {
+    logger.error('Redis idempotency check failed:', error);
+    return false; // Fail-open
+  }
+}
+
+/**
+ * Remove webhook idempotency key (allow retry after failure)
+ */
+async function removeWebhookIdempotencyKey(webhookId) {
+  const redis = await getWebhookRedisClient();
+  if (!redis) return;
+
+  try {
+    await redis.del(`webhook:idempotency:${webhookId}`);
+  } catch (error) {
+    logger.error('Failed to remove webhook idempotency key:', error);
+  }
+}
+
+// Circuit breaker for QR generation to prevent cascading failures
+const qrCircuitBreaker = getCircuitBreaker('qr-generation', {
+  failureThreshold: 5,      // Open after 5 failures
+  resetTimeout: 60000,      // 60s cooldown
+  timeout: 30000,           // 30s operation timeout
+  successThreshold: 2       // 2 successes to close
+});
 
 // ============================
 // HELPER: Validate salonId parameter
@@ -367,6 +448,7 @@ router.get('/marketplace/onboarding', async (req, res) => {
 // 3. QR CODE API - Генерация QR-кода для WhatsApp
 // URL: POST /marketplace/api/qr
 // Headers: Authorization: Bearer <token>
+// Protected by circuit breaker to prevent cascading failures
 // ============================
 router.post('/marketplace/api/qr', async (req, res) => {
   try {
@@ -380,72 +462,107 @@ router.post('/marketplace/api/qr', async (req, res) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     const { company_id, salon_id } = decoded;
 
-    logger.info('📱 QR code request for company:', { company_id, salon_id });
+    logger.info('📱 QR code request for company:', {
+      company_id,
+      salon_id,
+      circuit_breaker_state: qrCircuitBreaker.getState().state
+    });
 
     // Генерируем session ID для WhatsApp
     const sessionId = `company_${salon_id}`;
 
-    // Проверяем существующий QR-код
+    // Check if QR already exists (outside circuit breaker - fast path)
     let qr = await sessionPool.getQR(sessionId);
 
-    if (!qr) {
+    if (qr) {
+      logger.info('✅ QR code already available (cached)');
+      return res.json({
+        success: true,
+        qr,
+        session_id: sessionId,
+        expires_in: 20
+      });
+    }
+
+    // QR generation protected by circuit breaker
+    const result = await qrCircuitBreaker.execute(async () => {
       logger.info('🔄 Initializing new WhatsApp session...');
 
       // Initialize new session with error handling
-      try {
-        await sessionPool.createSession(sessionId, {
-          company_id,
-          salon_id
-        });
-      } catch (sessionError) {
-        logger.error('❌ Failed to create WhatsApp session:', sessionError);
-        Sentry.captureException(sessionError, {
-          tags: { component: 'marketplace', operation: 'createSession' },
-          extra: { sessionId, company_id, salon_id }
-        });
-        throw new Error('WhatsApp session creation failed: ' + sessionError.message);
-      }
+      await sessionPool.createSession(sessionId, {
+        company_id,
+        salon_id
+      });
 
-      // Wait for QR generation with exponential backoff
+      // Wait for QR generation with exponential backoff (reduced attempts)
       let attempts = 0;
-      const maxAttempts = 10;
+      const maxAttempts = 5; // Reduced from 10 (circuit breaker adds protection)
 
-      while (!qr && attempts < maxAttempts) {
+      while (attempts < maxAttempts) {
         // Exponential backoff: 1s, 1.5s, 2.25s, ... max 5s
         const delay = Math.min(1000 * Math.pow(1.5, attempts), 5000);
         await new Promise(resolve => setTimeout(resolve, delay));
         qr = await sessionPool.getQR(sessionId);
+
+        if (qr) {
+          return { qr, session_id: sessionId };
+        }
+
         attempts++;
 
-        if (attempts % 3 === 0) {
+        if (attempts % 2 === 0) {
           logger.info(`⏳ Waiting for QR generation... (${attempts}/${maxAttempts})`);
         }
       }
 
-      if (!qr) {
-        const error = new Error(`QR code generation timeout after ${maxAttempts} attempts`);
-        Sentry.captureException(error, {
-          tags: { component: 'marketplace', operation: 'qrGeneration' },
-          extra: { sessionId, attempts: maxAttempts, company_id, salon_id }
-        });
-        throw error;
-      }
-    }
+      throw new Error(`QR code generation timeout after ${maxAttempts} attempts`);
+    });
 
     logger.info('✅ QR code generated successfully');
     res.json({
       success: true,
-      qr,
-      session_id: sessionId,
+      qr: result.qr,
+      session_id: result.session_id,
       expires_in: 20 // QR код действителен 20 секунд
     });
 
   } catch (error) {
     logger.error('❌ QR generation error:', error);
 
+    // Handle JWT errors first
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
+
+    // Handle circuit breaker OPEN state
+    if (error.code === 'CIRCUIT_OPEN') {
+      logger.warn('🔴 Circuit breaker OPEN for QR generation', {
+        lastError: error.lastError?.message
+      });
+      Sentry.captureMessage('QR generation circuit breaker OPEN', {
+        level: 'warning',
+        tags: { component: 'marketplace', operation: 'qrGeneration' },
+        extra: {
+          state: qrCircuitBreaker.getState(),
+          lastError: error.lastError?.message
+        }
+      });
+
+      return res.status(503).json({
+        error: 'Service temporarily unavailable',
+        message: 'QR generation service is experiencing issues. Please try again in a few minutes.',
+        code: 'SERVICE_UNAVAILABLE',
+        retry_after: 60
+      });
+    }
+
+    // Log to Sentry for other errors
+    Sentry.captureException(error, {
+      tags: { component: 'marketplace', operation: 'qrGeneration' },
+      extra: {
+        circuit_breaker_state: qrCircuitBreaker.getState()
+      }
+    });
 
     res.status(500).json({ error: 'QR generation failed: ' + error.message });
   }
@@ -493,11 +610,17 @@ router.get('/marketplace/api/status/:sessionId', async (req, res) => {
 });
 
 // ============================
+// Feature flag for transaction-based activation
+const USE_TRANSACTION_ACTIVATION = process.env.USE_TRANSACTION_ACTIVATION === 'true';
+
 // 5. ACTIVATE INTEGRATION - Активация интеграции в YClients
 // URL: POST /marketplace/activate
 // Body: { token: <jwt_token> }
 // ============================
 router.post('/marketplace/activate', async (req, res) => {
+  // Declare at function scope for catch block access
+  let salon_id, company_id;
+
   try {
     const { token } = req.body;
 
@@ -508,9 +631,14 @@ router.post('/marketplace/activate', async (req, res) => {
 
     // Верифицируем токен
     const decoded = jwt.verify(token, JWT_SECRET);
-    const { salon_id, company_id } = decoded;
+    salon_id = decoded.salon_id;
+    company_id = decoded.company_id;
 
-    logger.info('🚀 Starting integration activation:', { salon_id, company_id });
+    logger.info('🚀 Starting integration activation:', {
+      salon_id,
+      company_id,
+      use_transaction: USE_TRANSACTION_ACTIVATION
+    });
 
     // Проверяем, что прошло не больше часа с начала регистрации
     const latestEvent = await marketplaceEventsRepository.findLatestByType(salon_id, 'registration_started');
@@ -531,6 +659,131 @@ router.post('/marketplace/activate', async (req, res) => {
         expired_minutes_ago: Math.floor(timeDiff - 60)
       });
     }
+
+    // ========================================
+    // TRANSACTION-BASED ACTIVATION (NEW)
+    // ========================================
+    if (USE_TRANSACTION_ACTIVATION) {
+      let yclientsData;
+      const apiKey = crypto.randomBytes(32).toString('hex');
+
+      // All DB operations in a transaction with advisory lock
+      await companyRepository.withTransaction(async (txClient) => {
+        // 1. Acquire advisory lock by salon_id to prevent concurrent activations
+        const lockResult = await txClient.query(
+          'SELECT pg_try_advisory_xact_lock($1)',
+          [parseInt(salon_id)]
+        );
+
+        if (!lockResult.rows[0].pg_try_advisory_xact_lock) {
+          logger.warn('⚠️ Concurrent activation attempt blocked', { salon_id, company_id });
+          Sentry.captureMessage('Concurrent activation blocked by advisory lock', {
+            level: 'warning',
+            tags: { component: 'marketplace', operation: 'activate' },
+            extra: { salon_id, company_id }
+          });
+          const lockError = new Error('Activation already in progress');
+          lockError.code = 'CONCURRENT_ACTIVATION';
+          throw lockError;
+        }
+
+        logger.info('🔒 Advisory lock acquired', { salon_id });
+
+        // 2. Save API key with status='activating' (inside transaction)
+        await txClient.query(
+          `UPDATE companies SET api_key = $1, whatsapp_connected = true, integration_status = $2, updated_at = NOW()
+           WHERE id = $3`,
+          [apiKey, 'activating', company_id]
+        );
+
+        logger.info('💾 API key saved to database (transaction)');
+
+        // 3. Call YClients API (inside transaction - if fails, everything rolls back)
+        const callbackData = {
+          salon_id: parseInt(salon_id),
+          application_id: parseInt(APP_ID),
+          api_key: apiKey,
+          webhook_urls: [`${BASE_URL}/webhook/yclients`]
+        };
+
+        logger.info('📤 Sending callback to YClients:', {
+          salon_id: callbackData.salon_id,
+          application_id: callbackData.application_id,
+          webhook_url: callbackData.webhook_urls[0]
+        });
+
+        const yclientsResponse = await fetch(
+          'https://api.yclients.com/marketplace/partner/callback/redirect',
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${PARTNER_TOKEN}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/vnd.yclients.v2+json'
+            },
+            body: JSON.stringify(callbackData)
+          }
+        );
+
+        if (!yclientsResponse.ok) {
+          const errorText = await yclientsResponse.text();
+          logger.error('❌ YClients activation failed:', {
+            status: yclientsResponse.status,
+            statusText: yclientsResponse.statusText,
+            error: errorText
+          });
+          throw new Error(`YClients activation failed: ${yclientsResponse.status} ${errorText}`);
+        }
+
+        yclientsData = await yclientsResponse.json();
+        logger.info('✅ YClients activation response:', yclientsData);
+
+        // 4. Update status to 'active' (inside transaction)
+        await txClient.query(
+          `UPDATE companies SET integration_status = $1, whatsapp_connected_at = NOW(), updated_at = NOW()
+           WHERE id = $2`,
+          ['active', company_id]
+        );
+
+        logger.info('✅ Transaction committed successfully');
+      });
+
+      // Event logging OUTSIDE transaction (non-critical)
+      try {
+        await marketplaceEventsRepository.insert({
+          company_id: company_id,
+          salon_id: parseInt(salon_id),
+          event_type: 'integration_activated',
+          event_data: {
+            yclients_response: yclientsData,
+            timestamp: new Date().toISOString(),
+            activation_mode: 'transaction'
+          }
+        });
+      } catch (eventError) {
+        logger.error('❌ Failed to log activation event (non-critical):', eventError);
+        Sentry.captureException(eventError, {
+          level: 'warning',
+          tags: { component: 'marketplace', operation: 'event_logging' },
+          extra: { salon_id, company_id }
+        });
+        // Don't fail - activation was successful
+      }
+
+      logger.info(`🎉 Integration activated successfully for salon ${salon_id} (transaction mode)`);
+
+      return res.json({
+        success: true,
+        message: 'Integration activated successfully',
+        company_id,
+        salon_id,
+        yclients_response: yclientsData
+      });
+    }
+
+    // ========================================
+    // LEGACY ACTIVATION (OLD - fallback)
+    // ========================================
 
     // Генерируем уникальный API ключ для компании
     const apiKey = crypto.randomBytes(32).toString('hex');
@@ -620,13 +873,45 @@ router.post('/marketplace/activate', async (req, res) => {
     });
 
   } catch (error) {
+    // Handle concurrent activation error (409 Conflict)
+    if (error.code === 'CONCURRENT_ACTIVATION') {
+      return res.status(409).json({
+        error: 'Activation already in progress',
+        code: 'CONCURRENT_ACTIVATION',
+        retry_after: 5
+      });
+    }
+
     logger.error('❌ Activation error:', error);
     Sentry.captureException(error, {
       tags: { component: 'marketplace', operation: 'activate' },
-      extra: { salon_id, company_id }
+      extra: { salon_id, company_id, use_transaction: USE_TRANSACTION_ACTIVATION }
     });
 
-    // Rollback database changes: clear API key and set failed status
+    // For transaction mode, rollback is automatic - just log the failure event
+    if (USE_TRANSACTION_ACTIVATION) {
+      try {
+        await marketplaceEventsRepository.insert({
+          company_id: company_id || null,
+          salon_id: salon_id ? parseInt(salon_id) : null,
+          event_type: 'activation_failed',
+          event_data: {
+            error: error.message,
+            timestamp: new Date().toISOString(),
+            activation_mode: 'transaction'
+          }
+        });
+      } catch (eventError) {
+        logger.error('❌ Failed to log failure event:', eventError);
+      }
+
+      return res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+
+    // Legacy mode: Manual rollback
     if (company_id) {
       try {
         await companyRepository.update(company_id, {
@@ -759,6 +1044,7 @@ router.get('/webhook/yclients/collector/events', adminRateLimiter, adminAuth, as
 // 7. WEBHOOK CALLBACK - Прием webhook событий от YClients (основной обработчик)
 // URL: POST /webhook/yclients
 // Phase 4: Added partner_token validation
+// Phase 5: Added idempotency (deterministic hash, Redis check)
 // ============================
 router.post('/webhook/yclients', async (req, res) => {
   try {
@@ -767,10 +1053,14 @@ router.post('/webhook/yclients', async (req, res) => {
     // Use event_type or event (API may send either)
     const eventType = event_type || event;
 
+    // Generate deterministic webhook ID for idempotency
+    const webhookId = generateWebhookId(eventType, salon_id, data);
+
     logger.info('📨 YClients webhook received:', {
       event_type: eventType,
       salon_id,
       application_id,
+      webhook_id: webhookId,
       has_partner_token: !!partner_token,
       data_keys: data ? Object.keys(data) : []
     });
@@ -781,12 +1071,13 @@ router.post('/webhook/yclients', async (req, res) => {
       logger.error('❌ Webhook missing partner_token', {
         salon_id,
         event_type: eventType,
+        webhook_id: webhookId,
         ip: req.ip
       });
       Sentry.captureMessage('YClients webhook without partner_token', {
         level: 'warning',
         tags: { component: 'webhook', security: true },
-        extra: { salon_id, eventType, ip: req.ip }
+        extra: { salon_id, eventType, webhookId, ip: req.ip }
       });
       // Return 200 OK to prevent retry flooding, but don't process
       return res.status(200).json({ success: false, error: 'Missing partner_token' });
@@ -796,12 +1087,13 @@ router.post('/webhook/yclients', async (req, res) => {
       logger.error('❌ Webhook validation failed: Invalid partner_token', {
         salon_id,
         event_type: eventType,
+        webhook_id: webhookId,
         received_token_prefix: partner_token.substring(0, 8) + '...'
       });
       Sentry.captureMessage('YClients webhook with invalid partner_token', {
         level: 'warning',
         tags: { component: 'webhook', security: true },
-        extra: { salon_id, eventType }
+        extra: { salon_id, eventType, webhookId }
       });
       // Return 200 OK to prevent retry flooding, but don't process
       return res.status(200).json({ success: false, error: 'Invalid partner_token' });
@@ -811,21 +1103,51 @@ router.post('/webhook/yclients', async (req, res) => {
     if (application_id && parseInt(application_id) !== parseInt(APP_ID)) {
       logger.warn('⚠️ Webhook for different application:', {
         received_app_id: application_id,
-        our_app_id: APP_ID
+        our_app_id: APP_ID,
+        webhook_id: webhookId
       });
       // Still return 200 OK but skip processing
       return res.status(200).json({ success: true, skipped: 'different_application' });
     }
 
+    // Phase 5: Idempotency check - skip if already processed
+    const isDuplicate = await isWebhookDuplicate(webhookId);
+    if (isDuplicate) {
+      logger.info('🔄 Skipping duplicate webhook:', {
+        event_type: eventType,
+        salon_id,
+        webhook_id: webhookId
+      });
+      // Return 200 OK - YClients should not retry
+      return res.status(200).json({
+        success: true,
+        skipped: 'duplicate',
+        webhook_id: webhookId
+      });
+    }
+
     // Быстро отвечаем YClients (они ожидают 200 OK)
-    res.status(200).json({ success: true, received: true });
+    res.status(200).json({
+      success: true,
+      received: true,
+      webhook_id: webhookId
+    });
 
     // Обрабатываем событие асинхронно
     setImmediate(async () => {
       try {
         await handleWebhookEvent(eventType, salon_id, data);
+        logger.debug('✅ Webhook processed successfully:', { webhookId });
       } catch (error) {
-        logger.error('❌ Webhook processing error:', error);
+        logger.error('❌ Webhook processing error:', {
+          error: error.message,
+          webhookId,
+          eventType,
+          salon_id
+        });
+        // Remove idempotency key to allow retry
+        await removeWebhookIdempotencyKey(webhookId);
+        logger.info('🔄 Idempotency key removed - retry allowed:', { webhookId });
       }
     });
 
@@ -839,7 +1161,7 @@ router.post('/webhook/yclients', async (req, res) => {
 // 7. HEALTH CHECK - Проверка готовности системы
 // URL: GET /marketplace/health
 // ============================
-router.get('/marketplace/health', (req, res) => {
+router.get('/marketplace/health', async (req, res) => {
   const healthStatus = {
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -860,6 +1182,12 @@ router.get('/marketplace/health', (req, res) => {
       api_running: true,
       database_connected: !!postgres,
       whatsapp_pool_ready: !!sessionPool
+    },
+    circuitBreakers: {
+      qrGeneration: qrCircuitBreaker.getState()
+    },
+    featureFlags: {
+      USE_TRANSACTION_ACTIVATION
     }
   };
 
@@ -877,7 +1205,28 @@ router.get('/marketplace/health', (req, res) => {
     return res.status(503).json(healthStatus);
   }
 
-  res.json(healthStatus);
+  // Database connectivity check with timeout
+  try {
+    const start = Date.now();
+    await postgres.query('SELECT 1');
+    healthStatus.services.database_latency_ms = Date.now() - start;
+    healthStatus.services.database_connected = true;
+  } catch (dbError) {
+    healthStatus.services.database_connected = false;
+    healthStatus.services.database_error = dbError.message;
+    healthStatus.status = 'degraded';
+  }
+
+  // Warn if circuit breaker is OPEN
+  if (healthStatus.circuitBreakers.qrGeneration.state === 'open') {
+    healthStatus.status = 'degraded';
+    healthStatus.warnings = healthStatus.warnings || [];
+    healthStatus.warnings.push('QR generation circuit breaker is OPEN');
+  }
+
+  const httpStatus = healthStatus.status === 'ok' ? 200 :
+                     healthStatus.status === 'degraded' ? 200 : 503;
+  res.status(httpStatus).json(healthStatus);
 });
 
 // ============================
@@ -1153,8 +1502,8 @@ router.get('/marketplace/admin/salon/:salonId/status', adminRateLimiter, adminAu
 // POST /marketplace/admin/salon/:salonId/disconnect
 // ============================
 router.post('/marketplace/admin/salon/:salonId/disconnect', adminRateLimiter, adminAuth, async (req, res) => {
+  const validSalonId = validateSalonId(req.params.salonId);
   try {
-    const validSalonId = validateSalonId(req.params.salonId);
     if (!validSalonId) {
       return res.status(400).json({ error: 'Invalid salon_id', code: 'INVALID_SALON_ID' });
     }
@@ -1166,13 +1515,36 @@ router.post('/marketplace/admin/salon/:salonId/disconnect', adminRateLimiter, ad
     const result = await service.disconnectSalon(validSalonId, reason || 'Admin requested');
 
     if (result.success) {
+      // Audit log: successful disconnect
+      await logAdminAction(postgres, req, {
+        action: 'disconnect_salon',
+        resourceType: 'salon',
+        resourceId: validSalonId,
+        responseStatus: 200
+      });
       res.json({ success: true, message: 'Salon disconnected successfully' });
     } else {
+      // Audit log: failed disconnect
+      await logAdminAction(postgres, req, {
+        action: 'disconnect_salon',
+        resourceType: 'salon',
+        resourceId: validSalonId,
+        responseStatus: 500,
+        errorMessage: result.error
+      });
       res.status(500).json({ error: result.error });
     }
   } catch (error) {
     logger.error('Admin: Failed to disconnect salon:', error);
     Sentry.captureException(error, { tags: { route: 'admin_disconnect_salon' } });
+    // Audit log: exception
+    await logAdminAction(postgres, req, {
+      action: 'disconnect_salon',
+      resourceType: 'salon',
+      resourceId: validSalonId,
+      responseStatus: 500,
+      errorMessage: error.message
+    });
     safeErrorResponse(res, error);
   }
 });
@@ -1214,9 +1586,8 @@ router.get('/marketplace/admin/salon/:salonId/payment-link', adminRateLimiter, a
 // POST /marketplace/admin/payment/notify
 // ============================
 router.post('/marketplace/admin/payment/notify', adminRateLimiter, adminAuth, async (req, res) => {
+  const { salon_id, payment_sum, currency_iso, payment_date, period_from, period_to } = req.body;
   try {
-    const { salon_id, payment_sum, currency_iso, payment_date, period_from, period_to } = req.body;
-
     if (!salon_id || !payment_sum || !payment_date || !period_from || !period_to) {
       return res.status(400).json({
         error: 'Missing required fields: salon_id, payment_sum, payment_date, period_from, period_to'
@@ -1235,16 +1606,40 @@ router.post('/marketplace/admin/payment/notify', adminRateLimiter, adminAuth, as
     });
 
     if (result.success) {
+      // Audit log: successful payment notification
+      await logAdminAction(postgres, req, {
+        action: 'notify_payment',
+        resourceType: 'payment',
+        resourceId: result.data?.id || salon_id,
+        responseStatus: 200
+      });
       res.json({
         success: true,
         payment_id: result.data?.id,
         message: 'Payment notification sent successfully'
       });
     } else {
+      // Audit log: failed payment notification
+      await logAdminAction(postgres, req, {
+        action: 'notify_payment',
+        resourceType: 'payment',
+        resourceId: salon_id,
+        responseStatus: 500,
+        errorMessage: result.error
+      });
       res.status(500).json({ error: result.error });
     }
   } catch (error) {
     logger.error('Admin: Failed to notify payment:', error);
+    Sentry.captureException(error, { tags: { route: 'admin_notify_payment' } });
+    // Audit log: exception
+    await logAdminAction(postgres, req, {
+      action: 'notify_payment',
+      resourceType: 'payment',
+      resourceId: salon_id,
+      responseStatus: 500,
+      errorMessage: error.message
+    });
     res.status(500).json({ error: error.message });
   }
 });
@@ -1254,8 +1649,8 @@ router.post('/marketplace/admin/payment/notify', adminRateLimiter, adminAuth, as
 // POST /marketplace/admin/payment/:id/refund
 // ============================
 router.post('/marketplace/admin/payment/:id/refund', adminRateLimiter, adminAuth, async (req, res) => {
+  const { id } = req.params;
   try {
-    const { id } = req.params;
     const { reason } = req.body;
 
     logger.info('Admin: Notifying refund', { paymentId: id, reason });
@@ -1264,12 +1659,35 @@ router.post('/marketplace/admin/payment/:id/refund', adminRateLimiter, adminAuth
     const result = await service.notifyYclientsAboutRefund(parseInt(id), reason || '');
 
     if (result.success) {
+      // Audit log: successful refund notification
+      await logAdminAction(postgres, req, {
+        action: 'notify_refund',
+        resourceType: 'payment',
+        resourceId: id,
+        responseStatus: 200
+      });
       res.json({ success: true, message: 'Refund notification sent successfully' });
     } else {
+      // Audit log: failed refund notification
+      await logAdminAction(postgres, req, {
+        action: 'notify_refund',
+        resourceType: 'payment',
+        resourceId: id,
+        responseStatus: 500,
+        errorMessage: result.error
+      });
       res.status(500).json({ error: result.error });
     }
   } catch (error) {
     logger.error('Admin: Failed to notify refund:', error);
+    // Audit log: exception
+    await logAdminAction(postgres, req, {
+      action: 'notify_refund',
+      resourceType: 'payment',
+      resourceId: id,
+      responseStatus: 500,
+      errorMessage: error.message
+    });
     res.status(500).json({ error: error.message });
   }
 });
@@ -1333,12 +1751,12 @@ router.post('/marketplace/admin/discounts', adminRateLimiter, adminAuth, async (
 // POST /marketplace/admin/salon/:salonId/channels
 // ============================
 router.post('/marketplace/admin/salon/:salonId/channels', adminRateLimiter, adminAuth, async (req, res) => {
+  const validSalonId = validateSalonId(req.params.salonId);
+  const { channel, enabled } = req.body;
   try {
-    const validSalonId = validateSalonId(req.params.salonId);
     if (!validSalonId) {
       return res.status(400).json({ error: 'Invalid salon_id', code: 'INVALID_SALON_ID' });
     }
-    const { channel, enabled } = req.body;
 
     if (!channel || typeof enabled !== 'boolean') {
       return res.status(400).json({ error: 'channel and enabled (boolean) are required' });
@@ -1350,13 +1768,36 @@ router.post('/marketplace/admin/salon/:salonId/channels', adminRateLimiter, admi
     const result = await service.updateNotificationChannel(validSalonId, channel, enabled);
 
     if (result.success) {
+      // Audit log: successful channel update
+      await logAdminAction(postgres, req, {
+        action: enabled ? 'enable_channel' : 'disable_channel',
+        resourceType: 'salon',
+        resourceId: validSalonId,
+        responseStatus: 200
+      });
       res.json({ success: true, message: `Channel ${channel} ${enabled ? 'enabled' : 'disabled'}` });
     } else {
+      // Audit log: failed channel update
+      await logAdminAction(postgres, req, {
+        action: enabled ? 'enable_channel' : 'disable_channel',
+        resourceType: 'salon',
+        resourceId: validSalonId,
+        responseStatus: 500,
+        errorMessage: result.error
+      });
       res.status(500).json({ error: result.error });
     }
   } catch (error) {
     logger.error('Admin: Failed to update channel:', error);
     Sentry.captureException(error, { tags: { route: 'admin_update_channel' } });
+    // Audit log: exception
+    await logAdminAction(postgres, req, {
+      action: enabled ? 'enable_channel' : 'disable_channel',
+      resourceType: 'salon',
+      resourceId: validSalonId,
+      responseStatus: 500,
+      errorMessage: error.message
+    });
     safeErrorResponse(res, error);
   }
 });
@@ -1390,6 +1831,64 @@ router.post('/marketplace/admin/salon/:salonId/sms-names', adminRateLimiter, adm
   } catch (error) {
     logger.error('Admin: Failed to set SMS names:', error);
     Sentry.captureException(error, { tags: { route: 'admin_sms_names' } });
+    safeErrorResponse(res, error);
+  }
+});
+
+// ============================
+// 18. ADMIN: GET AUDIT LOG
+// GET /marketplace/admin/audit-log
+// Requires superadmin role
+// ============================
+router.get('/marketplace/admin/audit-log', adminRateLimiter, adminAuth, async (req, res) => {
+  try {
+    // Only superadmin can view audit logs
+    if (req.adminUser?.role !== 'superadmin') {
+      logger.warn('Audit log access denied - not superadmin', { admin: req.adminUser });
+      return res.status(403).json({
+        error: 'Access denied',
+        message: 'Only superadmin can view audit logs'
+      });
+    }
+
+    const {
+      admin_id: adminId,
+      action,
+      resource_type: resourceType,
+      resource_id: resourceId,
+      date_from: dateFrom,
+      date_to: dateTo,
+      limit = 50,
+      offset = 0
+    } = req.query;
+
+    logger.info('Admin: Getting audit logs', {
+      adminId,
+      action,
+      resourceType,
+      resourceId,
+      limit,
+      offset
+    });
+
+    const result = await getAuditLogs(postgres, {
+      adminId,
+      action,
+      resourceType,
+      resourceId,
+      dateFrom,
+      dateTo,
+      limit: parseInt(limit, 10),
+      offset: parseInt(offset, 10)
+    });
+
+    res.json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    logger.error('Admin: Failed to get audit logs:', error);
+    Sentry.captureException(error, { tags: { route: 'admin_audit_log' } });
     safeErrorResponse(res, error);
   }
 });

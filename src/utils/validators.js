@@ -1,6 +1,8 @@
 // src/utils/validators.js
 // Утилиты для валидации и санитизации входных данных
 
+const logger = require('./logger');
+
 /**
  * Валидация телефонного номера
  * @param {string} phone - Телефонный номер
@@ -65,9 +67,19 @@ function validateEmail(email) {
  * Санитизация строки (удаление опасных символов)
  * @param {string} input - Входная строка
  * @param {number} maxLength - Максимальная длина (по умолчанию 255)
+ * @param {Object} options - Дополнительные опции
+ * @param {boolean} options.logWarning - Логировать предупреждение при обрезке (по умолчанию true)
+ * @param {boolean} options.throwOnOverflow - Выбросить ошибку при превышении длины (по умолчанию false)
+ * @param {string} options.fieldName - Имя поля для логирования (для отладки)
  * @returns {string} - Очищенная строка
  */
-function sanitizeString(input, maxLength = 255) {
+function sanitizeString(input, maxLength = 255, options = {}) {
+  const {
+    logWarning = true,
+    throwOnOverflow = false,
+    fieldName = 'unknown'
+  } = options;
+
   if (!input) return '';
   if (typeof input !== 'string') return String(input);
 
@@ -76,8 +88,33 @@ function sanitizeString(input, maxLength = 255) {
     .replace(/[\x00-\x1F\x7F]/g, '') // Удаляем управляющие символы
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Удаляем script теги
     .replace(/<[^>]*>/g, '') // Удаляем все остальные HTML теги
-    .trim()
-    .substring(0, maxLength);
+    .trim();
+
+  // Check if truncation is needed
+  const originalLength = clean.length;
+  const willTruncate = originalLength > maxLength;
+
+  if (willTruncate) {
+    // Throw error if requested
+    if (throwOnOverflow) {
+      throw new Error(
+        `String overflow: field "${fieldName}" has ${originalLength} chars, max is ${maxLength}`
+      );
+    }
+
+    // Log warning if enabled (silent truncation warning)
+    if (logWarning) {
+      logger.warn('String truncated during sanitization', {
+        fieldName,
+        originalLength,
+        maxLength,
+        truncatedChars: originalLength - maxLength
+      });
+    }
+
+    // Truncate
+    clean = clean.substring(0, maxLength);
+  }
 
   return clean;
 }

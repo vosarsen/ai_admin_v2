@@ -1,8 +1,8 @@
 # YClients Marketplace Code Improvements - Context (REVISED)
 
 **Last Updated:** 2025-12-02
-**Status:** READY TO START (после модерации)
-**Current Phase:** Pre-implementation
+**Status:** PHASE 1 + PHASE 2 COMPLETE (60%)
+**Current Phase:** Phase 3 (Nice to Have) - Optional
 **Review Status:** APPROVED WITH CHANGES (applied)
 
 ---
@@ -233,6 +233,82 @@ if (USE_TRANSACTION_ACTIVATION) {
 - Discovered existing CircuitBreaker
 - Updated all docs with revisions
 
+### Session 3 (2025-12-02) - IMPLEMENTATION
+**Phase 1 Complete:**
+- ✅ Task 1.1: Fixed variable scope bug (`let salon_id, company_id` at function scope)
+- ✅ Task 1.1: Wrapped activation in transaction with `companyRepository.withTransaction()`
+- ✅ Task 1.1: Added feature flag `USE_TRANSACTION_ACTIVATION`
+- ✅ Task 1.1: Event logging moved OUTSIDE transaction (non-critical)
+- ✅ Task 1.2: Advisory locks via `pg_try_advisory_xact_lock(salon_id)`
+- ✅ Task 1.2: 409 Conflict response for concurrent activations
+- ✅ Task 1.3: Integrated existing CircuitBreaker for QR generation
+- ✅ Task 1.3: Added circuit breaker state to health check
+- ✅ Updated `.env.example` with new feature flag
+
+**Files Modified:**
+- `src/api/routes/yclients-marketplace.js` (lines ~500-830, ~1055-1120)
+- `.env.example`
+- `dev/active/marketplace-code-improvements/*.md`
+
+**New Health Check Response:**
+```json
+{
+  "status": "ok",
+  "circuitBreakers": {
+    "qrGeneration": { "state": "closed", "failures": 0 }
+  },
+  "featureFlags": {
+    "USE_TRANSACTION_ACTIVATION": false
+  }
+}
+```
+
+### Session 4 (2025-12-02) - PHASE 2 IMPLEMENTATION
+**Phase 2 Complete:**
+
+**Task 2.1: Admin Audit Trail ✅**
+- Created migration `migrations/20251202_create_admin_audit_log.sql`
+- Created `src/utils/admin-audit.js` with:
+  - `logAdminAction()` - Log admin actions
+  - `getAuditLogs()` - Query with filters
+  - `cleanupAuditLogs()` - Retention policy (90 days)
+  - `sanitizeBody()` - Remove sensitive fields
+- Applied to admin routes:
+  - `disconnect_salon`
+  - `notify_payment`
+  - `notify_refund`
+  - `enable_channel` / `disable_channel`
+- Added view endpoint `GET /marketplace/admin/audit-log` (superadmin only)
+- Created cleanup script `scripts/cleanup-audit-log.js`
+
+**Task 2.2: Webhook Idempotency ✅**
+- Deterministic hash (NO timestamp): `generateWebhookId(eventType, salonId, data)`
+- Redis check with SET NX EX 3600 (1 hour TTL)
+- On processing failure: remove key to allow retry
+- Returns `{ skipped: 'duplicate', webhook_id }` for duplicates
+
+**Task 2.3: Input Validation Warnings ✅**
+- Updated `sanitizeString()` signature:
+  - `sanitizeString(input, maxLength, { logWarning, throwOnOverflow, fieldName })`
+- Backward compatible (old calls work)
+- Console warning on silent truncation
+
+**Files Created:**
+- `migrations/20251202_create_admin_audit_log.sql`
+- `src/utils/admin-audit.js`
+- `scripts/cleanup-audit-log.js`
+
+**Files Modified:**
+- `src/api/routes/yclients-marketplace.js` (webhook idempotency, admin audit)
+- `src/utils/validators.js` (sanitizeString options)
+
+**Code Review Fixes (Session 4 continued):**
+- ✅ Fixed SQL injection in `cleanupAuditLogs` - parameterized query `$1::interval`
+- ✅ Added missing `Sentry.captureException` in `notify_payment` catch block
+- ✅ Replaced `console.warn` with `logger.warn` in validators for structured logging
+
+**COMMITTED:** `5d003f9 feat(marketplace): implement Phase 1 + 2 code improvements`
+
 ---
 
 ## Blockers
@@ -253,10 +329,33 @@ if (USE_TRANSACTION_ACTIVATION) {
 
 ## Next Steps
 
-1. [ ] Дождаться ответа от модератора по HMAC
-2. [ ] После модерации: начать Phase 1 (Critical Fixes)
-3. [ ] Task 1.1: Fix variable scope + Transaction
-4. [ ] Task 1.2: Advisory locks
-5. [ ] Task 1.3: Circuit breaker integration
-6. [ ] Deploy with feature flag
-7. [ ] Staged rollout
+1. [x] Phase 1: Critical Fixes - COMPLETE
+2. [x] Phase 2: Important Improvements - COMPLETE
+3. [x] Code review fixes - COMPLETE
+4. [x] **COMMITTED:** `5d003f9` (not pushed yet)
+5. [ ] **PUSH TO REMOTE:** `git push origin main`
+6. [ ] Run migration on production: `psql < migrations/20251202_create_admin_audit_log.sql`
+7. [ ] Deploy with `USE_TRANSACTION_ACTIVATION=false`
+8. [ ] Test on salon 997441
+9. [ ] Enable `USE_TRANSACTION_ACTIVATION=true` gradually
+10. [ ] Optional: Phase 3 (Nice to Have)
+
+---
+
+## Handoff Notes (Context Reset)
+
+**Last Action:** Committed all Phase 1 + 2 changes locally
+**Commit Hash:** `5d003f9`
+**NOT PUSHED YET** - needs `git push origin main`
+
+**Work Complete:**
+- All 6 tasks implemented (Phase 1: 3, Phase 2: 3)
+- Code review fixes applied
+- All files compile without errors
+
+**Ready for Deployment:**
+1. Push: `git push origin main`
+2. Run migration: `psql < migrations/20251202_create_admin_audit_log.sql`
+3. Deploy with feature flag OFF
+4. Test on salon 997441
+5. Gradual rollout
