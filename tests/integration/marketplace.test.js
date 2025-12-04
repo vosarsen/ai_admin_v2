@@ -343,11 +343,17 @@ describe('Marketplace HMAC Verification', () => {
 
   /**
    * Generate HMAC-SHA256 signature for user_data
-   * Algorithm: hash_hmac('sha256', user_data, PARTNER_TOKEN)
-   * user_data is base64-encoded string (NOT decoded JSON)
+   *
+   * IMPORTANT: YClients signs the DECODED JSON, not the base64 string!
+   * Algorithm: hash_hmac('sha256', base64_decode(user_data), PARTNER_TOKEN)
+   *
+   * This was discovered through debug testing on 2025-12-04.
+   * See: docs/03-development-diary/2025-12-04-marketplace-hmac-fix.md
    */
-  const generateHmacSignature = (userData, partnerToken) => {
-    return crypto.createHmac('sha256', partnerToken).update(userData).digest('hex');
+  const generateHmacSignature = (base64UserData, partnerToken) => {
+    // Decode base64 to get JSON string, then sign that
+    const decodedJson = Buffer.from(base64UserData, 'base64').toString('utf-8');
+    return crypto.createHmac('sha256', partnerToken).update(decodedJson).digest('hex');
   };
 
   /**
