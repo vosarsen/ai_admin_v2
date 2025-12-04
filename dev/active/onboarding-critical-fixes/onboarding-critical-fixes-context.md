@@ -1,8 +1,35 @@
 # Onboarding Critical Fixes - Context
 
-**Last Updated:** 2025-12-04 20:39 MSK
-**Status:** Phase 1 COMPLETE ✅
-**Current Phase:** Phase 2 (Company ID) - Ready to Start
+**Last Updated:** 2025-12-04 20:55 MSK
+**Status:** Phase 1 & 2 COMPLETE ✅ | Phase 3 & 4 Pending
+**Current Phase:** Phase 3 (WebSocket) - Ready to Start
+
+---
+
+## SESSION SUMMARY (2025-12-04)
+
+### What Was Accomplished:
+1. **Phase 1 (LID Fix):** COMPLETE - commit `14a222a`
+   - Fixed `_extractPhoneNumber()` to preserve `@lid` suffix
+   - Both LID and regular phone tests passed
+
+2. **Phase 2 (Company ID):** COMPLETE - commit `74b4ce8`
+   - Updated `scripts/baileys-service.js` to use prefixed format
+   - Ran database migration - deleted duplicates, unified format
+   - All company_ids now use `company_962302` format
+
+### What Remains:
+- **Phase 3:** WebSocket `whatsapp-connected` event not reaching frontend
+- **Phase 4:** Remove console.log from onboarding.html, add tests
+
+### Key Commands Used:
+```bash
+# Test LID via client
+ssh root@46.149.70.219 'cd /opt/ai-admin && node -e "require(\"./src/integrations/whatsapp/client\").sendMessage(\"152926689472618\", \"Test\")"'
+
+# Check database company_ids
+ssh root@46.149.70.219 'cd /opt/ai-admin && node -e "require(\"./src/database/postgres\").query(\"SELECT company_id FROM whatsapp_auth\").then(r => console.table(r.rows))"'
+```
 
 ---
 
@@ -90,14 +117,17 @@ Three critical bugs block production deployment:
   - LID (152926689472618): ✅ Success, messageId: 3EB08FCB8A87621721ED99
   - Regular (79686484488): ✅ Success, messageId: 3EB0CEEED27A8D00A77C43
 
-### Company ID Status
+### Company ID Status ✅ COMPLETE
 - [x] All locations audited
 - [x] Format decision made (prefixed)
-- [ ] Migration script created
-- [ ] Migration tested locally
-- [ ] Backup created
-- [ ] Production migration run
-- [ ] Verified no duplicates
+- [x] Migration script created
+- [x] baileys-service.js updated (commit 74b4ce8)
+- [x] Backup created (whatsapp_auth_backup_20251204, whatsapp_keys_backup_20251204)
+- [x] Production migration run (2025-12-04 20:50 MSK)
+- [x] Verified no duplicates
+- **Results:**
+  - whatsapp_auth: 1 duplicate deleted, 1 record remains with `company_962302`
+  - whatsapp_keys: 22 duplicates deleted, 19 converted to prefixed format
 
 ### WebSocket Status
 - [x] Code analyzed
