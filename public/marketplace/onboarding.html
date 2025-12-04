@@ -472,10 +472,16 @@
         }
 
         // Декодируем токен для получения данных
-        // Используем правильное декодирование UTF-8 для русских символов
+        // JWT использует URL-safe base64, нужно конвертировать перед atob()
         let tokenData = {};
         try {
-            const base64Payload = token.split('.')[1];
+            let base64Payload = token.split('.')[1];
+            // Конвертируем URL-safe base64 в стандартный base64
+            base64Payload = base64Payload.replace(/-/g, '+').replace(/_/g, '/');
+            // Добавляем padding если нужно
+            while (base64Payload.length % 4) {
+                base64Payload += '=';
+            }
             // Декодируем base64 с поддержкой UTF-8
             const jsonPayload = decodeURIComponent(
                 atob(base64Payload)
