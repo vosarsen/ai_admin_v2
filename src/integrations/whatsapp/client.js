@@ -508,6 +508,10 @@ class WhatsAppClient {
 
     // If already in WhatsApp format, return as is
     if (cleanPhone.includes('@')) {
+      logger.debug('📞 Phone already formatted:', {
+        input: this._sanitizePhone(phone),
+        format: cleanPhone.includes('@lid') ? 'LID' : cleanPhone.includes('@c.us') ? '@c.us' : '@s.whatsapp.net'
+      });
       return cleanPhone;
     }
 
@@ -516,7 +520,14 @@ class WhatsAppClient {
     // Regular phone numbers are usually 10-13 digits
     if (cleanPhone.length >= 15) {
       // This is likely a LID, use @lid suffix
-      return `${cleanPhone}@lid`;
+      const result = `${cleanPhone}@lid`;
+      logger.debug('📞 Phone formatted as LID:', {
+        input: this._sanitizePhone(phone),
+        digitCount: cleanPhone.length,
+        output: this._sanitizePhone(result),
+        format: 'LID'
+      });
+      return result;
     }
 
     // Handle different country formats
@@ -535,7 +546,14 @@ class WhatsAppClient {
     }
 
     // Add WhatsApp suffix for compatibility
-    return `${cleanPhone}@c.us`;
+    const result = `${cleanPhone}@c.us`;
+    logger.debug('📞 Phone formatted as regular:', {
+      input: this._sanitizePhone(phone),
+      digitCount: cleanPhone.length,
+      output: this._sanitizePhone(result),
+      format: 'regular'
+    });
+    return result;
   }
 
   /**
@@ -543,12 +561,20 @@ class WhatsAppClient {
    *
    * @private
    * @param {string} formattedPhone - Phone in WhatsApp format
-   * @returns {string} Clean phone number
+   * @returns {string} Clean phone number or LID with @lid suffix
    */
   _extractPhoneNumber(formattedPhone) {
     if (!formattedPhone) return '';
 
-    // Remove WhatsApp suffixes
+    // CRITICAL: Preserve @lid suffix for WhatsApp internal IDs (LIDs)
+    // LIDs are used by WhatsApp for certain contacts and MUST be sent with @lid suffix
+    // Example: "152926689472618@lid" must NOT be stripped to just digits
+    if (formattedPhone.includes('@lid')) {
+      // Return as-is, Baileys needs the @lid suffix to route correctly
+      return formattedPhone;
+    }
+
+    // Remove WhatsApp suffixes for regular phone numbers
     return formattedPhone
       .replace('@c.us', '')
       .replace('@s.whatsapp.net', '')
