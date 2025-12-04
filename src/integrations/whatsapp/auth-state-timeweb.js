@@ -355,7 +355,8 @@ async function useTimewebAuthState(companyId, options = {}) {
   logger.info(`🔐 Initializing Timeweb PostgreSQL auth state for company ${companyId}`);
 
   // Extract sessionPool for cache support (Phase 2 - Task 3.1)
-  const { sessionPool } = options;
+  // Extract phoneNumber for phone mismatch validation (Pairing Code Fix - Task 1.2)
+  const { sessionPool, phoneNumber: requestedPhone } = options;
 
   // Validate company ID (defense-in-depth)
   if (!companyId || typeof companyId !== 'string') {
@@ -395,6 +396,71 @@ async function useTimewebAuthState(companyId, options = {}) {
       // Load existing credentials and revive Buffer objects
       creds = reviveBuffers(authData.creds);
       logger.info(`✅ Loaded existing credentials for ${companyId}`);
+
+      // =========================================================================
+      // CRITICAL FIX: Phone Number Mismatch Detection (Pairing Code Fix - Task 1.2)
+      // =========================================================================
+      // When pairing code is requested with a new phone number, we must check
+      // if stored credentials are for a different phone. If mismatch detected,
+      // delete old credentials and create fresh ones to avoid silent pairing failures.
+
+      if (requestedPhone) {
+        // Normalize requested phone (remove non-digits)
+        const normalizedRequestedPhone = requestedPhone.replace(/\D/g, '');
+
+        // Extract stored phone from credentials (format: "79001234567@s.whatsapp.net")
+        const storedPhoneRaw = creds.me?.id?.split('@')[0] || null;
+
+        if (storedPhoneRaw && normalizedRequestedPhone) {
+          // Normalize stored phone for comparison
+          const normalizedStoredPhone = storedPhoneRaw.replace(/\D/g, '');
+
+          if (normalizedStoredPhone !== normalizedRequestedPhone) {
+            logger.warn(`❌ Phone number mismatch detected for ${companyId}:`, {
+              stored: normalizedStoredPhone,
+              requested: normalizedRequestedPhone
+            });
+
+            // Alert via Sentry (warning level - expected scenario during phone change)
+            Sentry.captureMessage('Phone number mismatch - clearing old credentials', {
+              level: 'warning',
+              tags: {
+                component: 'baileys_auth',
+                operation: 'phone_mismatch_cleanup',
+                company_id: companyId
+              },
+              extra: {
+                storedPhone: normalizedStoredPhone,
+                requestedPhone: normalizedRequestedPhone
+              }
+            });
+
+            // Delete old credentials from PostgreSQL
+            logger.info(`🗑️ Deleting old credentials for ${companyId} (phone mismatch)`);
+            await removeTimewebAuthState(companyId);
+
+            // Clear cached credentials if sessionPool available
+            if (sessionPool) {
+              sessionPool.clearCachedCredentials(companyId);
+              logger.debug(`💾 Cleared credentials cache for ${companyId}`);
+            }
+
+            // Create fresh credentials for new phone
+            creds = initAuthCreds();
+            logger.info(`✅ Fresh credentials created for ${companyId} (new phone: ${normalizedRequestedPhone})`);
+
+            // Note: saveCreds will be called below after keys interface is ready
+          } else {
+            logger.info(`✅ Phone number match confirmed for ${companyId}: ${normalizedStoredPhone}`);
+          }
+        } else if (!storedPhoneRaw) {
+          // Credentials exist but no phone stored yet (initial pairing in progress)
+          logger.info(`📝 No phone stored in credentials for ${companyId} - initial pairing`);
+        }
+      }
+      // =========================================================================
+      // END: Phone Number Mismatch Detection
+      // =========================================================================
 
       // Update cache after successful load (Phase 2 - Task 3.1)
       // Note: We'll update with full keys after creating the keys interface

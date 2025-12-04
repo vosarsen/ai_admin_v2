@@ -283,18 +283,32 @@ class WhatsAppSessionPool extends EventEmitter {
                 this.sessions.delete(validatedId);
             }
 
+            // Check if we should use pairing code and have a phone number
+            const usePairingCode = options.usePairingCode || process.env.USE_PAIRING_CODE === 'true';
+            const phoneNumber = options.phoneNumber || process.env.WHATSAPP_PHONE_NUMBER;
+
+            // CRITICAL FIX: Clean up old credentials if requesting pairing code with new phone
+            // This prevents phone number mismatch errors where old credentials conflict with new phone
+            if (usePairingCode && phoneNumber) {
+                const cleanPhone = this.normalizePhoneE164(phoneNumber);
+                logger.info(`📱 Pairing code requested for phone ${cleanPhone}, checking for credential conflicts...`);
+
+                // Pass phone number to auth state for validation/cleanup
+                // Auth state will delete old credentials if phone mismatch detected
+            }
+
             // Use Timeweb PostgreSQL auth state (production)
             logger.info(`🗄️  Using Timeweb PostgreSQL auth state for company ${validatedId}`);
             // Pass sessionPool instance for credentials cache support (Phase 2 - Task 3.1)
-            const { state, saveCreds } = await useTimewebAuthState(validatedId, { sessionPool: this });
+            // Pass phoneNumber for phone mismatch validation (Pairing Code Fix - Task 1.2)
+            const { state, saveCreds } = await useTimewebAuthState(validatedId, {
+                sessionPool: this,
+                phoneNumber: usePairingCode ? phoneNumber : null  // Only validate phone for pairing code flow
+            });
 
             // Get latest Baileys version for better compatibility
             const { version, isLatest } = await fetchLatestBaileysVersion();
             logger.info(`📦 Using Baileys version: ${version.join('.')} (latest: ${isLatest})`);
-
-            // Check if we should use pairing code
-            const usePairingCode = options.usePairingCode || process.env.USE_PAIRING_CODE === 'true';
-            const phoneNumber = options.phoneNumber || process.env.WHATSAPP_PHONE_NUMBER;
 
             // Create socket with optimized config from official example
             const sock = makeWASocket({
