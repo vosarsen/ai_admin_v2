@@ -1,7 +1,7 @@
 # WhatsApp Pairing Code Fix - Tasks
 
-**Last Updated:** 2025-12-04 15:45 MSK
-**Status:** Phase 1 COMPLETE - Deployed to Production
+**Last Updated:** 2025-12-04 16:10 MSK
+**Status:** Phase 1 COMPLETE + Critical Fixes - FULLY TESTED ✅
 
 ---
 
@@ -121,15 +121,40 @@
 
 ---
 
+## Phase 1.5: Critical Additional Fixes (Session 2)
+
+### Task 1.4: Fix Race Condition in Request-Pairing-Code
+- [x] Disconnect existing session before creating new one
+- [x] Ensure phoneNumber from user is used, not cached session
+- **File:** `src/api/websocket/marketplace-socket.js:315-326`
+- **Est:** 15 min | **Actual:** 10 min
+- **Status:** ✅ COMPLETE (2025-12-04)
+
+### Task 1.5: Fix Multi-tenant Env Fallback
+- [x] Don't use env WHATSAPP_PHONE_NUMBER as fallback for marketplace
+- [x] Only use env when options.usePairingCode explicitly true
+- **File:** `src/integrations/whatsapp/session-pool.js:286-296`
+- **Est:** 20 min | **Actual:** 15 min
+- **Status:** ✅ COMPLETE (2025-12-04)
+
+### Task 1.6: Create Automated Test Script
+- [x] Create `scripts/test-phone-mismatch.js`
+- [x] Tests full WebSocket flow with phone mismatch scenario
+- [x] Verifies credentials are updated to correct phone
+- **Status:** ✅ COMPLETE (2025-12-04)
+
+---
+
 ## Progress Summary
 
 | Phase | Tasks | Completed | Status |
 |-------|-------|-----------|--------|
 | Phase 1 | 3 | 3 | ✅ COMPLETE |
-| Phase 2 | 3 | 0 | Not Started |
-| Phase 3 | 2 | 0 | Not Started |
-| Phase 4 | 3 | 0 | Not Started |
-| **Total** | **11** | **3** | **27%** |
+| Phase 1.5 | 3 | 3 | ✅ COMPLETE |
+| Phase 2 | 3 | 0 | Optional |
+| Phase 3 | 2 | 0 | Optional |
+| Phase 4 | 3 | 0 | Waiting Test |
+| **Total** | **14** | **6** | **43%** |
 
 ---
 

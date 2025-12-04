@@ -1,8 +1,11 @@
 # WhatsApp Pairing Code Fix - Context
 
-**Last Updated:** 2025-12-04 15:45 MSK
-**Status:** Phase 1 COMPLETE, Deployed to Production
-**Commit:** `4f681e0` - fix(whatsapp): add phone number mismatch detection for pairing code flow
+**Last Updated:** 2025-12-04 16:10 MSK
+**Status:** Phase 1 COMPLETE + Critical Fixes, FULLY TESTED ✅
+**Commits:**
+- `4f681e0` - fix(whatsapp): add phone number mismatch detection for pairing code flow
+- `e8dba5a` - fix(whatsapp): disconnect session before pairing code request to fix race condition
+- `04af7a9` - fix(whatsapp): don't use env phoneNumber fallback for marketplace multi-tenant
 
 ---
 
@@ -239,16 +242,64 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 logs ai-admin-api --li
 - Moderator (Филипп) to test salon 997441 with phone 79006464263
 - Should see phone mismatch detection in logs if old credentials exist
 
+## Session 2 Summary (2025-12-04 16:10 MSK)
+
+### Additional Issues Found & Fixed
+
+**Issue 1: Race Condition in Pairing Code Request**
+- Problem: `startWhatsAppConnection()` creates session first, `request-pairing-code` gets blocked by mutex
+- Solution: Disconnect existing session before creating new one with phoneNumber
+- File: `src/api/websocket/marketplace-socket.js:315-326`
+
+**Issue 2: Multi-tenant Env Fallback**
+- Problem: `WHATSAPP_PHONE_NUMBER` env used as fallback for ALL salons
+- Solution: Only use env fallback when `options.usePairingCode === true` explicitly
+- File: `src/integrations/whatsapp/session-pool.js:286-296`
+
+### Full Working Flow (Verified)
+
+```
+1. WebSocket connect → startWhatsAppConnection()
+2. Initial createSession() with no phoneNumber → QR code mode (no pairing code auto-generated)
+3. User clicks "Get Pairing Code" → emits request-pairing-code with phoneNumber
+4. Handler disconnects existing session first
+5. Creates new session with { usePairingCode: true, phoneNumber: '79006464263' }
+6. auth-state-timeweb checks for phone mismatch:
+   - If stored phone != requested phone → delete old credentials
+   - Create fresh credentials for new phone
+7. Pairing code generated for correct phone number
+```
+
+### Test Results
+
+```bash
+node scripts/test-phone-mismatch.js
+# ✅ TEST PASSED: Phone mismatch detection works!
+# ✅ Stored phone: 79006464263 (user's phone, not env default!)
+# ✅ Credentials updated to correct phone!
+```
+
+### Logs Verification
+
+```
+🔌 Disconnected existing session before pairing code request
+📱 Pairing code requested for phone 79006464263
+❌ Phone number mismatch detected... stored:79991112233 requested:79006464263
+🗑️ Deleting old credentials for company_997441
+✅ Fresh credentials created (new phone: 79006464263)
+✅ Pairing code generated: 6BQL-HE3S
+```
+
 ## Next Actions
 
-### If Phase 1 Testing Passes
-1. Mark task complete, move to `dev/completed/`
-2. Consider Phase 2 (WebSocket improvements) - NOT critical
+### Ready for Production Testing
+1. Notify moderator (Филипп) to test salon 997441 with phone 79006464263
+2. Expected flow: credentials will be created fresh with his phone
+3. Monitor logs for any issues
 
-### If Testing Fails
-1. Check logs: `pm2 logs ai-admin-api --lines 100 | grep -i mismatch`
-2. Verify phone number format matches (both normalized to digits only)
-3. Check if `removeTimewebAuthState()` actually deletes records
+### After Successful Testing
+1. Move to `dev/completed/`
+2. Update CLAUDE.md with fix summary
 
 ### Phase 2 Tasks (Optional - Improves UX)
 - Task 2.1: Add `reset-whatsapp-credentials` WebSocket event
