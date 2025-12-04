@@ -489,16 +489,16 @@
             console.error('Error decoding token:', e);
         }
 
-        // Обновляем информацию о салоне
-        // ВАЖНО: показываем данные САЛОНА, а не пользователя YClients
-        // salon_name - название салона из user_data
+        // Обновляем информацию о компании
+        // ВАЖНО: показываем данные КОМПАНИИ, а не пользователя YClients
+        // company_title - название компании из JWT токена
         // user_name/user_phone - это данные владельца аккаунта YClients (НЕ показываем)
         document.getElementById('salonName').textContent =
-            tokenData.user_data?.salon_name || `Салон #${tokenData.salon_id}`;
+            tokenData.company_title || `Компания #${tokenData.salon_id}`;
 
-        // Показываем ID салона для справки (телефон салона не передаётся в user_data)
+        // Показываем ID компании для справки
         document.getElementById('salonDetails').textContent =
-            `ID салона: ${tokenData.salon_id}`;
+            `ID компании: ${tokenData.salon_id}`;
 
         let qrRefreshTimer;
         let qrExpiryTime = 20; // секунд

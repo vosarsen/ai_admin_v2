@@ -452,6 +452,7 @@ router.get('/auth/yclients/redirect', async (req, res) => {
       {
         company_id: company.id,
         salon_id, // Уже integer после validateSalonId()
+        company_title: company.title, // Название компании для отображения на странице онбординга
         type: 'marketplace_registration',
         user_data: { user_id, user_name, user_phone, user_email }
       },
