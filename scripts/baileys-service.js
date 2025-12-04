@@ -11,10 +11,13 @@ const qrcodeTerminal = require('qrcode-terminal');
 const fs = require('fs').promises;
 const path = require('path');
 
-const companyId = process.env.COMPANY_ID || '962302';
+// CRITICAL: Use prefixed format to match marketplace onboarding
+// Format: "company_{salon_id}" - consistent with yclients-marketplace.js and marketplace-socket.js
+const salonId = process.env.YCLIENTS_COMPANY_ID || process.env.COMPANY_ID || '962302';
+const companyId = salonId.startsWith('company_') ? salonId : `company_${salonId}`;
 
 logger.info('🚀 Starting Baileys WhatsApp Service');
-logger.info(`Company ID: ${companyId}`);
+logger.info(`Company ID: ${companyId} (salon_id: ${salonId})`);
 
 // Global variable to track if we're already connected
 let isConnected = false;
