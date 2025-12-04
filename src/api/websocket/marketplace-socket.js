@@ -41,6 +41,7 @@ class MarketplaceSocket {
       // Проверка origin (только в production)
       if (process.env.NODE_ENV === 'production') {
         const allowedOrigins = [
+          'https://adminai.tech',
           'https://ai-admin.app',
           'https://yclients.com',
           'https://n962302.yclients.com'
