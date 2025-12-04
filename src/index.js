@@ -9,7 +9,7 @@ const messageQueue = require('./queue/message-queue');
 const { validateRedisConfig } = require('./utils/redis-factory');
 const secureConfig = require('./config/secure-config');
 const { getSyncManager } = require('./sync/sync-manager');
-const MarketplaceWebSocket = require('./api/websocket/marketplace-ws');
+// MarketplaceSocket is now initialized in src/api/index.js (line 58)
 const telegramManager = require('./integrations/telegram/telegram-manager');
 
 // Handle uncaught errors
@@ -24,7 +24,6 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Global server instance
 let server;
-let marketplaceWS;
 
 // Graceful shutdown
 process.on('SIGTERM', shutdown);
@@ -78,11 +77,9 @@ async function startServer() {
       logger.info('🔒 Redis authentication: enabled');
     });
 
-    // Initialize WebSocket server for marketplace
-    marketplaceWS = new MarketplaceWebSocket(server);
-    global.marketplaceWebSocket = marketplaceWS;
-    logger.info('🔌 Marketplace WebSocket server initialized');
-    
+    // MarketplaceSocket WebSocket is initialized in src/api/index.js (with Socket.IO)
+    // No separate initialization needed here
+
     // Initialize sync manager
     logger.info('🔄 Initializing sync manager...');
     const syncManager = getSyncManager();
