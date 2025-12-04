@@ -312,6 +312,19 @@ class MarketplaceSocket {
           try {
             logger.info('📱 Запрос pairing code', { sessionId, phoneNumber: cleanedPhone });
 
+            // CRITICAL FIX: Disconnect existing session first to ensure clean state
+            // This allows phone mismatch detection to work when user requests pairing
+            // code with a different phone number than stored in credentials.
+            // Without this, createSession() would return cached/in-progress session
+            // which doesn't have the new phoneNumber option.
+            try {
+              await this.sessionPool.disconnectSession(sessionId);
+              logger.info('🔌 Disconnected existing session before pairing code request', { sessionId });
+            } catch (disconnectError) {
+              // Session might not exist yet - that's OK
+              logger.debug('No existing session to disconnect', { sessionId, error: disconnectError.message });
+            }
+
             await this.sessionPool.createSession(sessionId, {
               usePairingCode: true,
               phoneNumber: cleanedPhone
