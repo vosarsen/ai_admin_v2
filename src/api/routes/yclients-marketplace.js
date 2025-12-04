@@ -378,8 +378,10 @@ router.get('/auth/yclients/redirect', async (req, res) => {
     // Создаем или обновляем запись в БД
     let company;
     try {
+      const salonIdInt = parseInt(salon_id);
       company = await companyRepository.upsertByYclientsId({
-        yclients_id: parseInt(salon_id),
+        yclients_id: salonIdInt,
+        company_id: salonIdInt, // ВАЖНО: company_id = yclients_id для совместимости со схемой БД
         title: salonInfo?.title || salon_name || `Салон ${salon_id}`,
         phone: salonInfo?.phone || user_phone || '',
         email: salonInfo?.email || user_email || '',
