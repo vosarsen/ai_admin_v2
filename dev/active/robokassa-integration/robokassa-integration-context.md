@@ -1,8 +1,35 @@
 # Robokassa Integration - Context
 
-**Last Updated:** 2025-12-04
+**Last Updated:** 2025-12-04 (Updated after Plan Review)
 **Current Phase:** Planning Complete, Ready for Implementation
+**Review Status:** ✅ APPROVED WITH REQUIRED CHANGES
 **Session:** 1
+
+---
+
+## Plan Review Results
+
+План прошёл ревью агентом `plan-reviewer` и получил статус **APPROVED WITH REQUIRED CHANGES**.
+
+### Критические проблемы (ИСПРАВЛЕНЫ)
+
+| # | Проблема | Статус |
+|---|----------|--------|
+| 1 | Webhook отвечал `OK` до верификации | ✅ Исправлено: отвечать ПОСЛЕ проверки |
+| 2 | Не было проверки суммы OutSum | ✅ Добавлено: сравнивать с amount в БД |
+| 3 | Дубликаты не обрабатывались | ✅ Добавлено: idempotency check |
+| 4 | Нет middleware для form data | ✅ Добавлено: `express.urlencoded()` |
+
+### Предупреждения (УЧТЕНЫ)
+
+| # | Предупреждение | Решение |
+|---|----------------|---------|
+| 1 | MD5 case-sensitive | `toUpperCase()` для сравнения |
+| 2 | Invoice ID overflow | 16-digit max (timestamp + 3 random) |
+| 3 | Нет rate limiting | 10 req/min на Result URL |
+| 4 | Нет Content-Type | `text/plain` обязательно |
+| 5 | Нет timeout | 25s wrapper (Robokassa limit: 30s) |
+| 6 | Нет транзакций | SELECT FOR UPDATE в processPayment |
 
 ---
 
@@ -13,6 +40,9 @@
 - ✅ Codebase explored for patterns
 - ✅ Existing robokassa-config.js reviewed
 - ✅ Plan created and documented
+- ✅ Plan reviewed by plan-reviewer agent
+- ✅ Critical fixes incorporated
+- ✅ Database migration created
 - ⬜ Implementation not started
 
 ### User Requirements (Confirmed)
@@ -25,7 +55,10 @@
 - **Магазин:** AdminAI
 - **Алгоритм хеша:** MD5
 - **Пароли #1 и #2:** Сгенерированы (показано "Пароль задан")
-- **URLs:** Пока стоят http://adminai.tech/ - нужно обновить
+- **URLs:** Пока стоят http://adminai.tech/ - нужно обновить на:
+  - Result: `https://adminai.tech/api/payments/robokassa/result`
+  - Success: `https://adminai.tech/payment/success`
+  - Fail: `https://adminai.tech/payment/fail`
 
 ---
 
@@ -41,14 +74,19 @@
 | `src/services/marketplace/marketplace-service.js` | Паттерн сервиса с Sentry | 600+ |
 | `src/api/routes/yclients-marketplace.js` | Паттерн API routes с adminAuth | 2200+ |
 
+### Created
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `migrations/20251204_create_robokassa_payments.sql` | DB schema | ✅ Created |
+
 ### To Create
 
 | File | Purpose | Est. Lines |
 |------|---------|------------|
-| `migrations/20251204_create_robokassa_payments.sql` | DB schema | ~60 |
 | `src/repositories/RobokassaPaymentRepository.js` | Data access | ~150 |
-| `src/services/payment/robokassa-service.js` | Business logic | ~300 |
-| `src/api/webhooks/robokassa.js` | Result URL handler | ~200 |
+| `src/services/payment/robokassa-service.js` | Business logic | ~350 |
+| `src/api/webhooks/robokassa.js` | Result URL handler | ~250 |
 | `src/api/routes/robokassa.js` | API endpoints | ~250 |
 | `public/payment/success.html` | Success page | ~150 |
 | `public/payment/fail.html` | Fail page | ~150 |
@@ -60,51 +98,100 @@
 ### 1. Signature Algorithm: MD5
 **Decision:** Использовать MD5 (настроено в панели Robokassa)
 **Rationale:** Robokassa поддерживает MD5, SHA1, SHA256. MD5 уже настроен.
-**Trade-offs:** MD5 криптографически слабее, но для подписи платежей достаточно + Robokassa требует.
+**IMPORTANT:** Всегда использовать `toUpperCase()` для сравнения!
 
-### 2. Invoice ID Generation
-**Decision:** Timestamp-based + random suffix
-**Rationale:** Гарантирует уникальность, легко отлаживать по времени
-**Format:** `YYYYMMDDHHMMSS{4-digit-random}` → например `202512041530001234`
+### 2. Invoice ID Generation (UPDATED!)
+**Decision:** Timestamp-based + 3-digit random (16 digits max)
+**Rationale:** 18 digits может превысить JS MAX_SAFE_INTEGER
+**Format:** `Date.now() + 3-digit-random` → например `1733323456789123`
 
 ### 3. YClients Notification
 **Decision:** Опционально - можно включить позже
 **Rationale:** Сейчас платежи напрямую, но marketplace integration уже готов
-**Implementation:** Метод `markYClientsNotified()` в repository
 
 ### 4. Test Mode First
 **Decision:** Начинаем с `ROBOKASSA_TEST_MODE=true`
 **Rationale:** Безопасное тестирование без реальных денег
-**Switch to Production:** Изменить env var + сгенерировать новые пароли
+
+### 5. Webhook Response Pattern (CRITICAL!)
+**Decision:** Отвечать `OK{InvId}` только ПОСЛЕ полной верификации
+**Rationale:** Ответ до верификации = подтверждение мошеннических платежей
+
+### 6. Transaction Usage (NEW!)
+**Decision:** Использовать транзакции + SELECT FOR UPDATE в processPayment
+**Rationale:** Предотвращает race conditions при concurrent callbacks
 
 ---
 
 ## Architecture Notes
 
-### Webhook Pattern (from yclients.js)
+### ✅ CORRECT Webhook Pattern (from Plan Review)
+
 ```javascript
-// 1. Fast response (acknowledge receipt immediately)
-res.status(200).json({ success: true });
+router.post('/result', limiter, async (req, res) => {
+  const { OutSum, InvId, SignatureValue } = req.body;
 
-// 2. Signature verification
-if (!verifySignature(payload)) return;
+  // 1. FIRST: Verify signature
+  if (!verifySignature(OutSum, InvId, SignatureValue)) {
+    return res.status(400).send('bad sign');
+  }
 
-// 3. Idempotency check (Redis, optional for Robokassa)
-// 4. Async processing
-setImmediate(async () => {
-  await processPayment(data);
+  // 2. SECOND: Find payment and verify amount
+  const payment = await repository.findByInvoiceId(InvId);
+  if (!payment) return res.status(400).send('bad sign');
+
+  // 3. THIRD: Verify amount matches
+  if (Math.abs(payment.amount - parseFloat(OutSum)) > 0.01) {
+    return res.status(400).send('bad sign');
+  }
+
+  // 4. FOURTH: Idempotency check
+  if (payment.status === 'success') {
+    res.setHeader('Content-Type', 'text/plain');
+    return res.send(`OK${InvId}`);
+  }
+
+  // 5. FIFTH: Process with timeout
+  await processPaymentWithTimeout(InvId, OutSum, SignatureValue);
+
+  // 6. LAST: Return OK
+  res.setHeader('Content-Type', 'text/plain');
+  res.send(`OK${InvId}`);
 });
 ```
 
-### Robokassa Specifics
-- Result URL response MUST be exactly `OK{InvId}` (no JSON!)
-- Signature is case-insensitive (но лучше UPPERCASE для сравнения)
-- Test payments use same URLs, just different test credentials
+### ❌ WRONG Pattern (was in original plan)
 
-### Database Pattern
-- Extends `BaseRepository` for consistency
-- Uses `postgres` module (not Supabase)
-- Transactions available via `withTransaction()`
+```javascript
+// DON'T DO THIS!
+res.status(200).json({ success: true }); // Responds BEFORE verification!
+setImmediate(() => verify()); // Too late!
+```
+
+### Transaction in processPayment
+
+```javascript
+async processPayment(invId, outSum, signatureValue) {
+  return this.repository.withTransaction(async (client) => {
+    // Lock row
+    const payment = await client.query(
+      'SELECT * FROM robokassa_payments WHERE invoice_id = $1 FOR UPDATE',
+      [invId]
+    );
+
+    if (payment.rows[0].status === 'success') {
+      return { success: true, alreadyProcessed: true };
+    }
+
+    await client.query(
+      'UPDATE robokassa_payments SET status = $1, processed_at = NOW() WHERE invoice_id = $2',
+      ['success', invId]
+    );
+
+    return { success: true };
+  });
+}
+```
 
 ---
 
@@ -128,10 +215,13 @@ const RobokassaPaymentRepository = require('./RobokassaPaymentRepository');
 module.exports = { ..., RobokassaPaymentRepository };
 ```
 
-### 3. Admin Auth (optional)
-Можно переиспользовать из `yclients-marketplace.js`:
+### 3. Middleware Requirements
 ```javascript
-const { adminAuth } = require('./yclients-marketplace');
+// MUST use urlencoded for Robokassa form data
+router.use(express.urlencoded({ extended: true }));
+
+// Rate limiter
+const limiter = rateLimit({ windowMs: 60000, max: 10 });
 ```
 
 ---
@@ -145,14 +235,21 @@ const { adminAuth } = require('./yclients-marketplace');
 ## Testing Strategy
 
 ### Unit Tests
-1. `verifyResultSignature()` - correct/incorrect signatures
+1. `verifyResultSignature()` - correct/incorrect signatures with case handling
 2. `buildPaymentSignature()` - matches expected format
 3. `buildReceipt()` - 54-FZ compliant structure
+4. `verifyAmount()` - exact match, tolerance, mismatch
 
 ### Integration Tests
 1. Generate payment URL → validate format
 2. Simulate Result URL callback → check DB update
 3. Check Success/Fail pages render
+
+### Security Tests (NEW!)
+1. Invalid signature → 400 "bad sign"
+2. Amount mismatch → 400 "bad sign"
+3. Duplicate callback → OK without re-processing
+4. Timeout → no OK response
 
 ### Manual Test Flow
 ```bash
@@ -189,18 +286,31 @@ ROBOKASSA_FAIL_URL=https://adminai.tech/payment/fail
 ## Session Log
 
 ### Session 1 (2025-12-04)
+
+**Actions:**
 - Reviewed screenshot of Robokassa panel
 - Explored codebase for patterns
 - Found existing `robokassa-config.js`
 - Clarified requirements with user
 - Created comprehensive plan
 - Created dev docs structure
+- Ran plan-reviewer agent
+- Incorporated critical fixes from review
+- Created database migration
+
+**Key Findings from Review:**
+- Original webhook pattern was WRONG (responded before verification)
+- Missing amount verification (fraud risk)
+- Missing idempotency handling
+- Missing urlencoded middleware
+- Invoice ID format could overflow
 
 **Next Steps:**
-1. Create database migration
-2. Implement repository
-3. Implement service
-4. Create webhook handler
+1. Get Robokassa passwords and add to .env
+2. Run database migration
+3. Implement repository layer
+4. Implement service layer
+5. Implement webhook handler (with critical fixes!)
 
 ---
 
@@ -216,8 +326,18 @@ ROBOKASSA_FAIL_URL=https://adminai.tech/payment/fail
 - Expiry: Any future date
 - CVV: Any 3 digits
 
-### Signature Formulas
+### Signature Formulas (with toUpperCase!)
+```javascript
+// Payment Form:
+MD5(Login:Sum:InvId:Pass1).toUpperCase()
+
+// Result URL:
+MD5(Sum:InvId:Pass2).toUpperCase()
 ```
-Payment Form:  MD5(Login:Sum:InvId:Pass1)
-Result URL:    MD5(Sum:InvId:Pass2)
+
+### Response Format
+```
+Content-Type: text/plain
+Body: OK{InvId}
+Example: OK1733323456789123
 ```
