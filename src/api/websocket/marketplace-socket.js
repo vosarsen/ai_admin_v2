@@ -3,6 +3,7 @@
 
 const logger = require('../../utils/logger');
 const jwt = require('jsonwebtoken');
+const Sentry = require('@sentry/node');
 const { getSessionPool } = require('../../integrations/whatsapp/session-pool');
 
 class MarketplaceSocket {
@@ -43,12 +44,14 @@ class MarketplaceSocket {
         const allowedOrigins = [
           'https://adminai.tech',
           'https://ai-admin.app',
-          'https://yclients.com',
-          'https://n962302.yclients.com'
+          'https://yclients.com'
         ];
         const origin = socket.handshake.headers.origin;
 
-        if (origin && !allowedOrigins.some(allowed => origin.startsWith(allowed))) {
+        // Dynamic validation for YClients salon subdomains (e.g., https://n997441.yclients.com)
+        const isYclientsSubdomain = origin && /^https:\/\/n\d+\.yclients\.com$/.test(origin);
+
+        if (origin && !allowedOrigins.some(allowed => origin.startsWith(allowed)) && !isYclientsSubdomain) {
           logger.warn('Недопустимый origin:', origin);
           socket.emit('error', { message: 'Недопустимый источник запроса' });
           socket.disconnect();
@@ -93,44 +96,54 @@ class MarketplaceSocket {
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Извлекаем companyId из токена (безопасно)
-        companyId = decoded.company_id;
+        // Извлекаем данные из токена (безопасно)
+        companyId = decoded.company_id;  // Internal DB ID
+        const salonId = decoded.salon_id;  // YClients salon ID
 
-        if (!companyId) {
-          throw new Error('Токен не содержит company_id');
+        if (!companyId || !salonId) {
+          throw new Error('Токен не содержит company_id или salon_id');
         }
+
+        // CRITICAL: Session ID должен совпадать с REST API (company_${salon_id})
+        const sessionId = `company_${salonId}`;
 
         // Сохраняем соединение
         socket.companyId = companyId;
-        this.connections.set(companyId, socket);
+        socket.salonId = salonId;
+        socket.sessionId = sessionId;  // Для использования в session pool
+        this.connections.set(sessionId, socket);  // Используем sessionId как ключ
 
         // Присоединяем к комнате компании
-        socket.join(`company-${companyId}`);
+        socket.join(`company-${salonId}`);
 
         logger.info('✅ WebSocket авторизован', {
           companyId,
+          salonId,
+          sessionId,
           socketId: socket.id
         });
 
-        // Начинаем процесс подключения WhatsApp
-        this.startWhatsAppConnection(socket, companyId);
+        // Начинаем процесс подключения WhatsApp (используем sessionId!)
+        this.startWhatsAppConnection(socket, sessionId);
 
         // Обработчик отключения
         socket.on('disconnect', async () => {
           logger.info('WebSocket отключен', {
             companyId,
+            salonId,
+            sessionId,
             socketId: socket.id
           });
 
           // Очистка соединения из Map
-          this.connections.delete(companyId);
+          this.connections.delete(sessionId);
 
           // Очистка Baileys сессии если она не подключена
           try {
-            const status = this.sessionPool.getSessionStatus(companyId);
+            const status = this.sessionPool.getSessionStatus(sessionId);
             if (status.status !== 'connected' && status.status !== 'not_initialized') {
-              await this.sessionPool.disconnectSession(companyId);
-              logger.info('Неподключенная Baileys сессия удалена', { companyId });
+              await this.sessionPool.disconnectSession(sessionId);
+              logger.info('Неподключенная Baileys сессия удалена', { sessionId });
             }
           } catch (error) {
             logger.error('Ошибка при очистке сессии:', error);
@@ -142,26 +155,34 @@ class MarketplaceSocket {
 
         // Обработчик запроса нового QR-кода
         socket.on('request-qr', () => {
-          logger.info('Запрос нового QR-кода', { companyId });
-          this.sendQRCode(socket, companyId);
+          logger.info('Запрос нового QR-кода', { sessionId });
+          this.sendQRCode(socket, sessionId);
         });
 
       } catch (error) {
         logger.error('Ошибка валидации токена:', error);
+        Sentry.captureException(error, {
+          tags: { component: 'marketplace-websocket', operation: 'tokenValidation' },
+          extra: { socketId: socket.id }
+        });
         socket.emit('error', { message: 'Неверный токен' });
         socket.disconnect();
       }
     });
   }
 
-  async startWhatsAppConnection(socket, companyId) {
+  async startWhatsAppConnection(socket, sessionId) {
+    // sessionId format: "company_{salon_id}" (e.g., "company_997441")
+    // This matches the REST API format in yclients-marketplace.js:558
+    const internalCompanyId = socket.companyId;  // Internal DB ID for database updates
+
     try {
-      logger.info('🚀 Начинаем подключение WhatsApp', { companyId });
+      logger.info('🚀 Начинаем подключение WhatsApp', { sessionId, internalCompanyId });
 
       // Создаем обработчики событий с правильными именами
       const handleQR = (data) => {
-        if (data.companyId === companyId) {
-          logger.info('📱 Получен QR-код', { companyId });
+        if (data.companyId === sessionId) {
+          logger.info('📱 Получен QR-код', { sessionId });
           socket.emit('qr-update', {
             qr: data.qr,
             expiresIn: 20
@@ -170,9 +191,9 @@ class MarketplaceSocket {
       };
 
       const handleConnected = async (data) => {
-        if (data.companyId === companyId) {
+        if (data.companyId === sessionId) {
           logger.info('✅ WhatsApp подключен!', {
-            companyId,
+            sessionId,
             phone: data.phoneNumber
           });
 
@@ -180,7 +201,7 @@ class MarketplaceSocket {
           socket.emit('whatsapp-connected', {
             success: true,
             phone: data.phoneNumber,
-            companyId,
+            sessionId,
             message: 'WhatsApp успешно подключен!'
           });
 
@@ -189,14 +210,14 @@ class MarketplaceSocket {
           this.sessionPool.off('connected', handleConnected);
           this.sessionPool.off('logout', handleLogout);
 
-          // Запускаем автоматический онбординг
-          this.startOnboarding(companyId, data.phoneNumber);
+          // Запускаем автоматический онбординг (передаем internal ID для БД)
+          this.startOnboarding(internalCompanyId, data.phoneNumber);
         }
       };
 
       const handleLogout = (data) => {
-        if (data.companyId === companyId) {
-          logger.warn('WhatsApp отключен пользователем', { companyId });
+        if (data.companyId === sessionId) {
+          logger.warn('WhatsApp отключен пользователем', { sessionId });
           socket.emit('error', {
             message: 'WhatsApp отключен. Требуется повторное подключение.'
           });
@@ -208,8 +229,8 @@ class MarketplaceSocket {
 
       // Обработчик pairing code
       const handlePairingCode = (data) => {
-        if (data.companyId === companyId) {
-          logger.info('📱 Получен pairing code', { companyId, code: data.code });
+        if (data.companyId === sessionId) {
+          logger.info('📱 Получен pairing code', { sessionId, code: data.code });
           socket.emit('pairing-code', {
             code: data.code,
             phoneNumber: data.phoneNumber,
@@ -224,17 +245,17 @@ class MarketplaceSocket {
       this.sessionPool.on('logout', handleLogout);
       this.sessionPool.on('pairing-code', handlePairingCode);
 
-      // Создаем сессию
-      await this.sessionPool.createSession(companyId);
+      // Создаем сессию (используем sessionId = "company_{salon_id}")
+      await this.sessionPool.createSession(sessionId);
 
       // Отправляем QR если уже есть
-      const qr = this.sessionPool.getQR(companyId);
+      const qr = this.sessionPool.getQR(sessionId);
       if (qr) {
         socket.emit('qr-update', { qr, expiresIn: 20 });
       }
 
       // Проверяем pairing code
-      const pairingCode = this.sessionPool.qrCodes.get(`pairing-${companyId}`);
+      const pairingCode = this.sessionPool.qrCodes.get(`pairing-${sessionId}`);
       if (pairingCode) {
         socket.emit('pairing-code', {
           code: pairingCode,
@@ -246,15 +267,19 @@ class MarketplaceSocket {
       socket.on('request-pairing-code', async (data) => {
         try {
           const { phoneNumber } = data;
-          logger.info('📱 Запрос pairing code', { companyId, phoneNumber });
+          logger.info('📱 Запрос pairing code', { sessionId, phoneNumber });
 
           // Создаем сессию с pairing code
-          await this.sessionPool.createSession(companyId, {
+          await this.sessionPool.createSession(sessionId, {
             usePairingCode: true,
             phoneNumber: phoneNumber
           });
         } catch (error) {
           logger.error('Ошибка запроса pairing code:', error);
+          Sentry.captureException(error, {
+            tags: { component: 'marketplace-websocket', operation: 'pairingCode' },
+            extra: { sessionId, phoneNumber }
+          });
           socket.emit('error', {
             message: 'Не удалось получить код. Попробуйте еще раз.'
           });
@@ -271,31 +296,35 @@ class MarketplaceSocket {
 
     } catch (error) {
       logger.error('Ошибка инициализации WhatsApp:', error);
+      Sentry.captureException(error, {
+        tags: { component: 'marketplace-websocket', operation: 'whatsappInit' },
+        extra: { sessionId, internalCompanyId }
+      });
       socket.emit('error', {
         message: 'Не удалось инициализировать подключение WhatsApp'
       });
     }
   }
 
-  async sendQRCode(socket, companyId) {
+  async sendQRCode(socket, sessionId) {
     try {
-      const status = this.sessionPool.getSessionStatus(companyId);
+      // getSessionStatus returns OBJECT, not string! (Issue #8 fix)
+      const statusObj = this.sessionPool.getSessionStatus(sessionId);
 
-      if (status.status === 'not_initialized') {
+      if (statusObj.status === 'not_initialized') {
         // Создаем новую сессию
-        await this.startWhatsAppConnection(socket, companyId);
-      } else if (status.status === 'connected') {
+        await this.startWhatsAppConnection(socket, sessionId);
+      } else if (statusObj.connected) {  // Use boolean property, not string comparison
         socket.emit('whatsapp-connected', {
           success: true,
-          phone: status.phone,
-          companyId,
+          phone: statusObj.phoneNumber,  // Use correct property name
+          sessionId,
           message: 'WhatsApp уже подключен!'
         });
       } else {
         // Генерируем новый QR
-        // Создаем сессию и получаем QR
-      await this.sessionPool.createSession(companyId);
-      const qr = this.sessionPool.qrCodes.get(companyId);
+        await this.sessionPool.createSession(sessionId);
+        const qr = this.sessionPool.qrCodes.get(sessionId);
         if (qr) {
           socket.emit('qr-update', {
             qr,
@@ -305,6 +334,10 @@ class MarketplaceSocket {
       }
     } catch (error) {
       logger.error('Ошибка отправки QR-кода:', error);
+      Sentry.captureException(error, {
+        tags: { component: 'marketplace-websocket', operation: 'sendQR' },
+        extra: { sessionId }
+      });
       socket.emit('error', {
         message: 'Не удалось получить QR-код'
       });

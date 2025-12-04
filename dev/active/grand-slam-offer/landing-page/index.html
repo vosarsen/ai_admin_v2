@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="ru" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin AI — WhatsApp + Telegram ассистент для салонов красоты</title>
+    <meta name="description" content="AI-ассистент который принимает записи 24/7. 90% клиентов не понимают что это бот. Проверено 4 месяца на реальном салоне.">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Admin AI — WhatsApp + Telegram ассистент для салонов красоты">
+    <meta property="og:description" content="AI-ассистент который принимает записи 24/7. 90% клиентов не понимают что это бот.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://adminai.tech">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'brand': {
+                            'primary': '#FF3700',
+                            'dark': '#151619',
+                            'gray': '#F0F0F0',
+                            'blue': '#0000EE',
+                        }
+                    },
+                    fontFamily: {
+                        'sans': ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom animations */
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .float-animation {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(135deg, #FF3700 0%, #FF6B35 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Section marker style like Formix */
+        .section-marker {
+            font-size: 14px;
+            letter-spacing: 0.1em;
+            color: #FF3700;
+        }
+
+        /* Card hover effect */
+        .card-hover {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Counter animation */
+        .counter {
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Smooth scroll offset for fixed header */
+        section {
+            scroll-margin-top: 80px;
+        }
+    </style>
+</head>
+<body class="bg-brand-gray text-brand-dark font-sans antialiased">
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 bg-brand-gray/80 backdrop-blur-md border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <a href="#" class="text-2xl font-bold">
+                Admin<span class="text-brand-primary">AI</span>
+            </a>
+            <div class="hidden md:flex items-center gap-8 text-sm">
+                <a href="#problem" class="hover:text-brand-primary transition">Проблема</a>
+                <a href="#solution" class="hover:text-brand-primary transition">Решение</a>
+                <a href="#proof" class="hover:text-brand-primary transition">Результаты</a>
+                <a href="#pricing" class="hover:text-brand-primary transition">Цены</a>
+                <a href="#faq" class="hover:text-brand-primary transition">FAQ</a>
+            </div>
+            <a href="#cta" class="bg-brand-primary text-white px-6 py-3 rounded-full font-semibold hover:bg-orange-600 transition shadow-lg">
+                Занять место
+            </a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="hero" class="min-h-screen flex items-center pt-20">
+        <div class="max-w-7xl mx-auto px-6 py-20">
+            <div class="grid lg:grid-cols-2 gap-12 items-center">
+                <div>
+                    <p class="section-marker mb-4">// ПИЛОТНАЯ ПРОГРАММА</p>
+
+                    <h1 class="text-5xl lg:text-7xl font-bold leading-tight mb-6">
+                        <span class="gradient-text">90% клиентов</span><br>
+                        не поймут что<br>
+                        общаются с AI
+                    </h1>
+
+                    <p class="text-xl text-gray-600 mb-8 leading-relaxed">
+                        WhatsApp + Telegram ассистент который работает как ваш лучший администратор.
+                        <br>Только он не спит, не болеет и отвечает за 2 секунды.
+                    </p>
+
+                    <!-- Social Proof Badges -->
+                    <div class="flex flex-wrap gap-4 mb-8">
+                        <span class="bg-white px-4 py-2 rounded-full text-sm font-medium shadow">
+                            ✓ 43 записи через AI
+                        </span>
+                        <span class="bg-white px-4 py-2 rounded-full text-sm font-medium shadow">
+                            ✓ 100,491₽ выручки
+                        </span>
+                        <span class="bg-white px-4 py-2 rounded-full text-sm font-medium shadow">
+                            ✓ 0 жалоб за 4 месяца
+                        </span>
+                    </div>
+
+                    <!-- CTA Buttons -->
+                    <div class="flex flex-col sm:flex-row gap-4 mb-8">
+                        <a href="#cta" class="bg-brand-primary text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-orange-600 transition shadow-xl inline-flex items-center justify-center gap-2">
+                            Занять место в пилоте
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                            </svg>
+                        </a>
+                        <a href="#proof" class="bg-brand-dark text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-gray-800 transition shadow-xl inline-flex items-center justify-center">
+                            Смотреть результаты
+                        </a>
+                    </div>
+
+                    <!-- Urgency Block -->
+                    <div class="bg-white p-6 rounded-2xl shadow-lg">
+                        <div class="flex items-center gap-6">
+                            <div class="text-center">
+                                <div class="text-3xl font-bold text-brand-primary counter" id="spots-left">27</div>
+                                <div class="text-sm text-gray-500">мест из 30</div>
+                            </div>
+                            <div class="h-12 w-px bg-gray-200"></div>
+                            <div class="text-center">
+                                <div class="text-3xl font-bold text-brand-dark counter" id="days-left">53</div>
+                                <div class="text-sm text-gray-500">дней до конца</div>
+                            </div>
+                            <div class="h-12 w-px bg-gray-200"></div>
+                            <div class="text-center">
+                                <div class="text-3xl font-bold">
+                                    <span class="line-through text-gray-400 text-xl">49,990₽</span>
+                                    <span class="text-brand-primary ml-2">19,990₽</span>
+                                </div>
+                                <div class="text-sm text-gray-500">/мес навсегда</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hero Image / Demo -->
+                <div class="relative">
+                    <div class="bg-white rounded-3xl shadow-2xl p-6 float-animation">
+                        <!-- WhatsApp Chat Demo -->
+                        <div class="bg-[#E5DDD5] rounded-2xl p-4 space-y-3">
+                            <div class="flex justify-end">
+                                <div class="bg-[#DCF8C6] rounded-2xl rounded-tr-none px-4 py-2 max-w-[80%]">
+                                    <p class="text-sm">Привет, хочу записаться на стрижку</p>
+                                    <p class="text-[10px] text-gray-500 text-right">23:47</p>
+                                </div>
+                            </div>
+                            <div class="flex justify-start">
+                                <div class="bg-white rounded-2xl rounded-tl-none px-4 py-2 max-w-[80%] shadow">
+                                    <p class="text-sm">Добрый вечер, Анна! Конечно, запишу вас на стрижку.</p>
+                                    <p class="text-sm mt-2">К Марии есть окна:</p>
+                                    <p class="text-sm">• Завтра 14:00</p>
+                                    <p class="text-sm">• Послезавтра 11:00, 16:00</p>
+                                    <p class="text-sm mt-2">Какое время удобно?</p>
+                                    <p class="text-[10px] text-gray-500 text-right">23:47</p>
+                                </div>
+                            </div>
+                            <div class="flex justify-end">
+                                <div class="bg-[#DCF8C6] rounded-2xl rounded-tr-none px-4 py-2 max-w-[80%]">
+                                    <p class="text-sm">Завтра в 2</p>
+                                    <p class="text-[10px] text-gray-500 text-right">23:48</p>
+                                </div>
+                            </div>
+                            <div class="flex justify-start">
+                                <div class="bg-white rounded-2xl rounded-tl-none px-4 py-2 max-w-[80%] shadow">
+                                    <p class="text-sm">Отлично! Записала вас:</p>
+                                    <p class="text-sm font-medium mt-1">📅 Завтра, 14:00</p>
+                                    <p class="text-sm">✂️ Стрижка</p>
+                                    <p class="text-sm">👩‍🎨 Мастер Мария</p>
+                                    <p class="text-sm mt-2">До встречи! 💇‍♀️</p>
+                                    <p class="text-[10px] text-gray-500 text-right">23:48</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex items-center justify-between text-sm text-gray-500">
+                            <span>⏱️ Время ответа: 2 сек</span>
+                            <span class="text-brand-primary font-medium">✓ Запись создана в YClients</span>
+                        </div>
+                    </div>
+
+                    <!-- Floating badge -->
+                    <div class="absolute -top-4 -right-4 bg-brand-primary text-white px-4 py-2 rounded-full font-bold shadow-lg">
+                        24/7
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Problem Section -->
+    <section id="problem" class="py-24 bg-white">
+        <div class="max-w-7xl mx-auto px-6">
+            <p class="section-marker text-center mb-4">// ПРОБЛЕМА</p>
+            <h2 class="text-4xl lg:text-6xl font-bold text-center mb-6">
+                Вот что происходит<br>в вашем салоне <span class="gradient-text">прямо сейчас</span>
+            </h2>
+            <p class="text-xl text-gray-600 text-center mb-16 max-w-3xl mx-auto">
+                Пока администратор занят или спит — вы теряете клиентов
+            </p>
+
+            <!-- Problem Scenarios -->
+            <div class="grid md:grid-cols-2 gap-6 mb-16">
+                <div class="bg-brand-gray p-8 rounded-none border-l-4 border-brand-primary card-hover">
+                    <div class="text-4xl font-bold text-brand-primary mb-2">23:47</div>
+                    <h3 class="text-xl font-bold mb-3">Клиент пишет ночью</h3>
+                    <p class="text-gray-600">"Хочу записаться на завтра" — администратор спит. Утром увидит сообщение, но клиент уже записался к конкуренту.</p>
+                </div>
+
+                <div class="bg-brand-gray p-8 rounded-none border-l-4 border-brand-primary card-hover">
+                    <div class="text-4xl font-bold text-brand-primary mb-2">14:30</div>
+                    <h3 class="text-xl font-bold mb-3">Администратор на телефоне</h3>
+                    <p class="text-gray-600">Разговаривает с поставщиком. Клиент пишет в WhatsApp. Ответ через 40 минут. Клиент ушел.</p>
+                </div>
+
+                <div class="bg-brand-gray p-8 rounded-none border-l-4 border-brand-primary card-hover">
+                    <div class="text-4xl font-bold text-brand-primary mb-2">16:00</div>
+                    <h3 class="text-xl font-bold mb-3">Администратор с VIP-клиентом</h3>
+                    <p class="text-gray-600">Провожает важного клиента. Пропущено 3 сообщения. 2 из них — новые записи.</p>
+                </div>
+
+                <div class="bg-brand-gray p-8 rounded-none border-l-4 border-brand-primary card-hover">
+                    <div class="text-4xl font-bold text-brand-primary mb-2">22:15</div>
+                    <h3 class="text-xl font-bold mb-3">Клиент решил перед сном</h3>
+                    <p class="text-gray-600">"Напишите завтра в рабочее время." Завтра он забудет или запишется к другому.</p>
+                </div>
+            </div>
+
+            <!-- Loss Table -->
+            <div class="bg-brand-dark text-white p-8 lg:p-12 rounded-none">
+                <h3 class="text-2xl font-bold mb-8 text-center">📉 Средний салон теряет каждый месяц:</h3>
+                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-brand-primary mb-2">25-35К ₽</div>
+                        <div class="text-gray-400">Ночные обращения</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-brand-primary mb-2">15-25К ₽</div>
+                        <div class="text-gray-400">Пропущенные в пик</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-brand-primary mb-2">10-20К ₽</div>
+                        <div class="text-gray-400">Медленные ответы</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-brand-primary mb-2">15-25К ₽</div>
+                        <div class="text-gray-400">No-show без напоминаний</div>
+                    </div>
+                </div>
+                <div class="text-center border-t border-gray-700 pt-8">
+                    <div class="text-5xl font-bold mb-2">60-90К ₽ <span class="text-gray-400 text-2xl">/месяц</span></div>
+                    <div class="text-gray-400">= 720,000₽ — 1,080,000₽ в год упущенной выручки</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Solution Section -->
+    <section id="solution" class="py-24">
+        <div class="max-w-7xl mx-auto px-6">
+            <p class="section-marker text-center mb-4">// РЕШЕНИЕ</p>
+            <h2 class="text-4xl lg:text-6xl font-bold text-center mb-6">
+                Встречайте <span class="gradient-text">Admin AI</span>
+            </h2>
+            <p class="text-xl text-gray-600 text-center mb-16 max-w-3xl mx-auto">
+                WhatsApp + Telegram ассистент для салонов красоты.
+                Работает как ваш лучший администратор — только он не спит, не болеет и отвечает за 2 секунды.
+            </p>
+
+            <!-- What it is NOT / What it IS -->
+            <div class="grid md:grid-cols-3 gap-6 mb-16">
+                <div class="bg-white p-8 rounded-none shadow-lg">
+                    <div class="text-4xl mb-4">🎯</div>
+                    <h3 class="font-bold text-lg mb-3">Это НЕ чат-бот с кнопками</h3>
+                    <p class="text-gray-600">Это AI который общается как человек. Понимает "завтра в 2" и "к Марии как обычно".</p>
+                </div>
+                <div class="bg-white p-8 rounded-none shadow-lg">
+                    <div class="text-4xl mb-4">🎯</div>
+                    <h3 class="font-bold text-lg mb-3">Это НЕ замена администратора</h3>
+                    <p class="text-gray-600">Это помощник который ловит записи когда админ занят или недоступен.</p>
+                </div>
+                <div class="bg-white p-8 rounded-none shadow-lg">
+                    <div class="text-4xl mb-4">🎯</div>
+                    <h3 class="font-bold text-lg mb-3">Это НЕ очередная интеграция</h3>
+                    <p class="text-gray-600">Это система которая РЕАЛЬНО работает в салоне уже 4+ месяца.</p>
+                </div>
+            </div>
+
+            <!-- How it works -->
+            <div class="bg-white p-8 lg:p-12 rounded-none shadow-xl">
+                <h3 class="text-2xl font-bold mb-8 text-center">Как это работает:</h3>
+                <div class="grid md:grid-cols-3 gap-8 items-center">
+                    <div class="text-center">
+                        <div class="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span class="text-4xl">📱</span>
+                        </div>
+                        <h4 class="font-bold mb-2">Клиент пишет</h4>
+                        <p class="text-gray-600">в WhatsApp или Telegram</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span class="text-4xl">🤖</span>
+                        </div>
+                        <h4 class="font-bold mb-2">AI отвечает</h4>
+                        <p class="text-gray-600">за 2-10 секунд</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span class="text-4xl">📅</span>
+                        </div>
+                        <h4 class="font-bold mb-2">Запись в YClients</h4>
+                        <p class="text-gray-600">автоматически</p>
+                    </div>
+                </div>
+
+                <!-- Channels -->
+                <div class="mt-12 pt-8 border-t border-gray-200">
+                    <h4 class="text-center font-bold mb-6">Поддерживаемые каналы:</h4>
+                    <div class="flex justify-center gap-8">
+                        <div class="flex items-center gap-2">
+                            <span class="text-2xl">✅</span>
+                            <span class="font-medium">WhatsApp (~70% аудитории)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-2xl">✅</span>
+                            <span class="font-medium">Telegram Business Bot (~25%)</span>
+                            <span class="bg-brand-primary text-white text-xs px-2 py-1 rounded-full">NEW</span>
+                        </div>
+                    </div>
+                    <p class="text-center text-brand-primary font-bold mt-4">= 95% охват мессенджеров</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3 Systems Section -->
+    <section id="systems" class="py-24 bg-white">
+        <div class="max-w-7xl mx-auto px-6">
+            <p class="section-marker text-center mb-4">// ЧТО ВЫ ПОЛУЧАЕТЕ</p>
+            <h2 class="text-4xl lg:text-6xl font-bold text-center mb-6">
+                3 системы для<br><span class="gradient-text">роста записей</span>
+            </h2>
+            <p class="text-xl text-gray-600 text-center mb-16 max-w-3xl mx-auto">
+                Комплексное решение которое не только принимает записи, но и удерживает клиентов
+            </p>
+
+            <div class="grid lg:grid-cols-3 gap-8">
+                <!-- System 1 -->
+                <div class="bg-brand-gray p-8 rounded-none card-hover">
+                    <div class="bg-brand-primary text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl mb-6">1</div>
+                    <h3 class="text-2xl font-bold mb-2">Система Умной Записи 24/7</h3>
+                    <p class="text-brand-primary font-bold mb-4">+50,000₽-75,000₽/мес</p>
+                    <ul class="space-y-3 text-gray-600">
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand-primary">✓</span>
+                            Отвечает за 2-10 секунд
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand-primary">✓</span>
+                            Работает 24/7/365
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand-primary">✓</span>
+                            Общается с 100 клиентами одновременно
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand-primary">✓</span>
+                            Записывает прямо в YClients
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand-primary">✓</span>
+                            Понимает естественный язык
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- System 2 -->
+                <div class="bg-brand-gray p-8 rounded-none card-hover">
+                    <div class="bg-brand-primary text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl mb-6">2</div>
+                    <h3 class="text-2xl font-bold mb-2">Система Умных Уведомлений</h3>
+                    <p class="text-brand-primary font-bold mb-4">-60-70% неявок</p>
+                    <ul class="space-y-3 text-gray-600">
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand-primary">✓</span>
+                            Напоминание за день до визита
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand-primary">✓</span>
+                            Повторное за 2 часа
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand-primary">✓</span>
+                            40+ персонализированных шаблонов
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand-primary">✓</span>
+                            Понимает ответы: "Приду" / "Перенесите"
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand-primary">✓</span>
+                            Освобождает слот автоматически
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- System 3 -->
+                <div class="bg-brand-gray p-8 rounded-none card-hover">
+                    <div class="bg-brand-primary text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl mb-6">3</div>
+                    <h3 class="text-2xl font-bold mb-2">Система Распознавания Клиентов</h3>
+                    <p class="text-brand-primary font-bold mb-4">VIP-сервис для каждого</p>
+                    <ul class="space-y-3 text-gray-600">
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand-primary">✓</span>
+                            Распознает по номеру телефона
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand-primary">✓</span>
+                            Обращается по имени с первого сообщения
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand-primary">✓</span>
+                            Помнит любимого мастера
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand-primary">✓</span>
+                            Предлагает привычные услуги
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand-primary">✓</span>
+                            Загружает историю из YClients
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Proof Section -->
+    <section id="proof" class="py-24 bg-brand-dark text-white">
+        <div class="max-w-7xl mx-auto px-6">
+            <p class="section-marker text-center mb-4">// ДОКАЗАТЕЛЬСТВА</p>
+            <h2 class="text-4xl lg:text-6xl font-bold text-center mb-6">
+                Реальные результаты:<br><span class="text-brand-primary">Барбершоп KULTURA</span>
+            </h2>
+            <p class="text-xl text-gray-400 text-center mb-16">4 месяца работы • Москва • 2 мастера</p>
+
+            <!-- Stats -->
+            <div class="grid md:grid-cols-3 gap-8 mb-16">
+                <div class="bg-white/5 p-8 rounded-none text-center">
+                    <div class="text-6xl font-bold text-brand-primary mb-2">43</div>
+                    <div class="text-xl font-bold mb-1">записи через AI</div>
+                    <div class="text-gray-400">~11 записей/месяц</div>
+                </div>
+                <div class="bg-white/5 p-8 rounded-none text-center">
+                    <div class="text-6xl font-bold text-brand-primary mb-2">100,491₽</div>
+                    <div class="text-xl font-bold mb-1">выручки от AI</div>
+                    <div class="text-gray-400">~25,123₽/месяц</div>
+                </div>
+                <div class="bg-white/5 p-8 rounded-none text-center">
+                    <div class="text-6xl font-bold text-brand-primary mb-2">90%+</div>
+                    <div class="text-xl font-bold mb-1">не узнали AI</div>
+                    <div class="text-gray-400">0 жалоб, 0 отказов</div>
+                </div>
+            </div>
+
+            <!-- Quote -->
+            <div class="max-w-4xl mx-auto bg-white/5 p-8 lg:p-12 rounded-none">
+                <div class="text-5xl text-brand-primary mb-6">"</div>
+                <p class="text-xl lg:text-2xl leading-relaxed mb-6">
+                    Я проанализировал ВСЕ диалоги за 4 месяца. Из 20-30 активных клиентов только 2 человека поняли что это AI. И знаете что? <span class="text-brand-primary font-bold">Они ПРОДОЛЖИЛИ использовать.</span>
+                </p>
+                <p class="text-xl lg:text-2xl leading-relaxed">
+                    Ноль жалоб. Ноль отказов. AI просто работает — тихо, эффективно, круглосуточно.
+                </p>
+                <div class="mt-8 flex items-center gap-4">
+                    <div class="w-12 h-12 bg-brand-primary rounded-full flex items-center justify-center font-bold">К</div>
+                    <div>
+                        <div class="font-bold">Владелец KULTURA Barbershop</div>
+                        <div class="text-gray-400">Москва</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Key Insight -->
+            <div class="mt-16 text-center">
+                <div class="inline-block bg-brand-primary/20 px-8 py-6 rounded-none">
+                    <p class="text-2xl font-bold">⭐ Главное: 90%+ клиентов НЕ ПОНИМАЮТ что общаются с AI</p>
+                    <p class="text-gray-400 mt-2">Это снимает главный страх: "Клиенты не будут записываться через бота"</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Benefits Section -->
+    <section id="benefits" class="py-24">
+        <div class="max-w-7xl mx-auto px-6">
+            <p class="section-marker text-center mb-4">// ПРЕИМУЩЕСТВА</p>
+            <h2 class="text-4xl lg:text-6xl font-bold text-center mb-16">
+                Дополнительные<br><span class="gradient-text">преимущества</span>
+            </h2>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-white p-8 rounded-none shadow-lg card-hover">
+                    <div class="text-4xl mb-4">👩‍💼</div>
+                    <h3 class="text-xl font-bold mb-3">Освобождение администратора</h3>
+                    <p class="text-gray-600 mb-4">Админ работает в зале, а не сидит у телефона. Экономия 3-5 часов/день рутины.</p>
+                    <p class="text-brand-primary font-bold">19,800₽-33,000₽/мес</p>
+                </div>
+
+                <div class="bg-white p-8 rounded-none shadow-lg card-hover">
+                    <div class="text-4xl mb-4">🌙</div>
+                    <h3 class="text-xl font-bold mb-3">Работа 24/7</h3>
+                    <p class="text-gray-600 mb-4">Ночь, выходные, праздники — AI всегда на связи. +10-15% записей которые бы потеряли.</p>
+                    <p class="text-brand-primary font-bold">+50,000₽-75,000₽/мес</p>
+                </div>
+
+                <div class="bg-white p-8 rounded-none shadow-lg card-hover">
+                    <div class="text-4xl mb-4">✅</div>
+                    <h3 class="text-xl font-bold mb-3">Ноль ошибок</h3>
+                    <p class="text-gray-600 mb-4">AI не путает дату, время, мастера. Не создает двойные брони.</p>
+                    <p class="text-brand-primary font-bold">5,000₽-10,000₽ экономии/мес</p>
+                </div>
+
+                <div class="bg-white p-8 rounded-none shadow-lg card-hover">
+                    <div class="text-4xl mb-4">🏆</div>
+                    <h3 class="text-xl font-bold mb-3">Профессиональный имидж</h3>
+                    <p class="text-gray-600 mb-4">Мгновенные ответы, персональный подход. Клиенты рассказывают друзьям.</p>
+                    <p class="text-brand-primary font-bold">+WOM эффект</p>
+                </div>
+
+                <div class="bg-white p-8 rounded-none shadow-lg card-hover">
+                    <div class="text-4xl mb-4">📈</div>
+                    <h3 class="text-xl font-bold mb-3">Масштабируемость</h3>
+                    <p class="text-gray-600 mb-4">1 запись или 100 — стоит одинаково. Второй салон? AI справится.</p>
+                    <p class="text-brand-primary font-bold">0₽ за рост</p>
+                </div>
+
+                <div class="bg-white p-8 rounded-none shadow-lg card-hover">
+                    <div class="text-4xl mb-4">📱</div>
+                    <h3 class="text-xl font-bold mb-3">WhatsApp + Telegram</h3>
+                    <p class="text-gray-600 mb-4">Единственное решение с полной поддержкой обоих мессенджеров.</p>
+                    <p class="text-brand-primary font-bold">95% охват аудитории</p>
+                    <span class="inline-block bg-brand-primary text-white text-xs px-2 py-1 rounded-full mt-2">NEW</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bonuses Section -->
+    <section id="bonuses" class="py-24 bg-white">
+        <div class="max-w-7xl mx-auto px-6">
+            <p class="section-marker text-center mb-4">// БОНУСЫ</p>
+            <h2 class="text-4xl lg:text-6xl font-bold text-center mb-6">
+                <span class="gradient-text">5 бонусов</span> для<br>первых 30 салонов
+            </h2>
+            <p class="text-xl text-gray-600 text-center mb-16">
+                Только для участников пилота. После 30 мест — эти бонусы недоступны.
+            </p>
+
+            <div class="space-y-6">
+                <!-- Bonus 1 -->
+                <div class="bg-brand-gray p-8 rounded-none flex flex-col lg:flex-row lg:items-center gap-6">
+                    <div class="flex-shrink-0">
+                        <div class="w-16 h-16 bg-brand-primary text-white rounded-full flex items-center justify-center text-2xl font-bold">1</div>
+                    </div>
+                    <div class="flex-grow">
+                        <h3 class="text-2xl font-bold mb-2">Клуб Первых 30</h3>
+                        <p class="text-gray-600">Закрытое сообщество пилотных партнеров. Ежемесячные созвоны, обмен опытом, приватный Telegram чат, влияние на развитие продукта.</p>
+                    </div>
+                    <div class="flex-shrink-0 text-right">
+                        <div class="text-2xl font-bold text-brand-primary">100,000₽</div>
+                        <div class="text-gray-500">/год</div>
+                    </div>
+                </div>
+
+                <!-- Bonus 2 -->
+                <div class="bg-brand-gray p-8 rounded-none flex flex-col lg:flex-row lg:items-center gap-6">
+                    <div class="flex-shrink-0">
+                        <div class="w-16 h-16 bg-brand-primary text-white rounded-full flex items-center justify-center text-2xl font-bold">2</div>
+                    </div>
+                    <div class="flex-grow">
+                        <h3 class="text-2xl font-bold mb-2">Цена Заморожена Навсегда</h3>
+                        <p class="text-gray-600">19,990₽/мес — ваша цена НАВСЕГДА. Новые клиенты будут платить 49,990₽/мес. Если цена вырастет до 69,990₽ — вы все равно платите 19,990₽.</p>
+                    </div>
+                    <div class="flex-shrink-0 text-right">
+                        <div class="text-2xl font-bold text-brand-primary">1,800,000₽</div>
+                        <div class="text-gray-500">/5 лет</div>
+                    </div>
+                </div>
+
+                <!-- Bonus 3 -->
+                <div class="bg-brand-gray p-8 rounded-none flex flex-col lg:flex-row lg:items-center gap-6">
+                    <div class="flex-shrink-0">
+                        <div class="w-16 h-16 bg-brand-primary text-white rounded-full flex items-center justify-center text-2xl font-bold">3</div>
+                    </div>
+                    <div class="flex-grow">
+                        <h3 class="text-2xl font-bold mb-2">Приоритетное Внедрение Фичей</h3>
+                        <p class="text-gray-600">Ваши проблемы и запросы — в топе roadmap. Нужна фича? Делаем за 1-2 недели. Custom development включен в стоимость.</p>
+                    </div>
+                    <div class="flex-shrink-0 text-right">
+                        <div class="text-2xl font-bold text-brand-primary">50-200,000₽</div>
+                        <div class="text-gray-500">/пилот</div>
+                    </div>
+                </div>
+
+                <!-- Bonus 4 -->
+                <div class="bg-brand-gray p-8 rounded-none flex flex-col lg:flex-row lg:items-center gap-6">
+                    <div class="flex-shrink-0">
+                        <div class="w-16 h-16 bg-brand-primary text-white rounded-full flex items-center justify-center text-2xl font-bold">4</div>
+                    </div>
+                    <div class="flex-grow">
+                        <h3 class="text-2xl font-bold mb-2">Поддержка 7 Дней в Неделю</h3>
+                        <p class="text-gray-600">Пн-Вс, 10:00-22:00. Ответ до 2 часов. Срочные вопросы — до 30 минут. WhatsApp + Telegram + Email.</p>
+                    </div>
+                    <div class="flex-shrink-0 text-right">
+                        <div class="text-2xl font-bold text-brand-primary">84,000₽</div>
+                        <div class="text-gray-500">/год</div>
+                    </div>
+                </div>
+
+                <!-- Bonus 5 -->
+                <div class="bg-brand-gray p-8 rounded-none flex flex-col lg:flex-row lg:items-center gap-6">
+                    <div class="flex-shrink-0">
+                        <div class="w-16 h-16 bg-brand-primary text-white rounded-full flex items-center justify-center text-2xl font-bold">5</div>
+                    </div>
+                    <div class="flex-grow">
+                        <h3 class="text-2xl font-bold mb-2">Личный Телефон CEO</h3>
+                        <p class="text-gray-600">Прямой номер основателя. Срочная проблема — звоните напрямую. Без посредников, без тикетов. Партнерские отношения.</p>
+                    </div>
+                    <div class="flex-shrink-0 text-right">
+                        <div class="text-2xl font-bold text-brand-primary">Бесценно</div>
+                        <div class="text-gray-500">только для 30</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Total Value -->
+            <div class="mt-12 bg-brand-dark text-white p-8 rounded-none text-center">
+                <p class="text-xl mb-2">Общая ценность бонусов:</p>
+                <p class="text-5xl font-bold text-brand-primary">2,034,000₽+</p>
+                <p class="text-gray-400 mt-2">за 5 лет использования</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="py-24">
+        <div class="max-w-7xl mx-auto px-6">
+            <p class="section-marker text-center mb-4">// ИНВЕСТИЦИЯ</p>
+            <h2 class="text-4xl lg:text-6xl font-bold text-center mb-16">
+                Сколько это <span class="gradient-text">стоит</span>
+            </h2>
+
+            <div class="max-w-xl mx-auto">
+                <!-- Pricing Card -->
+                <div class="bg-white rounded-none shadow-2xl overflow-hidden">
+                    <div class="bg-brand-primary text-white p-6 text-center">
+                        <p class="text-lg opacity-90">Пилотная программа</p>
+                        <p class="font-bold">для первых 30 салонов</p>
+                    </div>
+
+                    <div class="p-8 text-center">
+                        <div class="mb-6">
+                            <span class="text-gray-400 line-through text-2xl">49,990₽</span>
+                            <div class="text-6xl font-bold">19,990₽</div>
+                            <div class="text-gray-500">/мес навсегда</div>
+                        </div>
+
+                        <ul class="text-left space-y-3 mb-8">
+                            <li class="flex items-center gap-3">
+                                <span class="text-brand-primary text-xl">✓</span>
+                                Система Умной Записи 24/7
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <span class="text-brand-primary text-xl">✓</span>
+                                Система Умных Уведомлений
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <span class="text-brand-primary text-xl">✓</span>
+                                Система Распознавания Клиентов
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <span class="text-brand-primary text-xl">✓</span>
+                                Полная интеграция с YClients
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <span class="text-brand-primary text-xl">✓</span>
+                                WhatsApp + Telegram подключение
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <span class="text-brand-primary text-xl">✓</span>
+                                Персональная настройка под салон
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <span class="text-brand-primary text-xl">✓</span>
+                                Все 5 бонусов (2,034,000₽+ ценности)
+                            </li>
+                        </ul>
+
+                        <a href="#cta" class="block bg-brand-primary text-white py-4 px-8 rounded-full font-bold text-lg hover:bg-orange-600 transition shadow-xl">
+                            Занять место в пилоте
+                        </a>
+
+                        <p class="text-gray-500 text-sm mt-4">
+                            После 30 мест: 49,990₽/мес
+                        </p>
+                    </div>
+                </div>
+
+                <!-- ROI Calculator -->
+                <div class="mt-12 bg-brand-gray p-8 rounded-none">
+                    <h3 class="text-xl font-bold mb-6 text-center">📊 Математика окупаемости:</h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between">
+                            <span>Вы платите:</span>
+                            <span class="font-bold">19,990₽/мес</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Новые записи (KULTURA proof):</span>
+                            <span class="font-bold text-brand-primary">+25,123₽/мес</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Экономия на рассылках:</span>
+                            <span class="font-bold text-brand-primary">+4,000-10,000₽/мес</span>
+                        </div>
+                        <div class="border-t border-gray-300 pt-4 flex justify-between">
+                            <span class="font-bold">ROI первого месяца:</span>
+                            <span class="font-bold text-brand-primary text-xl">1.46x — 1.76x</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="font-bold">Окупаемость:</span>
+                            <span class="font-bold">8 записей через AI</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Guarantees Section -->
+    <section id="guarantees" class="py-24 bg-white">
+        <div class="max-w-7xl mx-auto px-6">
+            <p class="section-marker text-center mb-4">// ГАРАНТИИ</p>
+            <h2 class="text-4xl lg:text-6xl font-bold text-center mb-6">
+                Тройная гарантия:<br><span class="gradient-text">весь риск на нас</span>
+            </h2>
+            <p class="text-xl text-gray-600 text-center mb-16">
+                Мы настолько уверены в продукте, что берем все риски на себя
+            </p>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Guarantee 1 -->
+                <div class="bg-brand-gray p-8 rounded-none">
+                    <div class="w-16 h-16 bg-green-500 text-white rounded-full flex items-center justify-center text-3xl mb-6">✓</div>
+                    <h3 class="text-2xl font-bold mb-4">Выход в любой момент</h3>
+                    <p class="text-gray-600 mb-4">Не понравилось? Напишите "хочу отключить" — отключим в тот же день. Вернем деньги за текущий месяц.</p>
+                    <p class="font-bold">Без вопросов. Без удержания.</p>
+                </div>
+
+                <!-- Guarantee 2 -->
+                <div class="bg-brand-gray p-8 rounded-none">
+                    <div class="w-16 h-16 bg-green-500 text-white rounded-full flex items-center justify-center text-3xl mb-6">✓</div>
+                    <h3 class="text-2xl font-bold mb-4">10 записей или возврат</h3>
+                    <p class="text-gray-600 mb-4">Если AI не принесет минимум 10 записей за первый месяц — 100% возврат оплаты.</p>
+                    <p class="font-bold">KULTURA получил 11/мес — это реально.</p>
+                </div>
+
+                <!-- Guarantee 3 -->
+                <div class="bg-brand-gray p-8 rounded-none">
+                    <div class="w-16 h-16 bg-green-500 text-white rounded-full flex items-center justify-center text-3xl mb-6">✓</div>
+                    <h3 class="text-2xl font-bold mb-4">Запуск за 24 часа</h3>
+                    <p class="text-gray-600 mb-4">Если не запустим AI за 24 часа после оплаты — первый месяц БЕСПЛАТНО.</p>
+                    <p class="font-bold">Мы делали это 43 раза. Система отлажена.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section id="faq" class="py-24">
+        <div class="max-w-4xl mx-auto px-6">
+            <p class="section-marker text-center mb-4">// FAQ</p>
+            <h2 class="text-4xl lg:text-6xl font-bold text-center mb-16">
+                Вопросы и <span class="gradient-text">ответы</span>
+            </h2>
+
+            <div class="space-y-4">
+                <!-- FAQ Item 1 -->
+                <details class="bg-white rounded-none shadow group">
+                    <summary class="p-6 cursor-pointer flex justify-between items-center font-bold text-lg">
+                        Клиенты поймут что это бот?
+                        <span class="text-brand-primary text-2xl group-open:rotate-45 transition-transform">+</span>
+                    </summary>
+                    <div class="px-6 pb-6 text-gray-600">
+                        <p>90%+ клиентов НЕ понимают что общаются с AI. За 4 месяца в KULTURA: только 2 из 20-30 клиентов распознали. И оба продолжили использовать. 0 жалоб.</p>
+                        <p class="mt-2">AI общается естественно — с именем, эмодзи, живым языком. Не "выберите из меню 1, 2, 3".</p>
+                    </div>
+                </details>
+
+                <!-- FAQ Item 2 -->
+                <details class="bg-white rounded-none shadow group">
+                    <summary class="p-6 cursor-pointer flex justify-between items-center font-bold text-lg">
+                        Что если AI сделает ошибку в записи?
+                        <span class="text-brand-primary text-2xl group-open:rotate-45 transition-transform">+</span>
+                    </summary>
+                    <div class="px-6 pb-6 text-gray-600">
+                        <p>AI проверяет расписание в YClients в реальном времени. Не создает двойные брони. Не путает дату/время.</p>
+                        <p class="mt-2">За 4 месяца: 43 записи, 0 ошибок. Если что-то пойдет не так — администратор может взять управление в любой момент.</p>
+                    </div>
+                </details>
+
+                <!-- FAQ Item 3 -->
+                <details class="bg-white rounded-none shadow group">
+                    <summary class="p-6 cursor-pointer flex justify-between items-center font-bold text-lg">
+                        Нужен YClients?
+                        <span class="text-brand-primary text-2xl group-open:rotate-45 transition-transform">+</span>
+                    </summary>
+                    <div class="px-6 pb-6 text-gray-600">
+                        <p>Да, Admin AI работает только с YClients. Если у вас другая CRM — пока не подойдет.</p>
+                        <p class="mt-2">Планируем поддержку других CRM в 2025.</p>
+                    </div>
+                </details>
+
+                <!-- FAQ Item 4 -->
+                <details class="bg-white rounded-none shadow group">
+                    <summary class="p-6 cursor-pointer flex justify-between items-center font-bold text-lg">
+                        Сколько времени займет настройка?
+                        <span class="text-brand-primary text-2xl group-open:rotate-45 transition-transform">+</span>
+                    </summary>
+                    <div class="px-6 pb-6 text-gray-600">
+                        <p>Полный запуск: 24 часа (гарантируем).</p>
+                        <p class="mt-2">Ваше участие: 30 минут онбординг-звонок. Обучение администратора: 15 минут. Все остальное делаем мы.</p>
+                    </div>
+                </details>
+
+                <!-- FAQ Item 5 -->
+                <details class="bg-white rounded-none shadow group">
+                    <summary class="p-6 cursor-pointer flex justify-between items-center font-bold text-lg">
+                        Администратор потеряет работу?
+                        <span class="text-brand-primary text-2xl group-open:rotate-45 transition-transform">+</span>
+                    </summary>
+                    <div class="px-6 pb-6 text-gray-600">
+                        <p>Нет. Admin AI НЕ заменяет администратора.</p>
+                        <p class="mt-2">AI работает в WhatsApp. Администратор работает в зале: встречает клиентов, принимает оплату, решает сложные вопросы.</p>
+                        <p class="mt-2">AI + Администратор = супер-команда. Админ делает важное, AI делает рутину.</p>
+                    </div>
+                </details>
+
+                <!-- FAQ Item 6 -->
+                <details class="bg-white rounded-none shadow group">
+                    <summary class="p-6 cursor-pointer flex justify-between items-center font-bold text-lg">
+                        Почему так дешево? В чем подвох?
+                        <span class="text-brand-primary text-2xl group-open:rotate-45 transition-transform">+</span>
+                    </summary>
+                    <div class="px-6 pb-6 text-gray-600">
+                        <p>Это пилотная программа. Нам нужны реальные кейсы для маркетинга, обратная связь для улучшения продукта, истории успеха от первых клиентов.</p>
+                        <p class="mt-2">Вы платите меньше — мы получаем ваш feedback. Win-win.</p>
+                        <p class="mt-2">После 30 мест цена станет 49,990₽/мес.</p>
+                    </div>
+                </details>
+
+                <!-- FAQ Item 7 -->
+                <details class="bg-white rounded-none shadow group">
+                    <summary class="p-6 cursor-pointer flex justify-between items-center font-bold text-lg">
+                        Почему только 30 мест?
+                        <span class="text-brand-primary text-2xl group-open:rotate-45 transition-transform">+</span>
+                    </summary>
+                    <div class="px-6 pb-6 text-gray-600">
+                        <p>Каждому салону нужна персональная настройка. 30 салонов × 7 часов = 210 часов работы. Это предел нашей пропускной способности до конца января.</p>
+                        <p class="mt-2">Лучше 30 довольных клиентов чем 100 брошенных.</p>
+                    </div>
+                </details>
+            </div>
+        </div>
+    </section>
+
+    <!-- Final CTA Section -->
+    <section id="cta" class="py-24 bg-brand-dark text-white">
+        <div class="max-w-4xl mx-auto px-6 text-center">
+            <p class="section-marker mb-4">// ГОТОВЫ НАЧАТЬ?</p>
+            <h2 class="text-4xl lg:text-6xl font-bold mb-6">
+                Перестаньте<br><span class="text-brand-primary">терять записи</span>
+            </h2>
+
+            <p class="text-xl text-gray-400 mb-12">
+                Пока вы читаете эту страницу, ваши конкуренты уже ловят клиентов 24/7
+            </p>
+
+            <!-- Urgency Block -->
+            <div class="bg-white/10 p-8 rounded-none mb-12">
+                <div class="grid md:grid-cols-3 gap-8 mb-8">
+                    <div>
+                        <div class="text-4xl font-bold text-brand-primary mb-2">🔥 <span id="spots-left-2">27</span>/30</div>
+                        <div class="text-gray-400">мест осталось</div>
+                    </div>
+                    <div>
+                        <div class="text-4xl font-bold text-brand-primary mb-2">📅 25 января</div>
+                        <div class="text-gray-400">дедлайн набора</div>
+                    </div>
+                    <div>
+                        <div class="text-4xl font-bold text-brand-primary mb-2">💰 49,990₽</div>
+                        <div class="text-gray-400">цена после пилота</div>
+                    </div>
+                </div>
+
+                <a href="https://wa.me/79936363848?text=Хочу%20занять%20место%20в%20пилоте%20Admin%20AI" target="_blank" class="inline-block bg-brand-primary text-white py-5 px-12 rounded-full font-bold text-xl hover:bg-orange-600 transition shadow-2xl">
+                    Занять место за 19,990₽/мес
+                </a>
+
+                <p class="text-gray-500 mt-4">или напишите "ХОЧУ" в WhatsApp: +7 993 636-38-48</p>
+            </div>
+
+            <!-- Guarantees reminder -->
+            <div class="flex flex-wrap justify-center gap-6 text-sm">
+                <span class="flex items-center gap-2">
+                    <span class="text-green-500">✓</span>
+                    Выход без вопросов
+                </span>
+                <span class="flex items-center gap-2">
+                    <span class="text-green-500">✓</span>
+                    10 записей или возврат
+                </span>
+                <span class="flex items-center gap-2">
+                    <span class="text-green-500">✓</span>
+                    Запуск за 24 часа
+                </span>
+            </div>
+
+            <!-- P.S. -->
+            <div class="mt-16 text-left bg-white/5 p-8 rounded-none">
+                <p class="font-bold mb-4">P.S.</p>
+                <p class="text-gray-300 leading-relaxed">
+                    Вчера владелец из KULTURA написал: "Админ был занят 40 минут с VIP-клиентом. За это время AI принял 3 записи. Раньше эти клиенты ушли бы к конкурентам."
+                </p>
+                <p class="text-gray-300 mt-4">
+                    3 записи × 2,337₽ = <span class="text-brand-primary font-bold">7,011₽</span>. За 40 минут. Пока администратор делал важное.
+                </p>
+                <p class="text-white font-bold mt-4">
+                    Вопрос: вы хотите продолжать терять эти записи?
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-brand-gray py-12 border-t border-gray-200">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-6">
+                <div>
+                    <a href="#" class="text-2xl font-bold">
+                        Admin<span class="text-brand-primary">AI</span>
+                    </a>
+                    <p class="text-gray-500 mt-2">WhatsApp + Telegram ассистент для салонов красоты</p>
+                </div>
+
+                <div class="flex flex-col md:flex-row items-center gap-6 text-sm text-gray-600">
+                    <a href="https://wa.me/79936363848" class="hover:text-brand-primary">📱 +7 993 636-38-48</a>
+                    <a href="mailto:support@adminai.tech" class="hover:text-brand-primary">📧 support@adminai.tech</a>
+                </div>
+            </div>
+
+            <div class="mt-8 pt-8 border-t border-gray-200 text-center text-sm text-gray-500">
+                <p>ИП Восканян Арсен Валериевич • ИНН: 502717663760 • ОГРНИП: 325508100473782</p>
+                <p class="mt-2">© 2025 Admin AI. Все права защищены.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Countdown Script -->
+    <script>
+        // Calculate days until January 25, 2025
+        function updateCountdown() {
+            const deadline = new Date('2025-01-25T23:59:59');
+            const now = new Date();
+            const diff = deadline - now;
+            const days = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+
+            document.getElementById('days-left').textContent = days;
+        }
+
+        updateCountdown();
+        setInterval(updateCountdown, 60000); // Update every minute
+    </script>
+</body>
+</html>

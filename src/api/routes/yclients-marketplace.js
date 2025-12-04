@@ -671,9 +671,10 @@ router.get('/marketplace/api/status/:sessionId', async (req, res) => {
     const token = authHeader.split(' ')[1];
     jwt.verify(token, JWT_SECRET); // Проверяем токен
 
-    // Получаем статус сессии
-    const status = await sessionPool.getSessionStatus(sessionId);
-    const connected = status === 'connected' || status === 'open';
+    // Получаем статус сессии (getSessionStatus returns OBJECT, not string!)
+    const statusObj = sessionPool.getSessionStatus(sessionId);
+    const connected = statusObj.connected;  // Use boolean property
+    const status = statusObj.status;  // 'connected', 'disconnected', or 'not_initialized'
 
     logger.info('📊 Session status check:', { sessionId, status, connected });
 
@@ -681,7 +682,10 @@ router.get('/marketplace/api/status/:sessionId', async (req, res) => {
       success: true,
       status,
       connected,
-      session_id: sessionId
+      session_id: sessionId,
+      phoneNumber: statusObj.phoneNumber,
+      hasQR: statusObj.hasQR,
+      hasPairingCode: statusObj.hasPairingCode
     });
 
   } catch (error) {
