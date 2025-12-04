@@ -311,7 +311,7 @@ class RobokassaService {
           invId,
           'success',
           {
-            robokassa_operation_id: extra.operationId
+            raw_response: { operationId: extra.operationId, processedAt: new Date().toISOString() }
           }
         );
 
@@ -423,7 +423,7 @@ class RobokassaService {
   async markPaymentFailed(invId, reason) {
     try {
       return await this.repository.updateStatus(invId, 'failed', {
-        error_message: reason
+        raw_response: { error: reason, failedAt: new Date().toISOString() }
       });
     } catch (error) {
       console.error('[Robokassa] markPaymentFailed error:', error.message);

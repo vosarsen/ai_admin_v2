@@ -65,10 +65,9 @@ class RobokassaPaymentRepository extends BaseRepository {
           status,
           description,
           receipt_data,
-          metadata,
           created_at,
           updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
         RETURNING *
       `;
 
@@ -79,8 +78,7 @@ class RobokassaPaymentRepository extends BaseRepository {
         data.currency || 'RUB',
         'pending',
         data.description || '',
-        JSON.stringify(data.receipt_data || {}),
-        JSON.stringify(data.metadata || {})
+        JSON.stringify(data.receipt_data || {})
       ];
 
       const result = await this.db.query(sql, params);
@@ -174,21 +172,21 @@ class RobokassaPaymentRepository extends BaseRepository {
       const params = [status];
       let paramIndex = 2;
 
-      // Add completed_at for success status
+      // Add processed_at for success status
       if (status === 'success') {
-        setClauses.push('completed_at = NOW()');
+        setClauses.push('processed_at = NOW()');
       }
 
       // Add optional fields
-      if (extra.robokassa_operation_id) {
-        setClauses.push(`robokassa_operation_id = $${paramIndex}`);
-        params.push(extra.robokassa_operation_id);
+      if (extra.signature_value) {
+        setClauses.push(`signature_value = $${paramIndex}`);
+        params.push(extra.signature_value);
         paramIndex++;
       }
 
-      if (extra.error_message) {
-        setClauses.push(`error_message = $${paramIndex}`);
-        params.push(extra.error_message);
+      if (extra.raw_response) {
+        setClauses.push(`raw_response = $${paramIndex}`);
+        params.push(JSON.stringify(extra.raw_response));
         paramIndex++;
       }
 
@@ -243,18 +241,18 @@ class RobokassaPaymentRepository extends BaseRepository {
       let paramIndex = 2;
 
       if (status === 'success') {
-        setClauses.push('completed_at = NOW()');
+        setClauses.push('processed_at = NOW()');
       }
 
-      if (extra.robokassa_operation_id) {
-        setClauses.push(`robokassa_operation_id = $${paramIndex}`);
-        params.push(extra.robokassa_operation_id);
+      if (extra.signature_value) {
+        setClauses.push(`signature_value = $${paramIndex}`);
+        params.push(extra.signature_value);
         paramIndex++;
       }
 
-      if (extra.error_message) {
-        setClauses.push(`error_message = $${paramIndex}`);
-        params.push(extra.error_message);
+      if (extra.raw_response) {
+        setClauses.push(`raw_response = $${paramIndex}`);
+        params.push(JSON.stringify(extra.raw_response));
         paramIndex++;
       }
 

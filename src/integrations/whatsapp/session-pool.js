@@ -559,20 +559,11 @@ class WhatsAppSessionPool extends EventEmitter {
                     this.pairingCodeTimeouts.delete(companyId);
                 }
 
-                // DEBUG: Log before emitting connected event
-                logger.info('🔍 DEBUG: session-pool emitting connected event', {
-                    companyId,
-                    phoneNumber: sock.user?.id?.split('@')[0],
-                    listenerCount: this.listenerCount('connected')
-                });
-
                 this.emit('connected', {
                     companyId,
                     user: sock.user,
                     phoneNumber: sock.user?.id?.split('@')[0]
                 });
-
-                logger.info('🔍 DEBUG: session-pool connected event emitted');
             }
         });
 

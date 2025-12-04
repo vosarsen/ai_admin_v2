@@ -194,27 +194,10 @@ class MarketplaceSocket {
       };
 
       const handleConnected = async (data) => {
-        // DEBUG: Log all connected events to diagnose WebSocket issues
-        logger.info('🔍 DEBUG: handleConnected received event', {
-          eventCompanyId: data.companyId,
-          expectedSessionId: sessionId,
-          match: data.companyId === sessionId,
-          phoneNumber: data.phoneNumber,
-          socketId: socket.id,
-          socketConnected: socket.connected
-        });
-
         if (data.companyId === sessionId) {
           logger.info('✅ WhatsApp подключен!', {
             sessionId,
             phone: data.phoneNumber
-          });
-
-          // Отправляем событие успешного подключения
-          logger.info('🔍 DEBUG: Emitting whatsapp-connected to client', {
-            sessionId,
-            socketId: socket.id,
-            socketConnected: socket.connected
           });
 
           socket.emit('whatsapp-connected', {
@@ -223,8 +206,6 @@ class MarketplaceSocket {
             sessionId,
             message: 'WhatsApp успешно подключен!'
           });
-
-          logger.info('🔍 DEBUG: whatsapp-connected emitted successfully');
 
           // Очистка listeners
           this.sessionPool.off('qr', handleQR);

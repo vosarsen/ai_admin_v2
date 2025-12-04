@@ -462,6 +462,10 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
     <script>
+        // Debug flag - set to true for development troubleshooting
+        const DEBUG = false;
+        const debug = (...args) => DEBUG && console.log('[DEBUG]', ...args);
+
         // Получаем токен из URL
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
@@ -490,7 +494,7 @@
                     .join('')
             );
             tokenData = JSON.parse(jsonPayload);
-            console.log('Token data:', tokenData);
+            debug('Token data:', tokenData);
         } catch (e) {
             console.error('Error decoding token:', e);
         }
