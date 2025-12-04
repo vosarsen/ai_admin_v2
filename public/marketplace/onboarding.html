@@ -525,23 +525,23 @@
             });
 
             socket.on('connect', () => {
-                console.log('WebSocket connected');
+                debug('WebSocket connected');
             });
 
             socket.on('qr-update', (data) => {
-                console.log('QR received:', data);
+                debug('QR received:', data);
                 currentQR = data.qr;
                 displayQR(data.qr);
                 startQRTimer();
             });
 
             socket.on('status', (data) => {
-                console.log('Status update:', data);
+                debug('Status update:', data);
                 updateStatus(data.status);
             });
 
             socket.on('whatsapp-connected', async (data) => {
-                console.log('WhatsApp connected!', data);
+                debug('WhatsApp connected!', data);
                 // Clear pairing code timer if running
                 if (pairingCodeTimer) {
                     clearInterval(pairingCodeTimer);
@@ -573,7 +573,7 @@
                         const data = await response.json();
                         if (data.connected) {
                             clearInterval(checkConnectionStatus);
-                            console.log('WhatsApp connected via polling fallback!');
+                            debug('WhatsApp connected via polling fallback!');
                             await activateIntegration();
                             handleWhatsAppConnected();
                         }
@@ -592,7 +592,7 @@
 
             // Pairing code success handler
             socket.on('pairing-code', (data) => {
-                console.log('Pairing code received:', data);
+                debug('Pairing code received:', data);
                 displayPairingCode(data.code);
             });
 
@@ -726,7 +726,7 @@
                 }
 
                 const result = await response.json();
-                console.log('Integration activated:', result);
+                debug('Integration activated:', result);
                 return result;
             } catch (error) {
                 console.error('Activation error:', error);
@@ -803,7 +803,7 @@
             try {
                 // Отправляем запрос через WebSocket
                 socket.emit('request-pairing-code', { phoneNumber });
-                console.log('Pairing code request sent:', phoneNumber);
+                debug('Pairing code request sent:', phoneNumber);
             } catch (error) {
                 console.error('Error requesting pairing code:', error);
                 showError('Не удалось запросить код. Попробуйте еще раз.');
