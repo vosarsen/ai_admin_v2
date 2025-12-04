@@ -284,8 +284,16 @@ class WhatsAppSessionPool extends EventEmitter {
             }
 
             // Check if we should use pairing code and have a phone number
-            const usePairingCode = options.usePairingCode || process.env.USE_PAIRING_CODE === 'true';
-            const phoneNumber = options.phoneNumber || process.env.WHATSAPP_PHONE_NUMBER;
+            // IMPORTANT: Only use env fallbacks for single-tenant deployments.
+            // For multi-tenant (marketplace), phoneNumber MUST be explicitly passed
+            // to avoid using wrong phone number for different salons.
+            const usePairingCode = options.usePairingCode === true ||
+                (options.usePairingCode !== false && process.env.USE_PAIRING_CODE === 'true');
+
+            // phoneNumber should ONLY come from options for multi-tenant safety
+            // env WHATSAPP_PHONE_NUMBER is only used when explicitly requested via usePairingCode option
+            const phoneNumber = options.phoneNumber ||
+                (options.usePairingCode === true ? process.env.WHATSAPP_PHONE_NUMBER : null);
 
             // CRITICAL FIX: Clean up old credentials if requesting pairing code with new phone
             // This prevents phone number mismatch errors where old credentials conflict with new phone

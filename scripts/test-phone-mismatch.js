@@ -133,23 +133,22 @@ async function testWebSocketFlow() {
       }
     }, CONFIG.PAIRING_TIMEOUT);
 
+    let requestSent = false;
+    let firstPairingCodeIgnored = false;
+
     socket.on('connect', () => {
       console.log('✅ WebSocket connected');
-
-      // Wait a bit for initial session setup to complete
-      setTimeout(() => {
-        console.log(`\n📱 Step 3: Requesting pairing code for phone ${CONFIG.CORRECT_PHONE}...`);
-        console.log(`   (DB has credentials for ${CONFIG.WRONG_PHONE} - should trigger mismatch!)`);
-
-        // Request pairing code with DIFFERENT phone than in DB
-        socket.emit('request-pairing-code', { phoneNumber: CONFIG.CORRECT_PHONE });
-      }, 2000);
+      console.log('   Waiting for initial session setup...');
     });
 
-    // Log all events for debugging
-    socket.onAny((event, ...args) => {
-      if (event !== 'pairing-code' && event !== 'pairing-code-error') {
-        console.log(`   [WS Event] ${event}:`, JSON.stringify(args).substring(0, 100));
+    // Ignore the first pairing code (from automatic session creation with env default)
+    // and request with our specific phone number
+    socket.on('qr-update', () => {
+      if (!requestSent) {
+        requestSent = true;
+        console.log(`\n📱 Step 3: Requesting pairing code for phone ${CONFIG.CORRECT_PHONE}...`);
+        console.log(`   (DB has credentials for ${CONFIG.WRONG_PHONE} - should trigger mismatch!)`);
+        socket.emit('request-pairing-code', { phoneNumber: CONFIG.CORRECT_PHONE });
       }
     });
 
