@@ -19,7 +19,7 @@ const { logAdminAction, getAuditLogs } = require('../../utils/admin-audit');
 const { createRedisClient } = require('../../utils/redis-factory');
 const { Result, ErrorCodes } = require('../../utils/result');
 const { rateLimitMiddleware } = require('../../utils/rate-limiter');
-const { escapeLikePattern } = require('../../utils/validators');
+const { escapeLikePattern, sanitizeString, validateEmail, normalizePhone, validateId } = require('../../utils/validators');
 
 // Webhook rate limiter middleware (10 requests/minute per salon)
 const webhookRateLimiter = rateLimitMiddleware('webhook', (req) => {
@@ -277,39 +277,50 @@ router.get('/auth/yclients/redirect', async (req, res) => {
     let user_id, user_name, user_phone, user_email, salon_name;
     const { user_data, user_data_sign } = req.query;
 
-    // Import validators for input sanitization
-    const { sanitizeString, validateEmail, normalizePhone, validateId } = require('../../utils/validators');
+    // Validators already imported at top level (line 22)
 
     if (user_data) {
       // SECURITY: Verify HMAC-SHA256 signature (confirmed by YClients support)
       // Algorithm: hash_hmac('sha256', user_data, PARTNER_TOKEN)
       // user_data is base64-encoded string, NOT decoded JSON
       // Reference: https://support.yclients.com/67-69-212
-      if (user_data_sign) {
-        const expectedSign = crypto.createHmac('sha256', PARTNER_TOKEN).update(user_data).digest('hex');
 
-        if (expectedSign !== user_data_sign) {
-          logger.error('❌ HMAC signature verification failed', {
-            salon_id,
-            received_prefix: user_data_sign.substring(0, 16) + '...',
-            expected_prefix: expectedSign.substring(0, 16) + '...'
-          });
-          Sentry.captureMessage('YClients HMAC signature mismatch', {
-            level: 'warning',
-            tags: { component: 'marketplace', security: true },
-            extra: { salon_id }
-          });
-          return res.status(403).send(renderErrorPage(
-            'Ошибка безопасности',
-            'Неверная подпись данных. Пожалуйста, попробуйте подключиться заново из маркетплейса YClients.',
-            'https://yclients.com/marketplace'
-          ));
-        }
-
-        logger.info('✅ HMAC signature verified successfully', { salon_id });
-      } else {
-        logger.warn('⚠️ user_data provided without signature', { salon_id });
+      // MANDATORY: Signature is required for all user_data
+      if (!user_data_sign) {
+        logger.error('❌ HMAC signature missing - user_data without signature rejected', { salon_id });
+        Sentry.captureMessage('YClients registration attempt without HMAC signature', {
+          level: 'warning',
+          tags: { component: 'marketplace', security: true },
+          extra: { salon_id }
+        });
+        return res.status(403).send(renderErrorPage(
+          'Ошибка безопасности',
+          'Отсутствует подпись данных. Пожалуйста, попробуйте подключиться заново из маркетплейса YClients.',
+          'https://yclients.com/marketplace'
+        ));
       }
+
+      const expectedSign = crypto.createHmac('sha256', PARTNER_TOKEN).update(user_data).digest('hex');
+
+      if (expectedSign !== user_data_sign) {
+        logger.error('❌ HMAC signature verification failed', {
+          salon_id,
+          received_prefix: user_data_sign.substring(0, 16) + '...',
+          expected_prefix: expectedSign.substring(0, 16) + '...'
+        });
+        Sentry.captureMessage('YClients HMAC signature mismatch', {
+          level: 'warning',
+          tags: { component: 'marketplace', security: true },
+          extra: { salon_id }
+        });
+        return res.status(403).send(renderErrorPage(
+          'Ошибка безопасности',
+          'Неверная подпись данных. Пожалуйста, попробуйте подключиться заново из маркетплейса YClients.',
+          'https://yclients.com/marketplace'
+        ));
+      }
+
+      logger.info('✅ HMAC signature verified successfully', { salon_id });
 
       // Now safe to parse user_data
       try {

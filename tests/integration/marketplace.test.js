@@ -334,3 +334,123 @@ describe('Admin Audit Trail', () => {
     expect(adminAudit).toBeDefined();
   });
 });
+
+describe('Marketplace HMAC Verification', () => {
+  const crypto = require('crypto');
+
+  // Test partner token (use same format as production)
+  const TEST_PARTNER_TOKEN = 'test_partner_token_12345';
+
+  /**
+   * Generate HMAC-SHA256 signature for user_data
+   * Algorithm: hash_hmac('sha256', user_data, PARTNER_TOKEN)
+   * user_data is base64-encoded string (NOT decoded JSON)
+   */
+  const generateHmacSignature = (userData, partnerToken) => {
+    return crypto.createHmac('sha256', partnerToken).update(userData).digest('hex');
+  };
+
+  /**
+   * Create base64-encoded user_data for testing
+   */
+  const createUserData = (data) => {
+    return Buffer.from(JSON.stringify(data)).toString('base64');
+  };
+
+  test('Valid HMAC signature is generated correctly', () => {
+    const userData = createUserData({
+      id: 123,
+      name: 'Иванов Андрей',
+      email: 'andrew@example.com',
+      phone: '79123456789',
+      salon_name: 'Best Barbery'
+    });
+
+    const signature = generateHmacSignature(userData, TEST_PARTNER_TOKEN);
+
+    // Signature should be 64 chars hex string (SHA-256 = 256 bits = 64 hex chars)
+    expect(signature).toHaveLength(64);
+    expect(/^[a-f0-9]+$/.test(signature)).toBe(true);
+  });
+
+  test('Same user_data generates same signature', () => {
+    const userData = createUserData({ id: 456, name: 'Test User' });
+
+    const signature1 = generateHmacSignature(userData, TEST_PARTNER_TOKEN);
+    const signature2 = generateHmacSignature(userData, TEST_PARTNER_TOKEN);
+
+    expect(signature1).toBe(signature2);
+  });
+
+  test('Different user_data generates different signature', () => {
+    const userData1 = createUserData({ id: 123, name: 'User 1' });
+    const userData2 = createUserData({ id: 123, name: 'User 2' });
+
+    const signature1 = generateHmacSignature(userData1, TEST_PARTNER_TOKEN);
+    const signature2 = generateHmacSignature(userData2, TEST_PARTNER_TOKEN);
+
+    expect(signature1).not.toBe(signature2);
+  });
+
+  test('Different partner token generates different signature', () => {
+    const userData = createUserData({ id: 789, name: 'Test' });
+
+    const signature1 = generateHmacSignature(userData, 'token_a');
+    const signature2 = generateHmacSignature(userData, 'token_b');
+
+    expect(signature1).not.toBe(signature2);
+  });
+
+  test('Signature verification detects tampering', () => {
+    const originalData = createUserData({ id: 100, name: 'Original' });
+    const tamperedData = createUserData({ id: 100, name: 'Tampered' });
+
+    const originalSignature = generateHmacSignature(originalData, TEST_PARTNER_TOKEN);
+
+    // Tampered data should not match original signature
+    const tamperedSignature = generateHmacSignature(tamperedData, TEST_PARTNER_TOKEN);
+    expect(originalSignature).not.toBe(tamperedSignature);
+
+    // Verify original still works
+    const verifySignature = generateHmacSignature(originalData, TEST_PARTNER_TOKEN);
+    expect(verifySignature).toBe(originalSignature);
+  });
+
+  test('Empty user_data generates valid signature', () => {
+    const emptyData = createUserData({});
+
+    const signature = generateHmacSignature(emptyData, TEST_PARTNER_TOKEN);
+
+    expect(signature).toHaveLength(64);
+    expect(/^[a-f0-9]+$/.test(signature)).toBe(true);
+  });
+
+  test('Cyrillic characters in user_data handled correctly', () => {
+    const cyrillicData = createUserData({
+      id: 1,
+      name: 'Александр Петрович',
+      salon_name: 'Салон красоты "Звезда"'
+    });
+
+    const signature = generateHmacSignature(cyrillicData, TEST_PARTNER_TOKEN);
+
+    // Should produce valid hex string
+    expect(signature).toHaveLength(64);
+
+    // Same data should produce same signature
+    const signature2 = generateHmacSignature(cyrillicData, TEST_PARTNER_TOKEN);
+    expect(signature).toBe(signature2);
+  });
+
+  test('Special characters in user_data handled correctly', () => {
+    const specialData = createUserData({
+      id: 1,
+      email: 'test+special@example.com',
+      phone: '+7 (900) 123-45-67'
+    });
+
+    const signature = generateHmacSignature(specialData, TEST_PARTNER_TOKEN);
+
+    expect(signature).toHaveLength(64);
+  });
+});
