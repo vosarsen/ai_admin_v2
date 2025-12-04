@@ -300,7 +300,35 @@ router.get('/auth/yclients/redirect', async (req, res) => {
         ));
       }
 
-      const expectedSign = crypto.createHmac('sha256', PARTNER_TOKEN).update(user_data).digest('hex');
+      // Try different HMAC algorithms to debug
+      const decodedUserData = Buffer.from(user_data, 'base64').toString('utf-8');
+      const testSignatures = {
+        sha256_base64: crypto.createHmac('sha256', PARTNER_TOKEN).update(user_data).digest('hex'),
+        sha256_decoded: crypto.createHmac('sha256', PARTNER_TOKEN).update(decodedUserData).digest('hex'),
+        sha1_base64: crypto.createHmac('sha1', PARTNER_TOKEN).update(user_data).digest('hex'),
+        sha1_decoded: crypto.createHmac('sha1', PARTNER_TOKEN).update(decodedUserData).digest('hex'),
+        md5_concat: crypto.createHash('md5').update(user_data + PARTNER_TOKEN).digest('hex'),
+      };
+
+      // DEBUG: Log all variants to find correct algorithm
+      logger.info('🔐 HMAC DEBUG - Testing algorithms:', {
+        salon_id,
+        received: user_data_sign,
+        sha256_base64: testSignatures.sha256_base64,
+        sha256_decoded: testSignatures.sha256_decoded,
+        sha1_base64: testSignatures.sha1_base64,
+        sha1_decoded: testSignatures.sha1_decoded,
+        md5_concat: testSignatures.md5_concat,
+        match_sha256_base64: testSignatures.sha256_base64 === user_data_sign,
+        match_sha256_decoded: testSignatures.sha256_decoded === user_data_sign,
+        match_sha1_base64: testSignatures.sha1_base64 === user_data_sign,
+        match_sha1_decoded: testSignatures.sha1_decoded === user_data_sign,
+        match_md5_concat: testSignatures.md5_concat === user_data_sign,
+        user_data_preview: user_data.substring(0, 50) + '...',
+        decoded_preview: decodedUserData.substring(0, 100) + '...'
+      });
+
+      const expectedSign = testSignatures.sha256_base64;
 
       if (expectedSign !== user_data_sign) {
         logger.error('❌ HMAC signature verification failed', {
