@@ -493,6 +493,7 @@
         let qrExpiryTime = 20; // секунд
         let socket;
         let currentQR = null;
+        let pairingCodeTimer = null; // Timer for pairing code expiration
 
         // Инициализация WebSocket
         function initWebSocket() {
@@ -520,6 +521,11 @@
 
             socket.on('whatsapp-connected', async (data) => {
                 console.log('WhatsApp connected!', data);
+                // Clear pairing code timer if running
+                if (pairingCodeTimer) {
+                    clearInterval(pairingCodeTimer);
+                    pairingCodeTimer = null;
+                }
                 await activateIntegration();
                 handleWhatsAppConnected();
             });
@@ -561,6 +567,29 @@
             socket.on('error', (error) => {
                 console.error('WebSocket error:', error);
                 showError(error.message || 'Ошибка подключения');
+            });
+
+            // Pairing code success handler
+            socket.on('pairing-code', (data) => {
+                console.log('Pairing code received:', data);
+                displayPairingCode(data.code);
+            });
+
+            // Pairing code error handler
+            socket.on('pairing-code-error', (data) => {
+                console.error('Pairing code error:', data);
+                showError(data.message || 'Не удалось получить код подключения');
+                // Reset button
+                const btn = document.getElementById('requestPairingBtn');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Получить код подключения';
+                }
+                // Clear any timer
+                if (pairingCodeTimer) {
+                    clearInterval(pairingCodeTimer);
+                    pairingCodeTimer = null;
+                }
             });
         }
 
@@ -764,34 +793,29 @@
 
         // Отображение pairing code
         function displayPairingCode(code) {
+            // Clear any existing timer first
+            if (pairingCodeTimer) {
+                clearInterval(pairingCodeTimer);
+                pairingCodeTimer = null;
+            }
+
             document.getElementById('pairingCode').textContent = code;
             document.getElementById('pairingCodeDisplay').style.display = 'block';
             document.getElementById('requestPairingBtn').disabled = false;
             document.getElementById('requestPairingBtn').textContent = 'Получить новый код';
 
-            // Таймер для pairing code (60 секунд)
+            // Таймер для pairing code (60 секунд) - using global variable
             let timeLeft = 60;
-            const timer = setInterval(() => {
+            pairingCodeTimer = setInterval(() => {
                 timeLeft--;
                 if (timeLeft <= 0) {
-                    clearInterval(timer);
+                    clearInterval(pairingCodeTimer);
+                    pairingCodeTimer = null;
                     document.getElementById('pairingCodeDisplay').style.display = 'none';
                     document.getElementById('requestPairingBtn').textContent = 'Получить код подключения';
                     showError('Код истек. Получите новый код.');
                 }
             }, 1000);
-        }
-
-        // Обновляем initWebSocket для обработки pairing code
-        const originalInitWebSocket = initWebSocket;
-        function initWebSocket() {
-            originalInitWebSocket();
-
-            // Добавляем обработчик pairing code
-            socket.on('pairing-code', (data) => {
-                console.log('Pairing code received:', data);
-                displayPairingCode(data.code);
-            });
         }
 
         // Запускаем процесс

@@ -10,8 +10,9 @@ class MarketplaceSocket {
   constructor(io) {
     this.io = io;
     this.sessionPool = getSessionPool();
-    this.connections = new Map(); // companyId -> socket
+    this.connections = new Map(); // sessionId -> socket
     this.rateLimiter = new Map(); // IP -> { count, lastReset }
+    this.pairingCodeRequests = new Map(); // sessionId -> Promise (mutex for pairing code)
     this.RATE_LIMIT_MAX = 5; // Максимум 5 подключений
     this.RATE_LIMIT_WINDOW = 60000; // За 60 секунд
 
@@ -239,11 +240,23 @@ class MarketplaceSocket {
         }
       };
 
+      // Обработчик ошибок pairing code (от Baileys)
+      const handlePairingCodeError = (data) => {
+        if (data.companyId === sessionId) {
+          logger.warn('❌ Pairing code error from Baileys', { sessionId, error: data.error });
+          socket.emit('pairing-code-error', {
+            message: data.error || 'Не удалось получить код. Попробуйте QR-код.',
+            code: 'BAILEYS_ERROR'
+          });
+        }
+      };
+
       // Подписываемся на глобальные события Session Pool
       this.sessionPool.on('qr', handleQR);
       this.sessionPool.on('connected', handleConnected);
       this.sessionPool.on('logout', handleLogout);
       this.sessionPool.on('pairing-code', handlePairingCode);
+      this.sessionPool.on('pairing-code-error', handlePairingCodeError);
 
       // Создаем сессию (используем sessionId = "company_{salon_id}")
       await this.sessionPool.createSession(sessionId);
@@ -265,25 +278,62 @@ class MarketplaceSocket {
 
       // Обработчик запроса pairing code от клиента
       socket.on('request-pairing-code', async (data) => {
-        try {
-          const { phoneNumber } = data;
-          logger.info('📱 Запрос pairing code', { sessionId, phoneNumber });
+        const { phoneNumber } = data;
 
-          // Создаем сессию с pairing code
-          await this.sessionPool.createSession(sessionId, {
-            usePairingCode: true,
-            phoneNumber: phoneNumber
+        // 1. Phone validation BEFORE processing
+        if (!phoneNumber || typeof phoneNumber !== 'string') {
+          socket.emit('pairing-code-error', {
+            message: 'Номер телефона не указан',
+            code: 'PHONE_REQUIRED'
           });
-        } catch (error) {
-          logger.error('Ошибка запроса pairing code:', error);
-          Sentry.captureException(error, {
-            tags: { component: 'marketplace-websocket', operation: 'pairingCode' },
-            extra: { sessionId, phoneNumber }
-          });
-          socket.emit('error', {
-            message: 'Не удалось получить код. Попробуйте еще раз.'
-          });
+          return;
         }
+
+        const cleanedPhone = phoneNumber.replace(/\D/g, '');
+        if (cleanedPhone.length < 10 || cleanedPhone.length > 15) {
+          socket.emit('pairing-code-error', {
+            message: 'Неверный формат номера (10-15 цифр)',
+            code: 'INVALID_PHONE_FORMAT'
+          });
+          return;
+        }
+
+        // 2. Mutex - prevent concurrent requests
+        if (this.pairingCodeRequests.has(sessionId)) {
+          socket.emit('pairing-code-error', {
+            message: 'Запрос уже в обработке. Подождите...',
+            code: 'REQUEST_IN_PROGRESS'
+          });
+          return;
+        }
+
+        // 3. Execute with mutex protection
+        const requestPromise = (async () => {
+          try {
+            logger.info('📱 Запрос pairing code', { sessionId, phoneNumber: cleanedPhone });
+
+            await this.sessionPool.createSession(sessionId, {
+              usePairingCode: true,
+              phoneNumber: cleanedPhone
+            });
+          } catch (error) {
+            logger.error('Ошибка запроса pairing code:', error);
+            Sentry.captureException(error, {
+              tags: { component: 'marketplace-websocket', operation: 'pairingCode' },
+              extra: { sessionId, phoneNumber: cleanedPhone }
+            });
+            socket.emit('pairing-code-error', {
+              message: 'Не удалось получить код. Попробуйте QR-код.',
+              code: 'PAIRING_CODE_FAILED'
+            });
+          } finally {
+            // Always release mutex
+            this.pairingCodeRequests.delete(sessionId);
+          }
+        })();
+
+        this.pairingCodeRequests.set(sessionId, requestPromise);
+        await requestPromise;
       });
 
       // Очистка при отключении сокета
@@ -292,6 +342,9 @@ class MarketplaceSocket {
         this.sessionPool.off('connected', handleConnected);
         this.sessionPool.off('logout', handleLogout);
         this.sessionPool.off('pairing-code', handlePairingCode);
+        this.sessionPool.off('pairing-code-error', handlePairingCodeError);
+        // Clear any pending pairing code requests
+        this.pairingCodeRequests.delete(sessionId);
       });
 
     } catch (error) {

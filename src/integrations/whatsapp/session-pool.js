@@ -23,6 +23,7 @@ const pino = require('pino');
 const EventEmitter = require('events');
 const fs = require('fs').promises;
 const path = require('path');
+const Sentry = require('@sentry/node');
 const logger = require('../../utils/logger');
 const QRCode = require('qrcode');
 const { useTimewebAuthState } = require('./auth-state-timeweb');
@@ -397,11 +398,32 @@ class WhatsAppSessionPool extends EventEmitter {
                         return;
                     } catch (error) {
                         logger.error(`Failed to request pairing code: ${error.message}`);
+                        Sentry.captureException(error, {
+                            tags: {
+                                component: 'baileys-session',
+                                operation: 'pairingCode'
+                            },
+                            extra: {
+                                companyId,
+                                phoneNumber: sock.pairingPhoneNumber,
+                                errorType: error.name || 'Unknown'
+                            }
+                        });
                         logger.info(`Will fallback to QR code method`);
                         sock.usePairingCode = false;
+                        // Emit error event so WebSocket can notify frontend
+                        this.emit('pairing-code-error', { companyId, error: error.message });
                     }
                 }).catch(error => {
                     logger.error('Unhandled error in pairing code request:', error);
+                    Sentry.captureException(error, {
+                        level: 'error',
+                        tags: {
+                            component: 'baileys-session',
+                            operation: 'pairingCodeUnhandled'
+                        },
+                        extra: { companyId }
+                    });
                     this.emit('error', { companyId, error });
                 });
             }
