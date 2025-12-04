@@ -312,6 +312,14 @@ redis-cli PUBLISH whatsapp:events '{"type":"connected","companyId":"company_9623
 - ✅ 5.3 Integration tests: `tests/integration/redis-pubsub.test.js` (13 tests passing)
 - ✅ 5.4 Retry utility: `src/utils/redis-pubsub.js` + updated `baileys-service.js`
 
+### E2E Testing (Production) - 2025-12-04:
+- ✅ Deploy Phase 5 to production (`d788eaa`)
+- ✅ `/health/pubsub/simple` - latency 8ms
+- ✅ `/health/pubsub` ping/pong - latency 7-13ms
+- ✅ Redis Pub/Sub flow verified in logs
+- ✅ WhatsApp message send working
+- ✅ All health checks passing
+
 ---
 
 ## Phase 3 Architecture (Final Implementation)
