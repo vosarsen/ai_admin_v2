@@ -8,6 +8,7 @@ const router = express.Router();
 const logger = require('../../utils/logger');
 const Sentry = require('@sentry/node');
 const { getSessionPool } = require('../../integrations/whatsapp/session-pool');
+const { removeTimewebAuthState } = require('../../integrations/whatsapp/auth-state-timeweb');
 const { YclientsClient } = require('../../integrations/yclients/client');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
@@ -1463,39 +1464,153 @@ async function handleWebhookEvent(eventType, salonId, data) {
 
 /**
  * Обработка удаления приложения
+ * Полная очистка: сессия, credentials, cache, статус, audit log
  */
 async function handleUninstall(salonId) {
   logger.info(`🗑️ Handling uninstall for salon ${salonId}`);
 
-  // Останавливаем WhatsApp сессию
-  const sessionId = `company_${salonId}`;
-  try {
-    await sessionPool.removeSession(sessionId);
-    logger.info('✅ WhatsApp session removed');
-  } catch (error) {
-    logger.error('❌ Failed to remove WhatsApp session:', error);
+  // Ранняя валидация
+  if (!salonId) {
+    logger.error('handleUninstall called with empty salonId');
+    return;
   }
 
-  // Обновляем статус в БД
-  await companyRepository.updateByYclientsId(parseInt(salonId), {
-    integration_status: 'uninstalled',
-    whatsapp_connected: false
-  });
+  try {
+    // 1. Найти company по YClients ID
+    const company = await companyRepository.findByYclientsId(parseInt(salonId));
 
-  logger.info('✅ Company marked as uninstalled');
+    if (!company) {
+      logger.warn(`Company not found for salon ${salonId}`);
+      return;
+    }
+
+    // 2. Idempotency check - не обрабатывать дубликаты
+    if (company.integration_status === 'uninstalled') {
+      logger.info(`Company ${company.id} already uninstalled, skipping`);
+      return;
+    }
+
+    const companyId = company.id;
+
+    // 3. Удалить in-memory сессию WhatsApp
+    try {
+      await sessionPool.removeSession(companyId);
+      logger.info('✅ WhatsApp session removed');
+    } catch (error) {
+      logger.warn('⚠️ Failed to remove WhatsApp session:', error.message);
+    }
+
+    // 4. Удалить credentials из БД (whatsapp_auth, whatsapp_keys)
+    try {
+      await removeTimewebAuthState(companyId);
+      logger.info('✅ WhatsApp credentials removed from database');
+    } catch (error) {
+      logger.warn('⚠️ Failed to remove credentials:', error.message);
+    }
+
+    // 5. Очистить credentials cache
+    try {
+      if (sessionPool && sessionPool.clearCachedCredentials) {
+        sessionPool.clearCachedCredentials(companyId);
+        logger.info('✅ Credentials cache cleared');
+      }
+    } catch (error) {
+      logger.warn('⚠️ Failed to clear credentials cache:', error.message);
+    }
+
+    // 6. Обновить статус компании в БД + очистить API key
+    await companyRepository.update(companyId, {
+      integration_status: 'uninstalled',
+      whatsapp_connected: false,
+      disconnected_at: new Date().toISOString(),
+      api_key: null
+    });
+
+    // 7. Залогировать событие в marketplace_events
+    try {
+      await marketplaceEventsRepository.insert({
+        company_id: companyId,
+        salon_id: parseInt(salonId),
+        event_type: 'uninstalled',
+        event_data: { source: 'yclients_webhook' }
+      });
+    } catch (error) {
+      logger.warn('⚠️ Failed to log marketplace event:', error.message);
+    }
+
+    logger.info(`✅ Company ${companyId} (salon ${salonId}) fully uninstalled`);
+
+  } catch (error) {
+    logger.error('❌ Failed to handle uninstall:', error);
+    Sentry.captureException(error, {
+      tags: { component: 'marketplace', operation: 'handleUninstall', backend: 'yclients-marketplace' },
+      extra: { salonId }
+    });
+  }
 }
 
 /**
  * Обработка заморозки приложения
+ * При freeze: останавливаем сессию, но НЕ удаляем credentials (для восстановления после оплаты)
  */
 async function handleFreeze(salonId) {
   logger.info(`❄️ Handling freeze for salon ${salonId}`);
 
-  await companyRepository.updateByYclientsId(parseInt(salonId), {
-    integration_status: 'frozen'
-  });
+  // Ранняя валидация
+  if (!salonId) {
+    logger.error('handleFreeze called with empty salonId');
+    return;
+  }
 
-  logger.info('✅ Company marked as frozen');
+  try {
+    const company = await companyRepository.findByYclientsId(parseInt(salonId));
+
+    if (!company) {
+      logger.warn(`Company not found for salon ${salonId}`);
+      return;
+    }
+
+    // Idempotency check
+    if (company.integration_status === 'frozen') {
+      logger.info(`Company ${company.id} already frozen, skipping`);
+      return;
+    }
+
+    // При freeze - останавливаем сессию, но НЕ удаляем credentials
+    // (чтобы можно было восстановить после оплаты)
+    try {
+      await sessionPool.removeSession(company.id);
+      logger.info('✅ WhatsApp session stopped (frozen)');
+    } catch (error) {
+      logger.warn('⚠️ Failed to stop WhatsApp session:', error.message);
+    }
+
+    await companyRepository.update(company.id, {
+      integration_status: 'frozen',
+      whatsapp_connected: false
+    });
+
+    // Логируем событие
+    try {
+      await marketplaceEventsRepository.insert({
+        company_id: company.id,
+        salon_id: parseInt(salonId),
+        event_type: 'frozen',
+        event_data: { source: 'yclients_webhook', reason: 'payment_overdue' }
+      });
+    } catch (error) {
+      logger.warn('⚠️ Failed to log marketplace event:', error.message);
+    }
+
+    logger.info(`✅ Company ${company.id} (salon ${salonId}) frozen`);
+
+  } catch (error) {
+    logger.error('❌ Failed to handle freeze:', error);
+    Sentry.captureException(error, {
+      tags: { component: 'marketplace', operation: 'handleFreeze', backend: 'yclients-marketplace' },
+      extra: { salonId }
+    });
+  }
 }
 
 // NOTE: handlePayment() removed in Phase 4
