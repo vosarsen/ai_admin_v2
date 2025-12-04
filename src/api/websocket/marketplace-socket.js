@@ -565,6 +565,43 @@ class MarketplaceSocket {
   }
 
   /**
+   * Broadcast WhatsApp connected event from Redis pub/sub
+   * This method receives events from baileys-service via Redis (cross-process IPC)
+   * @param {Object} data - Event data from baileys-service
+   * @param {string} data.companyId - Session ID (e.g., "company_962302")
+   * @param {string} data.phoneNumber - Connected phone number
+   */
+  broadcastConnected(data) {
+    const { companyId, phoneNumber } = data;
+    const socket = this.connections.get(companyId);
+
+    if (socket) {
+      logger.info('📤 Broadcasting whatsapp-connected via Redis', {
+        companyId,
+        socketId: socket.id,
+        phoneNumber
+      });
+
+      socket.emit('whatsapp-connected', {
+        success: true,
+        phone: phoneNumber,
+        sessionId: companyId,
+        message: 'WhatsApp успешно подключен!'
+      });
+    } else {
+      logger.warn('No socket found for company, broadcasting to room', { companyId });
+      // Fallback: broadcast to room
+      const salonId = companyId.replace('company_', '');
+      this.namespace.to(`company-${salonId}`).emit('whatsapp-connected', {
+        success: true,
+        phone: phoneNumber,
+        sessionId: companyId,
+        message: 'WhatsApp успешно подключен!'
+      });
+    }
+  }
+
+  /**
    * Check if pairing code request is in progress for a session
    * Used by session-pool to prevent auto-reconnection during pairing flow
    * @param {string} sessionId - Session ID (e.g., "company_997441")

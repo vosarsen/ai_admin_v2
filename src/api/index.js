@@ -33,6 +33,8 @@ const { setupSwagger } = require('./swagger');
 
 // Import Marketplace WebSocket handler
 const MarketplaceSocket = require('./websocket/marketplace-socket');
+const { setMarketplaceSocket } = require('./websocket/marketplace-socket');
+const Redis = require('ioredis');
 
 const app = express();
 
@@ -55,8 +57,41 @@ const io = new Server(server, {
 });
 
 // Initialize Marketplace WebSocket
-new MarketplaceSocket(io);
+const marketplaceSocket = new MarketplaceSocket(io);
+setMarketplaceSocket(marketplaceSocket);
 logger.info('✅ Socket.IO server initialized for marketplace integration');
+
+// Redis subscriber for cross-process WhatsApp events (Phase 3 WebSocket fix)
+// baileys-service runs in separate PM2 process, events don't cross process boundaries
+// Solution: Redis Pub/Sub for IPC
+const whatsappSubscriber = new Redis(process.env.REDIS_URL);
+
+whatsappSubscriber.on('error', (err) => {
+  logger.error('Redis subscriber error:', err);
+});
+
+whatsappSubscriber.subscribe('whatsapp:events', (err) => {
+  if (err) {
+    logger.error('Failed to subscribe to whatsapp:events:', err);
+  } else {
+    logger.info('✅ Subscribed to Redis channel: whatsapp:events');
+  }
+});
+
+whatsappSubscriber.on('message', (channel, message) => {
+  if (channel === 'whatsapp:events') {
+    try {
+      const event = JSON.parse(message);
+      logger.info('📥 Received Redis event:', { type: event.type, companyId: event.companyId });
+
+      if (event.type === 'connected') {
+        marketplaceSocket.broadcastConnected(event);
+      }
+    } catch (error) {
+      logger.error('Failed to parse Redis event:', error);
+    }
+  }
+});
 
 // View engine setup
 app.set('views', __dirname + '/views');

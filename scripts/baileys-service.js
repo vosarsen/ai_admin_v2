@@ -10,6 +10,12 @@ const logger = require('../src/utils/logger');
 const qrcodeTerminal = require('qrcode-terminal');
 const fs = require('fs').promises;
 const path = require('path');
+const Redis = require('ioredis');
+
+// Redis publisher for cross-process communication with ai-admin-api
+const redisPublisher = new Redis(process.env.REDIS_URL);
+redisPublisher.on('error', (err) => logger.error('Redis publisher error:', err));
+redisPublisher.on('connect', () => logger.info('✅ Redis publisher connected'));
 
 // CRITICAL: Use prefixed format to match marketplace onboarding
 // Format: "company_{salon_id}" - consistent with yclients-marketplace.js and marketplace-socket.js
@@ -59,7 +65,7 @@ async function startBaileysService() {
             console.log('==============================================\n');
         });
 
-        pool.on('connected', ({ companyId: cId, user, phoneNumber }) => {
+        pool.on('connected', async ({ companyId: cId, user, phoneNumber }) => {
             if (cId !== companyId) return;
             isConnected = true;
             connectionAttempt = 0;
@@ -67,6 +73,19 @@ async function startBaileysService() {
             console.log('\n✅ WHATSAPP CONNECTED SUCCESSFULLY!');
             console.log(`Phone: ${phoneNumber}`);
             console.log('Ready to send and receive messages\n');
+
+            // Publish to Redis for cross-process communication (Phase 3 WebSocket fix)
+            try {
+                await redisPublisher.publish('whatsapp:events', JSON.stringify({
+                    type: 'connected',
+                    companyId: cId,
+                    phoneNumber,
+                    timestamp: Date.now()
+                }));
+                logger.info('📤 Published connected event to Redis', { companyId: cId });
+            } catch (redisError) {
+                logger.error('Failed to publish connected event to Redis:', redisError);
+            }
         });
 
         pool.on('message', async ({ companyId: cId, message }) => {
