@@ -1,38 +1,41 @@
 # WhatsApp Pairing Code Fix - Tasks
 
-**Last Updated:** 2025-12-04
-**Status:** In Progress
+**Last Updated:** 2025-12-04 15:45 MSK
+**Status:** Phase 1 COMPLETE - Deployed to Production
 
 ---
 
 ## Phase 1: Core Credential Fixes (CRITICAL)
 
 ### Task 1.1: Add Credential Cleanup Before Session Creation
-- [ ] Add option to delete old credentials in `_createSessionWithMutex()`
-- [ ] Call `removeTimewebAuthState()` when `usePairingCode` and `phoneNumber` provided
-- [ ] Handle cleanup errors gracefully (log but don't block)
-- [ ] Add logging for credential cleanup
+- [x] Add option to delete old credentials in `_createSessionWithMutex()`
+- [x] Call `removeTimewebAuthState()` when `usePairingCode` and `phoneNumber` provided
+- [x] Handle cleanup errors gracefully (log but don't block)
+- [x] Add logging for credential cleanup
 - **File:** `src/integrations/whatsapp/session-pool.js`
-- **Lines:** 267-284
-- **Est:** 30 min
+- **Lines:** 286-307
+- **Est:** 30 min | **Actual:** 15 min
+- **Status:** ✅ COMPLETE (2025-12-04)
 
 ### Task 1.2: Add Phone Number Validation on Credential Load
-- [ ] Accept `options.phoneNumber` in `useTimewebAuthState()`
-- [ ] Extract stored phone from `creds.me.id`
-- [ ] Compare stored phone with requested phone
-- [ ] If mismatch: delete old credentials, create fresh
-- [ ] Log phone mismatch for debugging
+- [x] Accept `options.phoneNumber` in `useTimewebAuthState()`
+- [x] Extract stored phone from `creds.me.id`
+- [x] Compare stored phone with requested phone
+- [x] If mismatch: delete old credentials, create fresh
+- [x] Log phone mismatch for debugging
 - **File:** `src/integrations/whatsapp/auth-state-timeweb.js`
-- **Lines:** 354-464
-- **Est:** 45 min
+- **Lines:** 407-463
+- **Est:** 45 min | **Actual:** 30 min
+- **Status:** ✅ COMPLETE (2025-12-04)
 
 ### Task 1.3: Pass Phone Number Through Session Chain
-- [ ] Update `createSession()` options interface
-- [ ] Pass `options.phoneNumber` to `useTimewebAuthState()`
-- [ ] Ensure phone flows from WebSocket handler through to auth state
+- [x] Update `createSession()` options interface
+- [x] Pass `options.phoneNumber` to `useTimewebAuthState()`
+- [x] Ensure phone flows from WebSocket handler through to auth state
 - **File:** `src/integrations/whatsapp/session-pool.js`
-- **Lines:** 286-289
-- **Est:** 15 min
+- **Lines:** 304-307
+- **Est:** 15 min | **Actual:** Done with Task 1.1
+- **Status:** ✅ COMPLETE (2025-12-04)
 
 ---
 
@@ -122,11 +125,11 @@
 
 | Phase | Tasks | Completed | Status |
 |-------|-------|-----------|--------|
-| Phase 1 | 3 | 0 | Not Started |
+| Phase 1 | 3 | 3 | ✅ COMPLETE |
 | Phase 2 | 3 | 0 | Not Started |
 | Phase 3 | 2 | 0 | Not Started |
 | Phase 4 | 3 | 0 | Not Started |
-| **Total** | **11** | **0** | **0%** |
+| **Total** | **11** | **3** | **27%** |
 
 ---
 

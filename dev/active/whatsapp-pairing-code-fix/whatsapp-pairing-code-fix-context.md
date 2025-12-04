@@ -1,7 +1,8 @@
 # WhatsApp Pairing Code Fix - Context
 
-**Last Updated:** 2025-12-04
-**Status:** In Progress
+**Last Updated:** 2025-12-04 15:45 MSK
+**Status:** Phase 1 COMPLETE, Deployed to Production
+**Commit:** `4f681e0` - fix(whatsapp): add phone number mismatch detection for pairing code flow
 
 ---
 
@@ -193,9 +194,63 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 "pm2 logs ai-admin-api --li
 
 ---
 
+## Session Summary (2025-12-04)
+
+### What Was Done
+1. **Phase 1 COMPLETE** - Core credential fixes implemented and deployed
+2. **Code Review** done by `code-architecture-reviewer` agent - found 5 critical issues
+3. **Dev-docs created** via `/dev-docs` command
+
+### Key Changes Made
+
+**File 1: `src/integrations/whatsapp/session-pool.js`**
+- Lines 286-307: Added phone number extraction and passing to auth state
+- Pass `phoneNumber` option to `useTimewebAuthState()` when pairing code requested
+- Log message: `📱 Pairing code requested for phone X, checking for credential conflicts...`
+
+**File 2: `src/integrations/whatsapp/auth-state-timeweb.js`**
+- Line 359: Extract `phoneNumber` from options as `requestedPhone`
+- Lines 407-463: NEW - Phone mismatch detection block
+  - Extract stored phone from `creds.me?.id?.split('@')[0]`
+  - Compare normalized phones (digits only)
+  - If mismatch: call `removeTimewebAuthState()`, create fresh `initAuthCreds()`
+  - Log to Sentry with tag `phone_mismatch_cleanup`
+
+### How The Fix Works
+```
+1. User requests pairing code with phone 79006464263
+2. auth-state-timeweb loads credentials from PostgreSQL
+3. IF stored phone (79936363848) != requested phone (79006464263):
+   - Log warning "Phone number mismatch detected"
+   - Delete old credentials (whatsapp_auth + whatsapp_keys)
+   - Clear cache
+   - Create fresh credentials with initAuthCreds()
+4. Baileys connects with clean credentials
+5. Pairing code generated successfully
+```
+
+### Deployment Status
+- **Committed:** `4f681e0`
+- **Pushed:** to main branch
+- **Deployed:** `ssh root@46.149.70.219 "cd /opt/ai-admin && git pull && pm2 restart ai-admin-api"`
+- **Verified:** API starts without errors, pairing code generated (PNKM-5VQW)
+
+### Waiting For
+- Moderator (Филипп) to test salon 997441 with phone 79006464263
+- Should see phone mismatch detection in logs if old credentials exist
+
 ## Next Actions
 
-1. Implement Task 1.1: Credential cleanup in session-pool.js
-2. Implement Task 1.2: Phone validation in auth-state-timeweb.js
-3. Test with moderator's salon (997441)
-4. Deploy to production
+### If Phase 1 Testing Passes
+1. Mark task complete, move to `dev/completed/`
+2. Consider Phase 2 (WebSocket improvements) - NOT critical
+
+### If Testing Fails
+1. Check logs: `pm2 logs ai-admin-api --lines 100 | grep -i mismatch`
+2. Verify phone number format matches (both normalized to digits only)
+3. Check if `removeTimewebAuthState()` actually deletes records
+
+### Phase 2 Tasks (Optional - Improves UX)
+- Task 2.1: Add `reset-whatsapp-credentials` WebSocket event
+- Task 2.2: Improve error messages from Baileys
+- Task 2.3: Add 20s timeout for pairing code requests
