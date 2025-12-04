@@ -1465,6 +1465,11 @@ async function handleWebhookEvent(eventType, salonId, data) {
 /**
  * Обработка удаления приложения
  * Полная очистка: сессия, credentials, cache, статус, audit log
+ *
+ * Использует транзакцию для атомарности операций с БД:
+ * - Удаление credentials (whatsapp_auth, whatsapp_keys)
+ * - Обновление статуса компании
+ * - Запись в audit log
  */
 async function handleUninstall(salonId) {
   logger.info(`🗑️ Handling uninstall for salon ${salonId}`);
@@ -1492,7 +1497,7 @@ async function handleUninstall(salonId) {
 
     const companyId = company.id;
 
-    // 3. Удалить in-memory сессию WhatsApp
+    // 3. Удалить in-memory сессию WhatsApp (вне транзакции - memory operation)
     try {
       await sessionPool.removeSession(companyId);
       logger.info('✅ WhatsApp session removed');
@@ -1500,15 +1505,7 @@ async function handleUninstall(salonId) {
       logger.warn('⚠️ Failed to remove WhatsApp session:', error.message);
     }
 
-    // 4. Удалить credentials из БД (whatsapp_auth, whatsapp_keys)
-    try {
-      await removeTimewebAuthState(companyId);
-      logger.info('✅ WhatsApp credentials removed from database');
-    } catch (error) {
-      logger.warn('⚠️ Failed to remove credentials:', error.message);
-    }
-
-    // 5. Очистить credentials cache
+    // 4. Очистить credentials cache (вне транзакции - memory operation)
     try {
       if (sessionPool && sessionPool.clearCachedCredentials) {
         sessionPool.clearCachedCredentials(companyId);
@@ -1518,27 +1515,45 @@ async function handleUninstall(salonId) {
       logger.warn('⚠️ Failed to clear credentials cache:', error.message);
     }
 
-    // 6. Обновить статус компании в БД + очистить API key
-    await companyRepository.update(companyId, {
-      integration_status: 'uninstalled',
-      whatsapp_connected: false,
-      disconnected_at: new Date().toISOString(),
-      api_key: null
+    // 5. ТРАНЗАКЦИЯ: Все операции с БД атомарно
+    await companyRepository.withTransaction(async (txClient) => {
+      // 5.1 Удалить credentials из whatsapp_auth
+      await txClient.query(
+        'DELETE FROM whatsapp_auth WHERE company_id = $1',
+        [companyId]
+      );
+      logger.info('✅ WhatsApp auth deleted (transaction)');
+
+      // 5.2 Удалить credentials из whatsapp_keys
+      await txClient.query(
+        'DELETE FROM whatsapp_keys WHERE company_id = $1',
+        [companyId]
+      );
+      logger.info('✅ WhatsApp keys deleted (transaction)');
+
+      // 5.3 Обновить статус компании
+      await txClient.query(
+        `UPDATE companies
+         SET integration_status = $1,
+             whatsapp_connected = $2,
+             disconnected_at = $3,
+             api_key = NULL,
+             updated_at = NOW()
+         WHERE id = $4`,
+        ['uninstalled', false, new Date().toISOString(), companyId]
+      );
+      logger.info('✅ Company status updated (transaction)');
+
+      // 5.4 Залогировать событие в marketplace_events
+      await txClient.query(
+        `INSERT INTO marketplace_events (company_id, salon_id, event_type, event_data, created_at)
+         VALUES ($1, $2, $3, $4, NOW())`,
+        [companyId, parseInt(salonId), 'uninstalled', JSON.stringify({ source: 'yclients_webhook' })]
+      );
+      logger.info('✅ Marketplace event logged (transaction)');
     });
 
-    // 7. Залогировать событие в marketplace_events
-    try {
-      await marketplaceEventsRepository.insert({
-        company_id: companyId,
-        salon_id: parseInt(salonId),
-        event_type: 'uninstalled',
-        event_data: { source: 'yclients_webhook' }
-      });
-    } catch (error) {
-      logger.warn('⚠️ Failed to log marketplace event:', error.message);
-    }
-
-    logger.info(`✅ Company ${companyId} (salon ${salonId}) fully uninstalled`);
+    logger.info(`✅ Company ${companyId} (salon ${salonId}) fully uninstalled (atomic transaction)`);
 
   } catch (error) {
     logger.error('❌ Failed to handle uninstall:', error);
@@ -1552,6 +1567,12 @@ async function handleUninstall(salonId) {
 /**
  * Обработка заморозки приложения
  * При freeze: останавливаем сессию, но НЕ удаляем credentials (для восстановления после оплаты)
+ *
+ * Использует транзакцию для атомарности:
+ * - Обновление статуса компании
+ * - Запись в audit log
+ *
+ * ВАЖНО: credentials НЕ удаляются (в отличие от uninstall)
  */
 async function handleFreeze(salonId) {
   logger.info(`❄️ Handling freeze for salon ${salonId}`);
@@ -1576,33 +1597,40 @@ async function handleFreeze(salonId) {
       return;
     }
 
-    // При freeze - останавливаем сессию, но НЕ удаляем credentials
-    // (чтобы можно было восстановить после оплаты)
+    const companyId = company.id;
+
+    // 1. Останавливаем сессию (вне транзакции - memory operation)
+    // НЕ удаляем credentials - они нужны для восстановления после оплаты
     try {
-      await sessionPool.removeSession(company.id);
+      await sessionPool.removeSession(companyId);
       logger.info('✅ WhatsApp session stopped (frozen)');
     } catch (error) {
       logger.warn('⚠️ Failed to stop WhatsApp session:', error.message);
     }
 
-    await companyRepository.update(company.id, {
-      integration_status: 'frozen',
-      whatsapp_connected: false
+    // 2. ТРАНЗАКЦИЯ: Обновление статуса + audit log атомарно
+    await companyRepository.withTransaction(async (txClient) => {
+      // 2.1 Обновить статус компании (БЕЗ удаления api_key!)
+      await txClient.query(
+        `UPDATE companies
+         SET integration_status = $1,
+             whatsapp_connected = $2,
+             updated_at = NOW()
+         WHERE id = $3`,
+        ['frozen', false, companyId]
+      );
+      logger.info('✅ Company status updated to frozen (transaction)');
+
+      // 2.2 Залогировать событие
+      await txClient.query(
+        `INSERT INTO marketplace_events (company_id, salon_id, event_type, event_data, created_at)
+         VALUES ($1, $2, $3, $4, NOW())`,
+        [companyId, parseInt(salonId), 'frozen', JSON.stringify({ source: 'yclients_webhook', reason: 'payment_overdue' })]
+      );
+      logger.info('✅ Marketplace event logged (transaction)');
     });
 
-    // Логируем событие
-    try {
-      await marketplaceEventsRepository.insert({
-        company_id: company.id,
-        salon_id: parseInt(salonId),
-        event_type: 'frozen',
-        event_data: { source: 'yclients_webhook', reason: 'payment_overdue' }
-      });
-    } catch (error) {
-      logger.warn('⚠️ Failed to log marketplace event:', error.message);
-    }
-
-    logger.info(`✅ Company ${company.id} (salon ${salonId}) frozen`);
+    logger.info(`✅ Company ${companyId} (salon ${salonId}) frozen (atomic transaction, credentials preserved)`);
 
   } catch (error) {
     logger.error('❌ Failed to handle freeze:', error);
