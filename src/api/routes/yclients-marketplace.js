@@ -281,28 +281,32 @@ router.get('/auth/yclients/redirect', async (req, res) => {
     const { sanitizeString, validateEmail, normalizePhone, validateId } = require('../../utils/validators');
 
     if (user_data) {
-      // SECURITY: Log signature for debugging (algorithm TBD with YClients)
-      // TODO: Enable HMAC verification once we confirm the algorithm with YClients support
+      // SECURITY: Verify HMAC-SHA256 signature (confirmed by YClients support)
+      // Algorithm: hash_hmac('sha256', user_data, PARTNER_TOKEN)
+      // user_data is base64-encoded string, NOT decoded JSON
+      // Reference: https://support.yclients.com/67-69-212
       if (user_data_sign) {
-        // Log for debugging - we need to determine the correct HMAC algorithm
-        const testSignatures = {
-          sha256_partner: crypto.createHmac('sha256', PARTNER_TOKEN).update(user_data).digest('hex'),
-          sha256_app_id: crypto.createHmac('sha256', APP_ID).update(user_data).digest('hex'),
-          md5_partner: crypto.createHash('md5').update(user_data + PARTNER_TOKEN).digest('hex'),
-        };
+        const expectedSign = crypto.createHmac('sha256', PARTNER_TOKEN).update(user_data).digest('hex');
 
-        logger.info('🔐 HMAC signature debug (to determine algorithm):', {
-          received: user_data_sign,
-          sha256_partner_prefix: testSignatures.sha256_partner.substring(0, 16),
-          sha256_app_id_prefix: testSignatures.sha256_app_id.substring(0, 16),
-          md5_partner_prefix: testSignatures.md5_partner.substring(0, 16),
-          match_sha256_partner: testSignatures.sha256_partner === user_data_sign,
-          match_sha256_app_id: testSignatures.sha256_app_id === user_data_sign,
-          match_md5_partner: testSignatures.md5_partner === user_data_sign,
-        });
+        if (expectedSign !== user_data_sign) {
+          logger.error('❌ HMAC signature verification failed', {
+            salon_id,
+            received_prefix: user_data_sign.substring(0, 16) + '...',
+            expected_prefix: expectedSign.substring(0, 16) + '...'
+          });
+          Sentry.captureMessage('YClients HMAC signature mismatch', {
+            level: 'warning',
+            tags: { component: 'marketplace', security: true },
+            extra: { salon_id }
+          });
+          return res.status(403).send(renderErrorPage(
+            'Ошибка безопасности',
+            'Неверная подпись данных. Пожалуйста, попробуйте подключиться заново из маркетплейса YClients.',
+            'https://yclients.com/marketplace'
+          ));
+        }
 
-        // For now, just log and continue - enable strict verification after confirming algorithm
-        logger.info('⚠️ HMAC verification DISABLED during moderation - proceeding with registration');
+        logger.info('✅ HMAC signature verified successfully', { salon_id });
       } else {
         logger.warn('⚠️ user_data provided without signature', { salon_id });
       }
@@ -363,6 +367,23 @@ router.get('/auth/yclients/redirect', async (req, res) => {
       ));
     }
 
+    // Валидация формата salon_id (должен быть положительным целым числом)
+    const validSalonId = validateSalonId(salon_id);
+    if (!validSalonId) {
+      logger.error('❌ Невалидный формат salon_id', { salon_id, type: typeof salon_id });
+      Sentry.captureMessage('Invalid salon_id format in marketplace registration', {
+        level: 'warning',
+        tags: { component: 'marketplace', security: true },
+        extra: { salon_id, type: typeof salon_id }
+      });
+      return res.status(400).send(renderErrorPage(
+        'Ошибка подключения',
+        'Некорректный ID салона',
+        'https://yclients.com/marketplace'
+      ));
+    }
+    salon_id = validSalonId; // Используем валидированное значение (integer)
+
     // Получаем информацию о салоне из YClients API
     let salonInfo = null;
     try {
@@ -378,10 +399,10 @@ router.get('/auth/yclients/redirect', async (req, res) => {
     // Создаем или обновляем запись в БД
     let company;
     try {
-      const salonIdInt = parseInt(salon_id);
+      // salon_id уже валидирован и является integer после validateSalonId()
       company = await companyRepository.upsertByYclientsId({
-        yclients_id: salonIdInt,
-        company_id: salonIdInt, // ВАЖНО: company_id = yclients_id для совместимости со схемой БД
+        yclients_id: salon_id,
+        company_id: salon_id, // ВАЖНО: company_id = yclients_id для совместимости со схемой БД
         title: salonInfo?.title || salon_name || `Салон ${salon_id}`,
         phone: salonInfo?.phone || user_phone || '',
         email: salonInfo?.email || user_email || '',
@@ -414,7 +435,7 @@ router.get('/auth/yclients/redirect', async (req, res) => {
     const token = jwt.sign(
       {
         company_id: company.id,
-        salon_id: parseInt(salon_id),
+        salon_id, // Уже integer после validateSalonId()
         type: 'marketplace_registration',
         user_data: { user_id, user_name, user_phone, user_email }
       },
@@ -425,7 +446,7 @@ router.get('/auth/yclients/redirect', async (req, res) => {
     // Сохраняем событие регистрации
     await marketplaceEventsRepository.insert({
       company_id: company.id,
-      salon_id: parseInt(salon_id),
+      salon_id, // Уже integer после validateSalonId()
       event_type: 'registration_started',
       event_data: {
         user_id,
