@@ -19,6 +19,12 @@ const { RobokassaPaymentRepository } = require('../../repositories');
 const RobokassaService = require('../../services/payment/robokassa-service');
 const robokassaConfig = require('../../config/robokassa-config');
 const rateLimiter = require('../../middlewares/rate-limiter');
+const {
+  validateCreatePayment,
+  validateInvoiceId,
+  validateSalonId,
+  validateHistoryQuery
+} = require('../../middlewares/validators/robokassa-validator');
 
 // Initialize dependencies
 const repository = new RobokassaPaymentRepository(postgres);
@@ -35,42 +41,12 @@ const service = new RobokassaService(repository);
  * - description: string (optional) - Payment description
  * - email: string (optional) - Customer email for receipt
  */
-router.post('/create', rateLimiter, async (req, res) => {
+router.post('/create', rateLimiter, validateCreatePayment, async (req, res) => {
   const startTime = Date.now();
   const { salon_id, amount, description, email } = req.body;
 
   try {
-    // Validate required fields
-    if (!salon_id) {
-      return res.status(400).json({
-        success: false,
-        error: 'salon_id is required'
-      });
-    }
-
-    if (!amount || amount <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'amount must be a positive number'
-      });
-    }
-
-    // Validate amount range
-    if (amount < robokassaConfig.validation.minAmount) {
-      return res.status(400).json({
-        success: false,
-        error: `Amount must be at least ${robokassaConfig.validation.minAmount} RUB`
-      });
-    }
-
-    if (amount > robokassaConfig.validation.maxAmount) {
-      return res.status(400).json({
-        success: false,
-        error: `Amount cannot exceed ${robokassaConfig.validation.maxAmount} RUB`
-      });
-    }
-
-    // Generate payment URL
+    // Generate payment URL (validation already done by middleware)
     const result = await service.generatePaymentUrl(salon_id, amount, {
       description,
       email
@@ -111,7 +87,7 @@ router.post('/create', rateLimiter, async (req, res) => {
  *
  * Get payment status by invoice ID
  */
-router.get('/status/:invoiceId', rateLimiter, async (req, res) => {
+router.get('/status/:invoiceId', rateLimiter, validateInvoiceId, async (req, res) => {
   const { invoiceId } = req.params;
 
   try {
@@ -163,7 +139,7 @@ router.get('/status/:invoiceId', rateLimiter, async (req, res) => {
  * - limit: number (optional) - Max records (default: 50)
  * - offset: number (optional) - Offset for pagination
  */
-router.get('/history/:salonId', rateLimiter, async (req, res) => {
+router.get('/history/:salonId', rateLimiter, validateSalonId, validateHistoryQuery, async (req, res) => {
   const { salonId } = req.params;
   const { status, limit, offset } = req.query;
 
