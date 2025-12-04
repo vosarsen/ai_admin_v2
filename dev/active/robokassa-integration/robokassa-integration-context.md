@@ -1,71 +1,100 @@
 # Robokassa Integration - Context
 
-**Last Updated:** 2025-12-04 20:45 MSK
-**Current Phase:** Phase 2 - Repository Layer (NEXT)
+**Last Updated:** 2025-12-04 22:30 MSK
+**Current Phase:** Phase 8 - Robokassa Panel Configuration (NEXT)
 **Review Status:** ✅ APPROVED WITH REQUIRED CHANGES
-**Session:** 1 - Infrastructure Complete
+**Session:** 2 - Code Implementation Complete
 
 ---
 
-## Session 1 Summary (2025-12-04)
+## Session 2 Summary (2025-12-04)
 
 ### Completed This Session
-1. ✅ Created comprehensive plan from Robokassa screenshot
-2. ✅ Ran plan through `plan-reviewer` agent - found 4 critical issues
-3. ✅ Incorporated all critical fixes into plan
-4. ✅ Created database migration
-5. ✅ Ran migration on Timeweb PostgreSQL (table created)
-6. ✅ Added Robokassa credentials to server .env
-7. ✅ Committed and pushed changes to git
+1. ✅ Created RobokassaPaymentRepository with all methods
+2. ✅ Created robokassa-service.js with business logic
+3. ✅ Created webhook handler with critical security fixes
+4. ✅ Created API routes for payment management
+5. ✅ Created success/fail HTML pages
+6. ✅ Registered all routes in src/api/index.js
+7. ✅ Updated dev docs with progress
 
-### Infrastructure Status
-- **Database:** `robokassa_payments` table created ✅
-- **Credentials:** Added to server .env ✅
-- **PM2 Restart:** Pending (after code deployment)
+### Code Implementation Status
+- **Repository:** ✅ Complete (~320 lines)
+- **Service:** ✅ Complete (~380 lines)
+- **Webhook:** ✅ Complete (~200 lines)
+- **API Routes:** ✅ Complete (~270 lines)
+- **Frontend Pages:** ✅ Complete (~340 lines)
+- **Route Registration:** ✅ Complete
 
-### Critical Fixes from Plan Review
-
-| # | Issue | Fix Applied |
-|---|-------|-------------|
-| 1 | Webhook responded BEFORE verification | Respond `OK{InvId}` only AFTER all checks |
-| 2 | No amount verification | Compare OutSum with DB amount |
-| 3 | No idempotency check | Check if already processed before re-processing |
-| 4 | No urlencoded middleware | Use `express.urlencoded()` for form data |
+### Critical Security Fixes Implemented
+1. ✅ Webhook responds `OK{InvId}` only AFTER all checks
+2. ✅ Amount verification (compare OutSum with DB)
+3. ✅ Idempotency check before re-processing
+4. ✅ `express.urlencoded()` for form data
+5. ✅ MD5 signature with `toUpperCase()`
+6. ✅ Password2 for Result URL verification
+7. ✅ 25s timeout wrapper for processing
 
 ---
 
 ## Next Steps (Start Here on Resume)
 
-### Immediate Action: Create Repository
+### Immediate Action: Commit and Deploy
 
-**File to create:** `src/repositories/RobokassaPaymentRepository.js`
+```bash
+# 1. Check git status
+git status
 
-**Pattern to follow:** `src/repositories/BaseRepository.js`
+# 2. Stage all new files
+git add -A
 
-**Key methods needed:**
-```javascript
-class RobokassaPaymentRepository extends BaseRepository {
-  // Create new payment record
-  async insert(data) { ... }
+# 3. Commit
+git commit -m "feat: add Robokassa payment integration
 
-  // Find by invoice ID (for Result URL)
-  async findByInvoiceId(invoiceId) { ... }
+- Add RobokassaPaymentRepository with CRUD operations
+- Add robokassa-service.js with signature verification
+- Add webhook handler with security checks
+- Add API routes for payment management
+- Add success/fail HTML pages
+- All critical security fixes from plan review implemented
 
-  // Find with row lock for transaction (critical!)
-  async findByInvoiceIdForUpdate(invoiceId, client) { ... }
+Robokassa integration ready for testing."
 
-  // Update status after payment confirmation
-  async updateStatus(invoiceId, status, extra) { ... }
+# 4. Push
+git push origin main
 
-  // Generate unique invoice ID (16-digit max!)
-  getNextInvoiceId() { ... }
-
-  // Get payment history for salon
-  async findBySalonId(salonId, options) { ... }
-}
+# 5. Deploy to server
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 \
+  "cd /opt/ai-admin && git pull origin main && pm2 restart all"
 ```
 
-**After repository:** Add export to `src/repositories/index.js`
+### After Deployment: Configure Robokassa Panel
+
+1. Login to Robokassa merchant panel
+2. Set Result URL: `https://adminai.tech/api/payments/robokassa/result`
+3. Set Success URL: `https://adminai.tech/payment/success`
+4. Set Fail URL: `https://adminai.tech/payment/fail`
+5. Verify hash algorithm is MD5
+6. Enable test mode
+
+### Testing
+
+```bash
+# Test health endpoint
+curl https://adminai.tech/api/payments/robokassa/health
+
+# Test config endpoint
+curl https://adminai.tech/api/payments/robokassa/config
+
+# Test invalid signature (should return 400)
+curl -X POST https://adminai.tech/api/payments/robokassa/result \
+  -d "OutSum=100&InvId=123&SignatureValue=INVALID"
+
+# Create test payment
+curl -X POST https://adminai.tech/api/payments/robokassa/create \
+  -H "Content-Type: application/json" \
+  -d '{"salon_id": 962302, "amount": 100, "description": "Test payment"}'
+```
 
 ---
 
@@ -80,109 +109,46 @@ Test Mode: true
 
 **Signature Formulas:**
 ```javascript
-// Payment Form: MD5(Login:Sum:InvId:Pass1).toUpperCase()
+// Payment Form: MD5(Login:Sum:InvId:Receipt:Pass1).toUpperCase()
 // Result URL:   MD5(Sum:InvId:Pass2).toUpperCase()
 ```
+
+---
+
+## API Endpoints
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/api/payments/robokassa/create` | Generate payment URL |
+| GET | `/api/payments/robokassa/status/:invoiceId` | Get payment status |
+| GET | `/api/payments/robokassa/history/:salonId` | Get payment history |
+| GET | `/api/payments/robokassa/config` | Get config status |
+| POST | `/api/payments/robokassa/result` | Robokassa webhook |
+| GET | `/api/payments/robokassa/result` | Robokassa webhook (GET fallback) |
+| GET | `/api/payments/robokassa/health` | Health check |
+| GET | `/payment/success` | Success page |
+| GET | `/payment/fail` | Fail page |
 
 ---
 
 ## Key Files
 
 ### Created This Session
-- `migrations/20251204_create_robokassa_payments.sql` ✅
-- `dev/active/robokassa-integration/robokassa-integration-plan.md` ✅
-- `dev/active/robokassa-integration/robokassa-integration-context.md` ✅
-- `dev/active/robokassa-integration/robokassa-integration-tasks.md` ✅
+- `src/repositories/RobokassaPaymentRepository.js`
+- `src/services/payment/robokassa-service.js`
+- `src/api/webhooks/robokassa.js`
+- `src/api/routes/robokassa.js`
+- `public/payment/success.html`
+- `public/payment/fail.html`
+
+### Modified This Session
+- `src/repositories/index.js` - Added export
+- `src/api/index.js` - Registered routes
 
 ### Existing References
-- `src/config/robokassa-config.js` - Config with merchant info, fiscal settings (180 lines)
+- `src/config/robokassa-config.js` - Config with merchant info, fiscal settings
 - `src/repositories/BaseRepository.js` - Base class with transaction support
-- `src/api/webhooks/yclients.js` - Webhook pattern reference
-
-### To Create
-- `src/repositories/RobokassaPaymentRepository.js` (~150 lines)
-- `src/services/payment/robokassa-service.js` (~350 lines)
-- `src/api/webhooks/robokassa.js` (~250 lines)
-- `src/api/routes/robokassa.js` (~250 lines)
-- `public/payment/success.html` (~150 lines)
-- `public/payment/fail.html` (~150 lines)
-
----
-
-## Critical Implementation Notes
-
-### 1. Webhook Response Pattern (CORRECT)
-```javascript
-router.post('/result', limiter, async (req, res) => {
-  const { OutSum, InvId, SignatureValue } = req.body;
-
-  // 1. FIRST: Verify signature
-  if (!verifySignature(OutSum, InvId, SignatureValue)) {
-    return res.status(400).send('bad sign');
-  }
-
-  // 2. Find payment and verify amount
-  const payment = await repository.findByInvoiceId(InvId);
-  if (!payment) return res.status(400).send('bad sign');
-
-  // 3. Verify amount matches (prevent fraud!)
-  if (Math.abs(payment.amount - parseFloat(OutSum)) > 0.01) {
-    return res.status(400).send('bad sign');
-  }
-
-  // 4. Idempotency check
-  if (payment.status === 'success') {
-    res.setHeader('Content-Type', 'text/plain');
-    return res.send(`OK${InvId}`);
-  }
-
-  // 5. Process with timeout
-  await processPaymentWithTimeout(InvId, OutSum, SignatureValue);
-
-  // 6. LAST: Return OK
-  res.setHeader('Content-Type', 'text/plain');
-  res.send(`OK${InvId}`);
-});
-```
-
-### 2. Invoice ID Format (16-digit max)
-```javascript
-getNextInvoiceId() {
-  const timestamp = Date.now(); // 13 digits
-  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  return parseInt(`${timestamp}${random}`); // 16 digits max
-}
-```
-
-### 3. Transaction in processPayment
-```javascript
-async processPayment(invId, outSum, signatureValue) {
-  return this.repository.withTransaction(async (client) => {
-    const payment = await client.query(
-      'SELECT * FROM robokassa_payments WHERE invoice_id = $1 FOR UPDATE',
-      [invId]
-    );
-    // ... update status
-  });
-}
-```
-
----
-
-## Quick Verification Commands
-
-```bash
-# Verify table exists
-ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 \
-  "PGPASSWORD='}X|oM595A<7n?0' psql -h a84c973324fdaccfc68d929d.twc1.net -U gen_user -d default_db -c '\dt robokassa*'"
-
-# Verify credentials
-ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 \
-  "cd /opt/ai-admin && grep ROBOKASSA .env"
-
-# Check git status
-git log --oneline -3
-```
+- `src/middlewares/rate-limiter.js` - SmartRateLimiter
 
 ---
 
@@ -192,23 +158,15 @@ git log --oneline -3
 |-------|--------|-------|
 | 1. Database | ✅ Complete | Migration ran successfully |
 | 7. Environment | ✅ Complete | Credentials in .env |
-| 2. Repository | ⬜ Next | Create RobokassaPaymentRepository |
-| 3. Service | ⬜ Pending | After repository |
-| 4. Webhook | ⬜ Pending | Critical fixes ready |
-| 5. API Routes | ⬜ Pending | |
-| 6. Frontend | ⬜ Pending | Can parallelize |
+| 2. Repository | ✅ Complete | All methods implemented |
+| 3. Service | ✅ Complete | With security fixes |
+| 4. Webhook | ✅ Complete | Critical order of operations |
+| 5. API Routes | ✅ Complete | All endpoints |
+| 6. Frontend | ✅ Complete | Branded pages |
 | 8. Robokassa Panel | ⬜ Pending | After deployment |
+| Testing | ⬜ Pending | After deployment |
 
-**Overall:** 14% complete (8/59 tasks)
-
----
-
-## Robokassa Panel URLs (To Configure)
-
-After deployment, configure in Robokassa panel:
-- **Result URL:** `https://adminai.tech/api/payments/robokassa/result`
-- **Success URL:** `https://adminai.tech/payment/success`
-- **Fail URL:** `https://adminai.tech/payment/fail`
+**Overall:** 83% complete (49/59 tasks)
 
 ---
 
@@ -218,3 +176,12 @@ For testing payments:
 - **Number:** `4111111111111111`
 - **Expiry:** Any future date
 - **CVV:** Any 3 digits
+
+---
+
+## Robokassa Panel URLs (To Configure)
+
+After deployment, configure in Robokassa panel:
+- **Result URL:** `https://adminai.tech/api/payments/robokassa/result`
+- **Success URL:** `https://adminai.tech/payment/success`
+- **Fail URL:** `https://adminai.tech/payment/fail`

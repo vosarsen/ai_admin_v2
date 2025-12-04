@@ -32,6 +32,9 @@ const DemoChatAnalyticsRepository = require('./DemoChatAnalyticsRepository');
 const TelegramConnectionRepository = require('./TelegramConnectionRepository');
 const TelegramLinkingRepository = require('./TelegramLinkingRepository');
 
+// Robokassa integration (2025-12-04)
+const RobokassaPaymentRepository = require('./RobokassaPaymentRepository');
+
 module.exports = {
   BaseRepository,
   ClientRepository,
@@ -50,5 +53,7 @@ module.exports = {
   DemoChatAnalyticsRepository,
   // Telegram integration
   TelegramConnectionRepository,
-  TelegramLinkingRepository
+  TelegramLinkingRepository,
+  // Robokassa integration
+  RobokassaPaymentRepository
 };

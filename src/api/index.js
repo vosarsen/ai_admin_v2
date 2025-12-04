@@ -139,6 +139,13 @@ app.use('', yclientsMarketplaceRoutes); // Монтируем в корень д
 const healthRoutes = require('./routes/health');
 app.use('', healthRoutes);
 
+// Robokassa payment integration (2025-12-04)
+const { apiRouter: robokassaRoutes, pageRouter: robokassaPages } = require('./routes/robokassa');
+const robokassaWebhook = require('./webhooks/robokassa');
+app.use('/api/payments/robokassa', robokassaRoutes);
+app.use('/api/payments/robokassa', robokassaWebhook);
+app.use('/payment', robokassaPages); // Success/Fail pages
+
 // WhatsApp webhook - DEPRECATED (redirecting to batched version)
 // All messages should now go through /webhook/whatsapp/batched for proper rapid-fire handling
 app.post('/webhook/whatsapp', rateLimiter, validateWebhookSignature, async (req, res) => {
