@@ -1,7 +1,7 @@
 # Onboarding Critical Fixes - Tasks
 
-**Last Updated:** 2025-12-04 20:55 MSK
-**Status:** Phase 1 & 2 COMPLETE ✅ | Phase 3 & 4 Pending
+**Last Updated:** 2025-12-04 21:05 MSK
+**Status:** Phase 1 & 2 COMPLETE ✅ | Phase 3 IN PROGRESS (Redis Pub/Sub)
 
 ---
 
@@ -79,32 +79,8 @@ _extractPhoneNumber(formattedPhone) {
 - [x] Deleted 22 duplicates from whatsapp_keys
 - [x] Converted 19 keys from numeric to prefixed format
 
-**Migration Script:**
-```sql
--- Backup
--- CREATE TABLE whatsapp_auth_backup AS SELECT * FROM whatsapp_auth;
-
--- Update numeric to prefixed
-UPDATE whatsapp_auth
-SET company_id = CONCAT('company_', company_id)
-WHERE company_id NOT LIKE 'company_%'
-  AND company_id ~ '^[0-9]+$';
-
--- Remove duplicates (keep newest)
-DELETE FROM whatsapp_auth a
-USING whatsapp_auth b
-WHERE a.company_id = b.company_id
-  AND a.created_at < b.created_at;
-
--- Same for keys
-UPDATE whatsapp_keys
-SET company_id = CONCAT('company_', company_id)
-WHERE company_id NOT LIKE 'company_%'
-  AND company_id ~ '^[0-9]+$';
-```
-
 ### 2.5 Run Migration ✅
-- [x] Created backup first (whatsapp_auth_backup_20251204, whatsapp_keys_backup_20251204)
+- [x] Created backup first
 - [x] Run migration on production (2025-12-04 20:50 MSK)
 - [x] Verified changes
 
@@ -115,32 +91,129 @@ WHERE company_id NOT LIKE 'company_%'
 
 ---
 
-## Phase 3: WebSocket Fix (MEDIUM)
+## Phase 3: WebSocket Fix via Redis Pub/Sub (MEDIUM) 🔄 IN PROGRESS
 
-### 3.1 Add Debug Logging
-- [ ] Add logging in `handleConnected()` (marketplace-socket.js)
-- [ ] Log received companyId vs expected sessionId
-- [ ] Log when event is emitted
+### 3.0 Root Cause Analysis ✅ COMPLETE
+- [x] Added debug logging to marketplace-socket.js (commit d84f778)
+- [x] Deployed and analyzed logs
+- [x] **ROOT CAUSE FOUND:** `ai-admin-api` and `baileys-service` are separate PM2 processes
+- [x] Each has its own `sessionPool` instance - events don't cross process boundaries
+- [x] This is an **IPC problem**, not a code bug
 
-### 3.2 Verify Socket.IO Namespace
-- [ ] Check namespace configuration in server
-- [ ] Check namespace connection in client
-- [ ] Verify client connects to `/marketplace`
+### 3.1 Architecture Decision ✅ COMPLETE
+- [x] Evaluated 4 options (DB Polling, Redis Pub/Sub, HTTP Webhook, Unified Process)
+- [x] **CHOSEN:** Redis Pub/Sub
+- [x] Documented decision in context.md
 
-### 3.3 Check Company ID in Events
-- [ ] Verify sessionPool emits correct companyId format
-- [ ] Verify marketplace-socket expects same format
-- [ ] Check for format mismatch
+### 3.2 Implement Redis Publisher (baileys-service)
+- [ ] Add ioredis dependency (already installed)
+- [ ] Create Redis publisher connection
+- [ ] Publish `whatsapp:events` on 'connected' event
+- [ ] Publish `whatsapp:events` on 'disconnected' event
+- [ ] Publish `whatsapp:events` on 'qr' event (optional)
 
-### 3.4 End-to-End Test
-- [ ] Open onboarding page
-- [ ] Open DevTools Network tab (WS filter)
-- [ ] Scan QR code or use pairing code
-- [ ] Watch for `whatsapp-connected` event
-- [ ] Verify page transitions automatically
+**Code to add to `scripts/baileys-service.js`:**
+```javascript
+const Redis = require('ioredis');
+const publisher = new Redis(process.env.REDIS_URL);
 
-### 3.5 Remove Debug Logging
-- [ ] After fix confirmed, remove verbose logging
+// After pool setup, add:
+pool.on('connected', async ({ companyId: cId, phoneNumber }) => {
+  if (cId !== companyId) return;
+
+  // Publish to Redis for cross-process communication
+  await publisher.publish('whatsapp:events', JSON.stringify({
+    type: 'connected',
+    companyId: cId,
+    phoneNumber,
+    timestamp: Date.now()
+  }));
+
+  logger.info('📤 Published connected event to Redis', { companyId: cId });
+});
+```
+
+### 3.3 Implement Redis Subscriber (ai-admin-api)
+- [ ] Create Redis subscriber connection in `src/index.js`
+- [ ] Subscribe to `whatsapp:events` channel
+- [ ] Forward events to marketplace-socket
+
+**Code to add to `src/index.js` (after Socket.IO setup):**
+```javascript
+const Redis = require('ioredis');
+const subscriber = new Redis(process.env.REDIS_URL);
+
+subscriber.subscribe('whatsapp:events', (err) => {
+  if (err) {
+    logger.error('Failed to subscribe to whatsapp:events:', err);
+  } else {
+    logger.info('✅ Subscribed to Redis channel: whatsapp:events');
+  }
+});
+
+subscriber.on('message', (channel, message) => {
+  if (channel === 'whatsapp:events') {
+    try {
+      const event = JSON.parse(message);
+      logger.info('📥 Received Redis event:', event);
+
+      if (event.type === 'connected') {
+        marketplaceSocket.broadcastConnected(event);
+      }
+    } catch (error) {
+      logger.error('Failed to parse Redis event:', error);
+    }
+  }
+});
+```
+
+### 3.4 Add broadcastConnected Method
+- [ ] Add method to `marketplace-socket.js`
+- [ ] Lookup socket by companyId
+- [ ] Emit 'whatsapp-connected' event
+
+**Code to add to `MarketplaceSocket` class:**
+```javascript
+/**
+ * Broadcast WhatsApp connected event from Redis pub/sub
+ * @param {Object} data - Event data from baileys-service
+ */
+broadcastConnected(data) {
+  const { companyId, phoneNumber } = data;
+  const socket = this.connections.get(companyId);
+
+  if (socket) {
+    logger.info('📤 Broadcasting whatsapp-connected via Redis', { companyId, socketId: socket.id });
+
+    socket.emit('whatsapp-connected', {
+      success: true,
+      phone: phoneNumber,
+      sessionId: companyId,
+      message: 'WhatsApp успешно подключен!'
+    });
+  } else {
+    logger.warn('No socket found for company, broadcasting to room', { companyId });
+    // Fallback: broadcast to room
+    this.namespace.to(`company-${companyId.replace('company_', '')}`).emit('whatsapp-connected', {
+      success: true,
+      phone: phoneNumber,
+      sessionId: companyId,
+      message: 'WhatsApp успешно подключен!'
+    });
+  }
+}
+```
+
+### 3.5 Deploy and Test
+- [ ] Commit changes
+- [ ] Push to main
+- [ ] Deploy: `cd /opt/ai-admin && git pull && pm2 restart all`
+- [ ] Monitor Redis: `redis-cli MONITOR | grep whatsapp`
+- [ ] Test WebSocket flow end-to-end
+
+### 3.6 Remove Debug Logging
+- [ ] Remove verbose DEBUG logs from marketplace-socket.js
+- [ ] Remove verbose DEBUG logs from session-pool.js
 - [ ] Keep essential info logging
 
 ---
@@ -170,33 +243,31 @@ const debug = (...args) => DEBUG && console.log(...args);
 - [ ] Add test: LID numbers get @lid suffix
 - [ ] Add test: Regular numbers get @c.us suffix
 
-### 4.3 Add Regular Phone Test
-- [ ] Test 10-digit numbers
-- [ ] Test 11-digit numbers with country code
-- [ ] Test international formats
-
-### 4.4 Update Documentation
+### 4.3 Update Documentation
 - [ ] Update onboarding-testing-report.md with fix status
 - [ ] Add notes about LID format handling
 - [ ] Document company_id format decision
+- [ ] Document Redis Pub/Sub architecture
 
 ---
 
 ## Verification Checklist
 
-### After Phase 1
-- [ ] LID message sends successfully
-- [ ] Regular phone message sends successfully
-- [ ] No regressions in existing functionality
-- [ ] Logs show correct format detection
+### After Phase 1 ✅
+- [x] LID message sends successfully
+- [x] Regular phone message sends successfully
+- [x] No regressions in existing functionality
+- [x] Logs show correct format detection
 
-### After Phase 2
-- [ ] Only one format in whatsapp_auth
-- [ ] Only one format in whatsapp_keys
-- [ ] Session lookup works correctly
-- [ ] handleUninstall finds credentials
+### After Phase 2 ✅
+- [x] Only one format in whatsapp_auth
+- [x] Only one format in whatsapp_keys
+- [x] Session lookup works correctly
+- [x] handleUninstall finds credentials
 
 ### After Phase 3
+- [ ] Redis events published from baileys-service
+- [ ] Redis events received in ai-admin-api
 - [ ] WebSocket event reaches frontend
 - [ ] Page transitions automatically on connect
 - [ ] Polling fallback still works
@@ -218,22 +289,21 @@ ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219
 cd /opt/ai-admin && git pull && pm2 restart all
 
 # Check logs
-pm2 logs ai-admin-worker-v2 --lines 50
+pm2 logs baileys-whatsapp-service --lines 30
+pm2 logs ai-admin-api --lines 30
 
-# Test LID message
-curl -X POST http://localhost:3003/send \
-  -H "Content-Type: application/json" \
-  -d '{"phone":"152926689472618@lid","message":"Test"}'
+# Monitor Redis pub/sub (debug)
+redis-cli MONITOR | grep whatsapp
 
-# Check database
-psql $DATABASE_URL -c "SELECT company_id FROM whatsapp_auth"
+# Test Redis publish manually
+redis-cli PUBLISH whatsapp:events '{"type":"connected","companyId":"company_962302","phoneNumber":"79936363848"}'
 ```
 
 ---
 
 ## Notes
 
-- Phase 1 is CRITICAL and should be done first
-- Phase 2 requires careful migration planning
-- Phase 3 can be done in parallel with Phase 2
+- Phase 1 is CRITICAL ✅ DONE
+- Phase 2 requires careful migration ✅ DONE
+- Phase 3 is architectural fix (Redis Pub/Sub) 🔄 IN PROGRESS
 - Phase 4 is cleanup and can wait
