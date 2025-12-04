@@ -1,148 +1,69 @@
 # Onboarding Critical Fixes - Context
 
-**Last Updated:** 2025-12-04 21:10 MSK (pre-context-reset)
-**Status:** Phase 1 & 2 COMPLETE ✅ | Phase 3 IN PROGRESS (Redis Pub/Sub)
-**Current Phase:** Phase 3.2 - Ready to implement Redis Publisher
+**Last Updated:** 2025-12-04 21:25 MSK
+**Status:** Phase 1, 2, 3 COMPLETE ✅ | Phase 4 (Cleanup) pending
+**Current Phase:** Phase 3 COMPLETE - Redis Pub/Sub implemented and tested
 
 ---
 
-## CRITICAL: NEXT SESSION HANDOFF
+## PROJECT COMPLETE STATUS
 
-### What Was Being Worked On
-Phase 3: WebSocket fix via Redis Pub/Sub. Root cause found, architecture decision made.
-
-### Immediate Next Steps (in order)
-1. **Implement Redis Publisher in `scripts/baileys-service.js`**
-2. **Implement Redis Subscriber in `src/index.js`**
-3. **Add `broadcastConnected()` to `marketplace-socket.js`**
-4. Deploy and test
-
-### Files to Modify (code templates in tasks.md)
-| File | Change |
-|------|--------|
-| `scripts/baileys-service.js` | Add Redis publisher on 'connected' event |
-| `src/index.js` | Initialize Redis subscriber on startup |
-| `src/api/websocket/marketplace-socket.js` | Add `broadcastConnected()` method |
-
-### Test Command After Implementation
-```bash
-# Manual Redis test (will trigger WebSocket)
-redis-cli PUBLISH whatsapp:events '{"type":"connected","companyId":"company_962302","phoneNumber":"79936363848"}'
-```
-
----
-
-## SESSION SUMMARY (2025-12-04)
-
-### Completed This Session:
+### All Critical Phases Done:
 1. **Phase 1 (LID Fix):** ✅ commit `14a222a`
 2. **Phase 2 (Company ID):** ✅ commit `74b4ce8`
-3. **Phase 3 Root Cause Analysis:** ✅
-   - Found IPC problem between PM2 processes
-   - Decided on Redis Pub/Sub solution
+3. **Phase 3 (WebSocket via Redis Pub/Sub):** ✅ commits `7c7297a`, `187bf5e`
 
-### Key Discovery: IPC Architecture Problem
-
-**Problem:** `ai-admin-api` and `baileys-whatsapp-service` are **separate PM2 processes** with separate `sessionPool` instances. Events in baileys-service never reach marketplace-socket.
-
-**Solution:** Redis Pub/Sub for cross-process communication.
+### Remaining (LOW priority):
+- Phase 4: Remove debug logging and console.log statements
+- E2E testing with actual WhatsApp reconnection
 
 ---
 
-## ARCHITECTURE DIAGRAM
+## SESSION 2 SUMMARY (2025-12-04 21:15-21:25 MSK)
 
-### Current (Broken)
+### Phase 3 Implementation Complete:
+1. **Redis Publisher in baileys-service.js**
+   - Uses `createRedisClient()` with proper auth (role: `baileys-publisher`)
+   - Publishes `connected` events to `whatsapp:events` channel
+
+2. **Redis Subscriber in src/api/index.js**
+   - Uses `createRedisClient()` with proper auth (role: `whatsapp-subscriber`)
+   - Subscribes to `whatsapp:events` channel
+   - Forwards events to `marketplaceSocket.broadcastConnected()`
+
+3. **broadcastConnected() in marketplace-socket.js**
+   - Emits `whatsapp-connected` to WebSocket client
+   - Fallback to room broadcast if no direct socket
+
+### Verification:
 ```
-┌─────────────────────┐     ┌─────────────────────┐
-│  ai-admin-api       │     │ baileys-service     │
-│  ┌───────────────┐  │     │  ┌───────────────┐  │
-│  │ sessionPool   │  │     │  │ sessionPool   │  │ ← WhatsApp HERE
-│  │ (empty)       │  │     │  │ (active)      │  │
-│  └───────────────┘  │     │  └───────────────┘  │
-│  marketplace-socket │ ✗   │  'connected' event  │
-│  (never receives)   │     │  (never crosses)    │
-└─────────────────────┘     └─────────────────────┘
+baileys-service: 📤 Published connected event to Redis {"companyId":"company_962302"}
+ai-admin-api:    📥 Received Redis event: {"companyId":"company_962302","type":"connected"}
+ai-admin-api:    No socket found for company, broadcasting to room (expected - no client connected during test)
 ```
 
-### Solution: Redis Pub/Sub
-```
-┌─────────────────────┐          ┌─────────────────────┐
-│  baileys-service    │ PUBLISH  │  ai-admin-api       │
-│  pool.on('connected')│ ───────►│  subscriber.on()    │
-│  → publisher.publish │  Redis  │  → socket.emit()    │
-└─────────────────────┘          └─────────────────────┘
-```
+### Key Fix During Implementation:
+Initially used `new Redis(process.env.REDIS_URL)` which caused `NOAUTH` errors.
+Fixed by using `createRedisClient()` from `redis-factory.js` which properly reads `REDIS_PASSWORD`.
 
 ---
 
-## IMPLEMENTATION CODE (Ready to Use)
+## FINAL ARCHITECTURE
 
-### Step 1: baileys-service.js (add after line ~30)
-```javascript
-const Redis = require('ioredis');
-const publisher = new Redis(process.env.REDIS_URL);
-
-// After existing pool.on('connected'), add Redis publish:
-pool.on('connected', async ({ companyId: cId, phoneNumber }) => {
-  if (cId !== companyId) return;
-
-  await publisher.publish('whatsapp:events', JSON.stringify({
-    type: 'connected',
-    companyId: cId,
-    phoneNumber,
-    timestamp: Date.now()
-  }));
-  logger.info('📤 Published connected event to Redis', { companyId: cId });
-});
 ```
-
-### Step 2: src/index.js (add after Socket.IO setup)
-```javascript
-// Redis subscriber for cross-process WhatsApp events
-const Redis = require('ioredis');
-const whatsappSubscriber = new Redis(process.env.REDIS_URL);
-
-whatsappSubscriber.subscribe('whatsapp:events', (err) => {
-  if (err) logger.error('Redis subscribe error:', err);
-  else logger.info('✅ Subscribed to whatsapp:events');
-});
-
-whatsappSubscriber.on('message', (channel, message) => {
-  if (channel === 'whatsapp:events') {
-    const event = JSON.parse(message);
-    logger.info('📥 Redis event:', event);
-    if (event.type === 'connected') {
-      marketplaceSocket.broadcastConnected(event);
-    }
-  }
-});
-```
-
-### Step 3: marketplace-socket.js (add method to class)
-```javascript
-broadcastConnected(data) {
-  const { companyId, phoneNumber } = data;
-  const socket = this.connections.get(companyId);
-
-  if (socket) {
-    logger.info('📤 Broadcasting whatsapp-connected', { companyId });
-    socket.emit('whatsapp-connected', {
-      success: true,
-      phone: phoneNumber,
-      sessionId: companyId,
-      message: 'WhatsApp успешно подключен!'
-    });
-  } else {
-    // Fallback to room
-    const salonId = companyId.replace('company_', '');
-    this.namespace.to(`company-${salonId}`).emit('whatsapp-connected', {
-      success: true,
-      phone: phoneNumber,
-      sessionId: companyId,
-      message: 'WhatsApp успешно подключен!'
-    });
-  }
-}
+┌─────────────────────────┐          ┌─────────────────────────┐
+│  baileys-service        │ PUBLISH  │  ai-admin-api           │
+│  (PM2 process)          │ ───────► │  (PM2 process)          │
+│                         │  Redis   │                         │
+│  pool.on('connected')   │ channel: │  subscriber.on('message')│
+│  ↓                      │ whatsapp │  ↓                      │
+│  redisPublisher.publish │ :events  │  marketplaceSocket      │
+│  (role: baileys-publisher)        │  .broadcastConnected()  │
+│                         │          │  (role: whatsapp-subscriber)
+└─────────────────────────┘          └─────────────────────────┘
+                                              ↓
+                                     WebSocket emit to client
+                                     'whatsapp-connected' event
 ```
 
 ---
