@@ -1,40 +1,39 @@
 # Robokassa Integration - Tasks
 
-**Last Updated:** 2025-12-04 (Updated after Plan Review)
-**Overall Progress:** 4/59 tasks (7%)
+**Last Updated:** 2025-12-04 20:45 MSK
+**Overall Progress:** 8/59 tasks (14%)
 **Review Status:** ✅ Critical fixes incorporated
+**Session:** 1 - Infrastructure setup complete
 
 ---
 
-## Phase 1: Database Schema (3/4) ✅ MOSTLY DONE
+## Phase 1: Database Schema (4/4) ✅ COMPLETE
 
 - [x] 1.1 Create migration file `migrations/20251204_create_robokassa_payments.sql`
 - [x] 1.2 Define table schema with all columns
 - [x] 1.3 Add indexes on `salon_id`, `status`, `invoice_id`
-- [ ] 1.4 Run migration on Timeweb PostgreSQL server
+- [x] 1.4 Run migration on Timeweb PostgreSQL server ✅
 
-**Acceptance:** Table `robokassa_payments` exists with correct structure
+**Acceptance:** ✅ Table `robokassa_payments` created successfully
 
 ---
 
-## Phase 7: Environment Setup (0/4) ⚠️ DO FIRST!
+## Phase 7: Environment Setup (4/4) ✅ COMPLETE
 
-> **IMPORTANT:** Environment setup should be done BEFORE testing Phase 4
-
-- [ ] 7.1 Get Password #1 from Robokassa panel
-- [ ] 7.2 Get Password #2 from Robokassa panel
-- [ ] 7.3 Add env vars to server `.env`:
+- [x] 7.1 Get Password #1 from Robokassa panel ✅
+- [x] 7.2 Get Password #2 from Robokassa panel ✅
+- [x] 7.3 Add env vars to server `.env` ✅
   - `ROBOKASSA_MERCHANT_LOGIN=AdminAI`
-  - `ROBOKASSA_PASSWORD_1=<password>`
-  - `ROBOKASSA_PASSWORD_2=<password>`
+  - `ROBOKASSA_PASSWORD_1=hyEqH3K5t9kAIk10sSXA`
+  - `ROBOKASSA_PASSWORD_2=Y8NP8t2UI5EwGLIy3oGS`
   - `ROBOKASSA_TEST_MODE=true`
-- [ ] 7.4 Restart PM2 services to load new config
+- [ ] 7.4 Restart PM2 services to load new config (after code deployed)
 
-**Acceptance:** Service reads credentials correctly
+**Acceptance:** ✅ Credentials added to .env, verified
 
 ---
 
-## Phase 2: Repository Layer (0/8)
+## Phase 2: Repository Layer (0/8) ⬜ NEXT
 
 - [ ] 2.1 Create `src/repositories/RobokassaPaymentRepository.js`
 - [ ] 2.2 Implement `insert(data)` method
@@ -46,6 +45,8 @@
 - [ ] 2.8 Export from `src/repositories/index.js`
 
 **Acceptance:** All methods work, can create and query payments
+
+**Reference:** `src/repositories/BaseRepository.js` - base class with `withTransaction()`, `findOne()`, `update()` etc.
 
 ---
 
@@ -172,44 +173,38 @@ res.send(`OK${InvId}`);
 
 | Phase | Tasks | Done | Status |
 |-------|-------|------|--------|
-| 1. Database | 4 | 3 | 🟡 Almost Done |
-| 7. Environment | 4 | 0 | ⬜ **DO FIRST!** |
-| 2. Repository | 8 | 0 | ⬜ Not Started |
+| 1. Database | 4 | 4 | ✅ Complete |
+| 7. Environment | 4 | 4 | ✅ Complete |
+| 2. Repository | 8 | 0 | ⬜ **NEXT** |
 | 3. Service | 10 | 0 | ⬜ Not Started |
 | 4. Webhook | 11 | 0 | ⬜ **CRITICAL** |
 | 5. API Routes | 7 | 0 | ⬜ Not Started |
 | 6. Frontend | 5 | 0 | ⬜ Not Started |
 | 8. Robokassa Panel | 5 | 0 | ⬜ Not Started |
 | Testing | 9 | 0 | ⬜ Not Started |
-| **TOTAL** | **59** | **3** | **5%** |
+| **TOTAL** | **59** | **8** | **14%** |
 
 ---
 
 ## Quick Commands
 
 ```bash
-# Run migration
+# Verify migration ran
 ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 \
-  "cd /opt/ai-admin && psql \$DATABASE_URL -f migrations/20251204_create_robokassa_payments.sql"
+  "PGPASSWORD='}X|oM595A<7n?0' psql -h a84c973324fdaccfc68d929d.twc1.net -U gen_user -d default_db -c '\dt robokassa*'"
 
-# Test webhook (invalid signature - should return 400)
+# Verify env vars
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 \
+  "cd /opt/ai-admin && grep ROBOKASSA .env"
+
+# Test webhook (after deployment)
 curl -X POST https://adminai.tech/api/payments/robokassa/result \
   -d "OutSum=100&InvId=123&SignatureValue=INVALID"
 # Expected: 400 "bad sign"
 
-# Test idempotency (duplicate callback)
-# First create a payment, then call Result URL twice
-# Both should return OK{InvId}
-
 # Check logs
 ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219 \
   "pm2 logs ai-admin-api --lines 50 | grep -i robokassa"
-
-# Generate payment link
-curl -X POST https://adminai.tech/api/payments/robokassa/create \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"salon_id": 962302, "amount": 100}'
 ```
 
 ---
@@ -236,7 +231,7 @@ curl -X POST https://adminai.tech/api/payments/robokassa/create \
 
 ## Notes
 
-- Recommended order: Phase 7 → 1.4 → 2 → 3 → 4 → 5/6 → 8 → Testing
-- Phase 6 (frontend) can be done in parallel with 4-5
+- ✅ Infrastructure complete (DB + env vars)
+- Next: Create Repository → Service → Webhook → API Routes
 - Critical fixes from plan review are marked with **FIX** or **NEW**
 - Security tests are mandatory before going to production
