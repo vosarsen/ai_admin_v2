@@ -34,7 +34,7 @@ const { setupSwagger } = require('./swagger');
 // Import Marketplace WebSocket handler
 const MarketplaceSocket = require('./websocket/marketplace-socket');
 const { setMarketplaceSocket } = require('./websocket/marketplace-socket');
-const Redis = require('ioredis');
+const { createRedisClient } = require('../utils/redis-factory');
 
 const app = express();
 
@@ -64,12 +64,10 @@ logger.info('✅ Socket.IO server initialized for marketplace integration');
 // Redis subscriber for cross-process WhatsApp events (Phase 3 WebSocket fix)
 // baileys-service runs in separate PM2 process, events don't cross process boundaries
 // Solution: Redis Pub/Sub for IPC
-const whatsappSubscriber = new Redis(process.env.REDIS_URL);
+const whatsappSubscriber = createRedisClient('whatsapp-subscriber');
 
-whatsappSubscriber.on('error', (err) => {
-  logger.error('Redis subscriber error:', err);
-});
-
+// Note: createRedisClient returns a proxy, need to access the underlying client for subscribe
+// The proxy already handles connection, we just need to subscribe
 whatsappSubscriber.subscribe('whatsapp:events', (err) => {
   if (err) {
     logger.error('Failed to subscribe to whatsapp:events:', err);

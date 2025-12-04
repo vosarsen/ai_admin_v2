@@ -10,12 +10,12 @@ const logger = require('../src/utils/logger');
 const qrcodeTerminal = require('qrcode-terminal');
 const fs = require('fs').promises;
 const path = require('path');
-const Redis = require('ioredis');
 
 // Redis publisher for cross-process communication with ai-admin-api
-const redisPublisher = new Redis(process.env.REDIS_URL);
+// Uses redis-factory for proper auth configuration
+const { createRedisClient } = require('../src/utils/redis-factory');
+const redisPublisher = createRedisClient('baileys-publisher');
 redisPublisher.on('error', (err) => logger.error('Redis publisher error:', err));
-redisPublisher.on('connect', () => logger.info('✅ Redis publisher connected'));
 
 // CRITICAL: Use prefixed format to match marketplace onboarding
 // Format: "company_{salon_id}" - consistent with yclients-marketplace.js and marketplace-socket.js
