@@ -511,6 +511,14 @@ class WhatsAppClient {
       return cleanPhone;
     }
 
+    // Check if this is a LID (WhatsApp internal ID)
+    // LIDs are typically 15+ digits and don't start with country codes (1, 7, etc.)
+    // Regular phone numbers are usually 10-13 digits
+    if (cleanPhone.length >= 15) {
+      // This is likely a LID, use @lid suffix
+      return `${cleanPhone}@lid`;
+    }
+
     // Handle different country formats
     if (cleanPhone.length === 10) {
       // Assume local number without country code
