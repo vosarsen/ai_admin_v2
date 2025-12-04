@@ -14,8 +14,44 @@ const path = require('path');
 // Redis publisher for cross-process communication with ai-admin-api
 // Uses redis-factory for proper auth configuration
 const { createRedisClient } = require('../src/utils/redis-factory');
+const {
+    publishConnectedEvent,
+    publishPong,
+    CHANNELS,
+    EVENT_TYPES
+} = require('../src/utils/redis-pubsub');
+
 const redisPublisher = createRedisClient('baileys-publisher');
 redisPublisher.on('error', (err) => logger.error('Redis publisher error:', err));
+
+// Redis subscriber for health check pings (Phase 5 improvement)
+const redisSubscriber = createRedisClient('baileys-subscriber');
+redisSubscriber.on('error', (err) => logger.error('Redis subscriber error:', err));
+
+// Subscribe to whatsapp:events for health check pings
+redisSubscriber.subscribe('whatsapp:events', (err) => {
+    if (err) {
+        logger.error('Failed to subscribe to whatsapp:events:', err);
+    } else {
+        logger.info('✅ Subscribed to Redis channel: whatsapp:events (for health pings)');
+    }
+});
+
+// Handle health check pings - respond with pong (using retry utility)
+redisSubscriber.on('message', async (channel, message) => {
+    if (channel === CHANNELS.WHATSAPP_EVENTS) {
+        try {
+            const event = JSON.parse(message);
+            if (event.type === EVENT_TYPES.PING && event.testId) {
+                logger.debug('🏓 Received health ping, sending pong', { testId: event.testId });
+                // Respond with pong using retry utility
+                await publishPong(redisPublisher, event.testId, 'baileys-service');
+            }
+        } catch (error) {
+            // Ignore parse errors for non-JSON messages
+        }
+    }
+});
 
 // CRITICAL: Use prefixed format to match marketplace onboarding
 // Format: "company_{salon_id}" - consistent with yclients-marketplace.js and marketplace-socket.js
@@ -75,16 +111,12 @@ async function startBaileysService() {
             console.log('Ready to send and receive messages\n');
 
             // Publish to Redis for cross-process communication (Phase 3 WebSocket fix)
+            // Using retry utility for reliability (Phase 5 improvement)
             try {
-                await redisPublisher.publish('whatsapp:events', JSON.stringify({
-                    type: 'connected',
-                    companyId: cId,
-                    phoneNumber,
-                    timestamp: Date.now()
-                }));
+                await publishConnectedEvent(redisPublisher, cId, phoneNumber, { retries: 3 });
                 logger.info('📤 Published connected event to Redis', { companyId: cId });
             } catch (redisError) {
-                logger.error('Failed to publish connected event to Redis:', redisError);
+                logger.error('Failed to publish connected event to Redis after retries:', redisError);
             }
         });
 

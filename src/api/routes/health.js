@@ -501,4 +501,191 @@ async function getCompanyErrors(companyId) {
   };
 }
 
+/**
+ * Redis Pub/Sub Health Check
+ * Tests the complete pub/sub flow between baileys-service and ai-admin-api
+ *
+ * POST /health/pubsub
+ *
+ * Flow:
+ * 1. Publish test ping to whatsapp:events channel
+ * 2. Wait for pong response on whatsapp:health channel
+ * 3. Return 200 if response received within timeout, 503 otherwise
+ */
+router.get('/health/pubsub', async (req, res) => {
+  const startTime = Date.now();
+  const timeout = parseInt(req.query.timeout) || 5000; // Default 5 seconds
+
+  // Create dedicated publisher for this health check
+  let publisher = null;
+  let subscriber = null;
+
+  try {
+    publisher = createRedisClient('health-pubsub-publisher');
+    subscriber = createRedisClient('health-pubsub-subscriber');
+
+    // Generate unique test ID
+    const testId = `ping_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Set up promise to wait for pong response
+    const receivePromise = new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Timeout waiting for pubsub response'));
+      }, timeout);
+
+      subscriber.subscribe('whatsapp:health', (err) => {
+        if (err) {
+          clearTimeout(timeoutId);
+          reject(err);
+        }
+      });
+
+      subscriber.on('message', (channel, message) => {
+        if (channel === 'whatsapp:health') {
+          try {
+            const event = JSON.parse(message);
+            if (event.type === 'pong' && event.testId === testId) {
+              clearTimeout(timeoutId);
+              resolve({
+                latencyMs: Date.now() - startTime,
+                testId
+              });
+            }
+          } catch (e) {
+            // Ignore malformed messages
+          }
+        }
+      });
+    });
+
+    // Publish test ping
+    await publisher.publish('whatsapp:events', JSON.stringify({
+      type: 'ping',
+      testId,
+      timestamp: Date.now()
+    }));
+
+    logger.debug('🏓 Published health ping:', { testId });
+
+    // Wait for response
+    const result = await receivePromise;
+
+    // Success
+    res.json({
+      status: 'healthy',
+      pubsub: 'working',
+      latencyMs: result.latencyMs,
+      testId: result.testId,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.warn('Redis Pub/Sub health check failed:', error.message);
+
+    // Check if it's a timeout vs other error
+    const isTimeout = error.message.includes('Timeout');
+
+    res.status(503).json({
+      status: 'unhealthy',
+      pubsub: isTimeout ? 'timeout' : 'error',
+      error: error.message,
+      latencyMs: Date.now() - startTime,
+      timestamp: new Date().toISOString(),
+      suggestion: isTimeout
+        ? 'baileys-service may not be responding to ping events'
+        : 'Check Redis connection and configuration'
+    });
+
+  } finally {
+    // Clean up Redis connections
+    try {
+      if (publisher) await publisher.quit();
+      if (subscriber) await subscriber.quit();
+    } catch (e) {
+      // Ignore cleanup errors
+    }
+  }
+});
+
+/**
+ * Simple Redis Pub/Sub connectivity check (without ping/pong)
+ * Just verifies Redis channel subscription works
+ *
+ * GET /health/pubsub/simple
+ */
+router.get('/health/pubsub/simple', async (req, res) => {
+  const startTime = Date.now();
+  let redisClient = null;
+
+  try {
+    redisClient = createRedisClient('health-pubsub-simple');
+
+    // Test basic pub/sub capability
+    const testId = `test_${Date.now()}`;
+
+    // Subscribe and immediately receive our own message
+    const receivePromise = new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Timeout'));
+      }, 3000);
+
+      redisClient.subscribe('whatsapp:health-test', (err) => {
+        if (err) {
+          clearTimeout(timeoutId);
+          reject(err);
+        }
+      });
+
+      redisClient.on('message', (channel, message) => {
+        if (channel === 'whatsapp:health-test') {
+          try {
+            const event = JSON.parse(message);
+            if (event.testId === testId) {
+              clearTimeout(timeoutId);
+              resolve(event);
+            }
+          } catch (e) {
+            // Ignore
+          }
+        }
+      });
+    });
+
+    // Create separate client for publish (can't publish from subscriber)
+    const pubClient = createRedisClient('health-pubsub-simple-pub');
+    await pubClient.publish('whatsapp:health-test', JSON.stringify({
+      type: 'self-test',
+      testId,
+      timestamp: Date.now()
+    }));
+    await pubClient.quit();
+
+    // Wait for self-message
+    await receivePromise;
+
+    res.json({
+      status: 'healthy',
+      redis_pubsub: 'working',
+      latencyMs: Date.now() - startTime,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    res.status(503).json({
+      status: 'unhealthy',
+      redis_pubsub: 'error',
+      error: error.message,
+      latencyMs: Date.now() - startTime,
+      timestamp: new Date().toISOString()
+    });
+
+  } finally {
+    try {
+      if (redisClient) await redisClient.quit();
+    } catch (e) {
+      // Ignore
+    }
+  }
+});
+
 module.exports = router;

@@ -1,9 +1,10 @@
 # Onboarding Critical Fixes - Implementation Plan
 
 **Last Updated:** 2025-12-04
-**Status:** Planning
+**Status:** ✅ COMPLETE + Phase 5 (Post-Review Improvements)
 **Priority:** CRITICAL (Production Blocker)
-**Estimated Effort:** 8-12 hours
+**Estimated Effort:** 8-12 hours (Phases 1-4) + 6-7 hours (Phase 5)
+**Code Review Grade:** A- (92/100)
 
 ---
 
@@ -509,3 +510,90 @@ Update `dev/active/onboarding-testing/onboarding-testing-report.md` with fix sta
 - Marketplace WebSocket: `src/api/websocket/marketplace-socket.js`
 - Onboarding page: `public/marketplace/onboarding.html`
 - Plan reviewer findings: See session notes
+- **Code Review:** `onboarding-critical-fixes-code-review.md`
+
+---
+
+## Phase 5: Post-Review Improvements (NEW)
+
+**Status:** IN PROGRESS
+**Effort:** 6-7 hours
+**Priority:** HIGH (from code review recommendations)
+
+Based on code review (Grade A- 92/100), these improvements are recommended:
+
+### 5.1 Transaction Wrapper for Migration (HIGH)
+**Effort:** 30 minutes
+**Risk:** Low (already migrated, this is for future use)
+
+Create reusable transaction-wrapped migration pattern:
+```sql
+BEGIN;
+-- All migration steps
+-- Automated verification
+COMMIT;
+```
+
+**Files:**
+- `migrations/20251204_unify_company_id.sql` - update with transaction wrapper
+
+### 5.2 Health Check Endpoint for Pub/Sub (MEDIUM)
+**Effort:** 1 hour
+**Risk:** Low
+
+Add `/api/health/pubsub` endpoint that:
+- Publishes test ping message
+- Verifies receipt within timeout
+- Returns 503 if channel broken
+
+**Files:**
+- `src/api/routes/health.js` - add pubsub health check
+
+### 5.3 Integration Tests for Redis Pub/Sub (HIGH)
+**Effort:** 2 hours
+**Risk:** Low
+
+Create test suite covering:
+- Event publishing from baileys-service
+- Event reception in ai-admin-api
+- WebSocket delivery to client
+
+**Files:**
+- `tests/integration/redis-pubsub.test.js` - new file
+
+### 5.4 Event Acknowledgment/Retry Logic (MEDIUM)
+**Effort:** 3 hours
+**Risk:** Medium
+
+Add retry logic with exponential backoff:
+```javascript
+async function publishWithRetry(channel, message, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await redisPublisher.publish(channel, message);
+      return;
+    } catch (error) {
+      if (i === retries - 1) throw error;
+      await sleep(Math.pow(2, i) * 1000);
+    }
+  }
+}
+```
+
+**Files:**
+- `scripts/baileys-service.js` - add publishWithRetry
+- `src/utils/redis-pubsub.js` - new shared utility
+
+---
+
+## Summary: All Phases
+
+| Phase | Description | Status | Grade |
+|-------|-------------|--------|-------|
+| 1 | LID Phone Fix | ✅ | A (88/100) |
+| 2 | Company ID Unification | ✅ | A- (86/100) |
+| 3 | WebSocket via Redis Pub/Sub | ✅ | A (88/100) |
+| 4 | Debug Logging Cleanup | ✅ | A+ (100/100) |
+| 5 | Post-Review Improvements | 🔄 | TBD |
+
+**Overall Grade: A- (92/100)** - Production ready with recommended improvements
