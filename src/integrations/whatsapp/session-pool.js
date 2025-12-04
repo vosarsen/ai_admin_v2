@@ -414,7 +414,7 @@ class WhatsAppSessionPool extends EventEmitter {
                         // Emit error event so WebSocket can notify frontend
                         this.emit('pairing-code-error', { companyId, error: error.message });
                     }
-                }).catch(error => {
+                })().catch(error => {
                     logger.error('Unhandled error in pairing code request:', error);
                     Sentry.captureException(error, {
                         level: 'error',
