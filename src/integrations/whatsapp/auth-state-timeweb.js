@@ -11,6 +11,7 @@ const { initAuthCreds } = require('@whiskeysockets/baileys');
 const postgres = require('../../database/postgres');
 const logger = require('../../utils/logger');
 const Sentry = require('@sentry/node');
+const { normalizePhoneE164, extractPhoneFromJID, phonesMatch, maskPhone } = require('./phone-utils');
 
 // ====================================================================================
 // Query Latency Tracking
@@ -405,53 +406,91 @@ async function useTimewebAuthState(companyId, options = {}) {
       // delete old credentials and create fresh ones to avoid silent pairing failures.
 
       if (requestedPhone) {
-        // Normalize requested phone (remove non-digits)
-        const normalizedRequestedPhone = requestedPhone.replace(/\D/g, '');
+        // Normalize requested phone using shared utility (handles 8->7 conversion, etc.)
+        let normalizedRequestedPhone;
+        try {
+          normalizedRequestedPhone = normalizePhoneE164(requestedPhone);
+        } catch (phoneError) {
+          logger.warn(`Invalid requested phone format for ${companyId}:`, phoneError.message);
+          normalizedRequestedPhone = requestedPhone.replace(/\D/g, ''); // Fallback to simple cleanup
+        }
 
-        // Extract stored phone from credentials (format: "79001234567@s.whatsapp.net")
-        const storedPhoneRaw = creds.me?.id?.split('@')[0] || null;
+        // Extract stored phone from credentials using shared utility
+        const storedPhoneRaw = extractPhoneFromJID(creds.me?.id);
 
         if (storedPhoneRaw && normalizedRequestedPhone) {
-          // Normalize stored phone for comparison
-          const normalizedStoredPhone = storedPhoneRaw.replace(/\D/g, '');
+          // Normalize stored phone using shared utility
+          let normalizedStoredPhone;
+          try {
+            normalizedStoredPhone = normalizePhoneE164(storedPhoneRaw);
+          } catch (phoneError) {
+            normalizedStoredPhone = storedPhoneRaw.replace(/\D/g, ''); // Fallback
+          }
 
-          if (normalizedStoredPhone !== normalizedRequestedPhone) {
-            logger.warn(`❌ Phone number mismatch detected for ${companyId}:`, {
-              stored: normalizedStoredPhone,
-              requested: normalizedRequestedPhone
+          // Use phonesMatch for consistent comparison (handles edge cases like 8/7 prefix)
+          const phonesMismatch = !phonesMatch(normalizedStoredPhone, normalizedRequestedPhone);
+
+          if (phonesMismatch) {
+            // Use maskPhone for GDPR-compliant logging
+            logger.info(`📱 Phone number mismatch detected for ${companyId}:`, {
+              stored: maskPhone(normalizedStoredPhone),
+              requested: maskPhone(normalizedRequestedPhone)
             });
 
-            // Alert via Sentry (warning level - expected scenario during phone change)
+            // Calculate credential age for Sentry context
+            const credentialAge = creds.createdAt
+              ? Math.round((Date.now() - new Date(creds.createdAt).getTime()) / 1000)
+              : 'unknown';
+
+            // Alert via Sentry (info level - expected user action during phone change)
             Sentry.captureMessage('Phone number mismatch - clearing old credentials', {
-              level: 'warning',
+              level: 'info', // Downgraded from 'warning' - this is expected behavior
               tags: {
                 component: 'baileys_auth',
                 operation: 'phone_mismatch_cleanup',
-                company_id: companyId
+                company_id: companyId,
+                mismatch_type: 'pairing_code_flow'
               },
               extra: {
-                storedPhone: normalizedStoredPhone,
-                requestedPhone: normalizedRequestedPhone
-              }
+                storedPhone: maskPhone(normalizedStoredPhone),
+                requestedPhone: maskPhone(normalizedRequestedPhone),
+                credentialAge,
+                wasRegistered: creds.registered || false,
+                likelyUserAction: true // User intentionally changing phone
+              },
+              fingerprint: ['phone_mismatch', companyId]
             });
 
             // Delete old credentials from PostgreSQL
             logger.info(`🗑️ Deleting old credentials for ${companyId} (phone mismatch)`);
             await removeTimewebAuthState(companyId);
 
-            // Clear cached credentials if sessionPool available
+            // Clear cached credentials - try both methods for robustness
             if (sessionPool) {
               sessionPool.clearCachedCredentials(companyId);
               logger.debug(`💾 Cleared credentials cache for ${companyId}`);
+            } else {
+              // Fallback: try to get session pool directly
+              try {
+                const { getSessionPool } = require('./session-pool');
+                const pool = getSessionPool();
+                if (pool && pool.clearCachedCredentials) {
+                  pool.clearCachedCredentials(companyId);
+                  logger.debug(`💾 Cleared credentials cache for ${companyId} (via getSessionPool)`);
+                }
+              } catch (cacheError) {
+                logger.debug(`Could not clear cache for ${companyId}:`, cacheError.message);
+                // Not critical - cache has TTL
+              }
             }
 
             // Create fresh credentials for new phone
             creds = initAuthCreds();
-            logger.info(`✅ Fresh credentials created for ${companyId} (new phone: ${normalizedRequestedPhone})`);
+            logger.info(`✅ Fresh credentials created for ${companyId} (new phone: ${maskPhone(normalizedRequestedPhone)})`);
 
             // Note: saveCreds will be called below after keys interface is ready
           } else {
-            logger.info(`✅ Phone number match confirmed for ${companyId}: ${normalizedStoredPhone}`);
+            logger.info(`✅ Phone number match confirmed for ${companyId}: ${maskPhone(normalizedStoredPhone)}`);
           }
         } else if (!storedPhoneRaw) {
           // Credentials exist but no phone stored yet (initial pairing in progress)

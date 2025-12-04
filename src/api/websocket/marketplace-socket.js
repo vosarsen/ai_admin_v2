@@ -5,6 +5,7 @@ const logger = require('../../utils/logger');
 const jwt = require('jsonwebtoken');
 const Sentry = require('@sentry/node');
 const { getSessionPool } = require('../../integrations/whatsapp/session-pool');
+const { normalizePhoneE164, validateCountryCode, maskPhone } = require('../../integrations/whatsapp/phone-utils');
 
 class MarketplaceSocket {
   constructor(io) {
@@ -13,6 +14,7 @@ class MarketplaceSocket {
     this.connections = new Map(); // sessionId -> socket
     this.rateLimiter = new Map(); // IP -> { count, lastReset }
     this.pairingCodeRequests = new Map(); // sessionId -> Promise (mutex for pairing code)
+    this.pairingCodeInProgress = new Map(); // sessionId -> { phone, startTime } (prevents reconnection during pairing)
     this.RATE_LIMIT_MAX = 5; // Максимум 5 подключений
     this.RATE_LIMIT_WINDOW = 60000; // За 60 секунд
 
@@ -235,7 +237,7 @@ class MarketplaceSocket {
           socket.emit('pairing-code', {
             code: data.code,
             phoneNumber: data.phoneNumber,
-            expiresIn: 60
+            expiresIn: 50 // 50 seconds (10s grace period before actual 60s WhatsApp expiry)
           });
         }
       };
@@ -272,7 +274,7 @@ class MarketplaceSocket {
       if (pairingCode) {
         socket.emit('pairing-code', {
           code: pairingCode,
-          expiresIn: 60
+          expiresIn: 50 // 50 seconds (10s grace period before actual 60s WhatsApp expiry)
         });
       }
 
@@ -289,13 +291,27 @@ class MarketplaceSocket {
           return;
         }
 
-        const cleanedPhone = phoneNumber.replace(/\D/g, '');
-        if (cleanedPhone.length < 10 || cleanedPhone.length > 15) {
+        // Normalize and validate phone number using shared utilities
+        let cleanedPhone;
+        try {
+          cleanedPhone = normalizePhoneE164(phoneNumber);
+        } catch (phoneError) {
           socket.emit('pairing-code-error', {
-            message: 'Неверный формат номера (10-15 цифр)',
+            message: phoneError.message || 'Неверный формат номера (10-15 цифр)',
             code: 'INVALID_PHONE_FORMAT'
           });
           return;
+        }
+
+        // Validate country code (optional enhancement)
+        const countryValidation = validateCountryCode(cleanedPhone);
+        if (!countryValidation.valid) {
+          logger.warn('Invalid country code in phone number', {
+            sessionId,
+            phone: maskPhone(cleanedPhone),
+            message: countryValidation.message
+          });
+          // Note: Don't reject - just log warning. User might have valid number from unknown country.
         }
 
         // 2. Mutex - prevent concurrent requests
@@ -311,6 +327,13 @@ class MarketplaceSocket {
         const requestPromise = (async () => {
           try {
             logger.info('📱 Запрос pairing code', { sessionId, phoneNumber: cleanedPhone });
+
+            // Set pairing-in-progress flag to prevent reconnection race condition
+            // This flag tells session-pool not to auto-reconnect during pairing flow
+            this.pairingCodeInProgress.set(sessionId, {
+              phone: cleanedPhone,
+              startTime: Date.now()
+            });
 
             // CRITICAL FIX: Disconnect existing session first to ensure clean state
             // This allows phone mismatch detection to work when user requests pairing
@@ -342,6 +365,10 @@ class MarketplaceSocket {
           } finally {
             // Always release mutex
             this.pairingCodeRequests.delete(sessionId);
+            // Release pairing-in-progress flag after 10 seconds (pairing code validity)
+            setTimeout(() => {
+              this.pairingCodeInProgress.delete(sessionId);
+            }, 10000);
           }
         })();
 
@@ -358,6 +385,7 @@ class MarketplaceSocket {
         this.sessionPool.off('pairing-code-error', handlePairingCodeError);
         // Clear any pending pairing code requests
         this.pairingCodeRequests.delete(sessionId);
+        this.pairingCodeInProgress.delete(sessionId);
       });
 
     } catch (error) {
@@ -517,6 +545,47 @@ class MarketplaceSocket {
       this.namespace.to(`company-${companyId}`).emit(event, data);
     }
   }
+
+  /**
+   * Check if pairing code request is in progress for a session
+   * Used by session-pool to prevent auto-reconnection during pairing flow
+   * @param {string} sessionId - Session ID (e.g., "company_997441")
+   * @returns {boolean} - True if pairing code request is in progress
+   */
+  isPairingCodeInProgress(sessionId) {
+    const pairingInfo = this.pairingCodeInProgress.get(sessionId);
+    if (!pairingInfo) return false;
+
+    // Check if pairing request is still fresh (within 60 seconds)
+    const elapsed = Date.now() - pairingInfo.startTime;
+    if (elapsed > 60000) {
+      this.pairingCodeInProgress.delete(sessionId);
+      return false;
+    }
+
+    return true;
+  }
+}
+
+// Singleton instance for access from session-pool
+let marketplaceSocketInstance = null;
+
+/**
+ * Get marketplace socket instance (for checking pairing status from session-pool)
+ * @returns {MarketplaceSocket|null}
+ */
+function getMarketplaceSocket() {
+  return marketplaceSocketInstance;
+}
+
+/**
+ * Set marketplace socket instance (called during initialization)
+ * @param {MarketplaceSocket} instance
+ */
+function setMarketplaceSocket(instance) {
+  marketplaceSocketInstance = instance;
 }
 
 module.exports = MarketplaceSocket;
+module.exports.getMarketplaceSocket = getMarketplaceSocket;
+module.exports.setMarketplaceSocket = setMarketplaceSocket;

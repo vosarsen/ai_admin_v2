@@ -36,7 +36,10 @@ const CONFIG = {
     MAX_RECONNECT_ATTEMPTS: 5,
     RECONNECT_DELAY_MS: 5000,
     HEALTH_CHECK_INTERVAL_MS: 60 * 1000, // 1 minute
-    PAIRING_CODE_TIMEOUT_MS: 60 * 1000, // 1 minute
+    // Pairing code timeout with 10-second grace period (WhatsApp codes expire in 60s)
+    // Using 50s ensures user doesn't see expired code after network latency
+    PAIRING_CODE_TIMEOUT_MS: 50 * 1000, // 50 seconds (10s grace period)
+    PAIRING_CODE_DISPLAY_EXPIRES_IN: 50, // Seconds to show in UI (matches timeout)
     MIN_PHONE_LENGTH: 10,
     MAX_PHONE_LENGTH: 15,
     CACHE_FILE_PATH: path.join(process.cwd(), '.baileys-cache.json'), // Phase 2 - Task 3.1.1
@@ -505,6 +508,12 @@ class WhatsAppSessionPool extends EventEmitter {
                         return;
                     }
 
+                    // Don't reconnect if pairing code request is in progress (race condition prevention)
+                    if (this._isPairingCodeInProgress(companyId)) {
+                        logger.warn(`Pairing code in progress for ${companyId}, skipping restart to prevent race condition`);
+                        return;
+                    }
+
                     logger.info(`Restart required for company ${companyId}, reconnecting immediately...`);
                     await this.handleReconnect(companyId);
                     return;
@@ -516,6 +525,12 @@ class WhatsAppSessionPool extends EventEmitter {
                     // Don't reconnect if we're already creating a session (prevents infinite loop)
                     if (this.creatingSession.has(companyId)) {
                         logger.warn(`Session creation already in progress for ${companyId}, skipping reconnect to prevent loop`);
+                        return;
+                    }
+
+                    // Don't reconnect if pairing code request is in progress (race condition prevention)
+                    if (this._isPairingCodeInProgress(companyId)) {
+                        logger.warn(`Pairing code in progress for ${companyId}, skipping reconnect to prevent race condition`);
                         return;
                     }
 
@@ -886,6 +901,30 @@ class WhatsAppSessionPool extends EventEmitter {
         }
 
         return cleaned;
+    }
+
+    /**
+     * Check if pairing code request is in progress for a company
+     * Used to prevent auto-reconnection during pairing code flow
+     * @param {string} companyId - Company ID
+     * @returns {boolean} - True if pairing code request is in progress
+     * @private
+     */
+    _isPairingCodeInProgress(companyId) {
+        try {
+            // Try to get marketplace socket instance to check pairing status
+            const { getMarketplaceSocket } = require('../../api/websocket/marketplace-socket');
+            const marketplaceSocket = getMarketplaceSocket();
+
+            if (marketplaceSocket && marketplaceSocket.isPairingCodeInProgress) {
+                return marketplaceSocket.isPairingCodeInProgress(companyId);
+            }
+        } catch (error) {
+            // Marketplace socket not available - not an error, just no pairing in progress
+            logger.debug(`Could not check pairing status for ${companyId}:`, error.message);
+        }
+
+        return false;
     }
 
     /**
