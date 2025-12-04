@@ -490,13 +490,15 @@
         }
 
         // Обновляем информацию о салоне
+        // ВАЖНО: показываем данные САЛОНА, а не пользователя YClients
+        // salon_name - название салона из user_data
+        // user_name/user_phone - это данные владельца аккаунта YClients (НЕ показываем)
         document.getElementById('salonName').textContent =
-            tokenData.user_data?.user_name || `Салон #${tokenData.salon_id}`;
+            tokenData.user_data?.salon_name || `Салон #${tokenData.salon_id}`;
 
-        if (tokenData.user_data?.user_phone) {
-            document.getElementById('salonDetails').textContent =
-                `Телефон: ${tokenData.user_data.user_phone}`;
-        }
+        // Показываем ID салона для справки (телефон салона не передаётся в user_data)
+        document.getElementById('salonDetails').textContent =
+            `ID салона: ${tokenData.salon_id}`;
 
         let qrRefreshTimer;
         let qrExpiryTime = 20; // секунд
