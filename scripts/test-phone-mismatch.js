@@ -21,9 +21,9 @@ const CONFIG = {
   COMPANY_ID: '997441',
   SESSION_ID: 'company_997441',
 
-  // Phone numbers for test
+  // Phone numbers for test (both are fake/test numbers)
   WRONG_PHONE: '79991112233',    // Will be inserted as "existing" credentials
-  CORRECT_PHONE: '79006464263',  // Will be requested (should trigger mismatch)
+  CORRECT_PHONE: '79998887766',  // Test phone to request (should trigger mismatch)
 
   // Server
   WS_URL: 'https://adminai.tech',
@@ -134,22 +134,21 @@ async function testWebSocketFlow() {
     }, CONFIG.PAIRING_TIMEOUT);
 
     let requestSent = false;
-    let firstPairingCodeIgnored = false;
 
     socket.on('connect', () => {
       console.log('✅ WebSocket connected');
-      console.log('   Waiting for initial session setup...');
-    });
 
-    // Ignore the first pairing code (from automatic session creation with env default)
-    // and request with our specific phone number
-    socket.on('qr-update', () => {
-      if (!requestSent) {
-        requestSent = true;
-        console.log(`\n📱 Step 3: Requesting pairing code for phone ${CONFIG.CORRECT_PHONE}...`);
-        console.log(`   (DB has credentials for ${CONFIG.WRONG_PHONE} - should trigger mismatch!)`);
-        socket.emit('request-pairing-code', { phoneNumber: CONFIG.CORRECT_PHONE });
-      }
+      // Send request-pairing-code immediately after connect
+      // The initial session creation (from startWhatsAppConnection) may fail with invalid credentials
+      // Our request-pairing-code will disconnect it and create a fresh session with correct phone
+      setTimeout(() => {
+        if (!requestSent) {
+          requestSent = true;
+          console.log(`\n📱 Step 3: Requesting pairing code for phone ${CONFIG.CORRECT_PHONE}...`);
+          console.log(`   (DB has credentials for ${CONFIG.WRONG_PHONE} - should trigger mismatch!)`);
+          socket.emit('request-pairing-code', { phoneNumber: CONFIG.CORRECT_PHONE });
+        }
+      }, 1000); // Wait 1 second for initial setup to stabilize
     });
 
     socket.on('pairing-code', (data) => {
