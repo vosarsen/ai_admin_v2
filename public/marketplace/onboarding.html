@@ -547,7 +547,13 @@
                     clearInterval(pairingCodeTimer);
                     pairingCodeTimer = null;
                 }
-                await activateIntegration();
+                // Try to activate integration, but don't block on error
+                // (YClients API returns "Агрегатор не найден" if app not in marketplace)
+                try {
+                    await activateIntegration();
+                } catch (error) {
+                    console.warn('YClients activation failed (non-blocking):', error.message);
+                }
                 handleWhatsAppConnected();
             });
 
@@ -574,7 +580,12 @@
                         if (data.connected) {
                             clearInterval(checkConnectionStatus);
                             debug('WhatsApp connected via polling fallback!');
-                            await activateIntegration();
+                            // Try to activate integration, but don't block on error
+                            try {
+                                await activateIntegration();
+                            } catch (error) {
+                                console.warn('YClients activation failed (non-blocking):', error.message);
+                            }
                             handleWhatsAppConnected();
                         }
                     }
