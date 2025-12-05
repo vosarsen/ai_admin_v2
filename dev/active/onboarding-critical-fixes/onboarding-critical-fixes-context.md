@@ -1,7 +1,7 @@
 # Onboarding Critical Fixes - Context
 
-**Last Updated:** 2025-12-05 11:20 MSK
-**Status:** ✅ PROJECT COMPLETE - All 5 phases done + Full E2E Test passed!
+**Last Updated:** 2025-12-05 13:10 MSK
+**Status:** ✅ PROJECT COMPLETE - All phases done + Full E2E Test (QR + Pairing Code) passed!
 **Code Review Grade:** A (96/100) - improved from A- (92/100)
 
 ---
@@ -408,6 +408,112 @@ DELETE FROM companies WHERE yclients_id = '962302';
 ```
 Commit: 1092809 (HEAD -> main, origin/main)
 Message: fix(onboarding): prevent premature 'connected' status before WhatsApp link
+Status: Pushed and deployed to production
+```
+
+Нет незакоммиченных изменений.
+
+---
+
+## SESSION 6 SUMMARY (2025-12-05 12:50-13:10 MSK)
+
+### Критический баг найден и исправлен: QR Refresh убивал Pairing Code
+
+**Проблема:** При использовании Pairing Code, QR refresh timer продолжал работать (каждые 20 сек). Когда timer срабатывал, он запрашивал новый QR-код, что убивало pairing session. У пользователей было только ~10 секунд на ввод кода.
+
+**Причина (Root Cause):**
+- `qrExpiryTime = 20` в onboarding.html
+- `startQRTimer()` запускал интервал обновления QR
+- `displayPairingCode()` **не останавливал** `qrRefreshTimer`
+- Через 20 сек `requestNewQR()` создавал новую сессию → старый pairing code становился недействительным
+
+**Решение:**
+```javascript
+// public/marketplace/onboarding.html - displayPairingCode()
+function displayPairingCode(code) {
+    // CRITICAL: Stop QR refresh timer to prevent killing the pairing session
+    clearInterval(qrRefreshTimer);
+
+    // ... остальной код
+}
+```
+
+**Коммит:** `3db9ecc` - `fix(onboarding): stop QR refresh timer when displaying pairing code`
+
+### Полный E2E тест обоих методов
+
+| Метод | Результат | Phone ID |
+|-------|-----------|----------|
+| **QR-код** | ✅ Работает | `79686484488:34` |
+| **Pairing Code** | ✅ Работает | `79686484488:35` |
+
+### Процесс тестирования
+
+1. **Тест QR-кода:**
+   - Очистка всех данных 962302
+   - OAuth → QR scan → Connected!
+   - Время подключения: ~2 секунды после сканирования
+
+2. **Тест Pairing Code:**
+   - Очистка всех данных 962302
+   - OAuth → Получение кода → Ввод на телефоне → Connected!
+   - Время подключения: ~3 секунды после ввода кода
+   - Теперь работает благодаря fix `3db9ecc`
+
+### Production статус
+
+- ✅ `baileys-whatsapp-service` запущен и online
+- ✅ WhatsApp подключен (phone: `79686484488:35`)
+- ✅ Сообщения обрабатываются
+
+---
+
+## KEY FILES CHANGED (Session 6)
+
+1. **`public/marketplace/onboarding.html`** - Остановка QR refresh timer при pairing code
+   - Строка 830: `clearInterval(qrRefreshTimer);` в `displayPairingCode()`
+
+---
+
+## COMMITS (Обновлено Session 6)
+
+| Commit | Date | Description |
+|--------|------|-------------|
+| `14a222a` | 2025-12-04 | Phase 1: LID phone fix |
+| `74b4ce8` | 2025-12-04 | Phase 2: Company ID unification |
+| `7c7297a` | 2025-12-04 | Phase 3: Redis Pub/Sub initial |
+| `187bf5e` | 2025-12-04 | Phase 3: Redis auth fix |
+| `b16d00e` | 2025-12-04 | Phase 4: Console.log cleanup |
+| `d245acd` | 2025-12-04 | Docs: project complete |
+| `d788eaa` | 2025-12-04 | Phase 5: Post-review improvements |
+| `0ee71a5` | 2025-12-05 | Docs: E2E test results |
+| `a5fb7f4` | 2025-12-05 | fix(onboarding): don't block on YClients activation error |
+| `1092809` | 2025-12-05 | fix(onboarding): prevent premature 'connected' status |
+| **`3db9ecc`** | **2025-12-05** | **fix(onboarding): stop QR refresh timer when displaying pairing code** |
+
+---
+
+## Known Issues (Non-blocking) - Updated
+
+1. **YClients callback returns 400 "Агрегатор не найден"**
+   - Причина: приложение не опубликовано в маркетплейсе
+   - Влияние: не влияет на работу, просто warning в логах
+   - Решение: исчезнет после публикации в маркетплейсе
+
+2. **syncManager.syncAll is not a function**
+   - Появляется при автоматическом онбординге после подключения WhatsApp
+   - Влияние: синхронизация не запускается автоматически
+   - Решение: нужно проверить метод в marketplace-socket.js
+
+~~3. **Pairing Code не работает**~~ **ИСПРАВЛЕНО в Session 6!**
+
+---
+
+## GIT STATUS (Session 6 End)
+
+```
+Commit: 3db9ecc (HEAD -> main, origin/main)
+Message: fix(onboarding): stop QR refresh timer when displaying pairing code
 Status: Pushed and deployed to production
 ```
 

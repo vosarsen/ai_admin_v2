@@ -1,7 +1,7 @@
 # Onboarding Critical Fixes - Tasks
 
-**Last Updated:** 2025-12-05 11:20 MSK
-**Status:** ALL PHASES COMPLETE ✅ + Full E2E Test PASSED + UI Fix deployed
+**Last Updated:** 2025-12-05 13:10 MSK
+**Status:** ALL PHASES COMPLETE ✅ + Full E2E Test (QR + Pairing Code) PASSED!
 **Code Review Grade:** A- (92/100) → A (96/100) (improved with Phase 5)
 
 ---
@@ -395,7 +395,7 @@ redis-cli PUBLISH whatsapp:events '{"type":"connected","companyId":"company_9623
 
 ---
 
-## Known Issues (Non-blocking)
+## Known Issues (Non-blocking) - Updated Session 6
 
 1. **YClients callback returns 400 "Агрегатор не найден"**
    - Причина: приложение не опубликовано в маркетплейсе
@@ -407,15 +407,14 @@ redis-cli PUBLISH whatsapp:events '{"type":"connected","companyId":"company_9623
    - Влияние: синхронизация не запускается автоматически
    - Решение: нужно проверить метод в marketplace-socket.js
 
-3. **Pairing Code не работает (Session 5)**
-   - Ошибка на телефоне: "Couldn't link device"
-   - Причина: возможно, WhatsApp блокирует datacenter IP
-   - QR-код работает нормально
-   - Решение: использовать QR-код или добавить proxy для Baileys
+~~3. **Pairing Code не работает (Session 5)**~~ **ИСПРАВЛЕНО в Session 6!**
+   - Была ошибка: QR refresh timer убивал pairing session
+   - Fix: `3db9ecc` - остановка timer при показе pairing code
+   - Теперь и QR и Pairing Code работают!
 
 ---
 
-## Phase 7: Session 5 Fixes (2025-12-05) ✅ PARTIAL
+## Phase 7: Session 5 Fixes (2025-12-05) ✅ COMPLETE
 
 ### 7.1 Fix Premature "Connected" Status ✅ DONE
 - [x] Найден баг: UI переходит на "Готово" до ввода кода
@@ -425,20 +424,35 @@ redis-cli PUBLISH whatsapp:events '{"type":"connected","companyId":"company_9623
 - [x] **Коммит:** `1092809`
 - [x] **Деплой:** production
 
-### 7.2 Test Pairing Code Flow 🔄 IN PROGRESS
+### 7.2 Test Pairing Code Flow ✅ DONE (Session 6)
 - [x] Очистка данных
 - [x] OAuth подключение
-- [x] Получение Pairing Code (SEPLKRND)
-- [ ] **BLOCKED:** Ввод кода в WhatsApp - "Couldn't link device"
-- [ ] Переход на шаг "Готово"
+- [x] Получение Pairing Code
+- [x] Ввод кода в WhatsApp - **РАБОТАЕТ!**
+- [x] Переход на шаг "Готово"
 
-### 7.3 Fallback to QR Code ⏳ NEXT
-- [ ] Если Pairing Code не работает, тестировать с QR-кодом
-- [ ] QR работал в Session 4
+### 7.3 QR Code Test ✅ DONE (Session 6)
+- [x] QR-код работает
+- [x] Подключение: `79686484488:34`
 
 ---
 
-## Все коммиты проекта (Обновлено Session 5)
+## Phase 8: Session 6 Fixes (2025-12-05) ✅ COMPLETE
+
+### 8.1 Fix QR Refresh Timer Killing Pairing Code ✅ DONE
+- [x] **Проблема:** QR refresh timer (20 сек) убивал pairing session
+- [x] **Root cause:** `displayPairingCode()` не останавливал `qrRefreshTimer`
+- [x] **Решение:** Добавлен `clearInterval(qrRefreshTimer)` в `displayPairingCode()`
+- [x] **Коммит:** `3db9ecc`
+- [x] **Деплой:** production
+
+### 8.2 Full E2E Test Both Methods ✅ DONE
+- [x] **QR-код:** Работает (phone: `79686484488:34`)
+- [x] **Pairing Code:** Работает (phone: `79686484488:35`)
+
+---
+
+## Все коммиты проекта (Обновлено Session 6)
 
 | Commit | Date | Description |
 |--------|------|-------------|
@@ -451,4 +465,5 @@ redis-cli PUBLISH whatsapp:events '{"type":"connected","companyId":"company_9623
 | `d788eaa` | 2025-12-04 | Phase 5: Post-review improvements |
 | `0ee71a5` | 2025-12-05 | Docs: E2E test results |
 | `a5fb7f4` | 2025-12-05 | fix(onboarding): don't block on YClients activation error |
-| **`1092809`** | **2025-12-05** | **fix(onboarding): prevent premature 'connected' status** |
+| `1092809` | 2025-12-05 | fix(onboarding): prevent premature 'connected' status |
+| **`3db9ecc`** | **2025-12-05** | **fix(onboarding): stop QR refresh timer when displaying pairing code** |
