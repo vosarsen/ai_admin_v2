@@ -254,7 +254,7 @@ router.get('/auth/yclients/redirect', async (req, res) => {
       logger.error('❌ PARTNER_TOKEN not configured properly');
       return res.status(503).send(renderErrorPage(
         'Конфигурация не завершена',
-        'Интеграция еще не настроена администратором. Пожалуйста, свяжитесь с технической поддержкой AI Admin.',
+        'Интеграция еще не настроена администратором. Пожалуйста, свяжитесь с технической поддержкой Admin AI.',
         'https://yclients.com/marketplace'
       ));
     }

@@ -47,7 +47,7 @@ class ICSGenerator {
     const icsContent = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
-      'PRODID:-//AI Admin//Beauty Salon Booking//RU',
+      'PRODID:-//Admin AI//Beauty Salon Booking//RU',
       'CALSCALE:GREGORIAN',
       'METHOD:REQUEST',
       'BEGIN:VTIMEZONE',

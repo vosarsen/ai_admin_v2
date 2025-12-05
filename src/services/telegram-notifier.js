@@ -198,7 +198,7 @@ ID: ${companyId}
    */
   async sendDailySummary(stats) {
     const message = `
-📈 <b>Ежедневная сводка AI Admin</b>
+📈 <b>Ежедневная сводка Admin AI</b>
 
 📊 За последние 24 часа:
 • Обработано сообщений: ${stats.messagesProcessed || 0}
