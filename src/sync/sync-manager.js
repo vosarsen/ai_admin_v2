@@ -10,6 +10,7 @@ if (!process.env.YCLIENTS_BEARER_TOKEN) {
 }
 
 const logger = require('../utils/logger').child({ module: 'sync-manager' });
+const Sentry = require('@sentry/node');
 const cron = require('node-cron');
 
 // Импортируем модули синхронизации
@@ -378,6 +379,88 @@ class SyncManager {
     } catch (error) {
       logger.error('Bookings sync failed:', error);
       return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Полная синхронизация всех данных для компании
+   * Используется при онбординге нового салона
+   * @param {number} companyId - ID компании в нашей БД (опционально, для логирования)
+   */
+  async syncAll(companyId = null) {
+    const startTime = Date.now();
+    const results = {
+      company: null,
+      services: null,
+      staff: null,
+      schedules: null,
+      clients: null,
+      bookings: null
+    };
+
+    try {
+      logger.info('🚀 Starting full sync for onboarding', { companyId });
+
+      // 1. Company info
+      results.company = await this.syncCompany();
+
+      // 2. Services
+      results.services = await this.syncServices();
+
+      // 3. Staff
+      results.staff = await this.syncStaff();
+
+      // 4. Schedules (today only for speed)
+      results.schedules = await this.syncSchedulesToday();
+
+      // 5. Clients (limited for speed)
+      results.clients = await this.syncClients({ limit: 100 });
+
+      // 6. Active bookings
+      results.bookings = await this.syncBookings();
+
+      const duration = Date.now() - startTime;
+      const successCount = Object.values(results).filter(r => r?.success).length;
+      const totalCount = Object.keys(results).length;
+
+      logger.info('✅ Full sync completed', {
+        companyId,
+        duration: `${duration}ms`,
+        success: `${successCount}/${totalCount}`
+      });
+
+      return {
+        success: successCount === totalCount,
+        results,
+        duration
+      };
+    } catch (error) {
+      const duration = Date.now() - startTime;
+
+      logger.error('❌ Full sync failed', {
+        companyId,
+        error: error.message,
+        duration: `${duration}ms`
+      });
+
+      Sentry.captureException(error, {
+        tags: {
+          component: 'sync-manager',
+          operation: 'syncAll'
+        },
+        extra: {
+          companyId,
+          duration,
+          results
+        }
+      });
+
+      return {
+        success: false,
+        error: error.message,
+        results,
+        duration
+      };
     }
   }
 
