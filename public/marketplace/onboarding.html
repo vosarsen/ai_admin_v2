@@ -825,7 +825,11 @@
 
         // Отображение pairing code
         function displayPairingCode(code) {
-            // Clear any existing timer first
+            // CRITICAL: Stop QR refresh timer to prevent killing the pairing session
+            // QR refresh would request a new session and invalidate the pairing code
+            clearInterval(qrRefreshTimer);
+
+            // Clear any existing pairing code timer
             if (pairingCodeTimer) {
                 clearInterval(pairingCodeTimer);
                 pairingCodeTimer = null;
