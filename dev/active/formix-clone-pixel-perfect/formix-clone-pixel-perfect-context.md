@@ -4,15 +4,16 @@
 
 ---
 
-## 🔥 CRITICAL SESSION STATE (Updated: 2025-12-02 - OPTIMIZATION & DEPLOYMENT)
+## 🔥 CRITICAL SESSION STATE (Updated: 2025-12-05 - PRICING SECTION)
 
 ### Current Implementation Status
-- **Phase:** ✅ **DEPLOYED TO PRODUCTION** - Optimization Complete
-- **Status:** ✅ **PRODUCTION READY** - All changes committed and deployed
+- **Phase:** 🔄 **Phase 8: Pricing Section** - Development Toggle Refinement
+- **Status:** In Progress - Awaiting user verification
 - **Live URL:** https://adminai.tech/new-design/
-- **Last Commit:** c2b55d9 ("docs: add comprehensive optimization report")
-- **Site Performance:** 76 MB → 10 MB (87% reduction, 7.6x faster)
-- **Next Immediate Step:** Optional Nginx optimization or return to feature development
+- **Repository:** `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/`
+- **Current Work:** Pixel-perfect pricing section with three card variants
+- **Last Change:** Removed external margins from Development toggle block (matching icon positioning pattern)
+- **Next Immediate Step:** User verification of Development block positioning
 - **Branch:** main (formix-landing-nextjs)
 - **Project Location:** `/Users/arbakvoskanyan/Documents/GitHub/formix-landing-nextjs/`
 
@@ -29,7 +30,125 @@
 
 ---
 
-## 📋 LATEST SESSION WORK (2025-12-02 - Performance Optimization & Deployment)
+## 📋 LATEST SESSION WORK (2025-12-05 - Pricing Section Implementation)
+
+### Session Duration
+**Start:** ~2 hours ago
+**Focus:** Pixel-perfect pricing section with three card variants
+
+### Session Goals
+🔄 Implement Pricing Section (Phase 8)
+✅ Create three-card layout with nesting system
+✅ Position icons in top-left corner with 20px offset
+✅ Match typography to Benefits section
+✅ Fix Turbopack crashes (disabled in package.json)
+🔄 Refine Development toggle block positioning (awaiting user verification)
+
+### Pricing Section Architecture
+
+**Three Card Types:**
+1. **Subscribe Card** - Visual process explanation (3 steps)
+2. **Design Retainer Card** - $5K/month subscription plan
+3. **Single Project Card** - $10K starting price (dark theme)
+
+**Two-Card Nesting System:**
+```
+Outer Card (7px padding) - Frame effect
+└─ Inner Card (fixed height: 240px or 252px) - Content
+   ├─ Icon (absolute, top-left, 20px offset)
+   ├─ Title + Price
+   ├─ Description
+   └─ Development Toggle (if applicable)
+└─ Features List (outside inner card)
+└─ CTA Button (outside inner card)
+```
+
+**Critical Design Decisions:**
+- Inner card ENDS at Development toggle
+- Features/button outside inner card but inside outer card
+- Icon positioned absolutely: `top-[20px] left-[20px]`
+- Grid gap reduced: 24px → 7px (matches card padding)
+- Card heights: Subscribe 240px, Retainer/Project 252px
+
+### Changes Made This Session
+
+#### 1. Component Setup
+**Files Created:**
+- `src/components/Pricing/PricingCard.tsx` - Main pricing card component
+- `src/components/Pricing/Pricing.tsx` - Grid layout section
+
+**Architecture Pattern:** Two-card nesting for "frame" effect
+
+#### 2. Icon Implementation
+**Iterations:**
+- Tried flex/grid positioning → didn't work
+- Switched to absolute positioning: `top-[20px] left-[20px]`
+- Added rounded corners (`rounded-xl`)
+- Inverted colors (dark icon in light card, vice versa)
+- Created SVG icons (lightning bolt, monitor)
+
+**Final Position:** Absolute from inner card, 20px from top-left
+
+#### 3. Typography Matching
+**Cross-referenced Benefits section:**
+- File: `/src/components/Benefits/Benefits.tsx:121`
+- Pattern: `font-geist font-bold text-[20px] tracking-tighter`
+- Applied to pricing card titles
+
+**Price Formatting:**
+- Main price: `text-xl font-bold`
+- Period (/mo, Start): `text-sm`
+- Alignment: `flex items-start` (top-aligned)
+
+#### 4. Card Width Optimization
+**Problem:** Cards too narrow in 3-column grid
+
+**Solution:**
+- Reduced grid gap: 24px → 7px
+- Matches outer/inner card padding (visual consistency)
+- Increased card width without changing container
+
+#### 5. Development Toggle Block
+**Evolution:**
+1. Initial: `mt-[5px] mx-[20px] mb-[20px]` - didn't work with flex gap
+2. Tried: `mb-[5px]` on previous + `mt-[5px]` - worked but inconsistent
+3. **Final:** Removed all external margins, rely on inner card's `p-[20px]`
+
+**Rationale:** Matches icon positioning pattern (20px from edges via parent padding)
+
+**Status:** ✅ Implemented, ⏸️ Awaiting user verification
+
+#### 6. Turbopack Crash Fix
+**Problem:** Localhost crashed after every change
+
+**Root Cause:** Turbopack instability with Next.js 16.0.6 + React 19.2.0
+
+**Solution:** Disabled Turbopack in `package.json`:
+```json
+"dev": "TURBOPACK=0 next dev"
+```
+
+**Status:** ✅ Critical fix - DO NOT REVERT
+
+### Critical Bugs Fixed
+
+**Bug 1: Icon Not in Corner**
+- Problem: Icon not in top-left corner of INNER card
+- Root cause: Container reference confusion (outer vs inner card)
+- Solution: Absolute positioning with 20px offset
+
+**Bug 2: Development Block Won't Lower**
+- Problem: `mt-[5px]` had no effect
+- Root cause: Parent flex container has `gap-4` (margins don't work as expected)
+- Solution: Removed margins, use inner card's padding
+
+**Bug 3: Turbopack Crashes**
+- Problem: FATAL errors after every code change
+- Solution: Disable Turbopack in dev script
+
+---
+
+## 📋 PREVIOUS SESSION WORK (2025-12-02 - Performance Optimization & Deployment)
 
 ### Session Duration
 **Start:** ~21:00
@@ -293,25 +412,32 @@ Avoid these terms in user-facing content:
 ## 📊 PROJECT PROGRESS
 
 **Completed Phases:**
-- ✅ Phase 0: Project Setup
-- ✅ Phase 1: Foundation (fonts, animations)
-- ✅ Phase 2: Navigation (frosted glass, rolling text)
-- ✅ Phase 2.1: Navigation Redesign (light theme, active tracking)
-- ✅ Phase 3: Hero Section (with carousel gallery)
-- ✅ Phase 4: Services Section (horizontal cards)
-- ✅ Phase 5: Why Us Section (animated counters)
+- ✅ Phase 0: Project Setup (25 min)
+- ✅ Phase 1: Foundation (fonts, animations) (15 min)
+- ✅ Phase 2: Navigation (frosted glass, rolling text) (45 min)
+- ✅ Phase 2.1: Navigation Redesign (light theme, active tracking) (60 min)
+- ✅ Phase 3: Hero Section (carousel gallery) (90 min)
+- ✅ Phase 4: Services Section (horizontal cards) (75 min)
+- ✅ Phase 5: Why Us Section (animated counters) (45 min)
+- 🔄 Phase 8: Pricing Section (three card variants) (120 min, 85% complete)
 
-**Content Updates:**
-- ✅ Hero heading and description (Russian, professional)
-- ✅ Navigation localization (partial - 2/7 links: Кейсы, Преимущества)
-- ✅ Section badges (Services: "Кейсы", Why Us: "Преимущества")
-- ✅ Hero gallery positioning (LOCKED VALUES)
-- ⬜ Remaining sections (Benefits, Projects, Pricing, Clients, FAQs)
+**Phase 8 (Pricing) Progress:**
+- ✅ Component structure (PricingCard.tsx, Pricing.tsx)
+- ✅ Two-card nesting system
+- ✅ Three card variants (Subscribe, Retainer, Project)
+- ✅ Icon positioning (absolute, top-left, 20px offset)
+- ✅ Typography matching (Benefits section reference)
+- ✅ Card width optimization (gap 7px)
+- ✅ Turbopack crash fix (CRITICAL - disabled)
+- 🔄 Development toggle positioning (awaiting verification)
+- ⏸️ Responsive testing
+- ⏸️ Git commit
 
-**Remaining Phases:** 13/18 (72.2%)
+**Remaining Phases:** 10/18 (55.6%)
 
 **Next Focus:**
-- Choose Phase 6 section to implement (Benefits, Projects, Pricing, Clients, or FAQs)
+- Complete Phase 8 (Pricing Section) - user verification + responsive testing
+- Then choose: Benefits, Projects, Logos, Reviews, FAQs, or Contact
 
 ---
 
