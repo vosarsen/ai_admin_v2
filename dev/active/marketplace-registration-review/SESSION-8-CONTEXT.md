@@ -70,14 +70,19 @@ DELETE FROM whatsapp_auth WHERE company_id = 'company_997441';  -- 1 row
 DELETE FROM whatsapp_keys WHERE company_id = 'company_997441';  -- 35 rows
 ```
 
-### Current State (verified)
+### Current State (verified 2025-12-05 ~16:30)
 ```
-companies:     0 rows for 997441
-whatsapp_auth: 0 rows for company_997441
-whatsapp_keys: 0 rows for company_997441
+companies:       0 rows for 997441
+whatsapp_auth:   0 rows for company_997441 (1 deleted)
+whatsapp_keys:   0 rows for company_997441
+clients:         0 rows for 997441
+services:        0 rows for 997441
+staff:           0 rows for 997441
+bookings:        0 rows for 997441
+dialog_contexts: 0 rows for 997441
 ```
 
-Ready for clean onboarding test!
+✅ **Ready for clean onboarding test!**
 
 ---
 

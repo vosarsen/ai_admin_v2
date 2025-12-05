@@ -802,37 +802,58 @@ router.post('/marketplace/activate', async (req, res) => {
           webhook_urls: [`${BASE_URL}/webhook/yclients`]
         };
 
-        logger.info('📤 Sending callback to YClients:', {
-          salon_id: callbackData.salon_id,
-          application_id: callbackData.application_id,
-          webhook_url: callbackData.webhook_urls[0]
-        });
+        // Check if manual callback mode is enabled (for debugging)
+        const SKIP_YCLIENTS_CALLBACK = process.env.SKIP_YCLIENTS_CALLBACK === 'true';
 
-        const yclientsResponse = await fetch(
-          'https://api.yclients.com/marketplace/partner/callback/redirect',
-          {
+        if (SKIP_YCLIENTS_CALLBACK) {
+          logger.warn('⚠️ SKIP_YCLIENTS_CALLBACK=true - Skipping automatic YClients callback');
+          logger.info('📋 Manual callback data for YClients:', {
+            url: 'https://api.yclients.com/marketplace/partner/callback/redirect',
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${PARTNER_TOKEN}`,
               'Content-Type': 'application/json',
               'Accept': 'application/vnd.yclients.v2+json'
             },
-            body: JSON.stringify(callbackData)
-          }
-        );
-
-        if (!yclientsResponse.ok) {
-          const errorText = await yclientsResponse.text();
-          logger.error('❌ YClients activation failed:', {
-            status: yclientsResponse.status,
-            statusText: yclientsResponse.statusText,
-            error: errorText
+            body: callbackData
           });
-          throw new Error(`YClients activation failed: ${yclientsResponse.status} ${errorText}`);
-        }
 
-        yclientsData = await yclientsResponse.json();
-        logger.info('✅ YClients activation response:', yclientsData);
+          // Set status to pending_callback so we know manual action is needed
+          yclientsData = { skipped: true, manual_callback_required: true };
+
+        } else {
+          logger.info('📤 Sending callback to YClients:', {
+            salon_id: callbackData.salon_id,
+            application_id: callbackData.application_id,
+            webhook_url: callbackData.webhook_urls[0]
+          });
+
+          const yclientsResponse = await fetch(
+            'https://api.yclients.com/marketplace/partner/callback/redirect',
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${PARTNER_TOKEN}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/vnd.yclients.v2+json'
+              },
+              body: JSON.stringify(callbackData)
+            }
+          );
+
+          if (!yclientsResponse.ok) {
+            const errorText = await yclientsResponse.text();
+            logger.error('❌ YClients activation failed:', {
+              status: yclientsResponse.status,
+              statusText: yclientsResponse.statusText,
+              error: errorText
+            });
+            throw new Error(`YClients activation failed: ${yclientsResponse.status} ${errorText}`);
+          }
+
+          yclientsData = await yclientsResponse.json();
+          logger.info('✅ YClients activation response:', yclientsData);
+        }
 
         // 4. Update status to 'active' (inside transaction)
         await txClient.query(
