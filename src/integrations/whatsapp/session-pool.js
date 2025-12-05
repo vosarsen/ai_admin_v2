@@ -56,6 +56,7 @@ class WhatsAppSessionPool extends EventEmitter {
         this.reconnectTimers = new Map(); // companyId -> timer
         this.qrCodes = new Map(); // companyId -> qrCode
         this.pairingCodeTimeouts = new Map(); // companyId -> timeout (for cleanup)
+        this.connectedSessions = new Set(); // companyIds with actual open connection
 
         // Mutex for preventing race conditions
         this.creatingSession = new Set(); // companyIds currently being created
@@ -472,6 +473,9 @@ class WhatsAppSessionPool extends EventEmitter {
             if (connection === 'close') {
                 this.metrics.activeConnections--;
 
+                // Mark session as disconnected
+                this.connectedSessions.delete(companyId);
+
                 // Clear pairing code timeout
                 const pairingTimeout = this.pairingCodeTimeouts.get(companyId);
                 if (pairingTimeout) {
@@ -551,6 +555,9 @@ class WhatsAppSessionPool extends EventEmitter {
                 this.reconnectAttempts.set(companyId, 0);
                 this.qrCodes.delete(companyId);
                 this.qrCodes.delete(`pairing-${companyId}`);
+
+                // Mark session as actually connected (not just having credentials)
+                this.connectedSessions.add(companyId);
 
                 // Clear pairing code timeout
                 const pairingTimeout = this.pairingCodeTimeouts.get(companyId);
@@ -704,6 +711,7 @@ class WhatsAppSessionPool extends EventEmitter {
 
         // Clear all related data
         this.sessions.delete(companyId);
+        this.connectedSessions.delete(companyId);
         this.reconnectAttempts.delete(companyId);
         this.qrCodes.delete(companyId);
         this.qrCodes.delete(`pairing-${companyId}`);
@@ -951,6 +959,9 @@ class WhatsAppSessionPool extends EventEmitter {
 
     /**
      * Gets session status
+     * IMPORTANT: connected is true ONLY when connection is actually open,
+     * not just when credentials exist. This prevents premature "connected"
+     * status during pairing code flow before user enters the code.
      */
     getSessionStatus(companyId) {
         const session = this.sessions.get(companyId);
@@ -959,9 +970,13 @@ class WhatsAppSessionPool extends EventEmitter {
             return { status: 'not_initialized', connected: false };
         }
 
+        // Use connectedSessions Set to check if connection is actually open
+        // This prevents false positives when credentials have 'me' but connection isn't established
+        const isActuallyConnected = this.connectedSessions.has(companyId);
+
         return {
-            status: session.user ? 'connected' : 'disconnected',
-            connected: !!session.user,
+            status: isActuallyConnected ? 'connected' : 'disconnected',
+            connected: isActuallyConnected,
             user: session.user,
             phoneNumber: session.user?.id?.split('@')[0],
             hasQR: this.qrCodes.has(companyId),
@@ -978,7 +993,7 @@ class WhatsAppSessionPool extends EventEmitter {
         for (const [companyId, session] of this.sessions) {
             sessions.push({
                 companyId,
-                connected: !!session.user,
+                connected: this.connectedSessions.has(companyId),
                 phoneNumber: session.user?.id?.split('@')[0],
                 user: session.user
             });
