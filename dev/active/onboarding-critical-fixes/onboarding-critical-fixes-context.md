@@ -264,12 +264,151 @@ handleWhatsAppConnected();
 
 ---
 
-## NEXT SESSION: Что нужно протестировать
+---
 
-Если будет следующий тест:
+## SESSION 5 SUMMARY (2025-12-05 12:00-12:50 MSK)
 
-1. **Полный E2E с UI:** Обновить страницу онбординга после сканирования QR и проверить что она переходит на "Готово"
+### Баг найден и исправлен: Преждевременный переход на "Готово"
 
-2. **YClients callback:** Когда приложение будет в маркетплейсе, callback должен работать (сейчас возвращает 400)
+**Проблема:** При тестировании Pairing Code, UI страницы онбординга перепрыгивал на шаг 3 "Готово" сразу после получения кода, **до того как пользователь ввёл код в WhatsApp**.
 
-3. **Синхронизация данных:** После подключения должна запуститься синхронизация клиентов/услуг (сейчас ошибка `syncManager.syncAll is not a function`)
+**Причина (Root Cause):**
+- `getSessionStatus()` в `session-pool.js` возвращал `connected: !!session.user`
+- Baileys устанавливает `session.user` из `state.creds.me` при создании сокета
+- При pairing code flow, credentials сохраняют `me.id` **сразу при получении кода**, до реального подключения
+- Polling на frontend проверял `data.connected` и переходил на "Готово"
+
+**Решение:**
+Добавлен `connectedSessions` Set для отслеживания **реальных** подключений:
+
+```javascript
+// src/integrations/whatsapp/session-pool.js
+
+// Constructor:
+this.connectedSessions = new Set(); // companyIds with actual open connection
+
+// On connection open:
+if (connection === 'open') {
+    this.connectedSessions.add(companyId);
+    // ...
+}
+
+// On connection close:
+if (connection === 'close') {
+    this.connectedSessions.delete(companyId);
+    // ...
+}
+
+// getSessionStatus():
+getSessionStatus(companyId) {
+    const isActuallyConnected = this.connectedSessions.has(companyId);
+    return {
+        connected: isActuallyConnected,  // Was: !!session.user
+        // ...
+    };
+}
+```
+
+**Коммит:** `1092809` - `fix(onboarding): prevent premature 'connected' status before WhatsApp link`
+
+### Тестирование Pairing Code - В ПРОЦЕССЕ
+
+После исправления, тестировали Pairing Code flow:
+1. Очистка данных ✅
+2. OAuth подключение ✅
+3. Получение Pairing Code ✅ (код `SEPLKRND`)
+4. Ввод кода в WhatsApp - **FAILED**
+
+**Ошибка на телефоне:** "Couldn't link device. Something went wrong. Check your network connection and try again."
+
+**Анализ:**
+- `registered: false` в credentials - код не завершил регистрацию
+- VPN/Xray работает нормально
+- Baileys не использует прокси для WhatsApp соединений
+- Возможная причина: datacenter IP блокируется WhatsApp
+- **QR-код работал** в предыдущем тесте (Session 4)
+
+### Текущее состояние БД
+
+```sql
+-- whatsapp_auth:
+company_id: company_962302
+registered: false
+pairing_code: SEPLKRND
+me_id: 79686484488@s.whatsapp.net
+updated_at: 2025-12-05 12:41:56
+
+-- Credentials были очищены для следующего теста
+```
+
+---
+
+## KEY FILES CHANGED (Session 5)
+
+1. **`src/integrations/whatsapp/session-pool.js`** - Добавлен `connectedSessions` Set
+   - Строка 59: `this.connectedSessions = new Set();`
+   - Строка 557: `this.connectedSessions.add(companyId);` в connection open
+   - Строка 477: `this.connectedSessions.delete(companyId);` в connection close
+   - Строка 714: `this.connectedSessions.delete(companyId);` в removeSession
+   - Строки 973-979: `getSessionStatus()` использует `connectedSessions`
+   - Строка 996: `getActiveSessions()` использует `connectedSessions`
+
+---
+
+## COMMITS (Обновлено Session 5)
+
+| Commit | Description |
+|--------|-------------|
+| `14a222a` | Phase 1: LID phone fix |
+| `74b4ce8` | Phase 2: Company ID unification |
+| `7c7297a` | Phase 3: Redis Pub/Sub initial |
+| `187bf5e` | Phase 3: Redis auth fix |
+| `b16d00e` | Phase 4: Console.log cleanup |
+| `d245acd` | Docs: project complete |
+| `d788eaa` | Phase 5: Post-review improvements |
+| `0ee71a5` | Docs: E2E test results |
+| `a5fb7f4` | fix(onboarding): don't block on YClients activation error |
+| **`1092809`** | **fix(onboarding): prevent premature 'connected' status before WhatsApp link** |
+
+---
+
+## NEXT SESSION: Продолжение тестирования
+
+### Немедленно (при следующем запуске):
+
+1. **Попробовать QR-код вместо Pairing Code**
+   - QR работал в Session 4
+   - Pairing Code может иметь проблемы с сетью/блокировкой
+
+2. **Если QR не работает - проверить:**
+   - `pm2 status` - baileys-whatsapp-service должен быть STOPPED
+   - `pm2 logs ai-admin-api --lines 50` - ошибки при подключении
+   - VPN статус: `systemctl status xray`
+
+3. **Очистка перед тестом:**
+```bash
+ssh -i ~/.ssh/id_ed25519_ai_admin root@46.149.70.219
+cd /opt/ai-admin && psql 'postgresql://gen_user:%7DX%7CoM595A%3C7n%3F0@a84c973324fdaccfc68d929d.twc1.net:5432/default_db?sslmode=require' -c "
+DELETE FROM whatsapp_keys WHERE company_id LIKE '%962302%';
+DELETE FROM whatsapp_auth WHERE company_id LIKE '%962302%';
+DELETE FROM companies WHERE yclients_id = '962302';
+"
+```
+
+### Открытые вопросы:
+
+1. **Pairing Code vs QR:** Почему QR работает, а Pairing Code нет?
+2. **Proxy для Baileys:** Нужно ли добавить SOCKS5 proxy для Baileys?
+3. **WhatsApp blocking:** Блокирует ли WhatsApp datacenter IP?
+
+---
+
+## GIT STATUS (Session 5 End)
+
+```
+Commit: 1092809 (HEAD -> main, origin/main)
+Message: fix(onboarding): prevent premature 'connected' status before WhatsApp link
+Status: Pushed and deployed to production
+```
+
+Нет незакоммиченных изменений.

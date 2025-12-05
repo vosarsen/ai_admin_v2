@@ -406,3 +406,49 @@ redis-cli PUBLISH whatsapp:events '{"type":"connected","companyId":"company_9623
    - Появляется при автоматическом онбординге после подключения WhatsApp
    - Влияние: синхронизация не запускается автоматически
    - Решение: нужно проверить метод в marketplace-socket.js
+
+3. **Pairing Code не работает (Session 5)**
+   - Ошибка на телефоне: "Couldn't link device"
+   - Причина: возможно, WhatsApp блокирует datacenter IP
+   - QR-код работает нормально
+   - Решение: использовать QR-код или добавить proxy для Baileys
+
+---
+
+## Phase 7: Session 5 Fixes (2025-12-05) ✅ PARTIAL
+
+### 7.1 Fix Premature "Connected" Status ✅ DONE
+- [x] Найден баг: UI переходит на "Готово" до ввода кода
+- [x] Root cause: `getSessionStatus()` проверял `session.user` вместо реального соединения
+- [x] Добавлен `connectedSessions` Set в `session-pool.js`
+- [x] `connected` теперь `true` только при `connection === 'open'`
+- [x] **Коммит:** `1092809`
+- [x] **Деплой:** production
+
+### 7.2 Test Pairing Code Flow 🔄 IN PROGRESS
+- [x] Очистка данных
+- [x] OAuth подключение
+- [x] Получение Pairing Code (SEPLKRND)
+- [ ] **BLOCKED:** Ввод кода в WhatsApp - "Couldn't link device"
+- [ ] Переход на шаг "Готово"
+
+### 7.3 Fallback to QR Code ⏳ NEXT
+- [ ] Если Pairing Code не работает, тестировать с QR-кодом
+- [ ] QR работал в Session 4
+
+---
+
+## Все коммиты проекта (Обновлено Session 5)
+
+| Commit | Date | Description |
+|--------|------|-------------|
+| `14a222a` | 2025-12-04 | Phase 1: LID phone fix |
+| `74b4ce8` | 2025-12-04 | Phase 2: Company ID unification |
+| `7c7297a` | 2025-12-04 | Phase 3: Redis Pub/Sub initial |
+| `187bf5e` | 2025-12-04 | Phase 3: Redis auth fix |
+| `b16d00e` | 2025-12-04 | Phase 4: Console.log cleanup |
+| `d245acd` | 2025-12-04 | Docs: project complete |
+| `d788eaa` | 2025-12-04 | Phase 5: Post-review improvements |
+| `0ee71a5` | 2025-12-05 | Docs: E2E test results |
+| `a5fb7f4` | 2025-12-05 | fix(onboarding): don't block on YClients activation error |
+| **`1092809`** | **2025-12-05** | **fix(onboarding): prevent premature 'connected' status** |
